@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "baci-source-coverage-approval-v1",
+  "sourceSha256": "e29a37b682f465e6be73a283d456fc5a5ff04426dccbefea9dae3d24bfa39346",
+  "annualChecks": [
+    {
+      "year": 2023,
+      "rowCount": 3,
+      "exporterCount": 2,
+      "importerCount": 2,
+      "observedProductCount": 2,
+      "quantityPresentCount": 2,
+      "quantityNullCount": 1,
+      "valueTotalKusd": "33.375",
+      "quantityTotalTons": "1.625"
+    },
+    {
+      "year": 2024,
+      "rowCount": 2,
+      "exporterCount": 2,
+      "importerCount": 2,
+      "observedProductCount": 2,
+      "quantityPresentCount": 1,
+      "quantityNullCount": 1,
+      "valueTotalKusd": "15.625",
+      "quantityTotalTons": "1.750"
+    }
+  ],
+  "approvedBy": "fixture",
+  "approvedAt": "2026-01-22T00:00:00Z",
+  "rationale": "Known-safe synthetic fixture coverage.",
+  "evidenceUrl": "https://example.invalid/fixture-approval"
+}

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "baci-source-descriptor-v1",
+  "baciRelease": "V202601",
+  "sourceUrl": "https://www.cepii.fr/DATA_DOWNLOAD/baci/data/BACI_HS12_V202601.zip",
+  "archiveFilename": "BACI_HS12_V202601.zip",
+  "expectedBytes": 1267950839,
+  "expectedSha256": "2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+  "sourceUpdateDate": "2026-01-22",
+  "hsRevision": "HS12",
+  "ingestedYears": [
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "finalizedYears": [
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023
+  ],
+  "provisionalYears": [2024],
+  "scoreWindow": {
+    "start": 2019,
+    "end": 2023
+  },
+  "members": {
+    "trade": [
+      {
+        "year": 2012,
+        "path": "BACI_HS12_Y2012_V202601.csv"
+      },
+      {
+        "year": 2013,
+        "path": "BACI_HS12_Y2013_V202601.csv"
+      },
+      {
+        "year": 2014,
+        "path": "BACI_HS12_Y2014_V202601.csv"
+      },
+      {
+        "year": 2015,
+        "path": "BACI_HS12_Y2015_V202601.csv"
+      },
+      {
+        "year": 2016,
+        "path": "BACI_HS12_Y2016_V202601.csv"
+      },
+      {
+        "year": 2017,
+        "path": "BACI_HS12_Y2017_V202601.csv"
+      },
+      {
+        "year": 2018,
+        "path": "BACI_HS12_Y2018_V202601.csv"
+      },
+      {
+        "year": 2019,
+        "path": "BACI_HS12_Y2019_V202601.csv"
+      },
+      {
+        "year": 2020,
+        "path": "BACI_HS12_Y2020_V202601.csv"
+      },
+      {
+        "year": 2021,
+        "path": "BACI_HS12_Y2021_V202601.csv"
+      },
+      {
+        "year": 2022,
+        "path": "BACI_HS12_Y2022_V202601.csv"
+      },
+      {
+        "year": 2023,
+        "path": "BACI_HS12_Y2023_V202601.csv"
+      },
+      {
+        "year": 2024,
+        "path": "BACI_HS12_Y2024_V202601.csv"
+      }
+    ],
+    "products": {
+      "path": "product_codes_HS12_V202601.csv",
+      "header": "code,description"
+    },
+    "economies": {
+      "path": "country_codes_V202601.csv",
+      "header": "country_code,country_name,country_iso2,country_iso3"
+    },
+    "documentation": {
+      "path": "Readme.txt"
+    }
+  },
+  "expectedDimensions": {
+    "products": 5202,
+    "economies": 238
+  },
+  "license": {
+    "name": "Etalab Open Licence 2.0",
+    "url": "https://www.etalab.gouv.fr/wp-content/uploads/2018/11/open-licence.pdf"
+  },
+  "attribution": "Source: CEPII BACI, HS 2012, V202601 (updated 2026-01-22), Etalab Open Licence 2.0.",
+  "pinApproval": {
+    "approvedBy": "github:huangyingting",
+    "approvedAt": "2026-07-11T02:33:09Z",
+    "evidenceUrl": "https://github.com/huangyingting/HSTracker/issues/2#issuecomment-4941708897"
+  }
+}

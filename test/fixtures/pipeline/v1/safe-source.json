@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "baci-source-descriptor-v1",
+  "baciRelease": "VTEST001",
+  "sourceUrl": "https://example.invalid/BACI_HS12_VTEST001.zip",
+  "archiveFilename": "BACI_HS12_VTEST001.zip",
+  "expectedBytes": 1058,
+  "expectedSha256": "e29a37b682f465e6be73a283d456fc5a5ff04426dccbefea9dae3d24bfa39346",
+  "sourceUpdateDate": "2026-01-22",
+  "hsRevision": "HS12",
+  "ingestedYears": [2023, 2024],
+  "finalizedYears": [2023],
+  "provisionalYears": [2024],
+  "scoreWindow": {
+    "start": 2023,
+    "end": 2023
+  },
+  "members": {
+    "trade": [
+      {
+        "year": 2023,
+        "path": "BACI_HS12_Y2023_VTEST001.csv"
+      },
+      {
+        "year": 2024,
+        "path": "BACI_HS12_Y2024_VTEST001.csv"
+      }
+    ],
+    "products": {
+      "path": "product_codes_HS12_VTEST001.csv",
+      "header": "code,description"
+    },
+    "economies": {
+      "path": "country_codes_VTEST001.csv",
+      "header": "country_code,country_name,country_iso2,country_iso3"
+    },
+    "documentation": {
+      "path": "Readme.txt"
+    }
+  },
+  "expectedDimensions": {
+    "products": 2,
+    "economies": 3
+  },
+  "license": {
+    "name": "Etalab Open Licence 2.0",
+    "url": "https://www.etalab.gouv.fr/wp-content/uploads/2018/11/open-licence.pdf"
+  },
+  "attribution": "Source: synthetic BACI-shaped fixture, HS 2012, VTEST001 (updated 2026-01-22).",
+  "pinApproval": {
+    "approvedBy": "fixture",
+    "approvedAt": "2026-01-22T00:00:00Z",
+    "evidenceUrl": "https://example.invalid/fixture-approval"
+  }
+}

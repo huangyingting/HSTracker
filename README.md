@@ -29,3 +29,21 @@ npm run test:e2e
 ```
 
 End-to-end tests build and start the standalone production server.
+
+## BACI release staging
+
+Keep the raw archive and generated Parquet outside the repository. The committed
+descriptor and annual coverage approval drive the fail-closed staging command:
+
+```bash
+npm run stage:baci -- \
+  --descriptor data/releases/V202601.source.json \
+  --approval data/releases/V202601.coverage-approval.json \
+  --workspace /tmp/hs-tracker-baci/V202601-work \
+  --report reports/releases/V202601.source-report.json
+```
+
+The download resumes from workspace download storage. Pass
+`--archive /path/to/BACI_HS12_V202601.zip` to validate an existing local copy.
+Accepted runs atomically publish year-partitioned Parquet under the workspace;
+coverage drift retains a report but publishes no staging.

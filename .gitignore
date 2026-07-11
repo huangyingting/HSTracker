@@ -21,6 +21,9 @@
 
 # production
 /build
+/data/artifacts/
+/data/staging/
+/data/work/
 
 # misc
 .DS_Store

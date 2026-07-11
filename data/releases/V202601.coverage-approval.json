@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "baci-source-coverage-approval-v1",
+  "sourceSha256": "2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+  "annualChecks": [
+    {
+      "year": 2012,
+      "rowCount": 9012155,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 8750360,
+      "quantityNullCount": 261795,
+      "valueTotalKusd": "17972752433.687",
+      "quantityTotalTons": "12685182120.307"
+    },
+    {
+      "year": 2013,
+      "rowCount": 9787220,
+      "exporterCount": 227,
+      "importerCount": 227,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 9591994,
+      "quantityNullCount": 195226,
+      "valueTotalKusd": "18225849837.702",
+      "quantityTotalTons": "12987014665.493"
+    },
+    {
+      "year": 2014,
+      "rowCount": 10205742,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 9996502,
+      "quantityNullCount": 209240,
+      "valueTotalKusd": "18463083636.292",
+      "quantityTotalTons": "12684138042.992"
+    },
+    {
+      "year": 2015,
+      "rowCount": 10782381,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10480245,
+      "quantityNullCount": 302136,
+      "valueTotalKusd": "16229671660.397",
+      "quantityTotalTons": "12965506669.695"
+    },
+    {
+      "year": 2016,
+      "rowCount": 10868820,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10595775,
+      "quantityNullCount": 273045,
+      "valueTotalKusd": "15814309753.505",
+      "quantityTotalTons": "13811075896.657"
+    },
+    {
+      "year": 2017,
+      "rowCount": 11213140,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10951978,
+      "quantityNullCount": 261162,
+      "valueTotalKusd": "17521257096.803",
+      "quantityTotalTons": "14655512546.270"
+    },
+    {
+      "year": 2018,
+      "rowCount": 11370143,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11094229,
+      "quantityNullCount": 275914,
+      "valueTotalKusd": "19183248793.835",
+      "quantityTotalTons": "14424027314.577"
+    },
+    {
+      "year": 2019,
+      "rowCount": 11506556,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11223739,
+      "quantityNullCount": 282817,
+      "valueTotalKusd": "18663269491.288",
+      "quantityTotalTons": "15059226254.375"
+    },
+    {
+      "year": 2020,
+      "rowCount": 11150663,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10862655,
+      "quantityNullCount": 288008,
+      "valueTotalKusd": "17228715158.025",
+      "quantityTotalTons": "14599197765.389"
+    },
+    {
+      "year": 2021,
+      "rowCount": 11673491,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11359113,
+      "quantityNullCount": 314378,
+      "valueTotalKusd": "21575008465.236",
+      "quantityTotalTons": "14712636023.890"
+    },
+    {
+      "year": 2022,
+      "rowCount": 11677171,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5198,
+      "quantityPresentCount": 11332829,
+      "quantityNullCount": 344342,
+      "valueTotalKusd": "24261192792.824",
+      "quantityTotalTons": "14264516636.598"
+    },
+    {
+      "year": 2023,
+      "rowCount": 11755559,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11339067,
+      "quantityNullCount": 416492,
+      "valueTotalKusd": "23020022036.504",
+      "quantityTotalTons": "15444036029.289"
+    },
+    {
+      "year": 2024,
+      "rowCount": 11109411,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5198,
+      "quantityPresentCount": 10748249,
+      "quantityNullCount": 361162,
+      "valueTotalKusd": "22885405222.978",
+      "quantityTotalTons": "14748198526.504"
+    }
+  ],
+  "approvedBy": "copilot:issue-22-complete-source-validation",
+  "approvedAt": "2026-07-11T17:12:02Z",
+  "rationale": "Exact V202601 full-source coverage; the independently checked 2012, 2023, and 2024 counts reconcile and the 2024 row decline matches the documented provisional warning.",
+  "evidenceUrl": "https://github.com/huangyingting/HSTracker/issues/22"
+}

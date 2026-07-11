@@ -1,0 +1,449 @@
+{
+  "schemaVersion": "baci-source-staging-report-v1",
+  "status": "accepted",
+  "source": {
+    "baciRelease": "V202601",
+    "url": "https://www.cepii.fr/DATA_DOWNLOAD/baci/data/BACI_HS12_V202601.zip",
+    "archiveFilename": "BACI_HS12_V202601.zip",
+    "bytes": 1267950839,
+    "sha256": "2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+    "sourceUpdateDate": "2026-01-22",
+    "hsRevision": "HS12",
+    "ingestedYears": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024
+    ],
+    "finalizedYears": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023
+    ],
+    "provisionalYears": [
+      2024
+    ],
+    "scoreWindow": {
+      "start": 2019,
+      "end": 2023
+    },
+    "license": {
+      "name": "Etalab Open Licence 2.0",
+      "url": "https://www.etalab.gouv.fr/wp-content/uploads/2018/11/open-licence.pdf"
+    },
+    "attribution": "Source: CEPII BACI, HS 2012, V202601 (updated 2026-01-22), Etalab Open Licence 2.0.",
+    "pinApproval": {
+      "approvedBy": "github:huangyingting",
+      "approvedAt": "2026-07-11T02:33:09Z",
+      "evidenceUrl": "https://github.com/huangyingting/HSTracker/issues/2#issuecomment-4941708897"
+    },
+    "descriptorSha256": "221528c2a18867843307f852d098d438b1920eef38530b7b1734e5a7b71e10a6"
+  },
+  "archiveMembers": [
+    {
+      "path": "BACI_HS12_Y2012_V202601.csv",
+      "compressedBytes": 81500769,
+      "uncompressedBytes": 293857522,
+      "crc32": "b126f2c9"
+    },
+    {
+      "path": "BACI_HS12_Y2013_V202601.csv",
+      "compressedBytes": 88465447,
+      "uncompressedBytes": 319450756,
+      "crc32": "a5a13ecf"
+    },
+    {
+      "path": "BACI_HS12_Y2014_V202601.csv",
+      "compressedBytes": 92021383,
+      "uncompressedBytes": 333010311,
+      "crc32": "0d1a4075"
+    },
+    {
+      "path": "BACI_HS12_Y2015_V202601.csv",
+      "compressedBytes": 96121609,
+      "uncompressedBytes": 350812132,
+      "crc32": "febc9f41"
+    },
+    {
+      "path": "BACI_HS12_Y2016_V202601.csv",
+      "compressedBytes": 97012832,
+      "uncompressedBytes": 353627248,
+      "crc32": "df25b03e"
+    },
+    {
+      "path": "BACI_HS12_Y2017_V202601.csv",
+      "compressedBytes": 100120852,
+      "uncompressedBytes": 365014945,
+      "crc32": "4f29e1e0"
+    },
+    {
+      "path": "BACI_HS12_Y2018_V202601.csv",
+      "compressedBytes": 101581007,
+      "uncompressedBytes": 370243112,
+      "crc32": "47266d57"
+    },
+    {
+      "path": "BACI_HS12_Y2019_V202601.csv",
+      "compressedBytes": 102469005,
+      "uncompressedBytes": 374466341,
+      "crc32": "d5732467"
+    },
+    {
+      "path": "BACI_HS12_Y2020_V202601.csv",
+      "compressedBytes": 99019205,
+      "uncompressedBytes": 362730974,
+      "crc32": "07523c45"
+    },
+    {
+      "path": "BACI_HS12_Y2021_V202601.csv",
+      "compressedBytes": 103542257,
+      "uncompressedBytes": 379867578,
+      "crc32": "62ee931c"
+    },
+    {
+      "path": "BACI_HS12_Y2022_V202601.csv",
+      "compressedBytes": 103623981,
+      "uncompressedBytes": 380015664,
+      "crc32": "fece7bc5"
+    },
+    {
+      "path": "BACI_HS12_Y2023_V202601.csv",
+      "compressedBytes": 103920206,
+      "uncompressedBytes": 381982615,
+      "crc32": "7061d04f"
+    },
+    {
+      "path": "BACI_HS12_Y2024_V202601.csv",
+      "compressedBytes": 98443218,
+      "uncompressedBytes": 361446720,
+      "crc32": "65661ee8"
+    },
+    {
+      "path": "product_codes_HS12_V202601.csv",
+      "compressedBytes": 103232,
+      "uncompressedBytes": 573394,
+      "crc32": "b969d3f8"
+    },
+    {
+      "path": "country_codes_V202601.csv",
+      "compressedBytes": 3121,
+      "uncompressedBytes": 5346,
+      "crc32": "eabdd660"
+    },
+    {
+      "path": "Readme.txt",
+      "compressedBytes": 389,
+      "uncompressedBytes": 571,
+      "crc32": "22351e76"
+    }
+  ],
+  "dimensions": {
+    "products": 5202,
+    "economies": 238
+  },
+  "annualChecks": [
+    {
+      "year": 2012,
+      "rowCount": 9012155,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 8750360,
+      "quantityNullCount": 261795,
+      "valueTotalKusd": "17972752433.687",
+      "quantityTotalTons": "12685182120.307"
+    },
+    {
+      "year": 2013,
+      "rowCount": 9787220,
+      "exporterCount": 227,
+      "importerCount": 227,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 9591994,
+      "quantityNullCount": 195226,
+      "valueTotalKusd": "18225849837.702",
+      "quantityTotalTons": "12987014665.493"
+    },
+    {
+      "year": 2014,
+      "rowCount": 10205742,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 9996502,
+      "quantityNullCount": 209240,
+      "valueTotalKusd": "18463083636.292",
+      "quantityTotalTons": "12684138042.992"
+    },
+    {
+      "year": 2015,
+      "rowCount": 10782381,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10480245,
+      "quantityNullCount": 302136,
+      "valueTotalKusd": "16229671660.397",
+      "quantityTotalTons": "12965506669.695"
+    },
+    {
+      "year": 2016,
+      "rowCount": 10868820,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10595775,
+      "quantityNullCount": 273045,
+      "valueTotalKusd": "15814309753.505",
+      "quantityTotalTons": "13811075896.657"
+    },
+    {
+      "year": 2017,
+      "rowCount": 11213140,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10951978,
+      "quantityNullCount": 261162,
+      "valueTotalKusd": "17521257096.803",
+      "quantityTotalTons": "14655512546.270"
+    },
+    {
+      "year": 2018,
+      "rowCount": 11370143,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11094229,
+      "quantityNullCount": 275914,
+      "valueTotalKusd": "19183248793.835",
+      "quantityTotalTons": "14424027314.577"
+    },
+    {
+      "year": 2019,
+      "rowCount": 11506556,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11223739,
+      "quantityNullCount": 282817,
+      "valueTotalKusd": "18663269491.288",
+      "quantityTotalTons": "15059226254.375"
+    },
+    {
+      "year": 2020,
+      "rowCount": 11150663,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 10862655,
+      "quantityNullCount": 288008,
+      "valueTotalKusd": "17228715158.025",
+      "quantityTotalTons": "14599197765.389"
+    },
+    {
+      "year": 2021,
+      "rowCount": 11673491,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11359113,
+      "quantityNullCount": 314378,
+      "valueTotalKusd": "21575008465.236",
+      "quantityTotalTons": "14712636023.890"
+    },
+    {
+      "year": 2022,
+      "rowCount": 11677171,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5198,
+      "quantityPresentCount": 11332829,
+      "quantityNullCount": 344342,
+      "valueTotalKusd": "24261192792.824",
+      "quantityTotalTons": "14264516636.598"
+    },
+    {
+      "year": 2023,
+      "rowCount": 11755559,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5199,
+      "quantityPresentCount": 11339067,
+      "quantityNullCount": 416492,
+      "valueTotalKusd": "23020022036.504",
+      "quantityTotalTons": "15444036029.289"
+    },
+    {
+      "year": 2024,
+      "rowCount": 11109411,
+      "exporterCount": 226,
+      "importerCount": 226,
+      "observedProductCount": 5198,
+      "quantityPresentCount": 10748249,
+      "quantityNullCount": 361162,
+      "valueTotalKusd": "22885405222.978",
+      "quantityTotalTons": "14748198526.504"
+    }
+  ],
+  "coverageApproval": {
+    "approvedBy": "copilot:issue-22-complete-source-validation",
+    "approvedAt": "2026-07-11T17:12:02Z",
+    "rationale": "Exact V202601 full-source coverage; the independently checked 2012, 2023, and 2024 counts reconcile and the 2024 row decline matches the documented provisional warning.",
+    "evidenceUrl": "https://github.com/huangyingting/HSTracker/issues/22",
+    "sha256": "0149e07d6c0267534b58239d96addd8590095e5a8f339ac0dde97aee0eec48e6"
+  },
+  "staging": {
+    "format": "parquet",
+    "schemaVersion": "baci-parquet-staging-v1",
+    "relativePath": "staging/2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+    "manifestSha256": "7ab5cdf95ae0e3ed53a9096216ee39012822228a90644d861b85463e0a133818",
+    "partitionCount": 13,
+    "rowCount": 142112452,
+    "duckdbVersion": "v1.5.4",
+    "bytes": 1005096300,
+    "parquetSchema": [
+      {
+        "name": "year",
+        "type": "USMALLINT",
+        "nullable": false
+      },
+      {
+        "name": "exporter_code",
+        "type": "USMALLINT",
+        "nullable": false
+      },
+      {
+        "name": "importer_code",
+        "type": "USMALLINT",
+        "nullable": false
+      },
+      {
+        "name": "product_code",
+        "type": "VARCHAR",
+        "nullable": false
+      },
+      {
+        "name": "value_kusd",
+        "type": "DECIMAL(38,3)",
+        "nullable": false
+      },
+      {
+        "name": "quantity_tons",
+        "type": "DECIMAL(38,3)",
+        "nullable": true
+      }
+    ],
+    "partitions": [
+      {
+        "year": 2012,
+        "relativePath": "year=2012/trade.parquet",
+        "rowCount": 9012155,
+        "bytes": 64759652,
+        "sha256": "8d29041389c654c74e60cd45d1b303622c6b8f2a1c1e8f4bf9d4ff1259c30599"
+      },
+      {
+        "year": 2013,
+        "relativePath": "year=2013/trade.parquet",
+        "rowCount": 9787220,
+        "bytes": 70305980,
+        "sha256": "a91ee22a9debc9cedbeb6e98213fe67b3cd2f9154be58dc71148f0c72f3a7ea3"
+      },
+      {
+        "year": 2014,
+        "relativePath": "year=2014/trade.parquet",
+        "rowCount": 10205742,
+        "bytes": 73146703,
+        "sha256": "1975753594fd29c114a99a658e54293372626969b172a3d6b47a39271fa37cf4"
+      },
+      {
+        "year": 2015,
+        "relativePath": "year=2015/trade.parquet",
+        "rowCount": 10782381,
+        "bytes": 76304738,
+        "sha256": "8e6ec8944ad768e6bcc4c93905adb952da4ce0c959b2ad73e23d45ad2baf5618"
+      },
+      {
+        "year": 2016,
+        "relativePath": "year=2016/trade.parquet",
+        "rowCount": 10868820,
+        "bytes": 77028858,
+        "sha256": "abceb276feaec63df5f80ed83d1bdf1c5b7052a48c0c61d0bed3251ae4820361"
+      },
+      {
+        "year": 2017,
+        "relativePath": "year=2017/trade.parquet",
+        "rowCount": 11213140,
+        "bytes": 79502848,
+        "sha256": "2a9a24a5b52c1b976f4540f07aa4e9bdbd4748de3e946ef82ce0e95ee22bcb8c"
+      },
+      {
+        "year": 2018,
+        "relativePath": "year=2018/trade.parquet",
+        "rowCount": 11370143,
+        "bytes": 80625048,
+        "sha256": "841ad9480c298a500a03415fa33513be69de0086dbe5f181dcc214b486925c21"
+      },
+      {
+        "year": 2019,
+        "relativePath": "year=2019/trade.parquet",
+        "rowCount": 11506556,
+        "bytes": 81240991,
+        "sha256": "e6e0a7980e8ba8ad9d6ecfdf7c57e5b6d2ee37d722a649370a0cdcc6b9de0944"
+      },
+      {
+        "year": 2020,
+        "relativePath": "year=2020/trade.parquet",
+        "rowCount": 11150663,
+        "bytes": 78500953,
+        "sha256": "43498ca3153bca6c144be82c22dc2af63c5cff3f412f9575684adec20d7fc3fa"
+      },
+      {
+        "year": 2021,
+        "relativePath": "year=2021/trade.parquet",
+        "rowCount": 11673491,
+        "bytes": 81999638,
+        "sha256": "06f401e93b35e31f5530743d91d4b6e00972728ca4722cd50faf69e2e7928e77"
+      },
+      {
+        "year": 2022,
+        "relativePath": "year=2022/trade.parquet",
+        "rowCount": 11677171,
+        "bytes": 81955327,
+        "sha256": "22b6817d7545bc0384d2a2a924d1f3311c73fcbda5d92d22f451ddc17eb9e25f"
+      },
+      {
+        "year": 2023,
+        "relativePath": "year=2023/trade.parquet",
+        "rowCount": 11755559,
+        "bytes": 82057247,
+        "sha256": "d1b80416686f22c0b2369c837adef96a83e8b748adbd6bd722845cff96120d6a"
+      },
+      {
+        "year": 2024,
+        "relativePath": "year=2024/trade.parquet",
+        "rowCount": 11109411,
+        "bytes": 77668317,
+        "sha256": "02067390e537549720ad9fd36dd1f6b09d6cb7be435f55d7be264ab645f4bb4c"
+      }
+    ]
+  }
+}
