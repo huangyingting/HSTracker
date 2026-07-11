@@ -1,14 +1,11 @@
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
-import {
-  RELEASE_REVISION_NOT_COMPARED_REASONS,
-  type ReleaseRevisionNotComparedReason,
-} from "../domain/release/release-revision";
-import {
-  SOURCE_FRESHNESS_STATES,
-  type SourceFreshnessState,
-} from "../domain/release/source-freshness";
+import { RELEASE_REVISION_NOT_COMPARED_REASONS } from "../domain/release/release-revision";
+import { SOURCE_FRESHNESS_STATES } from "../domain/release/source-freshness";
 
 type DiscoveryErrorCode = "HTTP_ERROR" | "INVALID_MANIFEST";
+type ManifestSource = CurrentAnalysisManifest["source"];
+type ManifestFreshness = CurrentAnalysisManifest["freshness"];
+type ManifestRevision = CurrentAnalysisManifest["revisionComparison"];
 
 export class CurrentAnalysisDiscoveryError extends Error {
   constructor(
@@ -64,13 +61,22 @@ function isCurrentAnalysisManifest(
     !isNonemptyString(candidate.analysisBuildId) ||
     !isNonemptyString(candidate.productSearchBuildId) ||
     !isSha256(candidate.analysisReleaseCatalogSha256) ||
-    !isRecord(source) ||
-    !isRecord(freshness) ||
-    !isRecord(revision)
+    !isManifestSource(source)
   ) {
     return false;
   }
 
+  return (
+    isManifestFreshness(freshness, source.baciRelease) &&
+    isManifestRevision(revision)
+  );
+}
+
+function isManifestSource(value: unknown): value is ManifestSource {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const source = value;
   const windows = source.windows;
   const artifact = source.artifact;
   if (
@@ -94,42 +100,53 @@ function isCurrentAnalysisManifest(
     return false;
   }
 
-  if (
+  return !(
     windows.threeYear.end !== source.finalizedCutoffYear ||
     windows.score.end !== source.finalizedCutoffYear ||
     windows.tenYear.end !== source.finalizedCutoffYear ||
     source.provisionalYear !== source.finalizedCutoffYear + 1 ||
     source.ingestedYears.end < source.provisionalYear
-  ) {
+  );
+}
+
+function isManifestFreshness(
+  value: unknown,
+  servedBaciRelease: string,
+): value is ManifestFreshness {
+  if (!isRecord(value)) {
     return false;
   }
-
-  if (
+  const freshness = value;
+  return !(
     !isNonemptyString(freshness.sourceStatusSnapshotId) ||
     !isNonemptyString(freshness.freshnessStatusId) ||
     !isInstant(freshness.checkedAt) ||
     !isInstant(freshness.checkOverdueAt) ||
-    freshness.servedBaciRelease !== source.baciRelease ||
+    freshness.servedBaciRelease !== servedBaciRelease ||
     !isBaciRelease(freshness.latestKnownBaciRelease) ||
     !isNullableInstant(freshness.newerReleaseDetectedAt) ||
     !isNullableInstant(freshness.refreshDueAt) ||
-    !isFreshnessState(freshness.state) ||
+    !isOneOf(freshness.state, SOURCE_FRESHNESS_STATES) ||
     !isInstant(freshness.effectiveAt)
-  ) {
-    return false;
-  }
-
-  return (
-    isNullableBaciRelease(revision.comparisonRelease) &&
-    isNullableSha256(revision.previousArtifactSha256) &&
-    isRevisionReason(revision.notComparedReason) &&
-    hasCoherentRevisionIdentity(revision)
   );
 }
 
-function hasCoherentRevisionIdentity(
-  revision: Record<string, unknown>,
-): boolean {
+function isManifestRevision(value: unknown): value is ManifestRevision {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const revision = value;
+  if (!(
+    isNullableBaciRelease(revision.comparisonRelease) &&
+    isNullableSha256(revision.previousArtifactSha256) &&
+    (revision.notComparedReason === null ||
+      isOneOf(
+        revision.notComparedReason,
+        RELEASE_REVISION_NOT_COMPARED_REASONS,
+      ))
+  )) {
+    return false;
+  }
   const retainsPreviousIdentity =
     revision.notComparedReason === null ||
     revision.notComparedReason === "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW";
@@ -191,17 +208,9 @@ function isYearRange(value: unknown): value is {
   );
 }
 
-function isFreshnessState(value: unknown): value is SourceFreshnessState {
-  return SOURCE_FRESHNESS_STATES.some(
-    (freshnessState) => freshnessState === value,
-  );
-}
-
-function isRevisionReason(
+function isOneOf<const Values extends readonly string[]>(
   value: unknown,
-): value is ReleaseRevisionNotComparedReason | null {
-  return (
-    value === null ||
-    RELEASE_REVISION_NOT_COMPARED_REASONS.some((reason) => reason === value)
-  );
+  values: Values,
+): value is Values[number] {
+  return typeof value === "string" && values.some((member) => member === value);
 }

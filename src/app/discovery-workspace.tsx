@@ -125,6 +125,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const messages = copy[locale];
   const requestSequence = useRef(0);
   const analysisController = useRef<AbortController | null>(null);
+  const currentManifestController = useRef<AbortController | null>(null);
   const canonicalRestorePending = useRef(true);
   const analyzedInputsInHistory = useRef(false);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
@@ -167,27 +168,43 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     [],
   );
 
+  const beginCurrentManifestRequest = useCallback(
+    (revalidate = false) => {
+      currentManifestController.current?.abort();
+      const controller = new AbortController();
+      currentManifestController.current = controller;
+      const promise = loadCurrentManifest(
+        controller.signal,
+        revalidate,
+      ).finally(() => {
+        if (currentManifestController.current === controller) {
+          currentManifestController.current = null;
+        }
+      });
+      return { controller, promise };
+    },
+    [loadCurrentManifest],
+  );
+
   useEffect(() => {
-    const controller = new AbortController();
     const timeout = window.setTimeout(
-      () => void loadCurrentManifest(controller.signal, false),
+      () => void beginCurrentManifestRequest(false).promise,
       0,
     );
     return () => {
       window.clearTimeout(timeout);
-      controller.abort();
+      currentManifestController.current?.abort();
     };
-  }, [loadCurrentManifest]);
+  }, [beginCurrentManifestRequest]);
 
   const recoverRetiredAnalysis = useCallback(async () => {
     if (currentManifest === null) {
       return;
     }
     analysisController.current?.abort();
-    const controller = new AbortController();
-    analysisController.current = controller;
     setStatus("refreshing");
-    const discovered = await loadCurrentManifest(controller.signal, true);
+    const { controller, promise } = beginCurrentManifestRequest(true);
+    const discovered = await promise;
     if (controller.signal.aborted || discovered === null) {
       if (!controller.signal.aborted) {
         setStatus("stale");
@@ -206,7 +223,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     setSelectedCandidateCode(null);
     setStatus("idle");
     setControlRestorationKey((current) => current + 1);
-  }, [currentManifest, loadCurrentManifest]);
+  }, [beginCurrentManifestRequest, currentManifest]);
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
@@ -438,8 +455,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 type="button"
                 onClick={() => {
                   setCurrentManifestStatus("loading");
-                  const controller = new AbortController();
-                  void loadCurrentManifest(controller.signal);
+                  void beginCurrentManifestRequest(false).promise;
                 }}
               >
                 {messages.retryCurrent}
