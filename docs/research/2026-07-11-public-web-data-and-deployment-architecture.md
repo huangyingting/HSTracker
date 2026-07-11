@@ -21,11 +21,15 @@ A separate offline pipeline will turn one pinned BACI release into:
 5. an independently versioned product-search catalog; and
 6. a deployment manifest pairing compatible analysis and product-search builds.
 
+A separate source monitor publishes small immutable freshness-status snapshots
+and a mutable pointer. The runtime reads them with read-only credentials; they
+never alter analysis bytes.
+
 The public process serves analysis from the current artifact and uses the
-previous artifact internally for rollback and the `cms-v1` revision-impact
-check. It never mixes their rows into one score. Object storage remains the
-durable source of truth; local volume files are reconstructible serving
-copies.
+previous artifact internally for rollback and the `cms-v1` Release Revision
+comparison. Both artifacts are recomputed independently with the current score
+window; their rows are never mixed in one score. Object storage remains the
+durable source of truth; local volume files are reconstructible serving copies.
 
 | Area | MVP choice |
 |---|---|
@@ -39,6 +43,7 @@ copies.
 | Main module seam | One `CandidateMarketAnalysis.analyze(query)` interface |
 | Cache identity | Immutable analysis build + exporter + product |
 | Product discovery identity | Independent immutable product-search build |
+| Freshness identity | Independent immutable operational-status snapshot |
 | Release change | Publish exact analysis/search catalogs, then deploy their pairing manifest |
 | Initial availability trade-off | One Machine may have a short recovery/deploy outage; a second identical Machine is the HA path |
 
@@ -55,9 +60,9 @@ This decision consumes, rather than changes, the prior decisions:
   keep 2024 provisional; preserve missing rows as unknown/no recorded positive
   flow.
 - [Candidate Market Score and data confidence](./2026-07-11-candidate-market-score-and-confidence.md):
-  `cms-v1` uses the canonical 2019-2023 window, recomputes 2021-2023 and
-  2014-2023 internally for stability, and exposes complete evidence and
-  provenance.
+  `cms-v1` uses the five latest Finalized Years, recomputes 3-, 5-, and 10-year
+  windows ending at the same cutoff, and exposes complete evidence and
+  provenance. The initial windows end in 2023.
 - [Candidate Market discovery workflow](https://github.com/huangyingting/HSTracker/issues/3):
   one focused master-detail workspace with adjacent evidence, a secondary
   comparison tray, and contextual export.
@@ -65,6 +70,10 @@ This decision consumes, rather than changes, the prior decisions:
   exact BACI English source descriptions, a separately versioned Simplified
   Chinese auxiliary catalog, deterministic bilingual search, and no silent
   cross-revision conversion.
+- [Trade-data freshness and provisional-year presentation](./2026-07-11-trade-data-freshness-and-provisional-presentation.md):
+  absolute source scope, rolling finalized windows, separately labelled
+  provisional evidence, explicit refresh states, and same-window release
+  comparison.
 
 The deployment must not turn a Candidate Market into a prediction or
 recommendation. It only serves the descriptive analysis defined by `cms-v1`.
@@ -342,13 +351,15 @@ Every `CandidateMarketResult` includes:
 - observed/not-recorded bilateral state and required wording;
 - Data Confidence integer, label, and every deduction;
 - alternate-window stability, discontinuity, extreme-growth, dominant-size,
-  and revision-impact flags;
+  and typed Release Revision comparison states and deltas;
 - quantity completeness as separate evidence; and
 - the discovery-aid disclaimer.
 
 Do not include a request-time `generatedAt` in the immutable payload. The
 manifest's source/build dates provide meaningful provenance without making
-equal analyses byte-different.
+equal analyses byte-different. Operational freshness is joined from its
+separately versioned status snapshot and does not enter
+`CandidateMarketResult`.
 
 ## Public HTTP interface
 
@@ -359,21 +370,24 @@ GET /api/v1/analyses/current
 GET /api/v1/analyses/{analysisBuildId}/economies?q=
 GET /api/v1/product-catalogs/{productSearchBuildId}/products?q=&locale=&limit=
 GET /api/v1/analyses/{analysisBuildId}/candidate-markets
-GET /api/v1/analyses/{analysisBuildId}/candidate-markets.csv
+GET /api/v1/analyses/{analysisBuildId}/candidate-markets.csv?freshnessStatusId=
 GET /healthz
 ```
 
-The analysis and CSV routes accept only `exporter` and `product`. Alternate
-3-, 5-, and 10-year calculations are part of `cms-v1` evidence, not a public
-score-window selector. The immutable deployment manifest supplies the
-human-readable BACI release and score version. The current manifest also names
-the compatible product-search build. Product search is versioned independently
-because correcting an auxiliary translation or alias does not change trade
-facts or score computation.
+The analysis route accepts only `exporter` and `product`; CSV additionally
+binds the immutable public freshness-status snapshot presented at download.
+Alternate 3-, 5-, and 10-year calculations are part of `cms-v1` evidence, not a
+public score-window selector. The immutable deployment manifest supplies the
+human-readable BACI release and score version. The short-lived current response
+also names the compatible product-search build and freshness-status snapshot.
+Product search and operational freshness are versioned independently because
+neither changes trade facts or score computation.
 
 The comparison tray operates on candidates already returned by one analysis;
 it does not need a second comparison endpoint. The CSV route calls the same
-analysis module and serializer contract as the visible result.
+analysis module and serializer contract as the visible result. The client
+refreshes `current` immediately before export and binds its compatible effective
+freshness-status ID.
 
 Response behavior:
 
@@ -383,6 +397,8 @@ Response behavior:
 | Valid query, no eligible market | `200` with empty candidates and reason |
 | Malformed code or query | `400` with stable error code |
 | Well-formed economy/product absent from release | `404` |
+| Unknown freshness-status snapshot | `404` |
+| Snapshot's served release differs from analysis release | `409` with current manifest refresh |
 | Analysis build is no longer active at the origin | `410` and client refreshes `current` |
 | Artifact not loaded or incompatible | `503` |
 | Unexpected failure | `500` with opaque public message and logged correlation ID |
@@ -405,7 +421,7 @@ analysis_build_id
   + product_code
 ```
 
-This prevents a revision-impact input or implementation correction from
+This prevents a Release Revision input or implementation correction from
 silently changing bytes at an existing URL. Explicit release and score versions
 remain in the response for humans.
 
@@ -423,6 +439,25 @@ translations and aliases, normalization/ranking implementation, and response
 schema. The selected analysis identity remains `HS12` plus the six-character
 product code.
 
+An export that embeds operational state has a third identity:
+
+```text
+analysis_build_id
+  + exporter_code
+  + product_code
+  + freshness_status_id
+  + export_schema_version
+```
+
+The effective freshness-status ID is a structured content address containing
+the immutable source-snapshot ID, effective state/time, and a digest over the
+public fields: check and deadline times, served release, latest known release,
+newer-release detection time, effective time, and typed state. This lets the
+runtime reload the retained source snapshot and reproduce a deadline transition
+after restart without a write or in-memory mapping. The served release must
+match the analysis release. A changed check, deadline transition, or refresh
+result creates a new export URL; bytes at an existing URL remain immutable.
+
 ### Layers
 
 1. **In-flight coalescing:** concurrent requests for one key share one
@@ -430,12 +465,15 @@ product code.
 2. **Process LRU:** byte-bounded, not merely entry-count-bounded. Start with a
    conservative 64-128 MiB envelope and finalize it under the performance
    ticket.
-3. **HTTP shared cache:** versioned analysis and search responses are immutable
-   and may use a long shared-cache lifetime. A concrete starting policy is
+3. **HTTP shared cache:** versioned analysis, search, and status-bound export
+   responses are immutable and may use a long shared-cache lifetime. A concrete
+   starting policy is
    `public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800,
    immutable`.
-4. **Current manifest:** use a short policy such as `max-age=60,
-   s-maxage=300, stale-while-revalidate=3600`.
+4. **Current manifest:** combine deployed build identities with the latest
+   effective freshness-status snapshot and use a short policy such as
+   `max-age=60, s-maxage=300`. Never cache it past the next seven- or 14-day
+   state-transition deadline.
 5. **Health and errors:** health is `no-store`; do not long-cache failures or
    malformed queries.
 
@@ -455,6 +493,33 @@ remains valid because its URL is immutable, but an old cache miss receives
 Older artifacts remain in private object storage for reproducibility. The
 previous artifact loaded by the process is an internal comparison/rollback
 input, not a promise of a historical public query interface.
+
+## Source freshness process
+
+The source monitor is operational control-plane work, not part of a public
+request:
+
+1. Check CEPII daily in January-February and at least weekly otherwise.
+2. Publish an immutable status snapshot for every successful check, release
+   detection, validation failure, promotion, or explicit rollback.
+3. Update one small pointer only after the snapshot is durable.
+4. Treat no successful check for 14 days as `CHECK_OVERDUE`.
+5. Treat a detected release as `UPDATE_IN_PROGRESS` for at most seven days.
+6. Publish `REFRESH_DELAYED` immediately after a validation/promotion failure or
+   after the seven-day target.
+
+The runtime reads the pointer and named snapshot with read-only object-storage
+credentials. If refresh fails, the existing deployment manifest and complete
+artifact keep serving. If status retrieval fails, a cached snapshot may be used
+to derive the deadline transition. The deployment manifest includes the last
+known snapshot as a startup fallback. State evaluation accepts an explicit UTC
+`asOf` instant; at `checked_at + 14 days` or `detected_at + 7 days`, it derives a
+stable effective snapshot using that deadline as `effective_at`, not request
+time. The application must not silently continue to claim `LATEST_KNOWN`.
+
+Readiness remains successful while a valid accepted artifact is serving, with a
+degraded freshness field for operators. An unreadable or incompatible active
+artifact remains a `503` availability failure.
 
 ## DuckDB process model
 
@@ -534,6 +599,9 @@ hs_revision
 ingested_years
 finalized_years
 provisional_years
+finalized_cutoff_year
+score_window_start
+score_window_end
 annual_source_checks
 pipeline_git_sha
 duckdb_version
@@ -589,9 +657,10 @@ verify the same immutable object.
 - Run as a non-root user.
 - The container image contains application code only, not BACI or DuckDB
   artifacts.
-- Use the loaded deployment manifest for `/api/v1/analyses/current`; do not
-  expose the private object-storage URL or credentials. Return both the
-  analysis-build and compatible product-search-build identities.
+- Use the loaded deployment manifest plus the current public freshness snapshot
+  for `/api/v1/analyses/current`; do not expose private object-storage URLs,
+  credentials, or pipeline errors. Return analysis-build, compatible
+  product-search-build, and freshness-status identities.
 
 Next.js documents Node servers and Docker containers as supporting all
 framework features. Its self-hosting guide recommends a reverse proxy for
@@ -651,9 +720,11 @@ Moving to PostgreSQL or ClickHouse is not the first scale step.
 - Current and previous artifacts are loaded as indivisible releases; rows from
   different releases are never joined into one score.
 - The only cross-release operation is a comparison of two complete,
-  independently computed analyses for the revision-impact flag.
+  independently computed analyses using the same current score window and
+  `cms-v1` implementation.
 - Health reports loaded release/build/schema identity and connectivity without
-  exposing credentials or filesystem paths.
+  exposing credentials or filesystem paths. It reports freshness degradation
+  separately from serving readiness.
 - Logs include correlation ID, release, score version, normalized query key,
   duration, cache state, rows scanned/returned where available, and typed error.
 - The CSV serializer is centralized, quotes fields, and neutralizes
@@ -677,6 +748,7 @@ flowchart LR
     T --> U[Immutable product-search catalog]
     H --> V[Deployment manifest:\nanalysis + search IDs]
     U --> V
+    W[Scheduled source monitor] --> X[Immutable freshness snapshot\n+ mutable pointer]
   end
 
   subgraph Runtime["Self-hosted Next.js Node process"]
@@ -693,6 +765,7 @@ flowchart LR
 
   V -. exact IDs + checksums .-> I
   U -. verified search catalog .-> S
+  X -. public status snapshot .-> N
   R[Browser / explicit CDN] --> N
 ```
 
@@ -706,6 +779,8 @@ data/
     artifact-v1.sql
 
 scripts/
+  freshness/
+    check-source.ts
   release/
     download.ts
     validate.ts
@@ -734,6 +809,7 @@ src/
   web/
     analysis-cache.ts
     csv.ts
+    source-freshness.ts
   app/
     page.tsx
     api/v1/...
@@ -752,7 +828,6 @@ their existing Wayfinder tickets:
 - artifact bytes, table counts, maximum product slice, and build duration;
 - cold/warm latency, concurrent throughput, pool size, DuckDB threads and
   memory, LRU bytes, queue length, and recovery target;
-- provisional-year and current-release presentation;
 - score explanation presentation;
 - exact CSV contract and formula-safety trade-off; and
 - golden acceptance fixtures.
@@ -772,6 +847,7 @@ Do not replace those decisions with hidden implementation defaults.
 | Missing data becomes zero in SQL | Sparse market rows and tagged bilateral states at the evidence seam |
 | Score logic diverges between UI/export/pipeline | One analysis module and fixture adapter; all callers use its result |
 | Release changes while requests are live | Deploy exact immutable catalog; process restart/replica cutover, never in-place DB mutation |
+| Freshness monitor fails while old data serves | Absolute source scope plus expiring status snapshot; show check-overdue rather than claiming current |
 | Public endpoint is scraped as bulk data | Fixed one-query shape, bounded queue/rate controls, no bulk endpoint, private artifact |
 
 ## Primary sources

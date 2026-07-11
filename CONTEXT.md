@@ -20,6 +20,26 @@ _Avoid_: Opportunity score, success probability, AI recommendation
 A six-digit product category under an explicitly named Harmonized System revision. Its identity is the revision and code; source descriptions, auxiliary translations, and search aliases help discovery but do not change that identity.
 _Avoid_: Unversioned HS code, SKU, brand, model, free-text product
 
+**BACI Release**:
+One indivisible dated version of CEPII BACI used by an analysis. Earlier annual evidence may differ between BACI Releases, so releases are never mixed in one Candidate Market Score.
+_Avoid_: Live data, calendar-year dataset, mixed release
+
+**Finalized Year**:
+A year eligible for scoring in a specific BACI Release because it precedes that release's newest year. Finalized describes scoring treatment, not permanent immutability; a later BACI Release may revise it.
+_Avoid_: Final forever, unrevisable year, current year
+
+**Provisional Year**:
+The newest year in a BACI Release, retained as separately labelled supporting evidence because it may be incomplete or materially revised. It never affects score, rank, or Data Confidence.
+_Avoid_: Latest score year, current data, preliminary score
+
+**Release Revision**:
+A difference in same-period BACI evidence between two BACI Releases. It is distinct from change over time within one release.
+_Avoid_: Historical growth, year-over-year trend
+
+**Source Freshness Status**:
+The checked relationship between the BACI Release currently served and the latest release known to HS Tracker. It does not describe the age, completeness, or immutability of an individual trade year.
+_Avoid_: Live status, real-time data, data age
+
 **Candidate Market Context**:
 The source release, analysis build, selected export economy, HS product identity, and one Candidate Market that together identify the scope for adjacent evidence. It identifies an analytical context, not a buyer-supplier relationship.
 _Avoid_: Trade lane customer, company market, buyer market

@@ -14,7 +14,7 @@ analytical nomenclature.
 | Dataset | CEPII BACI, pinned to one dated release |
 | Initial release | `BACI_HS12_V202601.zip` |
 | Canonical product identity | HS 2012 6-digit code |
-| Scoring data | 2012-2023 from `V202601` |
+| Finalized evidence | 2012-2023 from `V202601`; `cms-v1` initially scores 2019-2023 |
 | Provisional evidence | Show 2024 separately with a provisional warning; do not let it affect the default rank |
 | Values | Reconciled FOB-equivalent trade value, thousands of current USD |
 | Quantities | Metric tons; nullable and partly derived through unit conversion and mirror reconciliation |
@@ -84,11 +84,18 @@ Sources:
 For `V202601`:
 
 1. Ingest the complete HS12 archive, 2012-2024.
-2. Make 2012-2023 the eligible period for ranking and trend calculations.
+2. Treat 2012-2023 as Finalized Years available to quality and stability checks;
+   the primary rank uses the five-year `cms-v1` window.
 3. Permit 2024 in supporting evidence only, visibly marked provisional and
    excluded from the default Candidate Market Score.
 4. On later annual releases, apply the same rule: the newest year remains
    provisional until a later BACI release has revised it.
+
+`cms-v1` uses the five latest Finalized Years, so an accepted annual release
+rolls the score cutoff and all stability windows forward by one year. For
+`V202601`, the five-year window is 2019-2023. The
+[freshness presentation decision](./2026-07-11-trade-data-freshness-and-provisional-presentation.md)
+defines the general rolling rule and how each period is communicated.
 
 CEPII says the newest BACI year can be incomplete because its Comtrade source
 is downloaded in January, and that its values and quantities may be
@@ -102,8 +109,7 @@ Sources:
 - [BACI FAQ, questions 1, 3, and 4](https://www.cepii.fr/DATA_DOWNLOAD/baci/doc/baci_webpage.html)
 - [January 2026 BACI release notes](https://www.cepii.fr/DATA_DOWNLOAD/baci/doc/release_notes_202601.pdf)
 
-The score ticket may choose shorter lookbacks within 2012-2023, but it must
-not add 2024 to the default rank for this release.
+The score never adds 2024 to the default rank for this release.
 
 ## Economy and product scope
 

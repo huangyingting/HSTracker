@@ -22,8 +22,9 @@ components receive the neutral midpoint, never a silently redistributed
 weight. Data Confidence is a separate rule-based rating; it never changes the
 score or rank.
 
-Only BACI `v` values from finalized 2019-2023 observations enter `cms-v1`.
-Quantity `q` and provisional 2024 observations are supporting evidence only.
+Only BACI `v` values from the five latest Finalized Years enter the primary
+`cms-v1` score. For `V202601`, that window is 2019-2023. Quantity `q` and the
+newest Provisional Year are supporting evidence only.
 
 ## Design rationale
 
@@ -50,7 +51,8 @@ especially pp. 1-5.
 ## Inputs and notation
 
 For selected export economy `e`, HS12 product `k`, candidate import economy
-`j`, and finalized score window `W = {2019, 2020, 2021, 2022, 2023}`:
+`j`, finalized cutoff `C`, and five-year primary score window
+`W5 = {C-4, ..., C}`:
 
 ```text
 M[j,t] = sum(v[t,i,j,k]) for every recorded supplier i
@@ -72,7 +74,7 @@ An economy is eligible for the ranked Candidate Market cohort when:
 2. its BACI country metadata identifies an individual economy or separately
    reported territory, rather than a regional/customs aggregate;
 3. at least one positive world-import flow for the selected product is
-   recorded into it during 2019-2023.
+   recorded into it during `W5`.
 
 Code 490 remains eligible as `Other Asia, n.e.s. (Taiwan proxy)`, with the
 identity caveat and confidence deduction defined below.
@@ -88,7 +90,7 @@ If no candidate is eligible, return an honest empty state rather than a score.
 ### Market Size - 30 points
 
 ```text
-Size[j] = mean(M[j,t]) over observed t in W
+Size[j] = mean(M[j,t]) over observed t in W5
 ```
 
 - Unit: thousands of current USD; display in an appropriately rounded USD
@@ -133,7 +135,7 @@ Source:
 
 ```text
 Foothold[j] =
-    sum(B[j,t]) over observed market years in W
+    sum(B[j,t]) over observed market years in W5
     / sum(M[j,t]) over the same years
 ```
 
@@ -279,14 +281,14 @@ sparse-evidence cap:
 
 | Reason | Trigger | Deduction |
 |---|---|---:|
-| Missing score-window years | Each of 2019-2023 with no observed `M[j,t]` | 10 each, maximum 40 |
-| Stale finalized evidence | 2023 is missing | 15 |
+| Missing score-window years | Each year in `W5` with no observed `M[j,t]` | 10 each, maximum 40 |
+| Missing cutoff-year evidence | Finalized cutoff `C` is missing | 15 |
 | Small base | `Size[j] < USD 500,000` | 15 |
 | Unknown alternative-supplier structure | Supplier Diversity is neutral | 10 |
 | Possible product-series discontinuity | Product check below is flagged | 15 |
 | Low window stability | Either eligible rolling-window comparison has Spearman rho below 0.70 | 10 |
 | Small candidate cohort | Eligible cohort has fewer than 10 markets | 10 |
-| No exporter/product history | Selected exporter has no recorded exports of the product to any market in 2019-2023 | 10 |
+| No exporter/product history | Selected exporter has no recorded exports of the product to any market in `W5` | 10 |
 | Identity proxy | Candidate code is 490 | 10 |
 
 If a candidate has at most two observed score-window years, cap confidence at
@@ -315,7 +317,8 @@ Quantity completeness remains a separate evidence-panel field.
 
 ### Possible product-series discontinuity
 
-For world imports of product `k` over the full finalized period 2012-2023:
+For world imports of product `k` over the full finalized period from the HS12
+series start through cutoff `C`:
 
 ```text
 G[t] = sum(v[t,i,j,k]) over every recorded exporter and importer
@@ -334,9 +337,11 @@ flagged year.
 
 Recompute the complete score using:
 
-- 2021-2023 (3 years);
-- 2019-2023 (primary 5 years);
-- 2014-2023 (10 years).
+- `W3 = {C-2, ..., C}` (3 years);
+- `W5 = {C-4, ..., C}` (primary 5 years);
+- `W10 = {C-9, ..., C}` (10 years).
+
+For `V202601`, these are 2021-2023, 2019-2023, and 2014-2023.
 
 For alternate windows:
 
@@ -357,21 +362,33 @@ stability deduction beyond the small-cohort rule.
 - `Dominant size outlier`: the largest candidate represents more than 50% of
   summed candidate Market Size.
 - `Extreme nominal growth`: absolute computed annual Growth exceeds 75%.
-- `Revision impact`: on a later BACI release, rerun the same query and flag a
-  market when its score changes by at least 10 points or its rank percentile
-  changes by at least 15 points.
-- Provisional 2024 data never enters a score or stability calculation.
+- `Release Revision impact`: on a later BACI release, recompute both the current
+  and previous artifacts with the current `cms-v1` implementation and current
+  `W5`. Flag a common market when its score changes by at least 10 points or its
+  rank percentile changes by at least 15 points. Classify cohort entries and
+  exits separately rather than inventing deltas. If either artifact does not
+  contain every year in current `W5`, report `NOT_COMPARED`; never shorten the
+  comparison window.
+- The newest Provisional Year never enters a published score, rank, stability,
+  or Data Confidence calculation.
 
 These flags explain evidence; they do not mutate the score.
 
 ## Calculation sequence
 
 ```text
-computeCmsV1(exporter e, product k, release):
+computePublishedCmsV1(exporter e, product k, release):
   assert release.hsRevision == "HS12"
-  assert release.finalizedYears includes 2019..2023
+  C = max(release.finalizedYears)
+  W5 = C-4..C
+  assert release.finalizedYears includes every year in W5
+  return computeCmsV1ForWindow(e, k, release, W5)
 
-  candidates = eligible importers with >=1 observed market year in 2019..2023
+computeCmsV1ForWindow(exporter e, product k, release, W5):
+  assert release.hsRevision == "HS12"
+  assert release.ingestedYears includes every year in W5
+
+  candidates = eligible importers with >=1 observed market year in W5
   if candidates is empty:
     return empty analysis
 
@@ -408,6 +425,13 @@ computeCmsV1(exporter e, product k, release):
   assign shared competition ranks to equal public scores
   order ties by BACI numeric economy code
 ```
+
+`computeCmsV1ForWindow` is an internal seam used for the three stability
+windows and same-window Release Revision comparison. Only
+`computePublishedCmsV1` may produce the public primary result. A previous
+artifact's then-provisional year may enter an internal revision recomputation
+when it belongs to the current `W5`; that result is comparison evidence, not a
+retroactively published score.
 
 ## Worked miniature example
 
@@ -481,7 +505,7 @@ Prohibited language:
 
 ```text
 score_version = cms-v1
-score_window = 2019..2023
+score_window_rule = five years ending at latest finalized cutoff
 weights = {size: 30, growth: 25, foothold: 25, diversity: 20}
 growth_min_observed_years = 3
 growth_min_mean_import_usd = 500000
@@ -495,8 +519,10 @@ revision_rank_percentile_change = 15
 ```
 
 These are best-guess product parameters, not universal statistical truths.
-Changing any score formula, weight, threshold, or normalization rule requires
-a new score version; it must never silently alter `cms-v1`.
+Rolling all score windows forward under the rule above changes the analysis
+build but not the formula version. Changing any score formula, weight, threshold,
+normalization rule, or window rule requires a new score version; it must never
+silently alter `cms-v1`.
 
 ## Primary sources
 
