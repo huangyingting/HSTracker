@@ -1,19 +1,16 @@
 import type { ProductTranslationRecord } from "../../../../../src/catalog/product-catalog";
 
-const capTranslations: readonly ProductTranslationRecord[] = Array.from(
-  { length: 21 },
-  (_, index) => {
-    const suffix = String(index + 1).padStart(2, "0");
-    return {
-      hsRevision: "HS12",
-      code: `9000${suffix}`,
-      locale: "zh-Hans",
-      description: `目录上限测试产品${suffix}`,
-      translationStatus: "reviewed",
-      translationVersion: "acceptance-zh-hans-v1",
-    };
-  },
-);
+import { ACCEPTANCE_CAP_PRODUCT_CODES } from "./cap-codes";
+
+const capTranslations: readonly ProductTranslationRecord[] =
+  ACCEPTANCE_CAP_PRODUCT_CODES.map((code) => ({
+    hsRevision: "HS12",
+    code,
+    locale: "zh-Hans",
+    description: `目录上限测试产品${code.slice(-2)}`,
+    translationStatus: "reviewed",
+    translationVersion: "acceptance-zh-hans-v1",
+  }));
 
 export const ACCEPTANCE_PRODUCT_TRANSLATIONS: readonly ProductTranslationRecord[] =
   [

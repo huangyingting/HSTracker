@@ -31,7 +31,7 @@ type RankedMatch = ProductSearchResult["matches"][number] & {
 type IndexedField = {
   text: string;
   field: ProductSearchMatchedField;
-  kind: "description" | "alias";
+  kind: "code" | "description" | "alias";
   locale: ProductSearchLocale;
 };
 
@@ -49,15 +49,19 @@ export function searchProductIndex(
   const normalizedQuery = unsupportedRevision
     ? normalizedInput
     : removeAcceptedHs12Scope(normalizedInput);
-  const shortQuery = isSuppressedShortQuery(normalizedQuery);
+  const querySuppressed = isSuppressedShortQuery(normalizedQuery);
   const allMatches =
-    shortQuery || unsupportedRevision
+    querySuppressed || unsupportedRevision
       ? []
       : products
           .flatMap((product) => {
             const match = matchProduct(
               product,
-              aliases.filter((alias) => alias.code === product.code),
+              aliases.filter(
+                (alias) =>
+                  alias.hsRevision === product.hsRevision &&
+                  alias.code === product.code,
+              ),
               normalizedQuery,
               query.locale,
             );
@@ -77,14 +81,14 @@ export function searchProductIndex(
     },
     state: unsupportedRevision
       ? "UNSUPPORTED_HS_REVISION"
-      : shortQuery
+      : querySuppressed
         ? "SUPPRESSED_SHORT_QUERY"
         : allMatches.length === 0
           ? "NO_MATCH"
           : "RESULTS",
     messageCode: unsupportedRevision
       ? "UNSUPPORTED_HS_REVISION"
-      : shortQuery
+      : querySuppressed
         ? "QUERY_TOO_SHORT"
         : allMatches.length === 0
           ? "NO_HS12_PRODUCT_MATCH"
@@ -152,12 +156,14 @@ function matchCode(
     return rankedMatch(
       product,
       "EXACT_CODE",
-      "CODE",
-      product.code,
+      {
+        text: product.code,
+        field: "CODE",
+        kind: "code",
+        locale: "en",
+      },
       normalizedQuery,
       "en",
-      "en",
-      "description",
       0,
     );
   }
@@ -165,12 +171,14 @@ function matchCode(
     return rankedMatch(
       product,
       "CODE_PREFIX",
-      "CODE",
-      product.code,
+      {
+        text: product.code,
+        field: "CODE",
+        kind: "code",
+        locale: "en",
+      },
       normalizedQuery,
       "en",
-      "en",
-      "description",
       0,
     );
   }
@@ -209,12 +217,9 @@ function matchField(
     : rankedMatch(
         product,
         matchClass,
-        field.field,
-        field.text,
+        field,
         normalizedQuery,
-        field.locale,
         locale,
-        field.kind,
         editedCharacters,
       );
 }
@@ -222,22 +227,21 @@ function matchField(
 function rankedMatch(
   product: ProductSearchProduct,
   matchClass: ProductSearchMatchClass,
-  field: ProductSearchMatchedField,
-  matchedText: string,
+  indexedField: IndexedField,
   normalizedQuery: string,
-  fieldLocale: ProductSearchLocale,
   locale: ProductSearchLocale,
-  fieldKind: IndexedField["kind"],
   editedCharacters: number,
 ): RankedMatch {
   const normalizedText =
-    field === "CODE" ? matchedText : normalizeSearchText(matchedText);
+    indexedField.kind === "code"
+      ? indexedField.text
+      : normalizeSearchText(indexedField.text);
   return {
     product,
     match: {
       class: matchClass,
-      field,
-      matchedText,
+      field: indexedField.field,
+      matchedText: indexedField.text,
     },
     classOrder: MATCH_CLASS_ORDER[matchClass],
     unmatchedCharacters: Math.max(
@@ -245,8 +249,9 @@ function rankedMatch(
       [...normalizedText].length - [...normalizedQuery].length,
     ),
     editedCharacters,
-    localePenalty: field === "CODE" || fieldLocale === locale ? 0 : 1,
-    fieldKindPenalty: fieldKind === "description" ? 0 : 1,
+    localePenalty:
+      indexedField.kind === "code" || indexedField.locale === locale ? 0 : 1,
+    fieldKindPenalty: indexedField.kind === "alias" ? 1 : 0,
   };
 }
 

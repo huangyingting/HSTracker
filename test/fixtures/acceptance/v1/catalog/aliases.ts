@@ -1,15 +1,15 @@
 import type { ProductAliasRecord } from "../../../../../src/catalog/product-catalog";
 
-const capAliases: readonly ProductAliasRecord[] = Array.from(
-  { length: 21 },
-  (_, index) => ({
+import { ACCEPTANCE_CAP_PRODUCT_CODES } from "./cap-codes";
+
+const capAliases: readonly ProductAliasRecord[] =
+  ACCEPTANCE_CAP_PRODUCT_CODES.map((code) => ({
     hsRevision: "HS12",
-    code: `9000${String(index + 1).padStart(2, "0")}`,
+    code,
     locale: "en",
     alias: "catalog cap",
     reviewStatus: "reviewed",
-  }),
-);
+  }));
 
 export const ACCEPTANCE_PRODUCT_ALIASES: readonly ProductAliasRecord[] = [
   {

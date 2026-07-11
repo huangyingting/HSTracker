@@ -1,16 +1,13 @@
 import type { ProductCatalogRecord } from "../../../../../src/catalog/product-catalog";
 
-const capProducts: readonly ProductCatalogRecord[] = Array.from(
-  { length: 21 },
-  (_, index) => {
-    const suffix = String(index + 1).padStart(2, "0");
-    return {
-      hsRevision: "HS12",
-      code: `9000${suffix}`,
-      sourceDescriptionEn: `Fixture catalog cap product ${suffix}`,
-    };
-  },
-);
+import { ACCEPTANCE_CAP_PRODUCT_CODES } from "./cap-codes";
+
+const capProducts: readonly ProductCatalogRecord[] =
+  ACCEPTANCE_CAP_PRODUCT_CODES.map((code) => ({
+    hsRevision: "HS12",
+    code,
+    sourceDescriptionEn: `Fixture catalog cap product ${code.slice(-2)}`,
+  }));
 
 export const ACCEPTANCE_PRODUCT_RECORDS: readonly ProductCatalogRecord[] = [
   {

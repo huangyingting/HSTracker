@@ -7,7 +7,7 @@ import {
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   fixtureContentSha256:
-    "e4747a35ad740eaa5146a23865e0a36bfe63ad16e8e693ffeb6dbfb1edbaa303",
+    "988a6d35e300c5f12f900eaf9bbb43004edb2e60c1d5334afa25c22162c40176",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
@@ -30,19 +30,24 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
         "c7389b8b119535b0fbd023088aaab19fd924692586799ecb6ee081bda6d39f83",
     },
     {
+      path: "catalog/cap-codes.ts",
+      sha256:
+        "3d49036c5c44248b5871a166b0d7c246b679fde3327e6ba664bdf47187ea070b",
+    },
+    {
       path: "catalog/products.ts",
       sha256:
-        "71e8903002bf177f9dbb524f39f6b933ccd8e662ace032c3d15c87b272705d2c",
+        "bae0d86fa9d2ac4693766ad42d06ef826f5d96cd2d74cc031910d3af77259fe8",
     },
     {
       path: "catalog/translations.ts",
       sha256:
-        "3e57a9116ffc0eec7a20e15bd5ac46687d5aac5223555052675d53f499e11213",
+        "37ed1f5e8cd037e8f6b34027a4b2acec53d40ec840042f33ba981c547a8d2ad9",
     },
     {
       path: "catalog/aliases.ts",
       sha256:
-        "b4eb2d14791302a778a062ead5979f37675f4b5270c63cd207f73eb25fa91da2",
+        "6022c4d1ccc2977ce2a875ac52744487ec150d6117429d5539aafa26602fb428",
     },
     {
       path: "catalog/traditional-to-simplified.ts",
@@ -72,7 +77,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/product-search-cases.ts",
       sha256:
-        "7575f14e6629399615871788849c568d34d6143a4f4b8a2fd7374c4f0a0750a4",
+        "69dd32e2944ba44784c9f8eff3035a2fec2783bd7af0be8bee6dd2a1e9e74767",
     },
   ],
   expectedFiles: [
@@ -89,7 +94,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/product-search-cases.ts",
       sha256:
-        "7575f14e6629399615871788849c568d34d6143a4f4b8a2fd7374c4f0a0750a4",
+        "69dd32e2944ba44784c9f8eff3035a2fec2783bd7af0be8bee6dd2a1e9e74767",
     },
   ],
   fixtureIds: [

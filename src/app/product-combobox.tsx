@@ -53,7 +53,11 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
   const messages = copy[locale];
   const listboxId = useId();
   const requestSequence = useRef(0);
+  const userInteracted = useRef(false);
+  const initialLocale = useRef(locale);
   const [inputValue, setInputValue] = useState("");
+  const [searchLocale, setSearchLocale] =
+    useState<ProductSearchLocale>(locale);
   const [matches, setMatches] = useState<readonly SearchMatch[]>([]);
   const [selectedProduct, setSelectedProduct] =
     useState<ProductSearchProduct | null>(null);
@@ -64,6 +68,58 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
   >("idle");
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    const revision = url.searchParams.get("revision");
+    const productCode = url.searchParams.get("product");
+    if (
+      revision !== "HS12" ||
+      productCode === null ||
+      !/^\d{6}$/u.test(productCode)
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const parameters = new URLSearchParams({
+          q: productCode,
+          locale: initialLocale.current,
+          limit: "20",
+        });
+        const response = await fetch(
+          `/api/v1/product-catalogs/${PRODUCT_SEARCH_BUILD_ID}/products?${parameters}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) {
+          throw new Error(`Product restoration returned ${response.status}.`);
+        }
+        const result = (await response.json()) as ProductSearchResult;
+        const restoredProduct = result.matches.find(
+          ({ product, match }) =>
+            product.code === productCode && match.class === "EXACT_CODE",
+        )?.product;
+        if (!userInteracted.current && restoredProduct !== undefined) {
+          setSelectedProduct(restoredProduct);
+          setStatus("idle");
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Canonical product restoration failed", error);
+        if (!userInteracted.current) {
+          setStatus("failed");
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
     if (selectedProduct !== null) {
       return;
     }
@@ -76,15 +132,13 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
       return;
     }
 
-    const sequence = requestSequence.current + 1;
-    requestSequence.current = sequence;
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       setStatus("loading");
       try {
         const parameters = new URLSearchParams({
           q: inputValue,
-          locale,
+          locale: searchLocale,
           limit: "20",
         });
         const response = await fetch(
@@ -133,9 +187,10 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [inputValue, locale, selectedProduct]);
+  }, [inputValue, searchLocale, selectedProduct]);
 
   function selectProduct(product: ProductSearchProduct) {
+    userInteracted.current = true;
     setSelectedProduct(product);
     setMatches([]);
     setActiveIndex(-1);
@@ -143,10 +198,8 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
     setStatus("idle");
 
     const url = new URL(window.location.href);
-    url.search = new URLSearchParams({
-      revision: "HS12",
-      product: product.code,
-    }).toString();
+    url.searchParams.set("revision", "HS12");
+    url.searchParams.set("product", product.code);
     window.history.replaceState(null, "", url);
   }
 
@@ -219,9 +272,11 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
             }
             aria-describedby="product-search-help product-search-status"
             onChange={(event) => {
+              userInteracted.current = true;
               const nextValue = event.target.value;
               clearSelectedIdentity();
               setInputValue(nextValue);
+              setSearchLocale(locale);
               setMatches([]);
               setActiveIndex(-1);
               setOpen(false);
@@ -239,12 +294,28 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
                 setOpen(true);
               }
             }}
+            onBlur={() => {
+              setOpen(false);
+              setActiveIndex(-1);
+            }}
             onKeyDown={handleKeyDown}
           />
         </div>
         <p id="product-search-help" className="product-help">
           {messages.help}
         </p>
+        {selectedProduct === null ? null : (
+          <div
+            className="product-selection"
+            aria-label={messages.selected}
+          >
+            <strong>HS 2012 · {selectedProduct.code}</strong>
+            <span>{productDescription(selectedProduct, locale)}</span>
+            <small>
+              {adjacentProductDescription(selectedProduct, locale)}
+            </small>
+          </div>
+        )}
         {open ? (
           <ul
             id={listboxId}
@@ -261,8 +332,13 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectProduct(product)}
               >
-                <strong>{product.code}</strong>
-                <span>{productDescription(product, locale)}</span>
+                <strong>HS 2012 · {product.code}</strong>
+                <span className="product-primary-description">
+                  {productDescription(product, locale)}
+                </span>
+                <span className="product-adjacent-description">
+                  {adjacentProductDescription(product, locale)}
+                </span>
                 <small>
                   {messages.match}: {match.matchedText}
                 </small>
@@ -287,7 +363,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
                     ? messages.failed
                     : selectedProduct === null
                       ? ""
-                      : `${messages.selected}: ${selectedProduct.code}`}
+                      : `${messages.selected}: HS 2012 · ${selectedProduct.code}`}
         </p>
       </div>
     </section>
@@ -307,7 +383,16 @@ function productLabel(
   product: ProductSearchProduct,
   locale: ProductSearchLocale,
 ): string {
-  return `${product.code} — ${productDescription(product, locale)}`;
+  return `HS 2012 · ${product.code} — ${productDescription(product, locale)}`;
+}
+
+function adjacentProductDescription(
+  product: ProductSearchProduct,
+  locale: ProductSearchLocale,
+): string {
+  return locale === "en"
+    ? product.auxiliaryDescriptionZhHans
+    : product.sourceDescriptionEn;
 }
 
 function isSuppressedShortInput(value: string): boolean {

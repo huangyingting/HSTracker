@@ -19,6 +19,11 @@ test("an analyst explicitly selects a product with the keyboard", async ({
 
   const options = page.getByRole("option");
   await expect(options).toHaveCount(2);
+  await expect(options.first()).toContainText("HS 2012 · 010121");
+  await expect(options.first()).toContainText(
+    "Horses: live, pure-bred breeding animals",
+  );
+  await expect(options.first()).toContainText("纯种繁殖用活马");
   await expect(combobox).toHaveAttribute("aria-expanded", "true");
   await expect(page).toHaveURL("/");
 
@@ -35,11 +40,17 @@ test("an analyst explicitly selects a product with the keyboard", async ({
   await combobox.press("Enter");
 
   await expect(combobox).toHaveValue(
-    "010121 — Horses: live, pure-bred breeding animals",
+    "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
   );
   await expect(combobox).toBeFocused();
   await expect(combobox).toHaveAttribute("aria-expanded", "false");
   await expect(page).toHaveURL("/?revision=HS12&product=010121");
+  const selection = page.getByLabel("Selected product");
+  await expect(selection).toContainText("HS 2012 · 010121");
+  await expect(selection).toContainText(
+    "Horses: live, pure-bred breeding animals",
+  );
+  await expect(selection).toContainText("纯种繁殖用活马");
 });
 
 test("locale changes relabel but never replace an explicit selection", async ({
@@ -59,26 +70,51 @@ test("locale changes relabel but never replace an explicit selection", async ({
   const chineseCombobox = page.getByRole("combobox", {
     name: "HS 2012 产品",
   });
-  await expect(chineseCombobox).toHaveValue("010121 — 纯种繁殖用活马");
+  await expect(chineseCombobox).toHaveValue(
+    "HS 2012 · 010121 — 纯种繁殖用活马",
+  );
   await expect(chineseCombobox).toHaveAttribute("aria-expanded", "false");
   await expect(page).toHaveURL(selectedUrl);
+});
+
+test("a canonical product URL restores the same HS Product identity", async ({
+  page,
+}) => {
+  await page.goto("/?revision=HS12&product=010121");
+
+  await expect(
+    page.getByRole("combobox", { name: "HS 2012 product" }),
+  ).toHaveValue(
+    "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
+  );
+  await expect(page).toHaveURL("/?revision=HS12&product=010121");
 });
 
 test("locale changes preserve an ambiguous result set without selecting it", async ({
   page,
 }) => {
+  let searchRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/product-catalogs/")) {
+      searchRequests += 1;
+    }
+  });
   await page.goto("/");
   await page
     .getByRole("combobox", { name: "HS 2012 product" })
     .fill("馬");
   await expect(page.getByRole("option")).toHaveCount(2);
+  expect(searchRequests).toBe(1);
 
   await page.getByRole("button", { name: "简体中文" }).click();
 
+  await page.getByRole("combobox", { name: "HS 2012 产品" }).focus();
   await expect(page.getByRole("option")).toHaveCount(2);
+  await page.waitForTimeout(300);
+  expect(searchRequests).toBe(1);
   await expect(
     page.getByRole("option").locator("strong"),
-  ).toHaveText(["010121", "010129"]);
+  ).toHaveText(["HS 2012 · 010121", "HS 2012 · 010129"]);
   await expect(page.getByRole("option").first()).toContainText("纯种繁殖用活马");
   await expect(page).toHaveURL("/");
 });
@@ -96,6 +132,12 @@ test("the combobox closes on Escape and explains an unsupported revision", async
   await combobox.press("Escape");
 
   await expect(combobox).toBeFocused();
+  await expect(combobox).toHaveAttribute("aria-expanded", "false");
+  await combobox.press("Tab");
+  await expect(combobox).toHaveAttribute("aria-expanded", "false");
+  await combobox.focus();
+  await expect(combobox).toHaveAttribute("aria-expanded", "true");
+  await combobox.press("Tab");
   await expect(combobox).toHaveAttribute("aria-expanded", "false");
   await combobox.fill("HS17 010121");
   await expect(
