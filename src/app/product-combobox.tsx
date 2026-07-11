@@ -47,7 +47,7 @@ type ProductComboboxProps = {
   locale: ProductSearchLocale;
   onSelectionChange: (
     product: ProductSearchProduct | null,
-    source: "restore" | "user",
+    source: "restore" | "explicit",
   ) => void;
 };
 
@@ -204,7 +204,7 @@ export function ProductCombobox({
     setActiveIndex(-1);
     setOpen(false);
     setStatus("idle");
-    onSelectionChange(product, "user");
+    onSelectionChange(product, "explicit");
 
     const url = new URL(window.location.href);
     url.searchParams.set("revision", "HS12");
@@ -217,7 +217,7 @@ export function ProductCombobox({
       return;
     }
     setSelectedProduct(null);
-    onSelectionChange(null, "user");
+    onSelectionChange(null, "explicit");
     const url = new URL(window.location.href);
     url.searchParams.delete("revision");
     url.searchParams.delete("product");

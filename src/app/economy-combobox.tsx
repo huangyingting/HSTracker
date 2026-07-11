@@ -12,7 +12,7 @@ const copy = {
   en: {
     label: "Export economy",
     placeholder: "BACI code, ISO code, or source name",
-    help: "Choose the reporting economy whose recorded foothold will be evaluated.",
+    help: "Choose the export economy whose recorded foothold will be evaluated.",
     loading: "Searching economies…",
     failed: "Economy search is temporarily unavailable.",
     noMatch: "No economy matched that code or source name.",
@@ -21,7 +21,7 @@ const copy = {
   "zh-Hans": {
     label: "出口经济体",
     placeholder: "BACI 编码、ISO 编码或来源名称",
-    help: "选择要评估其已记录市场基础的报告经济体。",
+    help: "选择要评估其已记录市场基础的出口经济体。",
     loading: "正在搜索经济体…",
     failed: "经济体搜索暂时不可用。",
     noMatch: "没有经济体匹配该编码或来源名称。",
@@ -33,7 +33,7 @@ type EconomyComboboxProps = {
   locale: keyof typeof copy;
   onSelectionChange: (
     economy: EconomyRecord | null,
-    source: "restore" | "user",
+    source: "restore" | "explicit",
   ) => void;
 };
 
@@ -154,7 +154,7 @@ export function EconomyCombobox({
     setOpen(false);
     setActiveIndex(-1);
     setStatus("idle");
-    onSelectionChange(economy, "user");
+    onSelectionChange(economy, "explicit");
     const url = new URL(window.location.href);
     url.searchParams.set("exporter", economy.code);
     url.searchParams.delete("market");
@@ -166,7 +166,7 @@ export function EconomyCombobox({
       return;
     }
     setSelectedEconomy(null);
-    onSelectionChange(null, "user");
+    onSelectionChange(null, "explicit");
     const url = new URL(window.location.href);
     url.searchParams.delete("exporter");
     url.searchParams.delete("market");

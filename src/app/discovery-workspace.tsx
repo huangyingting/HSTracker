@@ -19,13 +19,24 @@ const copy = {
     title: "Define one analysis context.",
     lede:
       "Select an export economy and HS 2012 product, then load the complete canonical ranking.",
-    analyze: "Analyze markets",
+    analyze: "Analyze Candidate Markets",
     loading: "Loading the complete Candidate Market result…",
     ranked: "Ranked Candidate Markets",
+    candidateList: "Candidate Markets",
     selectedEvidence: "Selected Candidate Market evidence",
-    score: "Score",
+    analysisScope: "Analysis source scope",
+    baciRelease: "BACI Release",
+    sourceDate: "Source date",
+    scoreWindow: "Candidate Market Score window",
+    supportingEvidence: "Supporting evidence",
+    finalizedYears: "Finalized Years",
+    provisionalYear: "Provisional Year",
+    score: "Candidate Market Score",
     rank: "Rank",
+    rankJoin: "of",
     confidence: "Data Confidence",
+    percentile: "Percentile",
+    finalizedEvidenceThrough: "Finalized Year evidence through",
     marketSize: "Mean finalized imports",
     marketGrowth: "Finalized annual growth",
     foothold: "Recorded exporter foothold",
@@ -44,22 +55,34 @@ const copy = {
     unavailable:
       "The compatible analysis artifact is temporarily unavailable.",
     fatal: "The analysis could not be completed.",
+    refresh: "Refresh current analysis",
     retry: "Retry complete analysis",
     disclaimer:
       "Use this workspace as a discovery aid rather than a recommendation. Validate customers, competition, regulation, logistics, and margins separately.",
-    candidates: "markets",
+    candidates: "Candidate Markets",
   },
   "zh-Hans": {
     eyebrow: "候选市场工作区",
     title: "定义一个分析情境。",
     lede: "选择出口经济体和 HS 2012 产品，然后加载完整的规范排名。",
-    analyze: "分析市场",
+    analyze: "分析候选市场",
     loading: "正在加载完整的候选市场结果…",
     ranked: "候选市场排名",
+    candidateList: "候选市场",
     selectedEvidence: "所选候选市场证据",
-    score: "评分",
+    analysisScope: "分析来源范围",
+    baciRelease: "BACI 发布版本",
+    sourceDate: "来源日期",
+    scoreWindow: "候选市场评分窗口",
+    supportingEvidence: "辅助证据",
+    finalizedYears: "最终年份",
+    provisionalYear: "暂定年份",
+    score: "候选市场评分",
     rank: "排名",
+    rankJoin: "/",
     confidence: "数据置信度",
+    percentile: "百分位",
+    finalizedEvidenceThrough: "最终年份证据截至",
     marketSize: "最终年份平均进口额",
     marketGrowth: "最终年份年增长率",
     foothold: "已记录出口方市场基础",
@@ -73,15 +96,16 @@ const copy = {
     capacity: "分析容量暂时繁忙。尚未加载完整结果。",
     unavailable: "兼容的分析工件暂时不可用。",
     fatal: "无法完成分析。",
+    refresh: "刷新当前分析",
     retry: "重试完整分析",
     disclaimer:
       "这是发现辅助工具，而非建议。请另行验证客户、竞争、法规、物流和利润。",
-    candidates: "个市场",
+    candidates: "个候选市场",
   },
 } as const;
 
 type WorkspaceLocale = keyof typeof copy;
-type SelectionSource = "restore" | "user";
+type SelectionSource = "restore" | "explicit";
 type AnalysisStatus =
   | "idle"
   | "loading"
@@ -119,7 +143,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const handleExporterSelection = useCallback(
     (nextExporter: EconomyRecord | null, source: SelectionSource) => {
       setExporter(nextExporter);
-      if (source === "user") {
+      if (source === "explicit") {
         canonicalRestorePending.current = false;
         clearResult();
       }
@@ -130,7 +154,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const handleProductSelection = useCallback(
     (nextProduct: ProductSearchProduct | null, source: SelectionSource) => {
       setProduct(nextProduct);
-      if (source === "user") {
+      if (source === "explicit") {
         canonicalRestorePending.current = false;
         clearResult();
       }
@@ -308,7 +332,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 {result.cohortSize} {messages.candidates}
               </strong>
             </div>
-            <ol aria-label="Candidate Markets">
+            <ol aria-label={messages.candidateList}>
               {result.candidates.map((candidate) => (
                 <li key={candidate.economy.code}>
                   <button
@@ -323,7 +347,8 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                       <strong>{candidate.economy.name}</strong>
                       <small>
                         BACI {candidate.economy.code} ·{" "}
-                        {candidate.confidence.label} {messages.confidence}
+                        {messages.confidence}:{" "}
+                        {localizedConfidence(candidate.confidence.label, locale)}
                       </small>
                     </span>
                     <span className="candidate-score">
@@ -355,11 +380,18 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       {isErrorStatus(status) ? (
         <div className="analysis-state analysis-error" role="alert">
           <p>{messages[status]}</p>
-          {status === "stale" ||
-          status === "capacity" ||
-          status === "unavailable" ? (
-            <button type="button" onClick={() => void analyzeMarkets()}>
-              {messages.retry}
+          {status === "stale" || status === "capacity" ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (status === "stale") {
+                  window.location.reload();
+                } else {
+                  void analyzeMarkets();
+                }
+              }}
+            >
+              {status === "stale" ? messages.refresh : messages.retry}
             </button>
           ) : null}
         </div>
@@ -372,30 +404,34 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
 function AnalysisContextStrip({
   result,
+  locale,
 }: {
   result: CandidateMarketResult;
   locale: WorkspaceLocale;
 }) {
+  const messages = copy[locale];
   return (
-    <dl className="analysis-context" aria-label="Analysis source scope">
+    <dl className="analysis-context" aria-label={messages.analysisScope}>
       <div>
-        <dt>BACI</dt>
+        <dt>{messages.baciRelease}</dt>
         <dd>{result.provenance.baciRelease}</dd>
       </div>
       <div>
-        <dt>Source date</dt>
+        <dt>{messages.sourceDate}</dt>
         <dd>{result.provenance.sourceUpdateDate}</dd>
       </div>
       <div>
-        <dt>Score window</dt>
+        <dt>{messages.scoreWindow}</dt>
         <dd>
-          Finalized {result.provenance.scoreWindow.start}–
+          {messages.finalizedYears} {result.provenance.scoreWindow.start}–
           {result.provenance.scoreWindow.end}
         </dd>
       </div>
       <div>
-        <dt>Supporting evidence</dt>
-        <dd>Provisional {result.provenance.provisionalYear}</dd>
+        <dt>{messages.supportingEvidence}</dt>
+        <dd>
+          {messages.provisionalYear} {result.provenance.provisionalYear}
+        </dd>
       </div>
     </dl>
   );
@@ -425,10 +461,11 @@ function CandidateEvidence({
           {messages.score} {candidate.score}
         </strong>
         <span>
-          {messages.rank} {candidate.rank} of {cohortSize}
+          {messages.rank} {candidate.rank} {messages.rankJoin} {cohortSize}
         </span>
         <span>
-          {messages.confidence}: {candidate.confidence.label}{" "}
+          {messages.confidence}:{" "}
+          {localizedConfidence(candidate.confidence.label, locale)}{" "}
           {candidate.confidence.score}
         </span>
       </div>
@@ -437,6 +474,7 @@ function CandidateEvidence({
           label={messages.marketSize}
           value={`USD ${candidate.components.marketSize.meanCurrentUsd}`}
           percentile={candidate.components.marketSize.percentile}
+          percentileLabel={messages.percentile}
         />
         <EvidenceRow
           label={messages.marketGrowth}
@@ -446,6 +484,7 @@ function CandidateEvidence({
               : candidate.components.marketGrowth.annualRate ?? messages.neutral
           }
           percentile={candidate.components.marketGrowth.percentile}
+          percentileLabel={messages.percentile}
         />
         <EvidenceRow
           label={messages.foothold}
@@ -456,6 +495,7 @@ function CandidateEvidence({
               : candidate.components.recordedFoothold.share
           }
           percentile={candidate.components.recordedFoothold.percentile}
+          percentileLabel={messages.percentile}
         />
         <EvidenceRow
           label={messages.diversity}
@@ -465,10 +505,11 @@ function CandidateEvidence({
               : candidate.components.supplierDiversity.index ?? messages.neutral
           }
           percentile={candidate.components.supplierDiversity.percentile}
+          percentileLabel={messages.percentile}
         />
       </dl>
       <p className="evidence-source">
-        {exporter.name} · HS 2012 · finalized evidence through{" "}
+        {exporter.name} · HS 2012 · {messages.finalizedEvidenceThrough}{" "}
         {candidate.latestFinalizedObservedYear}
       </p>
     </section>
@@ -479,20 +520,38 @@ function EvidenceRow({
   label,
   value,
   percentile,
+  percentileLabel,
 }: {
   label: string;
   value: string;
   percentile: number;
+  percentileLabel: string;
 }) {
   return (
     <div>
       <dt>{label}</dt>
       <dd>
         <strong>{value}</strong>
-        <span>Percentile {percentile}</span>
+        <span>
+          {percentileLabel} {percentile}
+        </span>
       </dd>
     </div>
   );
+}
+
+function localizedConfidence(
+  label: CandidateMarket["confidence"]["label"],
+  locale: WorkspaceLocale,
+): string {
+  if (locale === "en") {
+    return label;
+  }
+  return {
+    HIGH: "高",
+    MEDIUM: "中",
+    LOW: "低",
+  }[label];
 }
 
 function analysisErrorStatus(status: number): AnalysisStatus {
