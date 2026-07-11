@@ -30,6 +30,7 @@ const ARTIFACT_SIZE_TARGET_BYTES = 8 * 1024 * 1024 * 1024;
 const ARTIFACT_SIZE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024;
 const TAIWAN_PROXY_NOTE =
   "BACI code 490 is formally Other Asia, n.e.s.; CEPII documents it as a practical Taiwan proxy.";
+const AGGREGATE_ECONOMY_CODES = [697, 711] as const;
 
 type StagingFile = {
   relativePath: string;
@@ -451,7 +452,11 @@ async function populateArtifactTables(
     `read_parquet(${sqlString(tradeGlob)}, hive_partitioning = false)`;
 
   await connection.run(`
-    INSERT INTO product
+    INSERT INTO product (
+      product_id,
+      hs12_code,
+      source_description
+    )
     SELECT
       CAST(row_number() OVER (ORDER BY hs12_code) AS USMALLINT),
       hs12_code,
@@ -459,15 +464,25 @@ async function populateArtifactTables(
     FROM read_parquet(${sqlString(productsPath)})
     ORDER BY hs12_code
   `);
+  const aggregateEconomyCodes = AGGREGATE_ECONOMY_CODES.join(", ");
   await connection.run(`
-    INSERT INTO economy
+    INSERT INTO economy (
+      code,
+      display_name,
+      iso2,
+      iso3,
+      kind,
+      is_taiwan_proxy,
+      identity_note,
+      has_trade_evidence
+    )
     SELECT
       economy_code,
       display_name,
       iso2,
       iso3,
       CASE
-        WHEN economy_code IN (697, 711) THEN 'AGGREGATE'
+        WHEN economy_code IN (${aggregateEconomyCodes}) THEN 'AGGREGATE'
         ELSE 'ECONOMY'
       END,
       economy_code = 490,
@@ -480,7 +495,13 @@ async function populateArtifactTables(
     ORDER BY economy_code
   `);
   await connection.run(`
-    INSERT INTO bilateral_year
+    INSERT INTO bilateral_year (
+      year,
+      product_id,
+      exporter_code,
+      importer_code,
+      value_kusd
+    )
     SELECT
       trade.year,
       product.product_id,
@@ -497,7 +518,17 @@ async function populateArtifactTables(
       trade.importer_code
   `);
   await connection.run(`
-    INSERT INTO market_year
+    INSERT INTO market_year (
+      year,
+      product_id,
+      importer_code,
+      world_value_kusd,
+      supplier_count,
+      supplier_value_square_sum,
+      source_flow_count,
+      quantity_present_count,
+      quantity_sum_tons
+    )
     SELECT
       trade.year,
       product.product_id,
@@ -518,7 +549,11 @@ async function populateArtifactTables(
     ORDER BY product.product_id, trade.year, trade.importer_code
   `);
   await connection.run(`
-    INSERT INTO product_year
+    INSERT INTO product_year (
+      year,
+      product_id,
+      world_value_kusd
+    )
     SELECT
       year,
       product_id,
@@ -555,7 +590,7 @@ async function populateArtifactTables(
     left.localeCompare(right),
   )) {
     await connection.run(
-      "INSERT INTO artifact_metadata VALUES ($key, $value)",
+      "INSERT INTO artifact_metadata (key, value) VALUES ($key, $value)",
       { key, value },
     );
   }
@@ -825,16 +860,10 @@ async function selectBenchmarkQueries({
         FROM product
         LEFT JOIN bilateral_year AS bilateral
           ON bilateral.product_id = product.product_id
-        LEFT JOIN economy AS exporter
-          ON exporter.code = bilateral.exporter_code
         GROUP BY product.product_id, product.hs12_code
         HAVING COUNT(bilateral.year) FILTER (
           WHERE bilateral.year BETWEEN $score_start AND $score_end
         ) > 0
-          AND COUNT(bilateral.year) FILTER (
-            WHERE bilateral.year BETWEEN $score_start AND $score_end
-              AND exporter.kind = 'ECONOMY'
-          ) > 0
         ORDER BY complete_row_count, product.hs12_code
       `,
       {

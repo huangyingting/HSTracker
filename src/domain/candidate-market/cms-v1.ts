@@ -759,9 +759,17 @@ function calculateAnnualDiversity(
     );
   }
   if (suppliers.count === 0) {
+    const valueKusd = parseNonnegativeDecimal(
+      suppliers.valueKusd,
+      "alternativeSuppliers.valueKusd",
+    );
+    const valueSquareSumKusdSquared = parseNonnegativeDecimal(
+      suppliers.valueSquareSumKusdSquared,
+      "alternativeSuppliers.valueSquareSumKusdSquared",
+    );
     if (
-      Number(suppliers.valueKusd) !== 0 ||
-      Number(suppliers.valueSquareSumKusdSquared) !== 0
+      valueKusd !== 0 ||
+      valueSquareSumKusdSquared !== 0
     ) {
       throw new Error(
         "Empty alternative supplier evidence must have zero values.",
@@ -781,8 +789,7 @@ function calculateAnnualDiversity(
   const rawHhi = valueSquareSumKusdSquared / valueKusd ** 2;
   const minimumHhi = 1 / suppliers.count;
   if (
-    rawHhi < minimumHhi &&
-    !nearlyEqual(rawHhi, minimumHhi) ||
+    (rawHhi < minimumHhi && !nearlyEqual(rawHhi, minimumHhi)) ||
     rawHhi > 1 ||
     (suppliers.count > 1 && nearlyEqual(rawHhi, 1))
   ) {
