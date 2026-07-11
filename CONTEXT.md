@@ -16,6 +16,10 @@ _Avoid_: Trade opportunity, guaranteed opportunity, recommended investment
 A transparent, fixed-weight summary used to rank Candidate Markets, accompanied by component indicators and a data-confidence measure. It is a discovery aid, not a standalone recommendation.
 _Avoid_: Opportunity score, success probability, AI recommendation
 
+**HS Product**:
+A six-digit product category under an explicitly named Harmonized System revision. Its identity is the revision and code; source descriptions, auxiliary translations, and search aliases help discovery but do not change that identity.
+_Avoid_: Unversioned HS code, SKU, brand, model, free-text product
+
 **Candidate Market Context**:
 The source release, analysis build, selected export economy, HS product identity, and one Candidate Market that together identify the scope for adjacent evidence. It identifies an analytical context, not a buyer-supplier relationship.
 _Avoid_: Trade lane customer, company market, buyer market

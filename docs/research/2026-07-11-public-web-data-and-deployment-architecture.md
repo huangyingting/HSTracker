@@ -16,8 +16,10 @@ A separate offline pipeline will turn one pinned BACI release into:
 1. validated Parquet staging data;
 2. one compact native DuckDB artifact;
 3. a provenance manifest containing source and artifact checksums; and
-4. an immutable release catalog that names the current and previous supported
-   artifacts.
+4. an immutable analysis release catalog that names the current and previous
+   supported artifacts;
+5. an independently versioned product-search catalog; and
+6. a deployment manifest pairing compatible analysis and product-search builds.
 
 The public process serves analysis from the current artifact and uses the
 previous artifact internally for rollback and the `cms-v1` revision-impact
@@ -36,10 +38,11 @@ copies.
 | Public interface | Versioned, `GET`-only Route Handlers; no raw-data or refresh endpoint |
 | Main module seam | One `CandidateMarketAnalysis.analyze(query)` interface |
 | Cache identity | Immutable analysis build + exporter + product |
-| Release change | Publish new immutable objects, then deploy an exact release catalog |
+| Product discovery identity | Independent immutable product-search build |
+| Release change | Publish exact analysis/search catalogs, then deploy their pairing manifest |
 | Initial availability trade-off | One Machine may have a short recovery/deploy outage; a second identical Machine is the HA path |
 
-The architecture is host-portable: the application image, release manifest,
+The architecture is host-portable: the application image, deployment manifest,
 DuckDB files, and module interfaces do not contain Fly.io-specific business
 logic.
 
@@ -58,6 +61,10 @@ This decision consumes, rather than changes, the prior decisions:
 - [Candidate Market discovery workflow](https://github.com/huangyingting/HSTracker/issues/3):
   one focused master-detail workspace with adjacent evidence, a secondary
   comparison tray, and contextual export.
+- [HS product descriptions and search language](./2026-07-11-hs-product-description-and-search-language.md):
+  exact BACI English source descriptions, a separately versioned Simplified
+  Chinese auxiliary catalog, deterministic bilingual search, and no silent
+  cross-revision conversion.
 
 The deployment must not turn a Candidate Market into a prediction or
 recommendation. It only serves the descriptive analysis defined by `cms-v1`.
@@ -350,7 +357,7 @@ Use Node-runtime Next.js Route Handlers:
 ```text
 GET /api/v1/analyses/current
 GET /api/v1/analyses/{analysisBuildId}/economies?q=
-GET /api/v1/analyses/{analysisBuildId}/products?q=
+GET /api/v1/product-catalogs/{productSearchBuildId}/products?q=&locale=&limit=
 GET /api/v1/analyses/{analysisBuildId}/candidate-markets
 GET /api/v1/analyses/{analysisBuildId}/candidate-markets.csv
 GET /healthz
@@ -358,8 +365,11 @@ GET /healthz
 
 The analysis and CSV routes accept only `exporter` and `product`. Alternate
 3-, 5-, and 10-year calculations are part of `cms-v1` evidence, not a public
-score-window selector. The immutable analysis-build manifest supplies the
-human-readable BACI release and score version.
+score-window selector. The immutable deployment manifest supplies the
+human-readable BACI release and score version. The current manifest also names
+the compatible product-search build. Product search is versioned independently
+because correcting an auxiliary translation or alias does not change trade
+facts or score computation.
 
 The comparison tray operates on candidates already returned by one analysis;
 it does not need a second comparison endpoint. The CSV route calls the same
@@ -386,7 +396,8 @@ BACI facts.
 
 The analysis build ID is a digest over the exact current artifact, compatible
 previous artifact (or `none`), score implementation/version, result schema,
-and release catalog. The semantic cache key is:
+and analysis release catalog. The product-search catalog and deployment
+manifest are excluded from this digest. The semantic cache key is:
 
 ```text
 analysis_build_id
@@ -397,6 +408,20 @@ analysis_build_id
 This prevents a revision-impact input or implementation correction from
 silently changing bytes at an existing URL. Explicit release and score versions
 remain in the response for humans.
+
+Product discovery has a separate immutable identity:
+
+```text
+product_search_build_id
+  + normalized_query
+  + locale
+  + limit
+```
+
+The product-search build digests the source product catalog, accepted
+translations and aliases, normalization/ranking implementation, and response
+schema. The selected analysis identity remains `HS12` plus the six-character
+product code.
 
 ### Layers
 
@@ -526,18 +551,24 @@ built_at
    `releases/V202601/{artifactSha256}/`.
 2. Ask object storage to validate the upload checksum and read it back before
    promotion.
-3. Create an immutable release catalog naming the exact current and previous
-   manifests.
+3. Create an immutable analysis release catalog naming the exact current and
+   previous artifact manifests.
 4. Derive an immutable analysis build ID from that catalog, score
    implementation/version, and result schema.
-5. Deploy that catalog's URL, checksum, and analysis build ID as runtime
-   configuration.
-6. Download missing artifacts to `.partial` files, verify SHA-256, fsync, and
+5. Publish an immutable product-search catalog and derive its independent build
+   ID from source products,
+   accepted localization/alias assets, search implementation, and response
+   schema.
+6. Create and deploy an exact manifest pairing the analysis catalog/build with
+   the compatible product-search catalog/build.
+7. Download missing artifacts to `.partial` files, verify SHA-256, fsync, and
    atomically rename before opening.
-7. Start the application only after schema compatibility and smoke analysis
+8. Start the application only after schema compatibility, catalog validation,
+   product-search fixtures, and smoke analysis
    succeed.
 
-Any failure before activation leaves the currently deployed catalog untouched.
+Any failure before activation leaves the currently deployed pairing manifest
+untouched.
 Object storage retains all accepted immutable releases; the serving volume
 keeps current, previous, and temporary download headroom.
 
@@ -558,8 +589,9 @@ verify the same immutable object.
 - Run as a non-root user.
 - The container image contains application code only, not BACI or DuckDB
   artifacts.
-- Use the loaded release catalog for `/api/v1/analyses/current`; do not expose
-  the private object-storage URL or credentials.
+- Use the loaded deployment manifest for `/api/v1/analyses/current`; do not
+  expose the private object-storage URL or credentials. Return both the
+  analysis-build and compatible product-search-build identities.
 
 Next.js documents Node servers and Docker containers as supporting all
 framework features. Its self-hosting guide recommends a reverse proxy for
@@ -640,7 +672,11 @@ flowchart LR
     D --> E[Read-only adapter tests,\nfixtures and benchmarks]
     E --> F[Artifact + manifest SHA-256]
     F --> G[Private immutable object keys]
-    G --> H[Immutable catalog:\ncurrent + previous]
+    G --> H[Analysis catalog:\ncurrent + previous]
+    B --> T[Source products + accepted\ntranslations and aliases]
+    T --> U[Immutable product-search catalog]
+    H --> V[Deployment manifest:\nanalysis + search IDs]
+    U --> V
   end
 
   subgraph Runtime["Self-hosted Next.js Node process"]
@@ -650,11 +686,13 @@ flowchart LR
     L --> M[CandidateMarketAnalysis]
     M --> N[Versioned GET Route Handlers]
     M --> O[Byte-bounded LRU\nand in-flight coalescing]
+    S[Versioned bilingual\nProductCatalog] --> N
     N --> P[Focused workspace]
     N --> Q[CSV serializer]
   end
 
-  H -. exact catalog + checksum .-> I
+  V -. exact IDs + checksums .-> I
+  U -. verified search catalog .-> S
   R[Browser / explicit CDN] --> N
 ```
 
@@ -691,6 +729,8 @@ src/
     artifact-loader.ts
   catalog/
     reference-catalog.ts
+    product-catalog.ts
+    product-search.ts
   web/
     analysis-cache.ts
     csv.ts
@@ -712,7 +752,6 @@ their existing Wayfinder tickets:
 - artifact bytes, table counts, maximum product slice, and build duration;
 - cold/warm latency, concurrent throughput, pool size, DuckDB threads and
   memory, LRU bytes, queue length, and recovery target;
-- product-description/search language and index behavior;
 - provisional-year and current-release presentation;
 - score explanation presentation;
 - exact CSV contract and formula-safety trade-off; and
