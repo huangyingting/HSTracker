@@ -62,4 +62,30 @@ describe("browser current-analysis discovery", () => {
       code: "INVALID_MANIFEST",
     });
   });
+
+  it("rejects an update-in-progress manifest without refresh timestamps", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...currentManifest,
+          freshness: {
+            ...currentManifest.freshness,
+            state: "UPDATE_IN_PROGRESS",
+            latestKnownBaciRelease: "V202701",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      loadCurrentAnalysisManifest({
+        fetcher,
+        signal: new AbortController().signal,
+        revalidate: false,
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_MANIFEST",
+    });
+  });
 });

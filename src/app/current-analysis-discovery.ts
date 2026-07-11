@@ -117,7 +117,7 @@ function isManifestFreshness(
     return false;
   }
   const freshness = value;
-  return !(
+  if (
     !isNonemptyString(freshness.sourceStatusSnapshotId) ||
     !isNonemptyString(freshness.freshnessStatusId) ||
     !isInstant(freshness.checkedAt) ||
@@ -128,7 +128,25 @@ function isManifestFreshness(
     !isNullableInstant(freshness.refreshDueAt) ||
     !isOneOf(freshness.state, SOURCE_FRESHNESS_STATES) ||
     !isInstant(freshness.effectiveAt)
-  );
+  ) {
+    return false;
+  }
+
+  const hasNewerRelease = freshness.newerReleaseDetectedAt !== null;
+  const hasRefreshDueAt = freshness.refreshDueAt !== null;
+  if (hasNewerRelease !== hasRefreshDueAt) {
+    return false;
+  }
+  if (freshness.state === "UPDATE_IN_PROGRESS") {
+    return hasNewerRelease;
+  }
+  if (
+    freshness.state === "LATEST_KNOWN" ||
+    freshness.state === "CHECK_OVERDUE"
+  ) {
+    return !hasNewerRelease;
+  }
+  return true;
 }
 
 function isManifestRevision(value: unknown): value is ManifestRevision {
