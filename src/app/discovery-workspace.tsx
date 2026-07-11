@@ -24,6 +24,7 @@ import {
   candidateDisplayName,
   localizedConfidence,
 } from "./candidate-market-evidence";
+import { CandidateMarketExportAction } from "./candidate-market-export-action";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
@@ -507,6 +508,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           <span aria-hidden="true" />
           {messages[status]}
         </div>
+      ) : null}
+
+      {(status === "success" || status === "empty") && result !== null ? (
+        <CandidateMarketExportAction
+          result={result}
+          locale={locale}
+          onManifestRevalidated={setCurrentManifest}
+        />
       ) : null}
 
       {status === "success" && result !== null && selectedCandidate !== null ? (

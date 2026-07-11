@@ -7,7 +7,7 @@ import {
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   fixtureContentSha256:
-    "121011a968f14a1faa954ef126c6946cd4279b4d3b99ef3c9a56e9418e330ed7",
+    "0cf89e792ee1dedbd564c25655eeb01497e2ad1be120712981e66adb8bd0cb5a",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
@@ -90,6 +90,16 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
       sha256:
         "0eadb2418242cc664d2f4eb75dff5a7ddb9736b72a27fabb8135b108d21113e3",
     },
+    {
+      path: "expected/candidate-markets-core.csv",
+      sha256:
+        "128c0696b800ed2cb685cb4d0a8a29df9a4441a5db029380e36a4d9276c309b3",
+    },
+    {
+      path: "expected/candidate-markets-empty.csv",
+      sha256:
+        "3e82127c219a6b8af7b0f91ad23de90dd25c03e5fa297f2698dc00a46ee8d5af",
+    },
   ],
   expectedFiles: [
     {
@@ -106,6 +116,16 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
       path: "expected/product-search-cases.ts",
       sha256:
         "0eadb2418242cc664d2f4eb75dff5a7ddb9736b72a27fabb8135b108d21113e3",
+    },
+    {
+      path: "expected/candidate-markets-core.csv",
+      sha256:
+        "128c0696b800ed2cb685cb4d0a8a29df9a4441a5db029380e36a4d9276c309b3",
+    },
+    {
+      path: "expected/candidate-markets-empty.csv",
+      sha256:
+        "3e82127c219a6b8af7b0f91ad23de90dd25c03e5fa297f2698dc00a46ee8d5af",
     },
   ],
   fixtureIds: [
@@ -141,5 +161,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     "product-search-golden",
     "economy-directory-core",
     "economy-directory-cap",
+    "candidate-markets-csv-core",
+    "candidate-markets-csv-empty",
   ],
 } as const;

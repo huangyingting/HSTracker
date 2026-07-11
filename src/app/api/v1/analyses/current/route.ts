@@ -2,12 +2,10 @@ import { createHash } from "node:crypto";
 
 import {
   currentManifestCacheControl,
-  resolveCurrentAnalysisManifest,
 } from "../../../../../domain/release/current-analysis";
 import {
-  FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
   FIXTURE_CURRENT_AS_OF,
-  FIXTURE_SOURCE_STATUS_SNAPSHOT,
+  resolveFixtureCurrentAnalysisManifest,
 } from "../../../../../release/fixture-current-analysis";
 
 export const runtime = "nodejs";
@@ -22,11 +20,7 @@ export async function HEAD(request: Request): Promise<Response> {
 }
 
 function respond(request: Request, headOnly: boolean): Response {
-  const manifest = resolveCurrentAnalysisManifest(
-    FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
-    FIXTURE_SOURCE_STATUS_SNAPSHOT,
-    FIXTURE_CURRENT_AS_OF,
-  );
+  const manifest = resolveFixtureCurrentAnalysisManifest();
   const body = JSON.stringify(manifest);
   const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
   const headers = {

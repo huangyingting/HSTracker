@@ -819,6 +819,75 @@ a {
   color: rgba(250, 248, 242, 0.78);
 }
 
+.candidate-export {
+  margin-top: 24px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 24px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--signal);
+  background: var(--paper-light);
+}
+
+.candidate-export > div {
+  display: grid;
+  gap: 5px;
+}
+
+.candidate-export > div > p {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.candidate-export > div > strong {
+  font-size: 0.78rem;
+}
+
+.candidate-export > div > span,
+.candidate-export-status {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.candidate-export > button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper-light);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.candidate-export > button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.candidate-export > button:focus-visible {
+  outline: 3px solid rgba(243, 107, 53, 0.42);
+  outline-offset: 3px;
+}
+
+.candidate-export-status {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.candidate-export-stale,
+.candidate-export-failed {
+  color: var(--accent);
+  font-weight: 800;
+}
+
 .candidate-workspace {
   margin-top: 24px;
   display: grid;
@@ -1921,6 +1990,14 @@ a {
   .source-scope-facts > div {
     border-right: 0;
     border-bottom: 1px solid rgba(250, 248, 242, 0.16);
+  }
+
+  .candidate-export {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-export > button {
+    width: 100%;
   }
 
   .source-freshness,
