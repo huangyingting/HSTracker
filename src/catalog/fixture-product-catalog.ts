@@ -35,7 +35,7 @@ const products: readonly ProductSearchProduct[] =
     };
   });
 
-export class FixtureProductCatalog implements ProductCatalog {
+class FixtureProductCatalog implements ProductCatalog {
   async search(
     query: Parameters<ProductCatalog["search"]>[0],
   ): Promise<ProductSearchResult> {

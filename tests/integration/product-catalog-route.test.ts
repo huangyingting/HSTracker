@@ -5,7 +5,10 @@ import {
   HEAD,
 } from "../../src/app/api/v1/product-catalogs/[productSearchBuildId]/products/route";
 import { PRODUCT_CATALOG_ROUTE_ERROR_CASES } from "../../test/fixtures/acceptance/v1/expected/error-cases";
-import { PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+import {
+  ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
+  PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS,
+} from "../../test/fixtures/acceptance/v1/metadata";
 
 const routeContext = (productSearchBuildId: string) => ({
   params: Promise.resolve({ productSearchBuildId }),
@@ -17,19 +20,21 @@ afterEach(() => {
 
 describe("versioned Product Catalog route", () => {
   it("serves normalized-equivalent deterministic GET and HEAD representations", async () => {
-    const firstUrl =
-      "http://localhost/api/v1/product-catalogs/acceptance-product-search-v1/products?q=horse&locale=en&limit=20";
+    const build = ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core;
+    const route =
+      `http://localhost/api/v1/product-catalogs/${build}/products`;
+    const firstUrl = `${route}?q=horse&locale=en&limit=20`;
     const equivalentUrl =
-      "http://localhost/api/v1/product-catalogs/acceptance-product-search-v1/products?q=%EF%BC%A8%EF%BC%AF%EF%BC%B2%EF%BC%B3%EF%BC%A5&locale=en&limit=20";
+      `${route}?q=%EF%BC%A8%EF%BC%AF%EF%BC%B2%EF%BC%B3%EF%BC%A5&locale=en&limit=20`;
 
     const first = await GET(
       new Request(firstUrl),
-      routeContext("acceptance-product-search-v1"),
+      routeContext(build),
     );
     const firstBody = await first.text();
     const equivalent = await GET(
       new Request(equivalentUrl),
-      routeContext("acceptance-product-search-v1"),
+      routeContext(build),
     );
 
     expect(first.status).toBe(200);
@@ -52,7 +57,7 @@ describe("versioned Product Catalog route", () => {
       new Request(firstUrl, {
         headers: { "If-None-Match": first.headers.get("etag")! },
       }),
-      routeContext("acceptance-product-search-v1"),
+      routeContext(build),
     );
     expect(notModified.status).toBe(304);
     expect(await notModified.text()).toBe("");
@@ -60,7 +65,7 @@ describe("versioned Product Catalog route", () => {
 
     const head = await HEAD(
       new Request(firstUrl, { method: "HEAD" }),
-      routeContext("acceptance-product-search-v1"),
+      routeContext(build),
     );
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
