@@ -434,6 +434,9 @@ Avoid:
 
 ## Acceptance fixtures handed forward
 
+The exact source snapshots, UTC boundary instants, invariance mutations, and
+Release Revision oracles are fixed by the
+[decision-complete MVP acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
 Acceptance must cover:
 
 - the initial `V202601` dates and 2019-2023/2024 split;

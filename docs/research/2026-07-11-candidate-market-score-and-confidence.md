@@ -211,6 +211,18 @@ Percentile = 100 * (rank - 0.5) / N
 7. Assign every `NEUTRAL` component exactly 50 and exclude it from the
    computed ranking pool.
 
+Retain the unrounded percentile for the weighted score. The public component
+percentile shown in the UI and export is:
+
+```text
+component_percentile_display =
+    round_half_up(component_percentile_unrounded)
+```
+
+The rounded display integer never feeds back into the composite. For example,
+an unrounded percentile of `12.5` displays as `13` while contributing `12.5` to
+the weighted formula.
+
 Use this same method for every cohort size. Do not switch to unspecified
 absolute buckets for small cohorts. A cohort below ten markets receives a
 Data Confidence deduction instead.
@@ -370,6 +382,11 @@ confidence deduction. With fewer than ten common candidates, report
 `Stability not estimated - small common cohort` and apply no separate
 stability deduction beyond the small-cohort rule.
 
+Calculate rho as the Pearson correlation of the two vectors of canonical
+competition-rank numbers for the common candidates. Do not rank those rank
+numbers a second time; ties retain their shared rank and gaps. Compare the
+unrounded rho to `0.70` and serialize it to six decimal places.
+
 ### Informational checks
 
 - `Dominant size outlier`: the largest candidate represents more than 50% of
@@ -527,6 +544,9 @@ extreme_growth_abs_rate = 0.75
 series_outlier_mad_multiplier = 4
 series_outlier_min_log_change = ln(3)
 low_stability_spearman = 0.70
+component_percentile_display_rounding = half_up
+stability_rank_input = canonical_competition_rank
+stability_correlation = pearson_of_rank_vectors_without_reranking
 rank_percentile_rule = displayed-score tie-group midrank
 revision_score_change = 10
 revision_rank_percentile_change = 15
@@ -537,6 +557,10 @@ Rolling all score windows forward under the rule above changes the analysis
 build but not the formula version. Changing any score formula, weight, threshold,
 normalization rule, or window rule requires a new score version; it must never
 silently alter `cms-v1`.
+
+The exact synthetic cohort, tie, neutral, confidence, stability, and
+discontinuity oracles are fixed by the
+[decision-complete MVP acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
 
 ## Primary sources
 

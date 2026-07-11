@@ -334,6 +334,9 @@ The exact bilingual fields and fallback encoding are fixed by the
 
 ## Acceptance fixtures handed forward
 
+The exact mini-catalog, query cases, cross-revision boundary, and full-catalog
+gates are fixed by the
+[decision-complete MVP acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
 Implementation fixtures must cover at least:
 
 - exact `010121` with its leading zero;

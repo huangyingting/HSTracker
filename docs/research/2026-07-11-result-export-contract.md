@@ -220,7 +220,7 @@ the authoritative artifact; a spreadsheet-resaved copy does not.
 | Current USD | Base-10 integer, no currency sign or grouping |
 | Rate/share/index/Spearman rho | Decimal fraction with exactly six places, no percent sign or exponent |
 | Rank percentile and delta | Decimal percentage points with exactly three places |
-| Component percentile | Integer `0` through `100` |
+| Component percentile | Unrounded score percentile serialized as a round-half-up integer `0` through `100` |
 
 BACI `v` is thousands of current USD. Monetary cells use:
 
@@ -233,6 +233,10 @@ round-half-up; for signed ties this is away from zero. Score and material-change
 rules use their unrounded internal Decimal values where their defining decision
 requires it. The CSV precision is presentation precision and never feeds back
 into score, rank, confidence, or revision classification.
+
+Component percentile cells similarly apply round-half-up only at the display
+boundary. The composite continues to use the unrounded percentile, so an
+exported integer cannot be used to reproduce hidden intermediate precision.
 
 ### Lists
 
@@ -682,6 +686,8 @@ not long-cached.
 
 ## 11. Acceptance handoff
 
+The cross-contract identities and exact core/edge oracles are fixed by the
+[decision-complete MVP acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
 Implementation fixtures must prove:
 
 1. Byte-level BOM, one fixed header, universal quoting, doubled quotes, CRLF,

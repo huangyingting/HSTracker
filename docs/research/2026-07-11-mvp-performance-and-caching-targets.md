@@ -58,19 +58,25 @@ It never reports a cache-hit number as an uncached-query number.
 
 ### Representative product fixtures
 
-Every accepted artifact manifest pins three product codes selected from that
-artifact:
+Every accepted artifact manifest pins four product/query keys selected
+deterministically from products with at least one primary-window bilateral row:
 
-1. **Sparse:** a low-row product that exercises missing/neutral evidence.
-2. **Median:** the median `bilateral_year` row count across the complete product
-   catalog.
-3. **Maximum-row:** the largest `bilateral_year` row count across the complete
-   ingested period.
+1. **Sparse:** the first product after sorting by complete-period
+   `bilateral_year` count and then six-digit code.
+2. **Median:** the lower middle product in that ordering.
+3. **Upper quartile:** the product at
+   `floor(0.75 * (benchmarkableCount - 1))`, used for the four-key load burst.
+4. **Maximum-row:** the final product in that ordering.
 
-The same pinned codes feed pipeline benchmarks, CI regressions, and load tests.
-The maximum-row fixture must pass every candidate-analysis and export gate.
-Changing release data may change the pinned codes; a benchmark run may not
-choose easier products ad hoc.
+For each product, select the eligible exporter with the most bilateral rows in
+the primary score window, breaking ties by numeric BACI code. The exact
+selection algorithm and manifest fields are fixed by the
+[decision-complete MVP acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
+Sparse, median, and maximum-row feed pipeline and route benchmarks; all four
+feed CI/load regressions and coordinated uncached bursts. The maximum-row
+fixture must pass every Candidate Market analysis and export gate. Changing
+release data may change the pinned keys; a benchmark run may not choose easier
+products or exporters ad hoc.
 
 ### Production-like hardware and data
 
@@ -565,7 +571,9 @@ post-launch cleanup.
 
 ## 14. Acceptance fixtures handed forward
 
-The decision-complete acceptance ticket must include:
+The exact fixture constitution and artifact-key selection are resolved in
+[decision-complete MVP acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
+The implementation pack includes:
 
 1. **Browser budget:** production build, fixed mobile profile, five trials each
    for median and maximum-row products, LCP/CLS thresholds, scripted <=200-ms

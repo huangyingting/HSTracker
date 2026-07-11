@@ -329,9 +329,10 @@ market-years rather than filling a dense grid with zeroes. Pure domain
 functions calculate the score from this normalized input. DuckDB performs
 set aggregation; TypeScript owns versioned business semantics.
 
-Catalog search is a separate module because the pending description/language
-decision owns its matching behavior. It can use release dimensions in memory
-without expanding the analysis interface.
+Catalog search is the separate module fixed by the
+[product description and search-language decision](./2026-07-11-hs-product-description-and-search-language.md).
+It can use release dimensions in memory without expanding the analysis
+interface.
 
 ## Result contract
 
@@ -600,7 +601,7 @@ If CEPII replaces bytes at the same URL, the checksum mismatch fails closed.
    counts, database size, storage version, and build timings.
 10. Reopen the file read-only through the production evidence adapter.
 11. Run schema checks, source reconciliations, the worked `cms-v1` fixture, and
-    the decision-complete acceptance fixtures once that ticket publishes them.
+    the [decision-complete acceptance fixtures](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md).
 12. Benchmark the manifest-pinned sparse, median, and maximum-row products. An
     artifact cannot be promoted if it misses the accepted latency, load,
     memory, size, or cost gates.
@@ -845,19 +846,15 @@ The exact Next.js source root may differ at scaffold time. The important seams
 are the one-method Candidate Market analysis module and the internal normalized
 evidence adapter, not these directory names.
 
-## Implementation gates handed forward
+## Implementation gates
 
-The architecture is chosen, but these values must be measured or settled by
-their existing Wayfinder tickets:
-
-- artifact bytes, table counts, maximum product slice, and build duration;
-- cold/warm latency, concurrent throughput, pool size, DuckDB threads and
-  memory, LRU bytes, queue length, and recovery target;
-- score explanation presentation;
-- exact CSV contract and formula-safety trade-off; and
-- golden acceptance fixtures.
-
-Do not replace those decisions with hidden implementation defaults.
+The linked score, presentation, search, freshness, export, performance, and
+[acceptance-fixture](./2026-07-11-decision-complete-mvp-acceptance-fixtures.md)
+decisions now fix every implementation-facing contract. Artifact bytes, table
+counts, selected sparse/median/upper-quartile/maximum query keys, build duration,
+latency, memory, and cost remain measured release facts, not design choices.
+Promotion must evaluate them against the fixed gates rather than replace them
+with hidden implementation defaults.
 
 ## Principal risks
 
