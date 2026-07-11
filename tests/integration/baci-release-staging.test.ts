@@ -140,6 +140,11 @@ describe("pinned BACI release staging CLI", () => {
         0,
       ),
     );
+    await expect(
+      readFile(
+        join(dirname(outcome.stagingManifestPath), "source-report.json"),
+      ),
+    ).resolves.toEqual(await readFile(reportPath));
 
     for (const partition of manifest.partitions as {
       relativePath: string;
@@ -256,9 +261,7 @@ describe("pinned BACI release staging CLI", () => {
       await expect(access(inputs.reportPath)).rejects.toMatchObject({
         code: "ENOENT",
       });
-      await expect(stagingFiles(inputs.workspace)).resolves.not.toContain(
-        "staging-manifest.json",
-      );
+      await expect(stagingManifestPaths(inputs.workspace)).resolves.toEqual([]);
     },
   );
 
@@ -298,9 +301,7 @@ describe("pinned BACI release staging CLI", () => {
     ).rejects.toMatchObject({
       code: "SOURCE_ARCHIVE_MISMATCH",
     });
-    await expect(stagingFiles(workspace)).resolves.not.toContain(
-      "staging-manifest.json",
-    );
+    await expect(stagingManifestPaths(workspace)).resolves.toEqual([]);
   });
 
   it("resumes the pinned source into temporary build storage", async () => {
@@ -450,6 +451,18 @@ describe("pinned BACI release staging CLI", () => {
     });
   });
 
+  it("does not publish staging when the report cannot be prepared", async () => {
+    const inputs = await mutableFixtureInputs("safe-baci.zip");
+    const reportParent = join(inputs.workspace, "report-parent");
+    await writeFile(reportParent, "not a directory");
+    inputs.reportPath = join(reportParent, "source-report.json");
+
+    await expect(runStagingCli(inputs)).rejects.toMatchObject({
+      code: "REPORT_PUBLICATION_FAILED",
+    });
+    await expect(stagingManifestPaths(inputs.workspace)).resolves.toEqual([]);
+  });
+
   it("retains annual drift evidence without publishing unapproved staging", async () => {
     const inputs = await mutableFixtureInputs("safe-baci.zip");
     const approval = JSON.parse(
@@ -461,9 +474,7 @@ describe("pinned BACI release staging CLI", () => {
     await expect(runStagingCli(inputs)).rejects.toMatchObject({
       code: "SOURCE_COVERAGE_APPROVAL_REQUIRED",
     });
-    await expect(stagingFiles(inputs.workspace)).resolves.not.toContain(
-      "staging-manifest.json",
-    );
+    await expect(stagingManifestPaths(inputs.workspace)).resolves.toEqual([]);
     await expect(
       readFile(inputs.reportPath, "utf8").then(JSON.parse),
     ).resolves.toMatchObject({
@@ -606,11 +617,13 @@ async function runStagingCliArguments(
   }
 }
 
-async function stagingFiles(workspace: string): Promise<string[]> {
+async function stagingManifestPaths(workspace: string): Promise<string[]> {
   try {
-    return await readdir(join(workspace, "staging"), {
-      recursive: true,
-    });
+    return (
+      await readdir(join(workspace, "staging"), {
+        recursive: true,
+      })
+    ).filter((path) => path.endsWith("staging-manifest.json"));
   } catch (error) {
     if (
       error instanceof Error &&

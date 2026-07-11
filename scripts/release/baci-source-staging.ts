@@ -148,6 +148,7 @@ export type StageBaciReleaseOutcome = {
 
 export type BaciStagingErrorCode =
   | "CLI_ARGUMENT_INVALID"
+  | "REPORT_PUBLICATION_FAILED"
   | "SOURCE_ARCHIVE_INVALID"
   | "SOURCE_ARCHIVE_MISMATCH"
   | "SOURCE_COVERAGE_APPROVAL_REQUIRED"
@@ -290,12 +291,6 @@ export async function stageBaciRelease(
       "staging-manifest.json",
     );
     await writeFile(partialManifestPath, manifestBytes, { flag: "wx" });
-    await publishStaging(
-      partialStagingPath,
-      acceptedStagingPath,
-      manifestBytes,
-      staged.partitions,
-    );
 
     const acceptedManifestPath = join(
       acceptedStagingPath,
@@ -335,7 +330,29 @@ export async function stageBaciRelease(
         partitions: staged.partitions,
       },
     };
-    await writeJsonAtomically(reportPath, report);
+    const reportBytes = jsonBytes(report);
+    await writeFile(
+      join(partialStagingPath, "source-report.json"),
+      reportBytes,
+      { flag: "wx" },
+    );
+    const preparedReport = await prepareJsonPublication(
+      reportPath,
+      reportBytes,
+    );
+    try {
+      await publishStaging(
+        partialStagingPath,
+        acceptedStagingPath,
+        manifestBytes,
+        reportBytes,
+        staged.partitions,
+      );
+      await commitJsonPublication(preparedReport);
+    } catch (error) {
+      await discardJsonPublication(preparedReport.temporaryPath);
+      throw error;
+    }
 
     return {
       status: "accepted",
@@ -1234,6 +1251,7 @@ async function publishStaging(
   partialPath: string,
   acceptedPath: string,
   manifestBytes: Buffer,
+  reportBytes: Buffer,
   partitions: readonly StagingPartition[],
 ): Promise<void> {
   await mkdir(dirname(acceptedPath), { recursive: true });
@@ -1250,6 +1268,15 @@ async function publishStaging(
       throw new BaciStagingError(
         "STAGING_PUBLICATION_FAILED",
         "An incompatible staging publication already exists.",
+      );
+    }
+    const acceptedReport = await readFile(
+      join(acceptedPath, "source-report.json"),
+    );
+    if (!acceptedReport.equals(reportBytes)) {
+      throw new BaciStagingError(
+        "STAGING_PUBLICATION_FAILED",
+        "The existing staging publication has an incompatible source report.",
       );
     }
     for (const partition of partitions) {
@@ -1282,14 +1309,65 @@ async function publishStaging(
 }
 
 async function writeJsonAtomically(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
+  const publication = await prepareJsonPublication(path, jsonBytes(value));
+  await commitJsonPublication(publication);
+}
+
+type PreparedJsonPublication = {
+  targetPath: string;
+  temporaryPath: string;
+};
+
+async function prepareJsonPublication(
+  path: string,
+  bytes: Uint8Array,
+): Promise<PreparedJsonPublication> {
   const temporaryPath = `${path}.${process.pid}.partial`;
-  await writeFile(temporaryPath, jsonBytes(value), { flag: "wx" });
   try {
-    await rename(temporaryPath, path);
+    await mkdir(dirname(path), { recursive: true });
+    if ((await pathExists(path)) && !(await stat(path)).isFile()) {
+      throw new Error("The report destination is not a regular file.");
+    }
+    await writeFile(temporaryPath, bytes, { flag: "wx" });
+    return { targetPath: path, temporaryPath };
   } catch (error) {
-    await rm(temporaryPath, { force: true });
-    throw error;
+    await discardJsonPublication(temporaryPath);
+    throw new BaciStagingError(
+      "REPORT_PUBLICATION_FAILED",
+      `Source report could not be prepared: ${errorMessage(error)}`,
+    );
+  }
+}
+
+async function commitJsonPublication(
+  publication: PreparedJsonPublication,
+): Promise<void> {
+  try {
+    await rename(publication.temporaryPath, publication.targetPath);
+  } catch (error) {
+    await discardJsonPublication(publication.temporaryPath);
+    throw new BaciStagingError(
+      "REPORT_PUBLICATION_FAILED",
+      `Source report could not be published: ${errorMessage(error)}`,
+    );
+  }
+}
+
+async function discardJsonPublication(path: string): Promise<void> {
+  try {
+    await rm(path, { force: true });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+    ) {
+      return;
+    }
+    throw new BaciStagingError(
+      "REPORT_PUBLICATION_FAILED",
+      `Temporary source report could not be removed: ${errorMessage(error)}`,
+    );
   }
 }
 
