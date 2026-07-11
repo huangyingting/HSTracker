@@ -66,6 +66,7 @@ describe("acceptance-fixtures-v1 manifest", () => {
         "invalid-provisional-recorded-bilateral-zero",
         "invalid-provisional-recorded-bilateral-exceeds-world",
         "invalid-alternative-supplier-zero",
+        "invalid-quantity-coverage",
         "quantity-zero-mutation",
         "provisional-mutation",
       ]),

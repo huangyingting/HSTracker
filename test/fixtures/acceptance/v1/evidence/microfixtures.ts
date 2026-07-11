@@ -331,6 +331,27 @@ const invalidAlternativeSupplierZero = makeInput(
   ],
 );
 
+const invalidQuantityCoverageBase = makeInput(
+  "micro-invalid-quantity-coverage",
+  [
+    {
+      code: "101",
+      values: ["1000", "1000", "1000", "1000", "1000"],
+    },
+  ],
+);
+const invalidQuantityCoverage: CmsV1Inputs = {
+  ...invalidQuantityCoverageBase,
+  marketYears: invalidQuantityCoverageBase.marketYears.map((row, index) =>
+    index === 0
+      ? {
+          ...row,
+          quantityPresentCount: row.sourceFlowCount + 1,
+        }
+      : row,
+  ),
+};
+
 export const MICRO_FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [componentPoolOne.analysisBuildId, componentPoolOne],
   [componentAllEqual.analysisBuildId, componentAllEqual],
@@ -371,4 +392,5 @@ export const MICRO_FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
     invalidAlternativeSupplierZero.analysisBuildId,
     invalidAlternativeSupplierZero,
   ],
+  [invalidQuantityCoverage.analysisBuildId, invalidQuantityCoverage],
 ]);

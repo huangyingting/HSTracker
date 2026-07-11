@@ -586,6 +586,11 @@ describe("CandidateMarketAnalysis", () => {
       analysisBuildId: "micro-invalid-alternative-supplier-zero",
       message: "alternativeSupplierShares must be positive.",
     },
+    {
+      analysisBuildId: "micro-invalid-quantity-coverage",
+      message:
+        "quantityPresentCount must be a nonnegative safe integer no greater than sourceFlowCount.",
+    },
   ])(
     "rejects invalid recorded evidence from $analysisBuildId",
     async ({ analysisBuildId, message }) => {

@@ -204,7 +204,7 @@ function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate 
       );
       return (
         total +
-        validateRecordedValue(
+        validateAndClampRecordedValue(
           recordedValue,
           values[index]!,
           "selectedExporter.valueKusd",
@@ -221,15 +221,6 @@ function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate 
     );
     return diversity === null ? [] : [{ year: row.year, diversity }];
   });
-  const sourceFlowCount = sortedRows.reduce(
-    (total, row) => total + row.sourceFlowCount,
-    0,
-  );
-  const quantityPresentCount = sortedRows.reduce(
-    (total, row) => total + row.quantityPresentCount,
-    0,
-  );
-
   return {
     economy: sortedRows[0]!.candidateMarket,
     rows: sortedRows,
@@ -245,8 +236,7 @@ function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate 
         ? null
         : mean(diversityByYear.map(({ diversity }) => diversity)),
     diversityYears: diversityByYear.map(({ year }) => year),
-    quantityCoverage:
-      sourceFlowCount === 0 ? null : quantityPresentCount / sourceFlowCount,
+    quantityCoverage: calculateQuantityCoverage(sortedRows),
     percentiles: {
       size: 0,
       growth: 0,
@@ -305,29 +295,32 @@ function applyPercentiles(
 }
 
 function assignRanks(candidates: RawCandidate[]) {
-  let currentRank = 0;
-  let previousScore: number | null = null;
+  let groupStart = 0;
 
-  for (const [index, candidate] of candidates.entries()) {
-    if (candidate.score !== previousScore) {
-      currentRank = index + 1;
-      previousScore = candidate.score;
+  while (groupStart < candidates.length) {
+    let groupEnd = groupStart + 1;
+    while (
+      groupEnd < candidates.length &&
+      candidates[groupEnd]!.score === candidates[groupStart]!.score
+    ) {
+      groupEnd += 1;
     }
-    candidate.rank = currentRank;
-  }
 
-  for (const candidate of candidates) {
-    const tiedPositions = candidates
-      .map((other, index) => ({ other, position: index + 1 }))
-      .filter(({ other }) => other.score === candidate.score)
-      .map(({ position }) => position);
-    candidate.rankTieSize = tiedPositions.length;
-    candidate.rankPercentile =
+    const rank = groupStart + 1;
+    const tieSize = groupEnd - groupStart;
+    const averagePosition = (rank + groupEnd) / 2;
+    const rankPercentile =
       candidates.length === 1
         ? 50
-        : (100 *
-            (candidates.length - mean(tiedPositions))) /
+        : (100 * (candidates.length - averagePosition)) /
           (candidates.length - 1);
+
+    for (let index = groupStart; index < groupEnd; index += 1) {
+      candidates[index]!.rank = rank;
+      candidates[index]!.rankTieSize = tieSize;
+      candidates[index]!.rankPercentile = rankPercentile;
+    }
+    groupStart = groupEnd;
   }
 }
 
@@ -632,7 +625,7 @@ function buildProvisionalEvidence(
   );
   const bilateralValueKusd =
     row.selectedExporter.state === "RECORDED"
-      ? validateRecordedValue(
+      ? validateAndClampRecordedValue(
           parsePositiveDecimal(
             row.selectedExporter.valueKusd,
             "provisional.selectedExporter.valueKusd",
@@ -642,6 +635,7 @@ function buildProvisionalEvidence(
           "provisional.worldValueKusd",
         )
       : null;
+  const quantityCoverage = calculateQuantityCoverage([row]);
 
   return {
     year: provisionalYear,
@@ -660,9 +654,7 @@ function buildProvisionalEvidence(
         ? null
         : formatFixed(bilateralValueKusd / marketValueKusd, 6),
     quantityCoverageRate:
-      row.sourceFlowCount === 0
-        ? null
-        : formatFixed(row.quantityPresentCount / row.sourceFlowCount, 6),
+      quantityCoverage === null ? null : formatFixed(quantityCoverage, 6),
   };
 }
 
@@ -770,6 +762,37 @@ function calculateAnnualDiversity(
   return 1 - normalizedHhi;
 }
 
+function calculateQuantityCoverage(
+  rows: readonly MarketYearEvidence[],
+): number | null {
+  let sourceFlowCount = 0;
+  let quantityPresentCount = 0;
+
+  for (const row of rows) {
+    if (
+      !Number.isSafeInteger(row.sourceFlowCount) ||
+      row.sourceFlowCount < 0
+    ) {
+      throw new Error("sourceFlowCount must be a nonnegative safe integer.");
+    }
+    if (
+      !Number.isSafeInteger(row.quantityPresentCount) ||
+      row.quantityPresentCount < 0 ||
+      row.quantityPresentCount > row.sourceFlowCount
+    ) {
+      throw new Error(
+        "quantityPresentCount must be a nonnegative safe integer no greater than sourceFlowCount.",
+      );
+    }
+    sourceFlowCount += row.sourceFlowCount;
+    quantityPresentCount += row.quantityPresentCount;
+  }
+
+  return sourceFlowCount === 0
+    ? null
+    : quantityPresentCount / sourceFlowCount;
+}
+
 function pearsonCorrelation(
   left: readonly number[],
   right: readonly number[],
@@ -802,7 +825,7 @@ function parsePositiveDecimal(value: string, field: string): number {
   return parsed;
 }
 
-function validateRecordedValue(
+function validateAndClampRecordedValue(
   value: number,
   worldValue: number,
   field: string,
