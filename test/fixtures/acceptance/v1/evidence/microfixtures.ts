@@ -98,6 +98,36 @@ function makeInput(
   };
 }
 
+function makeProvisionalInput(
+  analysisBuildId: string,
+  worldValueKusd: string,
+  selectedExporter: MarketYearEvidence["selectedExporter"],
+): CmsV1Inputs {
+  const input = makeInput(analysisBuildId, [
+    {
+      code: "101",
+      values: ["1000", "1000", "1000", "1000", "1000"],
+    },
+  ]);
+  const candidateMarket = input.marketYears[0]!.candidateMarket;
+  const sourceFlowCount = selectedExporter.state === "RECORDED" ? 2 : 1;
+
+  return {
+    ...input,
+    provisionalMarketYears: [
+      {
+        year: 2024,
+        candidateMarket,
+        worldValueKusd,
+        selectedExporter,
+        alternativeSupplierShares: ["1.00"],
+        sourceFlowCount,
+        quantityPresentCount: sourceFlowCount,
+      },
+    ],
+  };
+}
+
 const componentPoolOne = makeInput("micro-component-pool-one", [
   {
     code: "101",
@@ -261,6 +291,46 @@ const invalidRecordedBilateralZero = makeInput(
   ],
 );
 
+const invalidRecordedBilateralExceedsWorld = makeInput(
+  "micro-invalid-recorded-bilateral-exceeds-world",
+  [
+    {
+      code: "101",
+      values: ["1000", "1000", "1000", "1000", "1000"],
+      selectedExporterShareBps: 20000,
+    },
+  ],
+);
+
+const invalidProvisionalWorldZero = makeProvisionalInput(
+  "micro-invalid-provisional-world-zero",
+  "0",
+  { state: "NO_RECORDED_POSITIVE_FLOW" },
+);
+
+const invalidProvisionalRecordedBilateralZero = makeProvisionalInput(
+  "micro-invalid-provisional-recorded-bilateral-zero",
+  "1000",
+  { state: "RECORDED", valueKusd: "0" },
+);
+
+const invalidProvisionalRecordedBilateralExceedsWorld = makeProvisionalInput(
+  "micro-invalid-provisional-recorded-bilateral-exceeds-world",
+  "1000",
+  { state: "RECORDED", valueKusd: "1001" },
+);
+
+const invalidAlternativeSupplierZero = makeInput(
+  "micro-invalid-alternative-supplier-zero",
+  [
+    {
+      code: "101",
+      values: ["1000", "1000", "1000", "1000", "1000"],
+      alternativeSupplierShares: ["1.00", "0"],
+    },
+  ],
+);
+
 export const MICRO_FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [componentPoolOne.analysisBuildId, componentPoolOne],
   [componentAllEqual.analysisBuildId, componentAllEqual],
@@ -280,5 +350,25 @@ export const MICRO_FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [
     invalidRecordedBilateralZero.analysisBuildId,
     invalidRecordedBilateralZero,
+  ],
+  [
+    invalidRecordedBilateralExceedsWorld.analysisBuildId,
+    invalidRecordedBilateralExceedsWorld,
+  ],
+  [
+    invalidProvisionalWorldZero.analysisBuildId,
+    invalidProvisionalWorldZero,
+  ],
+  [
+    invalidProvisionalRecordedBilateralZero.analysisBuildId,
+    invalidProvisionalRecordedBilateralZero,
+  ],
+  [
+    invalidProvisionalRecordedBilateralExceedsWorld.analysisBuildId,
+    invalidProvisionalRecordedBilateralExceedsWorld,
+  ],
+  [
+    invalidAlternativeSupplierZero.analysisBuildId,
+    invalidAlternativeSupplierZero,
   ],
 ]);

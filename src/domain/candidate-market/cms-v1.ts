@@ -193,14 +193,25 @@ function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate 
       ? calculateLogLinearGrowth(sortedRows)
       : null;
   const recordedValueKusd = sortedRows.reduce(
-    (total, row) =>
-      total +
-      (row.selectedExporter.state === "RECORDED"
-        ? parsePositiveDecimal(
-            row.selectedExporter.valueKusd,
-            "selectedExporter.valueKusd",
-          )
-        : 0),
+    (total, row, index) => {
+      if (row.selectedExporter.state !== "RECORDED") {
+        return total;
+      }
+
+      const recordedValue = parsePositiveDecimal(
+        row.selectedExporter.valueKusd,
+        "selectedExporter.valueKusd",
+      );
+      return (
+        total +
+        validateRecordedValue(
+          recordedValue,
+          values[index]!,
+          "selectedExporter.valueKusd",
+          "worldValueKusd",
+        )
+      );
+    },
     0,
   );
   const worldValueKusd = values.reduce((total, value) => total + value, 0);
@@ -615,15 +626,20 @@ function buildProvisionalEvidence(
     };
   }
 
-  const marketValueKusd = parseNonnegativeDecimal(
+  const marketValueKusd = parsePositiveDecimal(
     row.worldValueKusd,
     "provisional.worldValueKusd",
   );
   const bilateralValueKusd =
     row.selectedExporter.state === "RECORDED"
-      ? parseNonnegativeDecimal(
-          row.selectedExporter.valueKusd,
+      ? validateRecordedValue(
+          parsePositiveDecimal(
+            row.selectedExporter.valueKusd,
+            "provisional.selectedExporter.valueKusd",
+          ),
+          marketValueKusd,
           "provisional.selectedExporter.valueKusd",
+          "provisional.worldValueKusd",
         )
       : null;
 
@@ -739,7 +755,7 @@ function calculateAnnualDiversity(
   }
 
   const shares = rawShares.map((share) =>
-    parseNonnegativeDecimal(share, "alternativeSupplierShares"),
+    parsePositiveDecimal(share, "alternativeSupplierShares"),
   );
   const total = shares.reduce((sum, share) => sum + share, 0);
   if (!nearlyEqual(total, 1)) {
@@ -784,6 +800,18 @@ function parsePositiveDecimal(value: string, field: string): number {
     throw new Error(`${field} must be positive.`);
   }
   return parsed;
+}
+
+function validateRecordedValue(
+  value: number,
+  worldValue: number,
+  field: string,
+  worldField: string,
+): number {
+  if (value > worldValue && !nearlyEqual(value, worldValue)) {
+    throw new Error(`${field} cannot exceed ${worldField}.`);
+  }
+  return Math.min(value, worldValue);
 }
 
 function parseNonnegativeDecimal(value: string, field: string): number {

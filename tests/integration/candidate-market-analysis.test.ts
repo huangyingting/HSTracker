@@ -563,6 +563,29 @@ describe("CandidateMarketAnalysis", () => {
       analysisBuildId: "micro-invalid-recorded-bilateral-zero",
       message: "selectedExporter.valueKusd must be positive.",
     },
+    {
+      analysisBuildId: "micro-invalid-recorded-bilateral-exceeds-world",
+      message:
+        "selectedExporter.valueKusd cannot exceed worldValueKusd.",
+    },
+    {
+      analysisBuildId: "micro-invalid-provisional-world-zero",
+      message: "provisional.worldValueKusd must be positive.",
+    },
+    {
+      analysisBuildId: "micro-invalid-provisional-recorded-bilateral-zero",
+      message: "provisional.selectedExporter.valueKusd must be positive.",
+    },
+    {
+      analysisBuildId:
+        "micro-invalid-provisional-recorded-bilateral-exceeds-world",
+      message:
+        "provisional.selectedExporter.valueKusd cannot exceed provisional.worldValueKusd.",
+    },
+    {
+      analysisBuildId: "micro-invalid-alternative-supplier-zero",
+      message: "alternativeSupplierShares must be positive.",
+    },
   ])(
     "rejects zero-valued recorded evidence from $analysisBuildId",
     async ({ analysisBuildId, message }) => {
