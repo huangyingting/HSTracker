@@ -786,21 +786,41 @@ function calculateAnnualDiversity(
     suppliers.valueSquareSumKusdSquared,
     "alternativeSuppliers.valueSquareSumKusdSquared",
   );
-  const rawHhi = valueSquareSumKusdSquared / valueKusd ** 2;
-  const minimumHhi = 1 / suppliers.count;
+  const exactValue = parseFixedDecimal(suppliers.valueKusd);
+  const exactSquareSum = parseFixedDecimal(
+    suppliers.valueSquareSumKusdSquared,
+  );
+  const exactValueSquared = {
+    units: exactValue.units * exactValue.units,
+    scale: exactValue.scale * 2,
+  };
+  const lowerBoundComparison = compareFixedDecimals(
+    {
+      units: exactSquareSum.units * BigInt(suppliers.count),
+      scale: exactSquareSum.scale,
+    },
+    exactValueSquared,
+  );
+  const upperBoundComparison = compareFixedDecimals(
+    exactSquareSum,
+    exactValueSquared,
+  );
   if (
-    (rawHhi < minimumHhi && !nearlyEqual(rawHhi, minimumHhi)) ||
-    rawHhi > 1 ||
-    (suppliers.count > 1 && nearlyEqual(rawHhi, 1))
+    lowerBoundComparison < 0 ||
+    upperBoundComparison > 0 ||
+    (suppliers.count > 1 && upperBoundComparison === 0)
   ) {
     throw new Error("Alternative supplier aggregates are inconsistent.");
   }
+
+  const rawHhi = valueSquareSumKusdSquared / valueKusd ** 2;
+  const minimumHhi = 1 / suppliers.count;
   if (suppliers.count === 1) {
     return 0;
   }
 
   const normalizedHhi =
-    (rawHhi - 1 / suppliers.count) / (1 - 1 / suppliers.count);
+    (clamp(rawHhi, minimumHhi, 1) - minimumHhi) / (1 - minimumHhi);
   return 1 - normalizedHhi;
 }
 
@@ -900,6 +920,24 @@ function mean(values: readonly number[]): number {
 
 function yearsBetween(start: number, end: number): number[] {
   return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+function parseFixedDecimal(value: string): { units: bigint; scale: number } {
+  const [integer, fraction = ""] = value.split(".");
+  return {
+    units: BigInt(`${integer}${fraction}`),
+    scale: fraction.length,
+  };
+}
+
+function compareFixedDecimals(
+  left: { units: bigint; scale: number },
+  right: { units: bigint; scale: number },
+): number {
+  const scale = Math.max(left.scale, right.scale);
+  const leftUnits = left.units * 10n ** BigInt(scale - left.scale);
+  const rightUnits = right.units * 10n ** BigInt(scale - right.scale);
+  return leftUnits < rightUnits ? -1 : leftUnits > rightUnits ? 1 : 0;
 }
 
 function roundHalfUp(value: number): number {

@@ -1,12 +1,56 @@
 import { describe, expect, it } from "vitest";
 
+import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
 import { createFixtureCandidateMarketAnalysis } from "../../src/evidence/fixture-trade-evidence-source";
+import { CORE_CURRENT_INPUT } from "../../test/fixtures/acceptance/v1/evidence/core-current";
 import {
   CORE_CANDIDATE_SUMMARY,
   CORE_STABILITY,
 } from "../../test/fixtures/acceptance/v1/expected/core-analysis";
 
 describe("CandidateMarketAnalysis", () => {
+  it("accepts valid highly concentrated alternative supplier aggregates", async () => {
+    const input = {
+      ...CORE_CURRENT_INPUT,
+      analysisBuildId: "concentrated-suppliers",
+      marketYears: [
+        {
+          ...CORE_CURRENT_INPUT.marketYears[0]!,
+          year: 2023,
+          worldValueKusd: "10000000000.001",
+          selectedExporter: {
+            state: "NO_RECORDED_POSITIVE_FLOW" as const,
+          },
+          alternativeSuppliers: {
+            count: 2,
+            valueKusd: "10000000000.001",
+            valueSquareSumKusdSquared:
+              "100000000000000000000.000001",
+          },
+          sourceFlowCount: 2,
+          quantityPresentCount: 2,
+        },
+      ],
+      provisionalMarketYears: [],
+      productYearTotals: [
+        { year: 2023, worldValueKusd: "10000000000.001" },
+      ],
+    };
+    const analysis = new CmsV1CandidateMarketAnalysis({
+      async loadCmsV1Inputs() {
+        return input;
+      },
+    });
+
+    await expect(
+      analysis.analyze({
+        analysisBuildId: input.analysisBuildId,
+        exporterCode: "156",
+        productCode: "010121",
+      }),
+    ).resolves.toMatchObject({ cohortSize: 1 });
+  });
+
   it("matches the exact 13-market cms-v1 core oracle", async () => {
     const analysis = createFixtureCandidateMarketAnalysis();
 
