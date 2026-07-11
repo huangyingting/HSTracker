@@ -60,7 +60,7 @@ export function ProductCombobox({
   const messages = copy[locale];
   const listboxId = useId();
   const requestSequence = useRef(0);
-  const userInteracted = useRef(false);
+  const explicitlyEdited = useRef(false);
   const initialLocale = useRef(locale);
   const [inputValue, setInputValue] = useState("");
   const [searchLocale, setSearchLocale] =
@@ -106,7 +106,7 @@ export function ProductCombobox({
           ({ product, match }) =>
             product.code === productCode && match.class === "EXACT_CODE",
         )?.product;
-        if (!userInteracted.current && restoredProduct !== undefined) {
+        if (!explicitlyEdited.current && restoredProduct !== undefined) {
           setSelectedProduct(restoredProduct);
           setStatus("idle");
           onSelectionChange(restoredProduct, "restore");
@@ -116,7 +116,7 @@ export function ProductCombobox({
           return;
         }
         console.error("Canonical product restoration failed", error);
-        if (!userInteracted.current) {
+        if (!explicitlyEdited.current) {
           setStatus("failed");
         }
       }
@@ -198,7 +198,7 @@ export function ProductCombobox({
   }, [inputValue, searchLocale, selectedProduct]);
 
   function selectProduct(product: ProductSearchProduct) {
-    userInteracted.current = true;
+    explicitlyEdited.current = true;
     setSelectedProduct(product);
     setMatches([]);
     setActiveIndex(-1);
@@ -282,7 +282,7 @@ export function ProductCombobox({
             }
             aria-describedby="product-search-help product-search-status"
             onChange={(event) => {
-              userInteracted.current = true;
+              explicitlyEdited.current = true;
               const nextValue = event.target.value;
               clearSelectedIdentity();
               setInputValue(nextValue);

@@ -16,7 +16,7 @@ import { ProductCombobox } from "./product-combobox";
 const copy = {
   en: {
     eyebrow: "Candidate Market workspace",
-    title: "Define one analysis context.",
+    title: "Define the analysis inputs.",
     lede:
       "Select an export economy and HS 2012 product, then load the complete canonical ranking.",
     analyze: "Analyze Candidate Markets",
@@ -47,7 +47,7 @@ const copy = {
     emptyBody:
       "The selected context is valid, but no market has sufficient evidence in the finalized score window.",
     malformed:
-      "This analysis context is invalid. Check the selected exporter and product.",
+      "These analysis inputs are invalid. Check the selected export economy and HS Product.",
     stale:
       "This analysis build has retired. Refresh the current fixture context.",
     capacity:
@@ -63,7 +63,7 @@ const copy = {
   },
   "zh-Hans": {
     eyebrow: "候选市场工作区",
-    title: "定义一个分析情境。",
+    title: "定义分析输入。",
     lede: "选择出口经济体和 HS 2012 产品，然后加载完整的规范排名。",
     analyze: "分析候选市场",
     loading: "正在加载完整的候选市场结果…",
@@ -75,22 +75,22 @@ const copy = {
     sourceDate: "来源日期",
     scoreWindow: "候选市场评分窗口",
     supportingEvidence: "辅助证据",
-    finalizedYears: "最终年份",
+    finalizedYears: "计分定稿年份",
     provisionalYear: "暂定年份",
     score: "候选市场评分",
     rank: "排名",
     rankJoin: "/",
     confidence: "数据置信度",
     percentile: "百分位",
-    finalizedEvidenceThrough: "最终年份证据截至",
-    marketSize: "最终年份平均进口额",
-    marketGrowth: "最终年份年增长率",
+    finalizedEvidenceThrough: "计分定稿证据截至",
+    marketSize: "计分定稿年份平均进口额",
+    marketGrowth: "计分定稿年份年增长率",
     foothold: "已记录出口方市场基础",
     diversity: "替代供应方多样性",
     neutral: "中性证据",
     noFlow: "未记录正向流量",
     emptyTitle: "没有符合条件的候选市场",
-    emptyBody: "所选情境有效，但最终评分窗口内没有市场具备足够证据。",
+    emptyBody: "所选输入有效，但计分定稿窗口内没有候选市场具备足够证据。",
     malformed: "该分析情境无效。请检查所选出口经济体和产品。",
     stale: "该分析构建已停用。请刷新当前测试情境。",
     capacity: "分析容量暂时繁忙。尚未加载完整结果。",
@@ -122,10 +122,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const requestSequence = useRef(0);
   const analysisController = useRef<AbortController | null>(null);
   const canonicalRestorePending = useRef(true);
+  const analyzedInputsInHistory = useRef(false);
+  const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
   const [result, setResult] = useState<CandidateMarketResult | null>(null);
-  const [selectedMarketCode, setSelectedMarketCode] = useState<string | null>(
+  const [selectedCandidateCode, setSelectedCandidateCode] = useState<
+    string | null
+  >(
     null,
   );
   const [status, setStatus] = useState<AnalysisStatus>("idle");
@@ -133,36 +137,43 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
     setResult(null);
-    setSelectedMarketCode(null);
+    setSelectedCandidateCode(null);
     setStatus("idle");
     const url = new URL(window.location.href);
     url.searchParams.delete("market");
     window.history.replaceState(null, "", url);
   }, []);
 
+  const prepareForExplicitContextChange = useCallback(() => {
+    canonicalRestorePending.current = false;
+    if (analyzedInputsInHistory.current) {
+      window.history.pushState(null, "", window.location.href);
+      analyzedInputsInHistory.current = false;
+    }
+    clearResult();
+  }, [clearResult]);
+
   const handleExporterSelection = useCallback(
     (nextExporter: EconomyRecord | null, source: SelectionSource) => {
       setExporter(nextExporter);
       if (source === "explicit") {
-        canonicalRestorePending.current = false;
-        clearResult();
+        prepareForExplicitContextChange();
       }
     },
-    [clearResult],
+    [prepareForExplicitContextChange],
   );
 
   const handleProductSelection = useCallback(
     (nextProduct: ProductSearchProduct | null, source: SelectionSource) => {
       setProduct(nextProduct);
       if (source === "explicit") {
-        canonicalRestorePending.current = false;
-        clearResult();
+        prepareForExplicitContextChange();
       }
     },
-    [clearResult],
+    [prepareForExplicitContextChange],
   );
 
-  const analyzeMarkets = useCallback(async () => {
+  const analyzeCandidateMarkets = useCallback(async () => {
     if (exporter === null || product === null) {
       return;
     }
@@ -172,8 +183,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     analysisController.current = controller;
     const sequence = requestSequence.current + 1;
     requestSequence.current = sequence;
+    analyzedInputsInHistory.current = true;
     setResult(null);
-    setSelectedMarketCode(null);
+    setSelectedCandidateCode(null);
     setStatus("loading");
 
     try {
@@ -203,17 +215,17 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         return;
       }
 
-      const requestedMarket = new URL(
+      const requestedCandidateCode = new URL(
         window.location.href,
       ).searchParams.get("market");
-      const initialMarket =
+      const initialCandidate =
         completeResult.candidates.find(
-          ({ economy }) => economy.code === requestedMarket,
+          ({ economy }) => economy.code === requestedCandidateCode,
         ) ?? completeResult.candidates[0];
-      setSelectedMarketCode(initialMarket.economy.code);
+      setSelectedCandidateCode(initialCandidate.economy.code);
       setStatus("success");
       const url = new URL(window.location.href);
-      url.searchParams.set("market", initialMarket.economy.code);
+      url.searchParams.set("market", initialCandidate.economy.code);
       window.history.replaceState(null, "", url);
     } catch (error) {
       if (
@@ -243,43 +255,62 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       parameters.get("revision") === "HS12" &&
       parameters.get("product") === product.code
     ) {
-      const timeout = window.setTimeout(() => void analyzeMarkets(), 0);
+      const timeout = window.setTimeout(
+        () => void analyzeCandidateMarkets(),
+        0,
+      );
       return () => window.clearTimeout(timeout);
     }
-  }, [analyzeMarkets, exporter, product]);
+  }, [analyzeCandidateMarkets, exporter, product]);
 
   useEffect(() => {
-    function restoreMarketFromHistory() {
-      if (result === null) {
+    function restoreContextFromHistory() {
+      const parameters = new URL(window.location.href).searchParams;
+      const matchesLoadedContext =
+        result !== null &&
+        parameters.get("exporter") === result.query.exporter.code &&
+        parameters.get("revision") === result.query.product.hsRevision &&
+        parameters.get("product") === result.query.product.code;
+
+      if (matchesLoadedContext) {
+        const requestedCandidateCode = parameters.get("market");
+        if (
+          result.candidates.some(
+            ({ economy }) => economy.code === requestedCandidateCode,
+          )
+        ) {
+          setSelectedCandidateCode(requestedCandidateCode);
+        }
         return;
       }
-      const requestedMarket = new URL(window.location.href).searchParams.get(
-        "market",
-      );
-      if (
-        result.candidates.some(
-          ({ economy }) => economy.code === requestedMarket,
-        )
-      ) {
-        setSelectedMarketCode(requestedMarket);
-      }
+
+      analysisController.current?.abort();
+      requestSequence.current += 1;
+      analyzedInputsInHistory.current = false;
+      canonicalRestorePending.current = true;
+      setExporter(null);
+      setProduct(null);
+      setResult(null);
+      setSelectedCandidateCode(null);
+      setStatus("idle");
+      setControlRestorationKey((current) => current + 1);
     }
 
-    window.addEventListener("popstate", restoreMarketFromHistory);
+    window.addEventListener("popstate", restoreContextFromHistory);
     return () =>
-      window.removeEventListener("popstate", restoreMarketFromHistory);
+      window.removeEventListener("popstate", restoreContextFromHistory);
   }, [result]);
 
-  function selectMarket(candidate: CandidateMarket) {
-    setSelectedMarketCode(candidate.economy.code);
+  function selectCandidateMarket(candidate: CandidateMarket) {
+    setSelectedCandidateCode(candidate.economy.code);
     const url = new URL(window.location.href);
     url.searchParams.set("market", candidate.economy.code);
     window.history.pushState(null, "", url);
   }
 
-  const selectedMarket =
+  const selectedCandidate =
     result?.candidates.find(
-      ({ economy }) => economy.code === selectedMarketCode,
+      ({ economy }) => economy.code === selectedCandidateCode,
     ) ?? null;
 
   return (
@@ -292,10 +323,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
       <div className="analysis-controls">
         <EconomyCombobox
+          key={`economy-${controlRestorationKey}`}
           locale={locale}
           onSelectionChange={handleExporterSelection}
         />
         <ProductCombobox
+          key={`product-${controlRestorationKey}`}
           locale={locale}
           onSelectionChange={handleProductSelection}
         />
@@ -303,7 +336,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           className="analyze-button"
           type="button"
           disabled={exporter === null || product === null || status === "loading"}
-          onClick={() => void analyzeMarkets()}
+          onClick={() => void analyzeCandidateMarkets()}
         >
           {messages.analyze}
         </button>
@@ -320,7 +353,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         <AnalysisContextStrip result={result} locale={locale} />
       ) : null}
 
-      {status === "success" && result !== null && selectedMarket !== null ? (
+      {status === "success" && result !== null && selectedCandidate !== null ? (
         <div className="candidate-workspace">
           <section className="candidate-ranking" aria-labelledby="ranking-title">
             <div className="candidate-heading">
@@ -338,9 +371,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   <button
                     type="button"
                     aria-pressed={
-                      candidate.economy.code === selectedMarketCode
+                      candidate.economy.code === selectedCandidateCode
                     }
-                    onClick={() => selectMarket(candidate)}
+                    onClick={() => selectCandidateMarket(candidate)}
                   >
                     <span className="candidate-rank">#{candidate.rank}</span>
                     <span>
@@ -362,7 +395,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           </section>
 
           <CandidateEvidence
-            candidate={selectedMarket}
+            candidate={selectedCandidate}
             cohortSize={result.cohortSize}
             exporter={result.query.exporter}
             locale={locale}
@@ -387,7 +420,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 if (status === "stale") {
                   window.location.reload();
                 } else {
-                  void analyzeMarkets();
+                  void analyzeCandidateMarkets();
                 }
               }}
             >

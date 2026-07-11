@@ -16,6 +16,10 @@ const copy = {
     loading: "Searching economies…",
     failed: "Economy search is temporarily unavailable.",
     noMatch: "No economy matched that code or source name.",
+    invalid: "Economy queries are limited to 100 characters.",
+    retired:
+      "This economy directory has retired. Refresh the current analysis.",
+    refresh: "Refresh current analysis",
     selected: "Selected export economy",
   },
   "zh-Hans": {
@@ -25,6 +29,9 @@ const copy = {
     loading: "正在搜索经济体…",
     failed: "经济体搜索暂时不可用。",
     noMatch: "没有经济体匹配该编码或来源名称。",
+    invalid: "经济体查询最多可输入 100 个字符。",
+    retired: "该经济体目录已停用。请刷新当前分析。",
+    refresh: "刷新当前分析",
     selected: "已选择出口经济体",
   },
 } as const;
@@ -37,6 +44,14 @@ type EconomyComboboxProps = {
   ) => void;
 };
 
+type EconomySearchStatus =
+  | "idle"
+  | "loading"
+  | "no-match"
+  | "invalid"
+  | "retired"
+  | "failed";
+
 export function EconomyCombobox({
   locale,
   onSelectionChange,
@@ -44,7 +59,7 @@ export function EconomyCombobox({
   const messages = copy[locale];
   const listboxId = useId();
   const requestSequence = useRef(0);
-  const userInteracted = useRef(false);
+  const explicitlyEdited = useRef(false);
   const interactiveController = useRef<AbortController | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [selectedEconomy, setSelectedEconomy] =
@@ -53,9 +68,7 @@ export function EconomyCombobox({
     useState<EconomySearchResult["matches"]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "no-match" | "failed"
-  >("idle");
+  const [status, setStatus] = useState<EconomySearchStatus>("idle");
 
   useEffect(() => {
     const exporterCode = new URL(window.location.href).searchParams.get(
@@ -71,15 +84,18 @@ export function EconomyCombobox({
         const restored = result.matches.find(
           ({ economy }) => economy.code === exporterCode,
         )?.economy;
-        if (!userInteracted.current && restored !== undefined) {
+        if (!explicitlyEdited.current && restored !== undefined) {
           setSelectedEconomy(restored);
           onSelectionChange(restored, "restore");
         }
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
-          console.error("Canonical exporter restoration failed", error);
-          setStatus("failed");
+          const nextStatus = economySearchErrorStatus(error);
+          if (nextStatus === "failed") {
+            console.error("Canonical exporter restoration failed", error);
+          }
+          setStatus(nextStatus);
         }
       });
     return () => controller.abort();
@@ -95,7 +111,11 @@ export function EconomyCombobox({
   useEffect(() => {
     const sequence = requestSequence.current + 1;
     requestSequence.current = sequence;
-    if (selectedEconomy !== null || inputValue.trim() === "") {
+    if (
+      selectedEconomy !== null ||
+      inputValue.trim() === "" ||
+      [...inputValue].length > 100
+    ) {
       return;
     }
 
@@ -140,15 +160,18 @@ export function EconomyCombobox({
       ) {
         return;
       }
-      console.error("Economy search request failed", error);
+      const nextStatus = economySearchErrorStatus(error);
+      if (nextStatus === "failed") {
+        console.error("Economy search request failed", error);
+      }
       setMatches([]);
       setOpen(false);
-      setStatus("failed");
+      setStatus(nextStatus);
     }
   }
 
   function selectEconomy(economy: EconomyRecord) {
-    userInteracted.current = true;
+    explicitlyEdited.current = true;
     setSelectedEconomy(economy);
     setMatches([]);
     setOpen(false);
@@ -222,13 +245,14 @@ export function EconomyCombobox({
         }
         aria-describedby="economy-search-help economy-search-status"
         onChange={(event) => {
-          userInteracted.current = true;
+          explicitlyEdited.current = true;
           cancelInteractiveRequest();
           clearSelection();
-          setInputValue(event.target.value);
+          const nextValue = event.target.value;
+          setInputValue(nextValue);
           setMatches([]);
           setOpen(false);
-          setStatus("idle");
+          setStatus([...nextValue].length > 100 ? "invalid" : "idle");
         }}
         onFocus={() => {
           if (matches.length > 0) {
@@ -288,12 +312,26 @@ export function EconomyCombobox({
           ? messages.loading
           : status === "no-match"
             ? messages.noMatch
-            : status === "failed"
-              ? messages.failed
-              : selectedEconomy === null
-                ? ""
-                : `${messages.selected}: ${selectedEconomy.code}`}
+            : status === "invalid"
+              ? messages.invalid
+              : status === "retired"
+                ? messages.retired
+                : status === "failed"
+                  ? messages.failed
+                  : selectedEconomy === null
+                    ? ""
+                    : `${messages.selected}: ${selectedEconomy.code}`}
       </p>
+      {status === "retired" ? (
+        <button
+          className="economy-refresh-button"
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => window.location.reload()}
+        >
+          {messages.refresh}
+        </button>
+      ) : null}
     </div>
   );
 
@@ -314,9 +352,28 @@ async function fetchEconomies(
     { signal },
   );
   if (!response.ok) {
-    throw new Error(`Economy search returned ${response.status}.`);
+    throw new EconomySearchResponseError(response.status);
   }
   return (await response.json()) as EconomySearchResult;
+}
+
+class EconomySearchResponseError extends Error {
+  constructor(readonly status: number) {
+    super(`Economy search returned ${status}.`);
+    this.name = "EconomySearchResponseError";
+  }
+}
+
+function economySearchErrorStatus(error: unknown): EconomySearchStatus {
+  if (error instanceof EconomySearchResponseError) {
+    if (error.status === 400) {
+      return "invalid";
+    }
+    if (error.status === 410) {
+      return "retired";
+    }
+  }
+  return "failed";
 }
 
 function economyOptionId(code: string): string {

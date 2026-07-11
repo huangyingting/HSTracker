@@ -34,10 +34,10 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
     0,
   );
 
-  const markets = page
+  const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("button");
-  await expect(markets).toHaveCount(13);
+  await expect(candidateMarkets).toHaveCount(13);
   const expectedCandidates = [
     "#1 Netherlands BACI 528 · Data Confidence: HIGH 85 /100",
     "#2 Mexico BACI 484 · Data Confidence: HIGH 70 /100",
@@ -54,7 +54,9 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
     "#13 Kenya BACI 404 · Data Confidence: LOW 17 /100",
   ] as const;
   for (const [index, accessibleName] of expectedCandidates.entries()) {
-    await expect(markets.nth(index)).toHaveAccessibleName(accessibleName);
+    await expect(candidateMarkets.nth(index)).toHaveAccessibleName(
+      accessibleName,
+    );
   }
   expect(analysisRequests).toBe(1);
   await expect(page).toHaveURL(
@@ -71,7 +73,7 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
   await expect(evidence.getByText("Score 85")).toBeVisible();
   await expect(evidence.getByText("Rank 1 of 13")).toBeVisible();
 
-  await markets.filter({ hasText: "Mexico" }).click();
+  await candidateMarkets.filter({ hasText: "Mexico" }).click();
 
   await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
   await expect(evidence.getByText("Score 70")).toBeVisible();
@@ -111,7 +113,7 @@ test("a canonical analysis URL restores its complete selected context", async ({
   expect(analysisRequests).toBe(1);
 });
 
-test("browser history restores market evidence without reloading analysis", async ({
+test("browser history restores Candidate Market evidence without reloading analysis", async ({
   page,
 }) => {
   let analysisRequests = 0;
@@ -128,14 +130,14 @@ test("browser history restores market evidence without reloading analysis", asyn
   const evidence = page.getByRole("region", {
     name: "Selected Candidate Market evidence",
   });
-  const markets = page
+  const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("button");
   await expect(
     evidence.getByRole("heading", { name: "Netherlands" }),
   ).toBeVisible();
 
-  await markets.filter({ hasText: "Mexico" }).click();
+  await candidateMarkets.filter({ hasText: "Mexico" }).click();
   await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
 
   await page.goBack();
@@ -148,6 +150,64 @@ test("browser history restores market evidence without reloading analysis", asyn
   await expect(page).toHaveURL(/market=484/);
   await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
   expect(analysisRequests).toBe(1);
+});
+
+test("browser history restores prior exporter and HS Product contexts", async ({
+  page,
+}) => {
+  let analysisRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/candidate-markets?")) {
+      analysisRequests += 1;
+    }
+  });
+
+  await page.goto(
+    "/?exporter=156&revision=HS12&product=010121&market=528",
+  );
+  const candidateList = page.getByRole("list", {
+    name: "Candidate Markets",
+  });
+  await expect(candidateList.getByRole("button")).toHaveCount(13);
+
+  const product = page.getByRole("combobox", {
+    name: "HS 2012 product",
+  });
+  await product.fill("851712");
+  await page.getByRole("option", { name: /851712/ }).click();
+  await page
+    .getByRole("button", { name: "Analyze Candidate Markets" })
+    .click();
+  await expect(
+    page.getByRole("status").getByRole("heading", {
+      name: "No eligible Candidate Markets",
+    }),
+  ).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(
+    /exporter=156.*revision=HS12.*product=010121.*market=528/,
+  );
+  await expect(product).toHaveValue(
+    "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
+  );
+  await expect(candidateList.getByRole("button")).toHaveCount(13);
+  await expect(
+    page
+      .getByRole("region", { name: "Selected Candidate Market evidence" })
+      .getByRole("heading", { name: "Netherlands" }),
+  ).toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL(
+    /exporter=156.*revision=HS12.*product=851712/,
+  );
+  await expect(
+    page.getByRole("status").getByRole("heading", {
+      name: "No eligible Candidate Markets",
+    }),
+  ).toBeVisible();
+  expect(analysisRequests).toBe(4);
 });
 
 test("a valid empty analysis preserves context without a partial ranking", async ({
@@ -203,10 +263,10 @@ test("a malformed analysis response keeps the context but exposes no ranking", a
 
   await expect(
     page
-      .getByRole("region", { name: "Define one analysis context." })
+      .getByRole("region", { name: "Define the analysis inputs." })
       .getByRole("alert"),
   ).toHaveText(
-    "This analysis context is invalid. Check the selected exporter and product.",
+    "These analysis inputs are invalid. Check the selected export economy and HS Product.",
   );
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }),
@@ -247,7 +307,7 @@ test("a stale analysis build can refresh the complete result", async ({
   );
 
   const workspace = page.getByRole("region", {
-    name: "Define one analysis context.",
+    name: "Define the analysis inputs.",
   });
   await expect(workspace.getByRole("alert")).toContainText(
     "This analysis build has retired.",
@@ -293,7 +353,7 @@ test("a capacity response exposes a retryable state without a ranking", async ({
   );
 
   const workspace = page.getByRole("region", {
-    name: "Define one analysis context.",
+    name: "Define the analysis inputs.",
   });
   await expect(workspace.getByRole("alert")).toContainText(
     "Analysis capacity is temporarily busy.",
@@ -328,7 +388,7 @@ test("an unavailable analysis artifact exposes a fatal state", async ({
   );
 
   const workspace = page.getByRole("region", {
-    name: "Define one analysis context.",
+    name: "Define the analysis inputs.",
   });
   await expect(workspace.getByRole("alert")).toContainText(
     "The compatible analysis artifact is temporarily unavailable.",
@@ -376,6 +436,55 @@ test("leaving the economy field cancels its pending directory", async ({
   ).toHaveCount(0);
 });
 
+test("an invalid economy query is not reported as unavailable", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const economy = page.getByRole("combobox", { name: "Export economy" });
+
+  await economy.fill("a".repeat(101));
+
+  await expect(
+    page.getByText("Economy queries are limited to 100 characters."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Economy search is temporarily unavailable."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("listbox", { name: "Export economy" }),
+  ).toHaveCount(0);
+});
+
+test("a retired economy directory offers a current-analysis refresh", async ({
+  page,
+}) => {
+  await page.route(
+    (url) => url.pathname.endsWith("/economies"),
+    async (route) => {
+      await route.fulfill({
+        status: 410,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          code: "ANALYSIS_BUILD_RETIRED",
+          message: "Analysis build retired.",
+        }),
+      });
+    },
+  );
+  await page.goto("/");
+
+  await page.getByRole("combobox", { name: "Export economy" }).focus();
+
+  await expect(
+    page.getByText(
+      "This economy directory has retired. Refresh the current analysis.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Refresh current analysis" }),
+  ).toBeVisible();
+});
+
 test("an Export Market Analyst can inspect localized Chinese evidence", async ({
   page,
 }) => {
@@ -399,7 +508,7 @@ test("an Export Market Analyst can inspect localized Chinese evidence", async ({
   ).toHaveCount(13);
   await expect(page.getByText("BACI 发布版本")).toBeVisible();
   await expect(page.getByText("来源日期")).toBeVisible();
-  await expect(page.getByText("最终年份 2019–2023")).toBeVisible();
+  await expect(page.getByText("计分定稿年份 2019–2023")).toBeVisible();
   await expect(page.getByText("暂定年份 2024")).toBeVisible();
 
   const evidence = page.getByRole("region", {

@@ -497,6 +497,19 @@ a {
   line-height: 1.4;
 }
 
+.economy-refresh-button {
+  margin-top: 9px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
 .economy-options {
   position: absolute;
   z-index: 12;
