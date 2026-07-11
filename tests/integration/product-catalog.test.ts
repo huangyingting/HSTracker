@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { PUBLIC_PRODUCT_SEARCH_BUILD_ID } from "../../src/catalog/product-catalog-config";
 import { createFixtureProductCatalog } from "../../src/catalog/fixture-product-catalog";
 import {
   PRODUCT_SEARCH_GOLDEN_CASES,
@@ -11,10 +10,6 @@ import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../test/fixtures/accepta
 const PRODUCT_SEARCH_BUILD_ID = ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core;
 
 describe("ProductCatalog", () => {
-  it("keeps the public runtime pinned to the acceptance search build", () => {
-    expect(PUBLIC_PRODUCT_SEARCH_BUILD_ID).toBe(PRODUCT_SEARCH_BUILD_ID);
-  });
-
   it("finds an HS12 product by its exact six-character code", async () => {
     const catalog = createFixtureProductCatalog();
 

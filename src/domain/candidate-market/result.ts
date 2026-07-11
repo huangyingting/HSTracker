@@ -1,6 +1,6 @@
 import type {
   CandidateReleaseRevision,
-  ReleaseRevisionNotComparedReason,
+  ReleaseRevisionComparisonIdentity,
 } from "../release/release-revision";
 
 export type CandidateMarketAnalysisQuery = {
@@ -164,10 +164,7 @@ export type CandidateMarketResult = {
     tenYear: StabilityEvidence;
   };
   productSeriesDiscontinuityYears: readonly number[];
-  releaseRevisionSummary: {
-    comparisonRelease: string | null;
-    previousArtifactSha256: string | null;
-    notComparedReason: ReleaseRevisionNotComparedReason | null;
+  releaseRevisionSummary: ReleaseRevisionComparisonIdentity & {
     noLongerEligibleCount: number | null;
   };
   candidates: readonly CandidateMarket[];

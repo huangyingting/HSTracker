@@ -45,10 +45,13 @@ export type ReleaseRevisionComparisonInput = {
   previousArtifact: ReleaseRevisionPreviousArtifact | null;
 };
 
-export type ReleaseRevisionComparison = {
+export type ReleaseRevisionComparisonIdentity = {
   comparisonRelease: string | null;
   previousArtifactSha256: string | null;
   notComparedReason: ReleaseRevisionNotComparedReason | null;
+};
+
+export type ReleaseRevisionComparison = ReleaseRevisionComparisonIdentity & {
   noLongerEligibleCount: number | null;
   candidates: Readonly<Record<string, CandidateReleaseRevision>>;
 };

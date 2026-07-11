@@ -31,7 +31,7 @@ export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
     },
   },
   revisionComparison: {
-    previousBaciRelease: null,
+    comparisonRelease: null,
     previousArtifactSha256: null,
     notComparedReason: "NO_PREVIOUS_ARTIFACT",
   },

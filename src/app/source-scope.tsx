@@ -112,6 +112,18 @@ export function SourceScope({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const messages = copy[locale];
   const { source, freshness } = manifest;
+  const revisionComparison =
+    result !== null &&
+    result.releaseRevisionSummary.comparisonRelease !== null
+      ? result.releaseRevisionSummary
+      : manifest.revisionComparison;
+  const revisionComparisonValue = [
+    revisionComparison.comparisonRelease,
+    revisionComparison.previousArtifactSha256,
+    revisionComparison.notComparedReason,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(" · ");
   const warning =
     freshness.state === "LATEST_KNOWN" ? null : (
       <p className="source-scope-warning" role="alert">
@@ -248,20 +260,11 @@ export function SourceScope({
               value={freshness.checkedAt}
             />
             <SourceDetail
-              label={
-                result?.releaseRevisionSummary.comparisonRelease === null ||
-                result === null
-                  ? releaseComparisonLabel(manifest, locale)
-                  : messages.revisionComparison
-              }
-              value={
-                result?.releaseRevisionSummary.comparisonRelease === null ||
-                result === null
-                  ? (manifest.revisionComparison.previousBaciRelease ??
-                    manifest.revisionComparison.notComparedReason ??
-                    "")
-                  : `${result.releaseRevisionSummary.comparisonRelease} · ${result.releaseRevisionSummary.previousArtifactSha256}`
-              }
+              label={releaseComparisonLabel(
+                revisionComparison.notComparedReason,
+                locale,
+              )}
+              value={revisionComparisonValue}
             />
             {result?.releaseRevisionSummary.noLongerEligibleCount === null ||
             result === null ? null : (
@@ -303,11 +306,10 @@ function freshnessLabel(
 }
 
 function releaseComparisonLabel(
-  manifest: CurrentAnalysisManifest,
+  reason: CurrentAnalysisManifest["revisionComparison"]["notComparedReason"],
   locale: SourceScopeLocale,
 ): string {
   const messages = copy[locale];
-  const reason = manifest.revisionComparison.notComparedReason;
   if (reason === "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW") {
     return messages.missingWindow;
   }
@@ -317,7 +319,7 @@ function releaseComparisonLabel(
   if (reason === "NO_PREVIOUS_ARTIFACT") {
     return messages.noPrevious;
   }
-  return manifest.revisionComparison.previousBaciRelease ?? messages.noPrevious;
+  return messages.revisionComparison;
 }
 
 function formatWindow(

@@ -117,7 +117,7 @@ function isCurrentAnalysisManifest(
   }
 
   return (
-    isNullableBaciRelease(revision.previousBaciRelease) &&
+    isNullableBaciRelease(revision.comparisonRelease) &&
     isNullableSha256(revision.previousArtifactSha256) &&
     isRevisionReason(revision.notComparedReason) &&
     hasCoherentRevisionIdentity(revision)
@@ -131,9 +131,9 @@ function hasCoherentRevisionIdentity(
     revision.notComparedReason === null ||
     revision.notComparedReason === "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW";
   return retainsPreviousIdentity
-    ? revision.previousBaciRelease !== null &&
+    ? revision.comparisonRelease !== null &&
         revision.previousArtifactSha256 !== null
-    : revision.previousBaciRelease === null &&
+    : revision.comparisonRelease === null &&
         revision.previousArtifactSha256 === null;
 }
 

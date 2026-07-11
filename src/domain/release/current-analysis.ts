@@ -3,6 +3,7 @@ import {
   type EffectiveSourceFreshness,
   type SourceStatusSnapshot,
 } from "./source-freshness";
+import type { ReleaseRevisionComparisonIdentity } from "./release-revision";
 
 export type CurrentAnalysisDeployment = {
   analysisBuildId: string;
@@ -28,15 +29,7 @@ export type CurrentAnalysisDeployment = {
       sha256: string;
     };
   };
-  revisionComparison: {
-    previousBaciRelease: string | null;
-    previousArtifactSha256: string | null;
-    notComparedReason:
-      | "NO_PREVIOUS_ARTIFACT"
-      | "NO_COMPATIBLE_PREVIOUS_ARTIFACT"
-      | "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW"
-      | null;
-  };
+  revisionComparison: ReleaseRevisionComparisonIdentity;
 };
 
 export type CurrentAnalysisManifest = CurrentAnalysisDeployment & {

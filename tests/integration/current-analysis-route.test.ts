@@ -55,7 +55,7 @@ describe("current analysis manifest route", () => {
         latestKnownBaciRelease: "V202601",
       },
       revisionComparison: {
-        previousBaciRelease: null,
+        comparisonRelease: null,
         previousArtifactSha256: null,
         notComparedReason: "NO_PREVIOUS_ARTIFACT",
       },
