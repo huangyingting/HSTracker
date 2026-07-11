@@ -15,3 +15,31 @@ _Avoid_: Trade opportunity, guaranteed opportunity, recommended investment
 **Candidate Market Score**:
 A transparent, fixed-weight summary used to rank Candidate Markets, accompanied by component indicators and a data-confidence measure. It is a discovery aid, not a standalone recommendation.
 _Avoid_: Opportunity score, success probability, AI recommendation
+
+**Candidate Market Context**:
+The source release, analysis build, selected export economy, HS product identity, and one Candidate Market that together identify the scope for adjacent evidence. It identifies an analytical context, not a buyer-supplier relationship.
+_Avoid_: Trade lane customer, company market, buyer market
+
+**Company Trade Context**:
+Separately sourced and access-controlled evidence about Source Party Mentions, Legal Entities, brands, models, transport documents, or shipment events for a Candidate Market Context. It is not BACI evidence and never changes the Candidate Market Score or Data Confidence.
+_Avoid_: Company-level BACI, customer list, buyer database
+
+**Source Party Mention**:
+A name, address, or identifier recorded for a party on one source record. It is unresolved evidence, not automatically a Legal Entity; Party Roles are separate source-scoped assertions.
+_Avoid_: Company, customer, resolved entity
+
+**Legal Entity**:
+An independently identifiable party capable of holding legal or contractual responsibility in a jurisdiction. A Source Party Mention may resolve to one, but a particular registry identifier such as an LEI is optional.
+_Avoid_: Company name string, required LEI, unresolved party mention
+
+**Legal Entity Relationship**:
+A source-attributed assertion connecting Legal Entities under a defined relationship, such as direct accounting-consolidating parent. It is distinct from a Commercial Relationship Assertion.
+_Avoid_: Ownership inferred from matching names, buyer-supplier relationship
+
+**Party Role**:
+The function a party is recorded as performing on a particular source record, such as buyer, consignee, or consignor. One role does not prove another role or an ongoing commercial relationship.
+_Avoid_: Buyer when the source says consignee, supplier when the source says consignor
+
+**Commercial Relationship Assertion**:
+A source-attributed or explicitly derived claim that identified parties have a buyer, supplier, or other commercial relationship, including its evidence, method, time scope, and resolution status.
+_Avoid_: Inferring buyer or supplier directly from a shipper or consignee label
