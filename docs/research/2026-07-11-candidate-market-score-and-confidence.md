@@ -271,6 +271,19 @@ does not imply a better rank.
 
 Do not rank on hidden decimal differences.
 
+Release Revision comparisons use a percentile of the displayed integer-score
+ordering, not hidden component decimals. For cohort size `N > 1`, let
+`averageRank` be the mean of the one-based positions occupied by a score's tie
+group and calculate:
+
+```text
+rankPercentile = 100 * (N - averageRank) / (N - 1)
+```
+
+For `N = 1`, assign 50. Unique first and last positions are therefore 100 and
+0, tied scores share a percentile, and an all-tied cohort receives 50. Compare
+unrounded percentiles and serialize them to at most three decimal places.
+
 ## Data Confidence
 
 Data Confidence answers `How complete and stable is the evidence behind this
@@ -514,6 +527,7 @@ extreme_growth_abs_rate = 0.75
 series_outlier_mad_multiplier = 4
 series_outlier_min_log_change = ln(3)
 low_stability_spearman = 0.70
+rank_percentile_rule = displayed-score tie-group midrank
 revision_score_change = 10
 revision_rank_percentile_change = 15
 ```

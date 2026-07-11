@@ -104,6 +104,11 @@ translationVersion   = immutable catalog version
 sourceDescriptionSha = checksum of translated English input
 ```
 
+At the join/export boundary, the effective translation status may additionally
+be `fallback-English` when rule 6 applies. That status reports the absence of an
+accepted auxiliary record; it is not persisted as if it were a Chinese
+translation.
+
 Rules:
 
 1. The MVP product-search catalog contains a non-empty Chinese auxiliary
@@ -317,6 +322,13 @@ The Candidate Market result continues to contain canonical `HS12` identity and
 the exact BACI English source description. Localized display text is joined from
 the product catalog and cannot affect score computation.
 
+The Candidate Market Result Export includes both that source description and
+the accepted Simplified Chinese auxiliary description. Its immutable identity
+therefore binds `productSearchBuildId`; a translation-only correction creates a
+new export without changing `analysisBuildId`, score, rank, or trade evidence.
+The exact bilingual fields and fallback encoding are fixed by the
+[result export contract](./2026-07-11-result-export-contract.md).
+
 ## Acceptance fixtures handed forward
 
 Implementation fixtures must cover at least:
@@ -337,7 +349,8 @@ Implementation fixtures must cover at least:
 - complete 5,202-row source and Chinese catalog coverage; and
 - a valid catalog product with zero observations in the fixture evidence source;
 - proof that a translation/alias-only change does not alter analysis bytes or
-  `analysisBuildId`.
+  `analysisBuildId`, while an exported bilingual label change does alter its
+  product-search-bound export identity.
 
 ## Rejected alternatives
 

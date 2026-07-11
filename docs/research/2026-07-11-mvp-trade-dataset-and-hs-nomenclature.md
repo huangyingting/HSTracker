@@ -162,8 +162,11 @@ Treat `q` as auxiliary evidence, not a direct physical measurement in every
 row. CEPII's methodology converts quantities reported in other units into
 tons using estimated conversion rates, then reconciles mirror quantities.
 Blank quantities remain in the current files. Do not impute them, and do not
-compute unit value for a row with blank or nonpositive quantity. Any
-quantity- or unit-value-derived indicator must reduce data confidence.
+compute unit value for a row with blank or nonpositive quantity. Any analytical
+indicator that uses quantity magnitude or unit value must carry its own
+quality/confidence treatment. Candidate-level quantity-availability coverage is
+only a completeness disclosure: because `q` does not enter `cms-v1`, it does
+not reduce the score's separately defined Data Confidence.
 
 Sources:
 

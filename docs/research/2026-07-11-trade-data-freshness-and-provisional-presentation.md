@@ -352,6 +352,7 @@ score_window_end
 provisional_year
 score_version
 analysis_build_id
+product_search_build_id
 artifact_sha256
 source_attribution
 ```
@@ -377,17 +378,21 @@ and latest known release. The export URL/cache identity includes that status ID:
 analysis_build_id
   + exporter_code
   + product_code
+  + product_search_build_id
   + freshness_status_id
   + export_schema_version
 ```
 
-A changed source check or refresh state creates a new export identity; it never
-changes an already cached file. The exact transport is left to the export
-contract ticket.
+A changed accepted product translation, source check, or refresh state creates
+a new export identity; it never changes an already cached file. The product-
+search build affects exported labels only and does not enter analysis identity.
+The exact transport is defined by the
+[result export contract](./2026-07-11-result-export-contract.md).
 
 Immediately before download, the client refreshes the short-lived current
 manifest. It uses the latest effective status ID compatible with the active
-analysis build and updates any warning before requesting the immutable export.
+analysis build and the compatible product-search build, then updates any warning
+before requesting the immutable export.
 
 The reusable attribution remains:
 
@@ -435,8 +440,8 @@ Acceptance must cover:
 - same-window current/previous recomputation;
 - a skipped release producing `NOT_COMPARED` instead of a shortened window;
 - UI absolute dates and export ISO dates;
-- an export identity changing when `freshness_status_id` changes while
-  `analysisBuildId` remains unchanged; and
+- an export identity changing when `freshness_status_id` or the bound
+  `productSearchBuildId` changes while `analysisBuildId` remains unchanged; and
 - no mixed-release rows in analysis or export.
 
 ## Rejected alternatives

@@ -370,12 +370,14 @@ GET /api/v1/analyses/current
 GET /api/v1/analyses/{analysisBuildId}/economies?q=
 GET /api/v1/product-catalogs/{productSearchBuildId}/products?q=&locale=&limit=
 GET /api/v1/analyses/{analysisBuildId}/candidate-markets
-GET /api/v1/analyses/{analysisBuildId}/candidate-markets.csv?freshnessStatusId=
+GET /api/v1/analyses/{analysisBuildId}/candidate-markets.csv?exporter=&product=&productSearchBuildId=&freshnessStatusId=&schema=candidate-markets-csv-v1
 GET /healthz
 ```
 
-The analysis route accepts only `exporter` and `product`; CSV additionally
-binds the immutable public freshness-status snapshot presented at download.
+The analysis route accepts only `exporter` and `product`. CSV additionally
+binds the accepted product catalog used for its bilingual labels, the immutable
+public freshness-status snapshot presented at download, and the requested
+export schema.
 Alternate 3-, 5-, and 10-year calculations are part of `cms-v1` evidence, not a
 public score-window selector. The immutable deployment manifest supplies the
 human-readable BACI release and score version. The short-lived current response
@@ -384,12 +386,17 @@ Product search and operational freshness are versioned independently because
 neither changes trade facts or score computation.
 
 The comparison tray operates on candidates already returned by one analysis;
-it does not need a second comparison endpoint. The CSV route calls the same
-analysis module and serializer contract as the visible result. The client
-refreshes `current` immediately before export and binds its compatible effective
-freshness-status ID.
+it does not need a second comparison endpoint. The canonical CSV always exports
+the complete eligible cohort from the same `CandidateMarketResult` as the
+visible result. It does not accept a selected row, shortlist, viewport, or
+arbitrary candidate list. The serializer adds compatible product-catalog labels
+and status-snapshot provenance without changing analysis facts. The client
+refreshes `current` immediately before export and binds its compatible product-
+search build and effective freshness-status IDs. The exact shape and byte
+contract are defined in the
+[result export contract](./2026-07-11-result-export-contract.md).
 
-Response behavior:
+Analysis-route response behavior:
 
 | Condition | Response |
 |---|---|
@@ -397,11 +404,13 @@ Response behavior:
 | Valid query, no eligible market | `200` with empty candidates and reason |
 | Malformed code or query | `400` with stable error code |
 | Well-formed economy/product absent from release | `404` |
-| Unknown freshness-status snapshot | `404` |
-| Snapshot's served release differs from analysis release | `409` with current manifest refresh |
 | Analysis build is no longer active at the origin | `410` and client refreshes `current` |
 | Artifact not loaded or incompatible | `503` |
 | Unexpected failure | `500` with opaque public message and logged correlation ID |
+
+The CSV route adds product-catalog, status-snapshot, schema, and representation-
+limit outcomes defined in the result export contract; the JSON analysis route
+does not accept those IDs.
 
 No public route writes data, activates a release, accepts SQL, or returns raw
 BACI facts.
@@ -445,9 +454,15 @@ An export that embeds operational state has a third identity:
 analysis_build_id
   + exporter_code
   + product_code
+  + product_search_build_id
   + freshness_status_id
   + export_schema_version
 ```
+
+The product-search build enters only the export identity because the CSV embeds
+its accepted Simplified Chinese product description and translation status.
+Changing a translation therefore creates new export bytes without falsely
+changing analysis identity.
 
 The effective freshness-status ID is a structured content address containing
 the immutable source-snapshot ID, effective state/time, and a digest over the
@@ -712,8 +727,9 @@ Moving to PostgreSQL or ClickHouse is not the first scale step.
   the release prefix; CI promotion credentials are separate and write-scoped.
 - Exporter, product, release, and score versions are allowlisted before any
   prepared query runs.
-- Responses have a fixed maximum candidate count and no endpoint accepts a
-  list of arbitrary queries.
+- Responses have a fixed maximum of 250 candidates and no endpoint accepts a
+  list of arbitrary queries. The CSV additionally has the contract's 5 MiB
+  uncompressed representation guard; neither surface truncates a cohort.
 - A bounded queue protects CPU and memory; overflow returns an explicit
   retryable response rather than exhausting the process.
 - Artifact files are checksum-verified, schema-checked, and opened read-only.
@@ -727,10 +743,9 @@ Moving to PostgreSQL or ClickHouse is not the first scale step.
   separately from serving readiness.
 - Logs include correlation ID, release, score version, normalized query key,
   duration, cache state, rows scanned/returned where available, and typed error.
-- The CSV serializer is centralized, quotes fields, and neutralizes
-  formula-leading strings according to OWASP guidance. The exact human-versus-
-  machine export trade-off and columns remain owned by the export-contract
-  ticket.
+- The CSV serializer is centralized and implements the fixed quoting, typed
+  value, reversible formula-prefix, and control-character rejection rules in
+  the [result export contract](./2026-07-11-result-export-contract.md).
 
 ## Architecture diagram
 

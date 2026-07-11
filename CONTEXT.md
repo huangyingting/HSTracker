@@ -44,6 +44,10 @@ _Avoid_: Live status, real-time data, data age
 The source release, analysis build, selected export economy, HS product identity, and one Candidate Market that together identify the scope for adjacent evidence. It identifies an analytical context, not a buyer-supplier relationship.
 _Avoid_: Trade lane customer, company market, buyer market
 
+**Candidate Market Result Export**:
+An immutable tabular snapshot of the complete ranked Candidate Market cohort for one export economy and HS Product under explicit analysis, product-catalog, and freshness identities. It carries derived evidence and provenance for follow-up, not raw trade records or company evidence.
+_Avoid_: BACI export, raw-data extract, buyer list
+
 **Company Trade Context**:
 Separately sourced and access-controlled evidence about Source Party Mentions, Legal Entities, brands, models, transport documents, or shipment events for a Candidate Market Context. It is not BACI evidence and never changes the Candidate Market Score or Data Confidence.
 _Avoid_: Company-level BACI, customer list, buyer database
