@@ -358,6 +358,7 @@ export async function buildAnalysisArtifact(
     sourceSha256: stagingManifest.sourceSha256,
     stagingManifestSha256: sha256(stagingManifestBytes),
     artifactManifestSha256: sha256(artifactManifestBytes),
+    artifactManifest,
     artifact: artifactManifest.artifact,
     tableRowCounts,
     reconciliation,

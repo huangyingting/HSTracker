@@ -46,9 +46,8 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       workspace: artifactWorkspace,
       reportPath,
     });
-    const manifest = JSON.parse(
-      await readFile(outcome.artifactManifestPath, "utf8"),
-    );
+    const manifestBytes = await readFile(outcome.artifactManifestPath);
+    const manifest = JSON.parse(manifestBytes.toString("utf8"));
     const report = JSON.parse(await readFile(reportPath, "utf8"));
 
     expect(outcome.status).toBe("accepted");
@@ -164,6 +163,10 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       },
     });
     expect(report.benchmarkQueries).toEqual(manifest.benchmarkQueries);
+    expect(report.artifactManifest).toEqual(manifest);
+    expect(report.artifactManifestSha256).toBe(
+      createHash("sha256").update(manifestBytes).digest("hex"),
+    );
     expect((await stat(outcome.artifactPath)).size).toBe(
       manifest.artifact.bytes,
     );
