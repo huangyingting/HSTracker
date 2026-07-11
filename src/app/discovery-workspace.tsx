@@ -9,11 +9,11 @@ import {
 } from "react";
 
 import type { ProductSearchProduct } from "../catalog/product-catalog";
-import { PUBLIC_ANALYSIS_BUILD_ID } from "../domain/candidate-market/analysis-config";
 import type {
   CandidateMarket,
   CandidateMarketResult,
 } from "../domain/candidate-market/result";
+import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EconomyRecord } from "../economy/economy-directory";
 import {
   CandidateMarketComparison,
@@ -24,17 +24,19 @@ import {
   candidateDisplayName,
   localizedConfidence,
 } from "./candidate-market-evidence";
+import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
+import { SourceScope } from "./source-scope";
 
 const copy = {
   en: {
     eyebrow: "Candidate Market workspace",
     title: "Define the analysis inputs.",
-    lede:
-      "Select an export economy and HS 2012 product, then load the complete canonical ranking.",
+    lede: "Select an export economy and HS 2012 product, then load the complete canonical ranking.",
     analyze: "Analyze Candidate Markets",
     loading: "Loading the complete Candidate Market result…",
+    refreshing: "Revalidating the current analysis release…",
     ranked: "Ranked Candidate Markets",
     candidateList: "Candidate Markets",
     analysisScope: "Analysis source scope",
@@ -56,14 +58,17 @@ const copy = {
       "This analysis build has retired. Refresh the current fixture context.",
     capacity:
       "Analysis capacity is temporarily busy. The complete result was not loaded.",
-    unavailable:
-      "The compatible analysis artifact is temporarily unavailable.",
+    unavailable: "The compatible analysis artifact is temporarily unavailable.",
     fatal: "The analysis could not be completed.",
     refresh: "Refresh current analysis",
     retry: "Retry complete analysis",
     disclaimer:
       "Use this workspace as a discovery aid rather than a recommendation. Validate customers, competition, regulation, logistics, and margins separately.",
     candidates: "Candidate Markets",
+    loadingCurrent: "Loading the current analysis release…",
+    currentUnavailable:
+      "The current analysis release is temporarily unavailable.",
+    retryCurrent: "Retry current release",
   },
   "zh-Hans": {
     eyebrow: "候选市场工作区",
@@ -71,6 +76,7 @@ const copy = {
     lede: "选择出口经济体和 HS 2012 产品，然后加载完整的规范排名。",
     analyze: "分析候选市场",
     loading: "正在加载完整的候选市场结果…",
+    refreshing: "正在重新验证当前分析发布版本…",
     ranked: "候选市场排名",
     candidateList: "候选市场",
     analysisScope: "分析来源范围",
@@ -95,6 +101,9 @@ const copy = {
     disclaimer:
       "这是发现辅助工具，而非建议。请另行验证客户、竞争、法规、物流和利润。",
     candidates: "个候选市场",
+    loadingCurrent: "正在加载当前分析发布版本…",
+    currentUnavailable: "当前分析发布版本暂时不可用。",
+    retryCurrent: "重试当前发布版本",
   },
 } as const;
 
@@ -103,6 +112,7 @@ type SelectionSource = "restore" | "explicit";
 type AnalysisStatus =
   | "idle"
   | "loading"
+  | "refreshing"
   | "success"
   | "empty"
   | "malformed"
@@ -126,10 +136,87 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   >([]);
   const [selectedCandidateCode, setSelectedCandidateCode] = useState<
     string | null
-  >(
-    null,
-  );
+  >(null);
   const [status, setStatus] = useState<AnalysisStatus>("idle");
+  const [currentManifest, setCurrentManifest] =
+    useState<CurrentAnalysisManifest | null>(null);
+  const [currentManifestStatus, setCurrentManifestStatus] = useState<
+    "loading" | "ready" | "failed"
+  >("loading");
+
+  const loadCurrentManifest = useCallback(
+    async (signal: AbortSignal, revalidate = false) => {
+      try {
+        const manifest = await loadCurrentAnalysisManifest({
+          fetcher: fetch,
+          signal,
+          revalidate,
+        });
+        setCurrentManifest(manifest);
+        setCurrentManifestStatus("ready");
+        return manifest;
+      } catch (error) {
+        if (signal.aborted) {
+          return null;
+        }
+        console.error("Current analysis manifest request failed", error);
+        setCurrentManifestStatus("failed");
+        return null;
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadCurrentAnalysisManifest({
+      fetcher: fetch,
+      signal: controller.signal,
+      revalidate: false,
+    })
+      .then((manifest) => {
+        if (!controller.signal.aborted) {
+          setCurrentManifest(manifest);
+          setCurrentManifestStatus("ready");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.error("Current analysis manifest request failed", error);
+          setCurrentManifestStatus("failed");
+        }
+      });
+    return () => controller.abort();
+  }, []);
+
+  const recoverRetiredAnalysis = useCallback(async () => {
+    if (currentManifest === null) {
+      return;
+    }
+    analysisController.current?.abort();
+    const controller = new AbortController();
+    analysisController.current = controller;
+    setStatus("refreshing");
+    const discovered = await loadCurrentManifest(controller.signal, true);
+    if (controller.signal.aborted || discovered === null) {
+      if (!controller.signal.aborted) {
+        setStatus("stale");
+      }
+      return;
+    }
+
+    requestSequence.current += 1;
+    canonicalRestorePending.current = true;
+    analyzedInputsInHistory.current = false;
+    setCurrentManifest(discovered);
+    setExporter(null);
+    setProduct(null);
+    setResult(null);
+    setComparedCandidateCodes([]);
+    setSelectedCandidateCode(null);
+    setStatus("idle");
+    setControlRestorationKey((current) => current + 1);
+  }, [currentManifest, loadCurrentManifest]);
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
@@ -172,7 +259,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   );
 
   const analyzeCandidateMarkets = useCallback(async () => {
-    if (exporter === null || product === null) {
+    if (exporter === null || product === null || currentManifest === null) {
       return;
     }
 
@@ -193,7 +280,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         product: product.code,
       });
       const response = await fetch(
-        `/api/v1/analyses/${PUBLIC_ANALYSIS_BUILD_ID}/candidate-markets?${parameters}`,
+        `/api/v1/analyses/${currentManifest.analysisBuildId}/candidate-markets?${parameters}`,
         { signal: controller.signal },
       );
       if (requestSequence.current !== sequence) {
@@ -206,6 +293,18 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       const completeResult = (await response.json()) as CandidateMarketResult;
       if (requestSequence.current !== sequence) {
         return;
+      }
+
+      if (
+        completeResult.analysisBuildId !== currentManifest.analysisBuildId ||
+        completeResult.provenance.baciRelease !==
+          currentManifest.source.baciRelease ||
+        completeResult.provenance.artifactSha256 !==
+          currentManifest.source.artifact.sha256
+      ) {
+        throw new TypeError(
+          "The analysis result does not match the discovered current manifest.",
+        );
       }
 
       setResult(completeResult);
@@ -227,16 +326,13 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       url.searchParams.set("market", initialCandidate.economy.code);
       window.history.replaceState(null, "", url);
     } catch (error) {
-      if (
-        controller.signal.aborted ||
-        requestSequence.current !== sequence
-      ) {
+      if (controller.signal.aborted || requestSequence.current !== sequence) {
         return;
       }
       console.error("Candidate Market workspace request failed", error);
       setStatus("fatal");
     }
-  }, [exporter, product]);
+  }, [currentManifest, exporter, product]);
 
   useEffect(() => {
     if (
@@ -331,78 +427,129 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         <p>{messages.lede}</p>
       </div>
 
-      <div className="analysis-controls">
-        <EconomyCombobox
-          key={`economy-${controlRestorationKey}`}
-          locale={locale}
-          onSelectionChange={handleExporterSelection}
-        />
-        <ProductCombobox
-          key={`product-${controlRestorationKey}`}
-          locale={locale}
-          onSelectionChange={handleProductSelection}
-        />
-        <button
-          className="analyze-button"
-          type="button"
-          disabled={exporter === null || product === null || status === "loading"}
-          onClick={() => void analyzeCandidateMarkets()}
+      {currentManifest === null ? (
+        <div
+          className={`analysis-state ${
+            currentManifestStatus === "loading"
+              ? "analysis-loading"
+              : "analysis-error"
+          }`}
+          role={currentManifestStatus === "failed" ? "alert" : "status"}
         >
-          {messages.analyze}
-        </button>
-      </div>
+          {currentManifestStatus === "loading" ? (
+            <>
+              <span aria-hidden="true" />
+              {messages.loadingCurrent}
+            </>
+          ) : (
+            <>
+              <p>{messages.currentUnavailable}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentManifestStatus("loading");
+                  const controller = new AbortController();
+                  void loadCurrentManifest(controller.signal);
+                }}
+              >
+                {messages.retryCurrent}
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="analysis-controls">
+            <EconomyCombobox
+              key={`economy-${controlRestorationKey}`}
+              analysisBuildId={currentManifest.analysisBuildId}
+              locale={locale}
+              onSelectionChange={handleExporterSelection}
+              onRetiredBuild={recoverRetiredAnalysis}
+            />
+            <ProductCombobox
+              key={`product-${controlRestorationKey}`}
+              productSearchBuildId={currentManifest.productSearchBuildId}
+              locale={locale}
+              onSelectionChange={handleProductSelection}
+              onRetiredBuild={recoverRetiredAnalysis}
+            />
+            <button
+              className="analyze-button"
+              type="button"
+              disabled={
+                exporter === null ||
+                product === null ||
+                status === "loading" ||
+                status === "refreshing"
+              }
+              onClick={() => void analyzeCandidateMarkets()}
+            >
+              {messages.analyze}
+            </button>
+          </div>
+          <SourceScope
+            manifest={currentManifest}
+            result={result}
+            locale={locale}
+          />
+        </>
+      )}
 
-      {status === "loading" ? (
+      {status === "loading" || status === "refreshing" ? (
         <div className="analysis-state analysis-loading" role="status">
           <span aria-hidden="true" />
-          {messages.loading}
+          {messages[status]}
         </div>
-      ) : null}
-
-      {result !== null ? (
-        <AnalysisContextStrip result={result} locale={locale} />
       ) : null}
 
       {status === "success" && result !== null && selectedCandidate !== null ? (
         <>
           <div className="candidate-workspace">
-            <section className="candidate-ranking" aria-labelledby="ranking-title">
-            <div className="candidate-heading">
-              <div>
-                <p>{messages.eyebrow}</p>
-                <h3 id="ranking-title">{messages.ranked}</h3>
+            <section
+              className="candidate-ranking"
+              aria-labelledby="ranking-title"
+            >
+              <div className="candidate-heading">
+                <div>
+                  <p>{messages.eyebrow}</p>
+                  <h3 id="ranking-title">{messages.ranked}</h3>
+                </div>
+                <strong>
+                  {result.cohortSize} {messages.candidates}
+                </strong>
               </div>
-              <strong>
-                {result.cohortSize} {messages.candidates}
-              </strong>
-            </div>
-            <ol aria-label={messages.candidateList}>
-              {result.candidates.map((candidate) => (
-                <li key={candidate.economy.code}>
-                  <button
-                    type="button"
-                    aria-pressed={
-                      candidate.economy.code === selectedCandidateCode
-                    }
-                    onClick={() => selectCandidateMarket(candidate)}
-                  >
-                    <span className="candidate-rank">#{candidate.rank}</span>
-                    <span>
-                      <strong>{candidateDisplayName(candidate, locale)}</strong>
-                      <small>
-                        BACI {candidate.economy.code} ·{" "}
-                        {messages.confidence}:{" "}
-                        {localizedConfidence(candidate.confidence.label, locale)}
-                      </small>
-                    </span>
-                    <span className="candidate-score">
-                      {candidate.score}
-                      <small>/100</small>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
+              <ol aria-label={messages.candidateList}>
+                {result.candidates.map((candidate) => (
+                  <li key={candidate.economy.code}>
+                    <button
+                      type="button"
+                      aria-pressed={
+                        candidate.economy.code === selectedCandidateCode
+                      }
+                      onClick={() => selectCandidateMarket(candidate)}
+                    >
+                      <span className="candidate-rank">#{candidate.rank}</span>
+                      <span>
+                        <strong>
+                          {candidateDisplayName(candidate, locale)}
+                        </strong>
+                        <small>
+                          BACI {candidate.economy.code} · {messages.confidence}:{" "}
+                          {localizedConfidence(
+                            candidate.confidence.label,
+                            locale,
+                          )}
+                        </small>
+                      </span>
+                      <span className="candidate-score">
+                        {candidate.score}
+                        <small>/100</small>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
             </section>
 
             <CandidateMarketEvidence
@@ -446,7 +593,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               type="button"
               onClick={() => {
                 if (status === "stale") {
-                  window.location.reload();
+                  void recoverRetiredAnalysis();
                 } else {
                   void analyzeCandidateMarkets();
                 }
@@ -460,45 +607,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
       <p className="workspace-disclaimer">{messages.disclaimer}</p>
     </section>
-  );
-}
-
-function AnalysisContextStrip({
-  result,
-  locale,
-}: {
-  result: CandidateMarketResult;
-  locale: WorkspaceLocale;
-}) {
-  const messages = copy[locale];
-  return (
-    <dl className="analysis-context" aria-label={messages.analysisScope}>
-      <div>
-        <dt>{messages.baciRelease}</dt>
-        <dd>{result.provenance.baciRelease}</dd>
-      </div>
-      <div>
-        <dt>{messages.sourceDate}</dt>
-        <dd>{result.provenance.sourceUpdateDate}</dd>
-      </div>
-      <div>
-        <dt>{messages.scoreWindow}</dt>
-        <dd>
-          {messages.finalizedYears} {result.provenance.scoreWindow.start}–
-          {result.provenance.scoreWindow.end}
-        </dd>
-      </div>
-      <div>
-        <dt>{messages.supportingEvidence}</dt>
-        <dd>
-          {messages.provisionalYear} {result.provenance.provisionalYear}
-        </dd>
-      </div>
-      <div>
-        <dt>{messages.valueBasis}</dt>
-        <dd>{messages.nominalCurrentUsd}</dd>
-      </div>
-    </dl>
   );
 }
 

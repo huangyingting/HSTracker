@@ -12,6 +12,11 @@ import type {
   CmsV1Inputs,
   MarketYearEvidence,
 } from "../../evidence/trade-evidence-source";
+import {
+  compareReleaseRevisions,
+  type CandidateReleaseRevision,
+  type ReleaseRevisionPreviousArtifact,
+} from "../release/release-revision";
 
 const WEIGHTS = {
   marketSize: 30,
@@ -54,7 +59,10 @@ type WindowResult = {
   ranksByCode: ReadonlyMap<string, number>;
 };
 
-export function computeCmsV1(inputs: CmsV1Inputs): CandidateMarketResult {
+export function computeCmsV1(
+  inputs: CmsV1Inputs,
+  previousArtifact: ReleaseRevisionPreviousArtifact | null = null,
+): CandidateMarketResult {
   const cutoffYear = inputs.release.finalizedCutoffYear;
   const primaryWindow = { start: cutoffYear - 4, end: cutoffYear };
   const threeYearWindow = { start: cutoffYear - 2, end: cutoffYear };
@@ -72,6 +80,20 @@ export function computeCmsV1(inputs: CmsV1Inputs): CandidateMarketResult {
     (candidate) => candidate.bilateralFlowState === "RECORDED",
   );
   const dominantCandidateCode = findDominantCandidate(primary.candidates);
+  const releaseRevision = compareReleaseRevisions({
+    currentRelease: {
+      baciRelease: inputs.release.baciRelease,
+      hsRevision: inputs.release.hsRevision,
+      scoreVersion: "cms-v1",
+      scoreWindow: primaryWindow,
+      candidates: primary.candidates.map((candidate) => ({
+        code: candidate.economy.code,
+        score: candidate.score,
+        rankPercentile: candidate.rankPercentile,
+      })),
+    },
+    previousArtifact,
+  });
 
   const candidates = primary.candidates.map((candidate) =>
     toPublicCandidate({
@@ -83,6 +105,7 @@ export function computeCmsV1(inputs: CmsV1Inputs): CandidateMarketResult {
       exporterHasHistory,
       dominantCandidateCode,
       cohortSize: primary.candidates.length,
+      releaseRevision: releaseRevision.candidates[candidate.economy.code]!,
     }),
   );
 
@@ -112,11 +135,15 @@ export function computeCmsV1(inputs: CmsV1Inputs): CandidateMarketResult {
     weights: WEIGHTS,
     cohortSize: candidates.length,
     emptyReason:
-      candidates.length === 0
-        ? "NO_ELIGIBLE_CANDIDATES_IN_SCORE_WINDOW"
-        : null,
+      candidates.length === 0 ? "NO_ELIGIBLE_CANDIDATES_IN_SCORE_WINDOW" : null,
     stability,
     productSeriesDiscontinuityYears: discontinuityYears,
+    releaseRevisionSummary: {
+      comparisonRelease: releaseRevision.comparisonRelease,
+      previousArtifactSha256: releaseRevision.previousArtifactSha256,
+      notComparedReason: releaseRevision.notComparedReason,
+      noLongerEligibleCount: releaseRevision.noLongerEligibleCount,
+    },
     candidates,
     discoveryDisclaimer: DISCOVERY_DISCLAIMER,
   };
@@ -172,7 +199,9 @@ function computeWindow(
   };
 }
 
-function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate {
+function computeRawCandidate(
+  rows: readonly MarketYearEvidence[],
+): RawCandidate {
   const sortedRows = [...rows].sort((left, right) => left.year - right.year);
   const values = sortedRows.map((row) =>
     parsePositiveDecimal(row.worldValueKusd, "worldValueKusd"),
@@ -192,33 +221,28 @@ function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate 
     growthReasonCodes.length === 0
       ? calculateLogLinearGrowth(sortedRows)
       : null;
-  const recordedValueKusd = sortedRows.reduce(
-    (total, row, index) => {
-      if (row.selectedExporter.state !== "RECORDED") {
-        return total;
-      }
+  const recordedValueKusd = sortedRows.reduce((total, row, index) => {
+    if (row.selectedExporter.state !== "RECORDED") {
+      return total;
+    }
 
-      const recordedValue = parsePositiveDecimal(
-        row.selectedExporter.valueKusd,
+    const recordedValue = parsePositiveDecimal(
+      row.selectedExporter.valueKusd,
+      "selectedExporter.valueKusd",
+    );
+    return (
+      total +
+      validateAndClampRecordedValue(
+        recordedValue,
+        values[index]!,
         "selectedExporter.valueKusd",
-      );
-      return (
-        total +
-        validateAndClampRecordedValue(
-          recordedValue,
-          values[index]!,
-          "selectedExporter.valueKusd",
-          "worldValueKusd",
-        )
-      );
-    },
-    0,
-  );
+        "worldValueKusd",
+      )
+    );
+  }, 0);
   const worldValueKusd = values.reduce((total, value) => total + value, 0);
   const diversityByYear = sortedRows.flatMap((row) => {
-    const diversity = calculateAnnualDiversity(
-      row.alternativeSupplierShares,
-    );
+    const diversity = calculateAnnualDiversity(row.alternativeSupplierShares);
     return diversity === null ? [] : [{ year: row.year, diversity }];
   });
   return {
@@ -278,8 +302,7 @@ function applyPercentiles(
     }
 
     const averageRank = (index + 1 + groupEnd) / 2;
-    const percentile =
-      (100 * (averageRank - 0.5)) / computed.length;
+    const percentile = (100 * (averageRank - 0.5)) / computed.length;
 
     for (let tiedIndex = index; tiedIndex < groupEnd; tiedIndex += 1) {
       computed[tiedIndex]!.candidate.percentiles[percentileKey] = percentile;
@@ -342,11 +365,11 @@ function compareWindowRanks(
     };
   }
 
-  const primaryRanks = commonCodes.map(
-    (code) => primary.ranksByCode.get(code)!,
+  const primaryRanks = commonCodes.map((code) =>
+    primary.ranksByCode.get(code)!,
   );
-  const alternateRanks = commonCodes.map(
-    (code) => alternate.ranksByCode.get(code)!,
+  const alternateRanks = commonCodes.map((code) =>
+    alternate.ranksByCode.get(code)!,
   );
   const correlation = pearsonCorrelation(primaryRanks, alternateRanks);
 
@@ -370,6 +393,7 @@ function toPublicCandidate({
   exporterHasHistory,
   dominantCandidateCode,
   cohortSize,
+  releaseRevision,
 }: {
   candidate: RawCandidate;
   inputs: CmsV1Inputs;
@@ -379,6 +403,7 @@ function toPublicCandidate({
   exporterHasHistory: boolean;
   dominantCandidateCode: string | null;
   cohortSize: number;
+  releaseRevision: CandidateReleaseRevision;
 }): CandidateMarket {
   const missingScoreYears = yearsBetween(
     primaryWindow.start,
@@ -464,6 +489,7 @@ function toPublicCandidate({
       inputs.release.provisionalYear,
     ),
     caveatCodes,
+    releaseRevision,
   };
 }
 
@@ -495,11 +521,7 @@ function calculateConfidence({
     "MISSING_CUTOFF_YEAR_EVIDENCE",
     candidate.observedYears.includes(cutoffYear) ? 0 : 15,
   );
-  addDeduction(
-    deductions,
-    "SMALL_BASE",
-    candidate.sizeKusd < 500 ? 15 : 0,
-  );
+  addDeduction(deductions, "SMALL_BASE", candidate.sizeKusd < 500 ? 15 : 0);
   addDeduction(
     deductions,
     "UNKNOWN_ALTERNATIVE_SUPPLIER_STRUCTURE",
@@ -513,16 +535,11 @@ function calculateConfidence({
   addDeduction(
     deductions,
     "LOW_WINDOW_STABILITY",
-    stability.threeYear.state === "LOW" ||
-      stability.tenYear.state === "LOW"
+    stability.threeYear.state === "LOW" || stability.tenYear.state === "LOW"
       ? 10
       : 0,
   );
-  addDeduction(
-    deductions,
-    "SMALL_CANDIDATE_COHORT",
-    cohortSize < 10 ? 10 : 0,
-  );
+  addDeduction(deductions, "SMALL_CANDIDATE_COHORT", cohortSize < 10 ? 10 : 0);
   addDeduction(
     deductions,
     "NO_EXPORTER_PRODUCT_HISTORY",
@@ -545,8 +562,7 @@ function calculateConfidence({
 
   return {
     score: cappedScore,
-    label:
-      cappedScore >= 80 ? "HIGH" : cappedScore >= 50 ? "MEDIUM" : "LOW",
+    label: cappedScore >= 80 ? "HIGH" : cappedScore >= 50 ? "MEDIUM" : "LOW",
     deductions,
     sparseEvidenceCapApplied: cappedScore < afterDeductions,
   };
@@ -642,9 +658,7 @@ function buildProvisionalEvidence(
     marketState: "RECORDED",
     marketImportCurrentUsd: formatDecimal(marketValueKusd * 1000),
     bilateralState:
-      bilateralValueKusd === null
-        ? "NO_RECORDED_POSITIVE_FLOW"
-        : "RECORDED",
+      bilateralValueKusd === null ? "NO_RECORDED_POSITIVE_FLOW" : "RECORDED",
     bilateralCurrentUsd:
       bilateralValueKusd === null
         ? null
@@ -673,15 +687,15 @@ function findDominantCandidate(
     (left, right) => right.sizeKusd - left.sizeKusd,
   )[0]!;
 
-  return largest.sizeKusd / totalSize > 0.5
-    ? largest.economy.code
-    : null;
+  return largest.sizeKusd / totalSize > 0.5 ? largest.economy.code : null;
 }
 
 function findDiscontinuityYears(
   totals: CmsV1Inputs["productYearTotals"],
 ): number[] {
-  const sortedTotals = [...totals].sort((left, right) => left.year - right.year);
+  const sortedTotals = [...totals].sort(
+    (left, right) => left.year - right.year,
+  );
   if (sortedTotals.length < 2) {
     return [];
   }
@@ -705,9 +719,7 @@ function findDiscontinuityYears(
     };
   });
   const center = median(changes.map(({ value }) => value));
-  const mad = median(
-    changes.map(({ value }) => Math.abs(value - center)),
-  );
+  const mad = median(changes.map(({ value }) => Math.abs(value - center)));
   const threshold = Math.max(4 * mad, Math.log(3));
 
   return changes
@@ -715,9 +727,7 @@ function findDiscontinuityYears(
     .map(({ year }) => year);
 }
 
-function calculateLogLinearGrowth(
-  rows: readonly MarketYearEvidence[],
-): number {
+function calculateLogLinearGrowth(rows: readonly MarketYearEvidence[]): number {
   const meanYear = mean(rows.map(({ year }) => year));
   const logValues = rows.map((row) =>
     Math.log(parsePositiveDecimal(row.worldValueKusd, "worldValueKusd")),
@@ -736,9 +746,7 @@ function calculateLogLinearGrowth(
   return Math.exp(numerator / denominator) - 1;
 }
 
-function calculateAnnualDiversity(
-  rawShares: readonly string[],
-): number | null {
+function calculateAnnualDiversity(rawShares: readonly string[]): number | null {
   if (rawShares.length === 0) {
     return null;
   }
@@ -756,8 +764,7 @@ function calculateAnnualDiversity(
 
   const supplierCount = shares.length;
   const normalizedHhi =
-    (shares.reduce((sum, share) => sum + share ** 2, 0) -
-      1 / supplierCount) /
+    (shares.reduce((sum, share) => sum + share ** 2, 0) - 1 / supplierCount) /
     (1 - 1 / supplierCount);
   return 1 - normalizedHhi;
 }
@@ -769,10 +776,7 @@ function calculateQuantityCoverage(
   let quantityPresentCount = 0;
 
   for (const row of rows) {
-    if (
-      !Number.isSafeInteger(row.sourceFlowCount) ||
-      row.sourceFlowCount < 0
-    ) {
+    if (!Number.isSafeInteger(row.sourceFlowCount) || row.sourceFlowCount < 0) {
       throw new Error("sourceFlowCount must be a nonnegative safe integer.");
     }
     if (
@@ -788,9 +792,7 @@ function calculateQuantityCoverage(
     quantityPresentCount += row.quantityPresentCount;
   }
 
-  return sourceFlowCount === 0
-    ? null
-    : quantityPresentCount / sourceFlowCount;
+  return sourceFlowCount === 0 ? null : quantityPresentCount / sourceFlowCount;
 }
 
 function pearsonCorrelation(

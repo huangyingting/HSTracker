@@ -30,6 +30,30 @@ describe("CandidateMarketAnalysis", () => {
       scoreVersion: "cms-v1",
     });
     expect(result.stability).toEqual(CORE_STABILITY);
+    expect(result.releaseRevisionSummary).toEqual({
+      comparisonRelease: null,
+      previousArtifactSha256: null,
+      notComparedReason: "NO_PREVIOUS_ARTIFACT",
+      noLongerEligibleCount: null,
+    });
+    expect(
+      result.candidates.map(({ economy, releaseRevision }) => ({
+        code: economy.code,
+        revision: releaseRevision,
+      })),
+    ).toEqual(
+      result.candidates.map(({ economy }) => ({
+        code: economy.code,
+        revision: {
+          state: "NOT_COMPARED",
+          previousReleaseRecomputedScore: null,
+          scoreChange: null,
+          previousReleaseRecomputedRankPercentile: null,
+          rankPercentileChange: null,
+          materialChange: null,
+        },
+      })),
+    );
     expect(
       result.candidates.map((candidate) => ({
         code: candidate.economy.code,

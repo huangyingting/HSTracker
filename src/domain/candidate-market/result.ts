@@ -1,3 +1,8 @@
+import type {
+  CandidateReleaseRevision,
+  ReleaseRevisionNotComparedReason,
+} from "../release/release-revision";
+
 export type CandidateMarketAnalysisQuery = {
   analysisBuildId: string;
   exporterCode: string;
@@ -114,6 +119,7 @@ export type CandidateMarket = {
     quantityCoverageRate: string | null;
   };
   caveatCodes: readonly CaveatCode[];
+  releaseRevision: CandidateReleaseRevision;
 };
 
 export type CandidateMarketResult = {
@@ -158,6 +164,12 @@ export type CandidateMarketResult = {
     tenYear: StabilityEvidence;
   };
   productSeriesDiscontinuityYears: readonly number[];
+  releaseRevisionSummary: {
+    comparisonRelease: string | null;
+    previousArtifactSha256: string | null;
+    notComparedReason: ReleaseRevisionNotComparedReason | null;
+    noLongerEligibleCount: number | null;
+  };
   candidates: readonly CandidateMarket[];
   discoveryDisclaimer: string;
 };

@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
-import { PUBLIC_ANALYSIS_BUILD_ID } from "../domain/candidate-market/analysis-config";
 import type {
   EconomyRecord,
   EconomySearchResult,
@@ -37,24 +36,23 @@ const copy = {
 } as const;
 
 type EconomyComboboxProps = {
+  analysisBuildId: string;
   locale: keyof typeof copy;
   onSelectionChange: (
     economy: EconomyRecord | null,
     source: "restore" | "explicit",
   ) => void;
+  onRetiredBuild: () => void;
 };
 
 type EconomySearchStatus =
-  | "idle"
-  | "loading"
-  | "no-match"
-  | "invalid"
-  | "retired"
-  | "failed";
+  "idle" | "loading" | "no-match" | "invalid" | "retired" | "failed";
 
 export function EconomyCombobox({
+  analysisBuildId,
   locale,
   onSelectionChange,
+  onRetiredBuild,
 }: EconomyComboboxProps) {
   const messages = copy[locale];
   const listboxId = useId();
@@ -62,13 +60,45 @@ export function EconomyCombobox({
   const explicitlyEdited = useRef(false);
   const interactiveController = useRef<AbortController | null>(null);
   const [inputValue, setInputValue] = useState("");
-  const [selectedEconomy, setSelectedEconomy] =
-    useState<EconomyRecord | null>(null);
-  const [matches, setMatches] =
-    useState<EconomySearchResult["matches"]>([]);
+  const [selectedEconomy, setSelectedEconomy] = useState<EconomyRecord | null>(
+    null,
+  );
+  const [matches, setMatches] = useState<EconomySearchResult["matches"]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<EconomySearchStatus>("idle");
+
+  const loadMatches = useCallback(
+    async (query: string, sequence: number, controller: AbortController) => {
+      setStatus("loading");
+      try {
+        const result = await fetchEconomies(
+          query,
+          analysisBuildId,
+          controller.signal,
+        );
+        if (requestSequence.current !== sequence) {
+          return;
+        }
+        setMatches(result.matches);
+        setActiveIndex(-1);
+        setOpen(result.matches.length > 0);
+        setStatus(result.matches.length === 0 ? "no-match" : "idle");
+      } catch (error) {
+        if (controller.signal.aborted || requestSequence.current !== sequence) {
+          return;
+        }
+        const nextStatus = economySearchErrorStatus(error);
+        if (nextStatus === "failed") {
+          console.error("Economy search request failed", error);
+        }
+        setMatches([]);
+        setOpen(false);
+        setStatus(nextStatus);
+      }
+    },
+    [analysisBuildId],
+  );
 
   useEffect(() => {
     const exporterCode = new URL(window.location.href).searchParams.get(
@@ -79,7 +109,7 @@ export function EconomyCombobox({
     }
 
     const controller = new AbortController();
-    void fetchEconomies(exporterCode, controller.signal)
+    void fetchEconomies(exporterCode, analysisBuildId, controller.signal)
       .then((result) => {
         const restored = result.matches.find(
           ({ economy }) => economy.code === exporterCode,
@@ -99,7 +129,7 @@ export function EconomyCombobox({
         }
       });
     return () => controller.abort();
-  }, [onSelectionChange]);
+  }, [analysisBuildId, onSelectionChange]);
 
   useEffect(
     () => () => {
@@ -136,39 +166,7 @@ export function EconomyCombobox({
         interactiveController.current = null;
       }
     };
-  }, [inputValue, selectedEconomy]);
-
-  async function loadMatches(
-    query: string,
-    sequence: number,
-    controller: AbortController,
-  ) {
-    setStatus("loading");
-    try {
-      const result = await fetchEconomies(query, controller.signal);
-      if (requestSequence.current !== sequence) {
-        return;
-      }
-      setMatches(result.matches);
-      setActiveIndex(-1);
-      setOpen(result.matches.length > 0);
-      setStatus(result.matches.length === 0 ? "no-match" : "idle");
-    } catch (error) {
-      if (
-        controller.signal.aborted ||
-        requestSequence.current !== sequence
-      ) {
-        return;
-      }
-      const nextStatus = economySearchErrorStatus(error);
-      if (nextStatus === "failed") {
-        console.error("Economy search request failed", error);
-      }
-      setMatches([]);
-      setOpen(false);
-      setStatus(nextStatus);
-    }
-  }
+  }, [inputValue, loadMatches, selectedEconomy]);
 
   function selectEconomy(economy: EconomyRecord) {
     explicitlyEdited.current = true;
@@ -327,7 +325,7 @@ export function EconomyCombobox({
           className="economy-refresh-button"
           type="button"
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => window.location.reload()}
+          onClick={onRetiredBuild}
         >
           {messages.refresh}
         </button>
@@ -344,11 +342,12 @@ export function EconomyCombobox({
 
 async function fetchEconomies(
   query: string,
+  analysisBuildId: string,
   signal: AbortSignal,
 ): Promise<EconomySearchResult> {
   const parameters = new URLSearchParams({ q: query });
   const response = await fetch(
-    `/api/v1/analyses/${PUBLIC_ANALYSIS_BUILD_ID}/economies?${parameters}`,
+    `/api/v1/analyses/${analysisBuildId}/economies?${parameters}`,
     { signal },
   );
   if (!response.ok) {

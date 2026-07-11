@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { PUBLIC_PRODUCT_SEARCH_BUILD_ID } from "../catalog/product-catalog-config";
 import type {
   ProductSearchLocale,
   ProductSearchProduct,
@@ -24,6 +23,8 @@ const copy = {
     unsupported:
       "That HS revision is not supported. This workspace uses HS 2012.",
     failed: "Product search is temporarily unavailable.",
+    retired: "This product catalog has retired. Refresh the current analysis.",
+    refresh: "Refresh current analysis",
     selected: "Selected product",
     match: "Matched",
   },
@@ -38,24 +39,30 @@ const copy = {
     noMatch: "未找到匹配的 HS 2012 产品。请检查版本或尝试产品词语。",
     unsupported: "不支持该 HS 版本。本工作区使用 HS 2012。",
     failed: "产品搜索暂时不可用。",
+    retired: "该产品目录已停用。请刷新当前分析。",
+    refresh: "刷新当前分析",
     selected: "已选择产品",
     match: "匹配内容",
   },
 } as const;
 
 type ProductComboboxProps = {
+  productSearchBuildId: string;
   locale: ProductSearchLocale;
   onSelectionChange: (
     product: ProductSearchProduct | null,
     source: "restore" | "explicit",
   ) => void;
+  onRetiredBuild: () => void;
 };
 
 type SearchMatch = ProductSearchResult["matches"][number];
 
 export function ProductCombobox({
+  productSearchBuildId,
   locale,
   onSelectionChange,
+  onRetiredBuild,
 }: ProductComboboxProps) {
   const messages = copy[locale];
   const listboxId = useId();
@@ -63,15 +70,20 @@ export function ProductCombobox({
   const explicitlyEdited = useRef(false);
   const initialLocale = useRef(locale);
   const [inputValue, setInputValue] = useState("");
-  const [searchLocale, setSearchLocale] =
-    useState<ProductSearchLocale>(locale);
+  const [searchLocale, setSearchLocale] = useState<ProductSearchLocale>(locale);
   const [matches, setMatches] = useState<readonly SearchMatch[]>([]);
   const [selectedProduct, setSelectedProduct] =
     useState<ProductSearchProduct | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<
-    "idle" | "loading" | "too-short" | "no-match" | "unsupported" | "failed"
+    | "idle"
+    | "loading"
+    | "too-short"
+    | "no-match"
+    | "unsupported"
+    | "retired"
+    | "failed"
   >("idle");
 
   useEffect(() => {
@@ -95,11 +107,11 @@ export function ProductCombobox({
           limit: "20",
         });
         const response = await fetch(
-          productSearchUrl(parameters),
+          productSearchUrl(productSearchBuildId, parameters),
           { signal: controller.signal },
         );
         if (!response.ok) {
-          throw new Error(`Product restoration returned ${response.status}.`);
+          throw new ProductSearchResponseError(response.status);
         }
         const result = (await response.json()) as ProductSearchResult;
         const restoredProduct = result.matches.find(
@@ -115,15 +127,18 @@ export function ProductCombobox({
         if (controller.signal.aborted) {
           return;
         }
-        console.error("Canonical product restoration failed", error);
+        const nextStatus = productSearchErrorStatus(error);
+        if (nextStatus === "failed") {
+          console.error("Canonical product restoration failed", error);
+        }
         if (!explicitlyEdited.current) {
-          setStatus("failed");
+          setStatus(nextStatus);
         }
       }
     })();
 
     return () => controller.abort();
-  }, [onSelectionChange]);
+  }, [onSelectionChange, productSearchBuildId]);
 
   useEffect(() => {
     const sequence = requestSequence.current + 1;
@@ -133,10 +148,7 @@ export function ProductCombobox({
     }
 
     const normalized = inputValue.normalize("NFKC").trim();
-    if (
-      normalized.length === 0 ||
-      isSuppressedProductQuery(normalized)
-    ) {
+    if (normalized.length === 0 || isSuppressedProductQuery(normalized)) {
       return;
     }
 
@@ -150,11 +162,11 @@ export function ProductCombobox({
           limit: "20",
         });
         const response = await fetch(
-          productSearchUrl(parameters),
+          productSearchUrl(productSearchBuildId, parameters),
           { signal: controller.signal },
         );
         if (!response.ok) {
-          throw new Error(`Product search returned ${response.status}.`);
+          throw new ProductSearchResponseError(response.status);
         }
         const result = (await response.json()) as ProductSearchResult;
         if (requestSequence.current !== sequence) {
@@ -178,16 +190,16 @@ export function ProductCombobox({
           );
         }
       } catch (error) {
-        if (
-          controller.signal.aborted ||
-          requestSequence.current !== sequence
-        ) {
+        if (controller.signal.aborted || requestSequence.current !== sequence) {
           return;
         }
-        console.error("Product search request failed", error);
+        const nextStatus = productSearchErrorStatus(error);
+        if (nextStatus === "failed") {
+          console.error("Product search request failed", error);
+        }
         setMatches([]);
         setOpen(false);
-        setStatus("failed");
+        setStatus(nextStatus);
       }
     }, 150);
 
@@ -195,7 +207,7 @@ export function ProductCombobox({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [inputValue, searchLocale, selectedProduct]);
+  }, [inputValue, productSearchBuildId, searchLocale, selectedProduct]);
 
   function selectProduct(product: ProductSearchProduct) {
     explicitlyEdited.current = true;
@@ -315,15 +327,10 @@ export function ProductCombobox({
           {messages.help}
         </p>
         {selectedProduct === null ? null : (
-          <div
-            className="product-selection"
-            aria-label={messages.selected}
-          >
+          <div className="product-selection" aria-label={messages.selected}>
             <strong>HS 2012 · {selectedProduct.code}</strong>
             <span>{productDescription(selectedProduct, locale)}</span>
-            <small>
-              {adjacentProductDescription(selectedProduct, locale)}
-            </small>
+            <small>{adjacentProductDescription(selectedProduct, locale)}</small>
           </div>
         )}
         {open ? (
@@ -369,12 +376,24 @@ export function ProductCombobox({
                 ? messages.noMatch
                 : status === "unsupported"
                   ? messages.unsupported
-                  : status === "failed"
-                    ? messages.failed
-                    : selectedProduct === null
-                      ? ""
-                      : `${messages.selected}: HS 2012 · ${selectedProduct.code}`}
+                  : status === "retired"
+                    ? messages.retired
+                    : status === "failed"
+                      ? messages.failed
+                      : selectedProduct === null
+                        ? ""
+                        : `${messages.selected}: HS 2012 · ${selectedProduct.code}`}
         </p>
+        {status === "retired" ? (
+          <button
+            className="economy-refresh-button"
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onRetiredBuild}
+          >
+            {messages.refresh}
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -409,6 +428,22 @@ function optionId(productCode: string): string {
   return `product-option-${productCode}`;
 }
 
-function productSearchUrl(parameters: URLSearchParams): string {
-  return `/api/v1/product-catalogs/${PUBLIC_PRODUCT_SEARCH_BUILD_ID}/products?${parameters}`;
+function productSearchUrl(
+  productSearchBuildId: string,
+  parameters: URLSearchParams,
+): string {
+  return `/api/v1/product-catalogs/${productSearchBuildId}/products?${parameters}`;
+}
+
+class ProductSearchResponseError extends Error {
+  constructor(readonly status: number) {
+    super(`Product search returned ${status}.`);
+    this.name = "ProductSearchResponseError";
+  }
+}
+
+function productSearchErrorStatus(error: unknown): "retired" | "failed" {
+  return error instanceof ProductSearchResponseError && error.status === 410
+    ? "retired"
+    : "failed";
 }

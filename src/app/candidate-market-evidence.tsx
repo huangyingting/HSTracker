@@ -22,8 +22,7 @@ const copy = {
       "30% Market Size + 25% Market Growth + 25% Recorded Foothold + 20% Supplier Diversity",
     rounding: "Rounded half-up to the displayed integer score",
     hiddenPrecision: "Intermediate weighted decimals are not displayed.",
-    sharedRank:
-      "Equal displayed integer scores share a competition rank.",
+    sharedRank: "Equal displayed integer scores share a competition rank.",
     scoreInputs: "Candidate Market Score inputs",
     component: "Component",
     rawEvidence: "Raw evidence",
@@ -72,8 +71,7 @@ const copy = {
     stability: "stability",
     notFlagged: "Not flagged",
     lowStability: "Low window stability",
-    stabilityNotEstimated:
-      "Stability not estimated - small common cohort",
+    stabilityNotEstimated: "Stability not estimated - small common cohort",
     commonCandidates: "common Candidate Markets",
     noCaveats: "No candidate-specific caveats",
     noDiscontinuity: "No HS Product series discontinuity flagged",
@@ -90,6 +88,23 @@ const copy = {
     noProvisionalBilateralFlow:
       "No recorded positive flow in the Provisional Year",
     finalizedEvidenceThrough: "Finalized Year evidence through",
+    releaseRevision: "Release Revision",
+    releaseRevisionKicker: "Between BACI releases",
+    releaseRevisionExplanation:
+      "Release Revision means evidence changed between BACI releases, not historical growth.",
+    noPreviousRevision: "No compatible prior release comparison",
+    incompatibleRevision: "No compatible prior release comparison",
+    missingRevisionWindow:
+      "The prior release artifact cannot cover this exact score window.",
+    materialRevision: "Changed materially since",
+    belowRevisionThreshold: "No material revision flag",
+    newlyEligible: "Newly eligible in this release",
+    previousReleaseScore: "Previous-release recomputed score",
+    scoreChange: "Score change",
+    previousRankPercentile: "Previous-release recomputed rank percentile",
+    rankPercentileChange: "Rank-percentile change",
+    comparisonRelease: "Comparison release",
+    noLongerEligible: "No longer eligible in this release",
     addToComparison: "Add",
     removeFromComparison: "Remove",
     toComparison: "to comparison",
@@ -168,6 +183,22 @@ const copy = {
     noProvisionalFlow: "暂定年份数据中未记录正向流量",
     noProvisionalBilateralFlow: "暂定年份未记录双边正向流量",
     finalizedEvidenceThrough: "计分定稿证据截至",
+    releaseRevision: "发布版本修订",
+    releaseRevisionKicker: "BACI 数据版之间",
+    releaseRevisionExplanation:
+      "发布版本修订表示证据在 BACI 数据版之间发生变化，而非历史增长。",
+    noPreviousRevision: "没有兼容的先前发布版本比较",
+    incompatibleRevision: "没有兼容的先前发布版本比较",
+    missingRevisionWindow: "先前发布版本工件无法覆盖完全相同的评分窗口。",
+    materialRevision: "自以下版本以来发生实质性变化",
+    belowRevisionThreshold: "无实质性修订标记",
+    newlyEligible: "在此发布版本中新进入符合条件队列",
+    previousReleaseScore: "先前发布版本重算评分",
+    scoreChange: "评分变化",
+    previousRankPercentile: "先前发布版本重算排名百分位",
+    rankPercentileChange: "排名百分位变化",
+    comparisonRelease: "比较发布版本",
+    noLongerEligible: "在此发布版本中不再符合条件",
     addToComparison: "将",
     removeFromComparison: "从比较栏移除",
     toComparison: "加入比较栏",
@@ -208,9 +239,7 @@ export function CandidateMarketEvidence({
   const scoreInputs = buildScoreInputs(candidate, result, locale);
   const displayName = candidateDisplayName(candidate, locale);
   const finalizedYearCount =
-    result.provenance.scoreWindow.end -
-    result.provenance.scoreWindow.start +
-    1;
+    result.provenance.scoreWindow.end - result.provenance.scoreWindow.start + 1;
 
   return (
     <section
@@ -275,7 +304,9 @@ export function CandidateMarketEvidence({
                   </small>
                 </td>
                 <td>
-                  <span className={`evidence-state ${input.state.toLowerCase()}`}>
+                  <span
+                    className={`evidence-state ${input.state.toLowerCase()}`}
+                  >
                     {input.state === "COMPUTED"
                       ? messages.computed
                       : messages.neutral}
@@ -310,10 +341,7 @@ export function CandidateMarketEvidence({
         {messages.hiddenPrecision} {messages.sharedRank}
       </p>
 
-      <section
-        className="confidence-ledger"
-        aria-label={messages.confidence}
-      >
+      <section className="confidence-ledger" aria-label={messages.confidence}>
         <div className="confidence-heading">
           <div>
             <p>{messages.separateFromRank}</p>
@@ -336,11 +364,7 @@ export function CandidateMarketEvidence({
             candidate.confidence.deductions.map((deduction) => (
               <li key={deduction.code}>
                 <span>
-                  {confidenceDeductionLabel(
-                    deduction.code,
-                    candidate,
-                    locale,
-                  )}
+                  {confidenceDeductionLabel(deduction.code, candidate, locale)}
                 </span>
                 <strong>-{deduction.points}</strong>
               </li>
@@ -381,8 +405,11 @@ export function CandidateMarketEvidence({
         locale={locale}
       />
 
-      <ProvisionalEvidence
+      <ProvisionalEvidence candidate={candidate} locale={locale} />
+
+      <ReleaseRevisionEvidence
         candidate={candidate}
+        result={result}
         locale={locale}
       />
 
@@ -406,6 +433,95 @@ export function CandidateMarketEvidence({
       </p>
     </section>
   );
+}
+
+function ReleaseRevisionEvidence({
+  candidate,
+  result,
+  locale,
+}: {
+  candidate: CandidateMarket;
+  result: CandidateMarketResult;
+  locale: EvidenceLocale;
+}) {
+  const messages = copy[locale];
+  const revision = candidate.releaseRevision;
+  const summary = result.releaseRevisionSummary;
+  const stateLabel =
+    revision.state === "MATERIAL_CHANGE"
+      ? `${messages.materialRevision} ${summary.comparisonRelease ?? ""}`.trim()
+      : revision.state === "BELOW_THRESHOLD"
+        ? messages.belowRevisionThreshold
+        : revision.state === "NEWLY_ELIGIBLE"
+          ? messages.newlyEligible
+          : notComparedLabel(summary.notComparedReason, locale);
+
+  return (
+    <section
+      className="release-revision"
+      aria-label={messages.releaseRevision}
+      data-revision-state={revision.state}
+    >
+      <div>
+        <p>{messages.releaseRevisionKicker}</p>
+        <h4>{messages.releaseRevision}</h4>
+        <strong>{stateLabel}</strong>
+      </div>
+      {summary.comparisonRelease === null ? null : (
+        <p>
+          {messages.comparisonRelease}: {summary.comparisonRelease}
+        </p>
+      )}
+      {summary.noLongerEligibleCount === null ? null : (
+        <p>
+          {messages.noLongerEligible}: {summary.noLongerEligibleCount}
+        </p>
+      )}
+      {revision.state === "BELOW_THRESHOLD" ||
+      revision.state === "MATERIAL_CHANGE" ? (
+        <dl>
+          <div>
+            <dt>{messages.previousReleaseScore} </dt>
+            <dd>{revision.previousReleaseRecomputedScore}</dd>
+          </div>
+          <div>
+            <dt>{messages.scoreChange} </dt>
+            <dd>{formatSignedNumber(revision.scoreChange)}</dd>
+          </div>
+          <div>
+            <dt>{messages.previousRankPercentile} </dt>
+            <dd>{revision.previousReleaseRecomputedRankPercentile}</dd>
+          </div>
+          <div>
+            <dt>{messages.rankPercentileChange} </dt>
+            <dd>{formatSignedNumber(revision.rankPercentileChange)}</dd>
+          </div>
+        </dl>
+      ) : null}
+      <p>{messages.releaseRevisionExplanation}</p>
+    </section>
+  );
+}
+
+function notComparedLabel(
+  reason: CandidateMarketResult["releaseRevisionSummary"]["notComparedReason"],
+  locale: EvidenceLocale,
+): string {
+  const messages = copy[locale];
+  if (reason === "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW") {
+    return messages.missingRevisionWindow;
+  }
+  if (reason === "NO_COMPATIBLE_PREVIOUS_ARTIFACT") {
+    return messages.incompatibleRevision;
+  }
+  return messages.noPreviousRevision;
+}
+
+function formatSignedNumber(value: number | string | null): string {
+  if (value === null) {
+    return "—";
+  }
+  return Number(value) > 0 ? `+${value}` : String(value);
 }
 
 function StabilityAndCaveats({
@@ -742,8 +858,7 @@ function caveatLabel(code: CaveatCode, locale: EvidenceLocale): string {
       DOMINANT_SIZE_OUTLIER: "市场规模显著离群",
       POSSIBLE_PRODUCT_SERIES_DISCONTINUITY: "可能存在不连续或异常全球冲击",
       LOW_WINDOW_STABILITY: "窗口稳定性低",
-      STABILITY_NOT_ESTIMATED_SMALL_COMMON_COHORT:
-        "稳定性未估计——共同队列较小",
+      STABILITY_NOT_ESTIMATED_SMALL_COMMON_COHORT: "稳定性未估计——共同队列较小",
     },
   } as const;
   return labels[locale][code];
@@ -844,10 +959,7 @@ export function formatSignificant(value: string | number): string {
   return Number(value).toPrecision(3);
 }
 
-function formatYears(
-  years: readonly number[],
-  locale: EvidenceLocale,
-): string {
+function formatYears(years: readonly number[], locale: EvidenceLocale): string {
   if (locale === "zh-Hans") {
     return `${formatYearRange(years)}（${years.length} 年）`;
   }
