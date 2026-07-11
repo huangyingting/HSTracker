@@ -968,6 +968,7 @@ a {
 }
 
 .confidence-heading p,
+.stability-caveats > div > p,
 .provisional-evidence > div > p {
   margin: 0 0 5px;
   color: var(--accent);
@@ -978,6 +979,7 @@ a {
 }
 
 .confidence-heading h4,
+.stability-caveats h4,
 .provisional-evidence h4 {
   margin: 0;
   font-family:
@@ -1029,29 +1031,37 @@ a {
   font-size: 0.66rem;
 }
 
+.quantity-completeness {
+  margin-top: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--line);
+}
+
+.quantity-completeness p,
+.quantity-completeness small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.quantity-completeness strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+}
+
+.quantity-completeness small {
+  text-align: right;
+}
+
 .stability-caveats {
   margin-top: 22px;
   padding: 22px;
   border: 1px solid var(--line);
-}
-
-.stability-caveats > div > p {
-  margin: 0 0 5px;
-  color: var(--accent);
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.stability-caveats h4 {
-  margin: 0;
-  font-family:
-    Georgia,
-    "Noto Serif SC",
-    serif;
-  font-size: 1.35rem;
-  font-weight: 500;
 }
 
 .stability-caveats dl {
@@ -1178,6 +1188,16 @@ a {
   background: var(--paper-light);
 }
 
+.candidate-comparison[data-active="true"] {
+  position: fixed;
+  z-index: 20;
+  bottom: 16px;
+  left: 50%;
+  width: min(1424px, calc(100vw - 96px));
+  box-shadow: 0 16px 40px rgba(23, 53, 47, 0.18);
+  transform: translateX(-50%);
+}
+
 .comparison-heading {
   padding: 18px 22px;
   display: flex;
@@ -1215,7 +1235,9 @@ a {
 }
 
 .comparison-table-wrap {
+  max-height: min(34vh, 320px);
   overflow-x: auto;
+  overflow-y: auto;
 }
 
 .candidate-comparison table {
@@ -1647,6 +1669,10 @@ a {
   .analysis-context {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .candidate-comparison[data-active="true"] {
+    width: calc(100vw - 56px);
+  }
 }
 
 @media (max-width: 620px) {
@@ -1781,9 +1807,19 @@ a {
 
   .confidence-heading,
   .confidence-coverage,
+  .quantity-completeness,
   .comparison-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .quantity-completeness small {
+    text-align: left;
+  }
+
+  .candidate-comparison[data-active="true"] {
+    bottom: 10px;
+    width: calc(100vw - 40px);
   }
 
   .provisional-evidence dl {

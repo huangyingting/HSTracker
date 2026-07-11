@@ -4,8 +4,9 @@ import type {
 } from "../domain/candidate-market/result";
 import {
   candidateDisplayName,
-  formatDecimalPercent,
-  formatSignificant,
+  formattedMarketGrowth,
+  formattedRecordedFoothold,
+  formattedSupplierDiversity,
   formatUsd,
   localizedConfidence,
 } from "./candidate-market-evidence";
@@ -76,6 +77,7 @@ export function CandidateMarketComparison({
   return (
     <section
       className="candidate-comparison"
+      data-active={candidates.length > 0}
       aria-label={messages.region}
     >
       <div className="comparison-heading">
@@ -86,7 +88,9 @@ export function CandidateMarketComparison({
           </h3>
         </div>
         <span>
-          {candidates.map((candidate) => candidate.economy.name).join(" · ")}
+          {candidates
+            .map((candidate) => candidateDisplayName(candidate, locale))
+            .join(" · ")}
         </span>
       </div>
       {candidates.length === 0 ? null : (
@@ -133,6 +137,9 @@ function ComparisonRow({
   const messages = copy[locale];
   const displayName = candidateDisplayName(candidate, locale);
   const { components } = candidate;
+  const growthValue = formattedMarketGrowth(candidate);
+  const footholdValue = formattedRecordedFoothold(candidate);
+  const diversityValue = formattedSupplierDiversity(candidate);
 
   return (
     <tr>
@@ -150,21 +157,18 @@ function ComparisonRow({
         {formatUsd(components.marketSize.meanCurrentUsd)} {messages.perYear}
       </td>
       <td>
-        {components.marketGrowth.state === "COMPUTED" &&
-        components.marketGrowth.annualRate !== null
-          ? `${formatDecimalPercent(components.marketGrowth.annualRate)} ${messages.perYear}`
+        {growthValue !== null
+          ? `${growthValue} ${messages.perYear}`
           : messages.neutral}
       </td>
       <td>
-        {components.recordedFoothold.bilateralFlowState ===
-        "NO_RECORDED_POSITIVE_FLOW"
+        {footholdValue === null
           ? messages.noFlow
-          : `${formatDecimalPercent(components.recordedFoothold.share)} ${messages.shareUnit}`}
+          : `${footholdValue} ${messages.shareUnit}`}
       </td>
       <td>
-        {components.supplierDiversity.state === "COMPUTED" &&
-        components.supplierDiversity.index !== null
-          ? `${formatSignificant(components.supplierDiversity.index)} ${messages.indexUnit}`
+        {diversityValue !== null
+          ? `${diversityValue} ${messages.indexUnit}`
           : messages.neutral}
       </td>
       <td>

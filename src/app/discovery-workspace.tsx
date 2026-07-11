@@ -16,7 +16,11 @@ import type {
 } from "../domain/candidate-market/result";
 import type { EconomyRecord } from "../economy/economy-directory";
 import { CandidateMarketComparison } from "./candidate-market-comparison";
-import { CandidateMarketEvidence } from "./candidate-market-evidence";
+import {
+  CandidateMarketEvidence,
+  candidateDisplayName,
+  localizedConfidence,
+} from "./candidate-market-evidence";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
 
@@ -401,7 +405,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   >
                     <span className="candidate-rank">#{candidate.rank}</span>
                     <span>
-                      <strong>{candidate.economy.name}</strong>
+                      <strong>{candidateDisplayName(candidate, locale)}</strong>
                       <small>
                         BACI {candidate.economy.code} ·{" "}
                         {messages.confidence}:{" "}
@@ -507,20 +511,6 @@ function AnalysisContextStrip({
       </div>
     </dl>
   );
-}
-
-function localizedConfidence(
-  label: CandidateMarket["confidence"]["label"],
-  locale: WorkspaceLocale,
-): string {
-  if (locale === "en") {
-    return label;
-  }
-  return {
-    HIGH: "高",
-    MEDIUM: "中",
-    LOW: "低",
-  }[label];
 }
 
 function analysisErrorStatus(status: number): AnalysisStatus {

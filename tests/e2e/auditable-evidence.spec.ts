@@ -1,14 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+function countAnalysisRequests(page: Page): () => number {
+  let count = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/candidate-markets?")) {
+      count += 1;
+    }
+  });
+  return () => count;
+}
 
 test("an Export Market Analyst can audit Mexico without external calculation", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=484",
@@ -92,7 +97,13 @@ test("an Export Market Analyst can audit Mexico without external calculation", a
   await expect(confidence.getByText("HIGH · 100")).toBeVisible();
   await expect(confidence.getByText("No deductions")).toBeVisible();
   await expect(confidence.getByText("5 of 5 Finalized Years observed")).toBeVisible();
-  await expect(confidence.getByText("Quantity coverage 88.0%")).toBeVisible();
+  await expect(confidence.getByText("Quantity coverage")).toHaveCount(0);
+
+  const quantity = evidence.getByRole("region", {
+    name: "Quantity completeness",
+  });
+  await expect(quantity.getByText("Separate from Data Confidence")).toBeVisible();
+  await expect(quantity.getByText("Quantity coverage 88.0%")).toBeVisible();
 
   const provisional = evidence.getByRole("region", {
     name: "2024 Provisional Year snapshot",
@@ -120,18 +131,13 @@ test("an Export Market Analyst can audit Mexico without external calculation", a
   await expect(
     caveats.getByText("No HS Product series discontinuity flagged"),
   ).toBeVisible();
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });
 
 test("South Africa exposes neutral reasons and the sparse-evidence cap", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=710",
@@ -152,7 +158,8 @@ test("South Africa exposes neutral reasons and the sparse-evidence cap", async (
   const growth = scoreInputs.getByRole("row", { name: /Market Growth/ });
   await expect(growth).toContainText("Not computed");
   await expect(growth).toContainText("Neutral midpoint");
-  await expect(growth).toContainText("Percentile 50");
+  await expect(growth).toContainText("Assigned midpoint 50 · not ranked");
+  await expect(growth).not.toContainText("of observed cohort");
   await expect(growth).toContainText(
     "Fewer than 3 observed Finalized Years · 2022–2023 (2 years)",
   );
@@ -165,7 +172,8 @@ test("South Africa exposes neutral reasons and the sparse-evidence cap", async (
   });
   await expect(diversity).toContainText("Not computed");
   await expect(diversity).toContainText("Neutral midpoint");
-  await expect(diversity).toContainText("Percentile 50");
+  await expect(diversity).toContainText("Assigned midpoint 50 · not ranked");
+  await expect(diversity).not.toContainText("of observed cohort");
   await expect(diversity).toContainText(
     "No observed year has a computable alternative-supplier structure",
   );
@@ -197,18 +205,13 @@ test("South Africa exposes neutral reasons and the sparse-evidence cap", async (
       "Excluded from Candidate Market Score, rank, and Data Confidence.",
     ),
   ).toBeVisible();
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });
 
 test("India distinguishes no recorded bilateral flow from no trade", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=699",
@@ -245,18 +248,13 @@ test("India distinguishes no recorded bilateral flow from no trade", async ({
   ).toBeVisible();
   await expect(provisional.getByText("Not available")).toBeVisible();
   await expect(provisional.getByText("66.7%")).toBeVisible();
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });
 
 test("BACI code 490 keeps its source identity and proxy caveat", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=490",
@@ -269,6 +267,13 @@ test("BACI code 490 keeps its source identity and proxy caveat", async ({
     evidence.getByRole("heading", {
       name: "Other Asia, n.e.s. (Taiwan proxy)",
     }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("list", { name: "Candidate Markets" })
+      .getByRole("button", {
+        name: /Other Asia, n\.e\.s\. \(Taiwan proxy\)/,
+      }),
   ).toBeVisible();
   await expect(evidence.getByText("BACI 490")).toBeVisible();
   await expect(evidence.getByText("No public ISO3")).toBeVisible();
@@ -286,20 +291,19 @@ test("BACI code 490 keeps its source identity and proxy caveat", async ({
   await expect(confidence.getByText("HIGH · 90")).toBeVisible();
   await expect(confidence.getByText("Source identity proxy")).toBeVisible();
   await expect(confidence.getByText("-10")).toBeVisible();
-  await expect(confidence.getByText("Quantity coverage 100%")).toBeVisible();
+  await expect(
+    evidence
+      .getByRole("region", { name: "Quantity completeness" })
+      .getByText("Quantity coverage 100%"),
+  ).toBeVisible();
   await expect(evidence.getByText(/^Taiwan$/)).toHaveCount(0);
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });
 
 test("comparison stays client-local with consistent evidence units", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=484",
@@ -318,6 +322,12 @@ test("comparison stays client-local with consistent evidence units", async ({
   await addMexico.focus();
   await page.keyboard.press("Enter");
 
+  const comparison = page.getByRole("region", {
+    name: "Candidate Market comparison",
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(comparison).toBeInViewport();
+
   await candidateMarkets.filter({ hasText: "South Africa" }).focus();
   await page.keyboard.press("Enter");
   await evidence
@@ -325,7 +335,9 @@ test("comparison stays client-local with consistent evidence units", async ({
     .focus();
   await page.keyboard.press("Space");
 
-  await candidateMarkets.filter({ hasText: "Other Asia, nes" }).focus();
+  await candidateMarkets
+    .filter({ hasText: "Other Asia, n.e.s. (Taiwan proxy)" })
+    .focus();
   await page.keyboard.press("Enter");
   await evidence
     .getByRole("button", {
@@ -334,9 +346,6 @@ test("comparison stays client-local with consistent evidence units", async ({
     .focus();
   await page.keyboard.press("Enter");
 
-  const comparison = page.getByRole("region", {
-    name: "Candidate Market comparison",
-  });
   await expect(comparison.getByText("Comparison tray · 3/3")).toBeVisible();
   const table = comparison.getByRole("table", {
     name: "Compared Candidate Markets",
@@ -377,18 +386,13 @@ test("comparison stays client-local with consistent evidence units", async ({
 
   await expect(comparison.getByText("Comparison tray · 2/3")).toBeVisible();
   await expect(table.getByRole("row", { name: /Mexico/ })).toHaveCount(0);
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });
 
 test("both integer-score tie groups preserve competition ranks", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=124",
@@ -442,7 +446,7 @@ test("both integer-score tie groups preserve competition ranks", async ({
   await expect(table.getByRole("row", { name: /United States/ })).toContainText(
     "50 / #7",
   );
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });
 
 test("audit evidence stacks without horizontal overflow on a narrow screen", async ({
@@ -479,12 +483,7 @@ test("audit evidence stacks without horizontal overflow on a narrow screen", asy
 test("locale switching preserves the auditable comparison context", async ({
   page,
 }) => {
-  let analysisRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/candidate-markets?")) {
-      analysisRequests += 1;
-    }
-  });
+  const analysisRequestCount = countAnalysisRequests(page);
 
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=484",
@@ -530,5 +529,5 @@ test("locale switching preserves the auditable comparison context", async ({
   ).toBeVisible();
 
   expect(page.url()).toBe(canonicalUrl);
-  expect(analysisRequests).toBe(1);
+  expect(analysisRequestCount()).toBe(1);
 });

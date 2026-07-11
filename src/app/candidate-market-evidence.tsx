@@ -30,6 +30,7 @@ const copy = {
     state: "State",
     percentile: "Percentile",
     observedCohort: "of observed cohort",
+    neutralStanding: "Assigned midpoint 50 · not ranked",
     weight: "Weight",
     computed: "Computed",
     neutral: "Neutral midpoint",
@@ -62,7 +63,10 @@ const copy = {
     noDeductions: "No deductions",
     sparseCap: "Sparse-evidence cap applied",
     finalizedObserved: "Finalized Years observed",
+    quantityCompleteness: "Quantity completeness",
+    separateFromConfidence: "Separate from Data Confidence",
     quantityCoverage: "Quantity coverage",
+    quantityNotScored: "Quantity availability is not used by cms-v1.",
     stabilityCaveats: "Stability and caveats",
     robustnessChecks: "Robustness checks",
     stability: "stability",
@@ -112,6 +116,7 @@ const copy = {
     state: "状态",
     percentile: "百分位",
     observedCohort: "观察队列",
+    neutralStanding: "分配中点 50 · 未参与排名",
     weight: "权重",
     computed: "已计算",
     neutral: "中性中点",
@@ -139,7 +144,10 @@ const copy = {
     noDeductions: "无扣减",
     sparseCap: "已应用稀疏证据上限",
     finalizedObserved: "个计分定稿年份有记录",
+    quantityCompleteness: "数量完整性",
+    separateFromConfidence: "独立于数据置信度",
     quantityCoverage: "数量覆盖率",
+    quantityNotScored: "cms-v1 不使用数量可用性。",
     stabilityCaveats: "稳定性与注意事项",
     robustnessChecks: "稳健性检查",
     stability: "稳定性",
@@ -273,10 +281,22 @@ export function CandidateMarketEvidence({
                       : messages.neutral}
                   </span>
                 </td>
-                <td aria-label={`${messages.percentile} ${input.percentile}`}>
-                  <small>{messages.percentile}</small>{" "}
-                  <strong>{input.percentile}</strong>
-                  <small>{messages.observedCohort}</small>
+                <td
+                  aria-label={
+                    input.state === "NEUTRAL"
+                      ? messages.neutralStanding
+                      : `${messages.percentile} ${input.percentile}`
+                  }
+                >
+                  {input.state === "NEUTRAL" ? (
+                    <strong>{messages.neutralStanding}</strong>
+                  ) : (
+                    <>
+                      <small>{messages.percentile}</small>{" "}
+                      <strong>{input.percentile}</strong>
+                      <small>{messages.observedCohort}</small>
+                    </>
+                  )}
                 </td>
                 <td>
                   <strong>{input.weight}%</strong>
@@ -338,11 +358,21 @@ export function CandidateMarketEvidence({
             {candidate.observedScoreYears.length} {messages.rankJoin}{" "}
             {finalizedYearCount} {messages.finalizedObserved}
           </strong>
-          <span>
+        </p>
+      </section>
+
+      <section
+        className="quantity-completeness"
+        aria-label={messages.quantityCompleteness}
+      >
+        <div>
+          <p>{messages.separateFromConfidence}</p>
+          <strong>
             {messages.quantityCoverage}{" "}
             {formatOptionalPercent(candidate.quantityCoverageRate, messages)}
-          </span>
-        </p>
+          </strong>
+        </div>
+        <small>{messages.quantityNotScored}</small>
       </section>
 
       <StabilityAndCaveats
@@ -516,6 +546,9 @@ function buildScoreInputs(
   const messages = copy[locale];
   const { components } = candidate;
   const weights = result.weights;
+  const growthValue = formattedMarketGrowth(candidate);
+  const footholdValue = formattedRecordedFoothold(candidate);
+  const diversityValue = formattedSupplierDiversity(candidate);
 
   return [
     {
@@ -535,9 +568,8 @@ function buildScoreInputs(
     {
       label: messages.growth,
       raw:
-        components.marketGrowth.state === "COMPUTED" &&
-        components.marketGrowth.annualRate !== null
-          ? `${formatDecimalPercent(components.marketGrowth.annualRate)} ${messages.perYear}`
+        growthValue !== null
+          ? `${growthValue} ${messages.perYear}`
           : messages.notComputed,
       period:
         components.marketGrowth.state === "COMPUTED"
@@ -556,10 +588,9 @@ function buildScoreInputs(
     {
       label: messages.foothold,
       raw:
-        components.recordedFoothold.bilateralFlowState ===
-        "NO_RECORDED_POSITIVE_FLOW"
+        footholdValue === null
           ? messages.noRecordedFlow
-          : `${formatDecimalPercent(components.recordedFoothold.share)} ${messages.shareUnit}`,
+          : `${footholdValue} ${messages.shareUnit}`,
       period: `${messages.footholdPeriod} · ${formatYearRange(candidate.observedScoreYears)}`,
       state: components.recordedFoothold.state,
       percentile: components.recordedFoothold.percentile,
@@ -574,9 +605,8 @@ function buildScoreInputs(
     {
       label: messages.diversity,
       raw:
-        components.supplierDiversity.state === "COMPUTED" &&
-        components.supplierDiversity.index !== null
-          ? `${formatSignificant(components.supplierDiversity.index)} ${messages.indexUnit}`
+        diversityValue !== null
+          ? `${diversityValue} ${messages.indexUnit}`
           : messages.notComputed,
       period:
         components.supplierDiversity.state === "COMPUTED"
@@ -765,6 +795,33 @@ export function formatUsd(value: string | null): string {
 
 export function formatDecimalPercent(value: string): string {
   return `${formatSignificant(Number(value) * 100)}%`;
+}
+
+export function formattedMarketGrowth(
+  candidate: CandidateMarket,
+): string | null {
+  const growth = candidate.components.marketGrowth;
+  return growth.state === "COMPUTED" && growth.annualRate !== null
+    ? formatDecimalPercent(growth.annualRate)
+    : null;
+}
+
+export function formattedRecordedFoothold(
+  candidate: CandidateMarket,
+): string | null {
+  const foothold = candidate.components.recordedFoothold;
+  return foothold.bilateralFlowState === "NO_RECORDED_POSITIVE_FLOW"
+    ? null
+    : formatDecimalPercent(foothold.share);
+}
+
+export function formattedSupplierDiversity(
+  candidate: CandidateMarket,
+): string | null {
+  const diversity = candidate.components.supplierDiversity;
+  return diversity.state === "COMPUTED" && diversity.index !== null
+    ? formatSignificant(diversity.index)
+    : null;
 }
 
 function formatOptionalPercent(
