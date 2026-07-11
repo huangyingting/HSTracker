@@ -49,7 +49,7 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
     "#7 United States BACI 842 · Data Confidence: MEDIUM 50 /100",
     "#9 India BACI 699 · Data Confidence: HIGH 45 /100",
     "#10 Brazil BACI 76 · Data Confidence: HIGH 39 /100",
-    "#11 Other Asia, nes BACI 490 · Data Confidence: HIGH 37 /100",
+    "#11 Other Asia, n.e.s. (Taiwan proxy) BACI 490 · Data Confidence: HIGH 37 /100",
     "#12 Australia BACI 36 · Data Confidence: HIGH 36 /100",
     "#13 Kenya BACI 404 · Data Confidence: LOW 17 /100",
   ] as const;
