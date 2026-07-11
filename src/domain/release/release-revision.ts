@@ -31,6 +31,7 @@ export type ReleaseRevisionPreviousArtifact = {
   hsRevision: string;
   scoreVersion: string;
   availableYears: readonly number[];
+  scoreWindowUsed: { start: number; end: number };
   recomputedCandidates: readonly ReleaseCandidateSnapshot[];
 };
 
@@ -65,7 +66,10 @@ export function compareReleaseRevisions({
   }
   if (
     previousArtifact.hsRevision !== currentRelease.hsRevision ||
-    previousArtifact.scoreVersion !== currentRelease.scoreVersion
+    previousArtifact.scoreVersion !== currentRelease.scoreVersion ||
+    previousArtifact.scoreWindowUsed.start !==
+      currentRelease.scoreWindow.start ||
+    previousArtifact.scoreWindowUsed.end !== currentRelease.scoreWindow.end
   ) {
     return notCompared(
       currentRelease.candidates,
@@ -151,22 +155,21 @@ function notCompared(
     candidates: Object.fromEntries(
       currentCandidates.map(({ code }) => [
         code,
-        {
-          state: "NOT_COMPARED",
-          previousReleaseRecomputedScore: null,
-          scoreChange: null,
-          previousReleaseRecomputedRankPercentile: null,
-          rankPercentileChange: null,
-          materialChange: null,
-        },
+        emptyRevision("NOT_COMPARED"),
       ]),
     ),
   };
 }
 
 function newlyEligible(): CandidateReleaseRevision {
+  return emptyRevision("NEWLY_ELIGIBLE");
+}
+
+function emptyRevision(
+  state: "NOT_COMPARED" | "NEWLY_ELIGIBLE",
+): CandidateReleaseRevision {
   return {
-    state: "NEWLY_ELIGIBLE",
+    state,
     previousReleaseRecomputedScore: null,
     scoreChange: null,
     previousReleaseRecomputedRankPercentile: null,

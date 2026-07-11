@@ -97,6 +97,18 @@ export function evaluateSourceFreshness(
   };
 }
 
+export function nextSourceFreshnessTransitionAt(
+  freshness: EffectiveSourceFreshness,
+): string | null {
+  if (freshness.state === "LATEST_KNOWN") {
+    return freshness.checkOverdueAt;
+  }
+  if (freshness.state === "UPDATE_IN_PROGRESS") {
+    return freshness.refreshDueAt;
+  }
+  return null;
+}
+
 function parseUtcInstant(value: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value)) {
     throw new TypeError(

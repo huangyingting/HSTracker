@@ -1,5 +1,6 @@
 import {
   evaluateSourceFreshness,
+  nextSourceFreshnessTransitionAt,
   type EffectiveSourceFreshness,
   type SourceStatusSnapshot,
 } from "./source-freshness";
@@ -60,19 +61,15 @@ export function currentManifestCacheControl(
   freshness: EffectiveSourceFreshness,
   asOf: string,
 ): string {
-  const nextDeadline =
-    freshness.state === "LATEST_KNOWN"
-      ? freshness.checkOverdueAt
-      : freshness.state === "UPDATE_IN_PROGRESS"
-        ? freshness.refreshDueAt
-        : null;
+  const nextDeadline = nextSourceFreshnessTransitionAt(freshness);
   const secondsUntilDeadline =
     nextDeadline === null
       ? Number.POSITIVE_INFINITY
       : Math.max(
           0,
           Math.floor(
-            (new Date(nextDeadline).getTime() - new Date(asOf).getTime()) / 1000,
+            (new Date(nextDeadline).getTime() - new Date(asOf).getTime()) /
+              1000,
           ),
         );
   const browserSeconds = Math.min(60, secondsUntilDeadline);

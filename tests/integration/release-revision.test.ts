@@ -25,6 +25,7 @@ const previousArtifact = {
   hsRevision: "HS12",
   scoreVersion: "cms-v1",
   availableYears: [2019, 2020, 2021, 2022, 2023],
+  scoreWindowUsed: { start: 2019, end: 2023 },
   recomputedCandidates: [
     { code: "528", score: 85, rankPercentile: "100.000" },
     { code: "36", score: 75, rankPercentile: "75.000" },
@@ -144,6 +145,15 @@ describe("Release Revision comparison", () => {
     [
       {
         ...previousArtifact,
+        scoreWindowUsed: { start: 2018, end: 2022 },
+      },
+      "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+      null,
+      null,
+    ],
+    [
+      {
+        ...previousArtifact,
         availableYears: [2019, 2020, 2021, 2022],
       },
       "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
@@ -194,6 +204,7 @@ describe("Release Revision comparison", () => {
       hsRevision: "HS12",
       scoreVersion: "cms-v1",
       availableYears: [2019, 2020, 2021, 2022, 2023],
+      scoreWindowUsed: { start: 2019, end: 2023 },
       recomputedCandidates: [
         ...baseline.candidates
           .filter(({ economy }) => economy.code !== "710")
