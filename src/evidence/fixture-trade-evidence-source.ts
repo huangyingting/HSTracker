@@ -17,7 +17,10 @@ import {
   QUANTITY_ZERO_INPUT,
 } from "../../test/fixtures/acceptance/v1/evidence/core-current";
 import { MICRO_FIXTURE_INPUTS } from "../../test/fixtures/acceptance/v1/evidence/microfixtures";
-import { ACCEPTANCE_FIXTURE_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+import {
+  ACCEPTANCE_FIXTURE_BUILD_IDS,
+  FIXTURE_ADAPTER_TEST_BUILD_IDS,
+} from "../../test/fixtures/acceptance/v1/metadata";
 import type {
   CmsV1Inputs,
   TradeEvidenceSource,
@@ -55,11 +58,11 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
   async loadCmsV1Inputs(
     query: CandidateMarketAnalysisQuery,
   ): Promise<CmsV1Inputs> {
-    if (query.analysisBuildId === "failing-fixture-build") {
+    if (query.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.failing) {
       throw new Error("fixture adapter failure");
     }
 
-    if (query.analysisBuildId === "unavailable-fixture-build") {
+    if (query.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable) {
       throw unavailableAnalysisBuild(query.analysisBuildId);
     }
 

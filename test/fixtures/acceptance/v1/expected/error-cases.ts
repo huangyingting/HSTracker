@@ -1,7 +1,12 @@
+import {
+  ACCEPTANCE_FIXTURE_BUILD_IDS,
+  FIXTURE_ADAPTER_TEST_BUILD_IDS,
+} from "../metadata";
+
 export const ANALYSIS_ROUTE_ERROR_CASES = [
   {
     name: "missing product",
-    build: "acceptance-fixtures-v1",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
     query: "exporter=156",
     status: 400,
     code: "INVALID_ANALYSIS_QUERY",
@@ -9,7 +14,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
   },
   {
     name: "malformed product",
-    build: "acceptance-fixtures-v1",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
     query: "exporter=156&product=10121",
     status: 400,
     code: "INVALID_ANALYSIS_QUERY",
@@ -17,7 +22,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
   },
   {
     name: "unsupported query parameter",
-    build: "acceptance-fixtures-v1",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
     query: "exporter=156&product=010121&window=3",
     status: 400,
     code: "INVALID_ANALYSIS_QUERY",
@@ -25,7 +30,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
   },
   {
     name: "unknown product",
-    build: "acceptance-fixtures-v1",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
     query: "exporter=156&product=999999",
     status: 404,
     code: "UNKNOWN_PRODUCT",
@@ -33,7 +38,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
   },
   {
     name: "unknown exporter",
-    build: "acceptance-fixtures-v1",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
     query: "exporter=999&product=010121",
     status: 404,
     code: "UNKNOWN_EXPORTER",
@@ -49,7 +54,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
   },
   {
     name: "unavailable build",
-    build: "unavailable-fixture-build",
+    build: FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable,
     query: "exporter=156&product=010121",
     status: 503,
     code: "ANALYSIS_UNAVAILABLE",

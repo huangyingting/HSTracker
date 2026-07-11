@@ -5,6 +5,7 @@ import {
   HEAD,
 } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
 import { ANALYSIS_ROUTE_ERROR_CASES } from "../../test/fixtures/acceptance/v1/expected/error-cases";
+import { FIXTURE_ADAPTER_TEST_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
 
 const routeContext = (analysisBuildId: string) => ({
   params: Promise.resolve({ analysisBuildId }),
@@ -113,9 +114,9 @@ describe("versioned Candidate Market route", () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await GET(
       new Request(
-        "http://localhost/api/v1/analyses/failing-fixture-build/candidate-markets?exporter=156&product=010121",
+        `http://localhost/api/v1/analyses/${FIXTURE_ADAPTER_TEST_BUILD_IDS.failing}/candidate-markets?exporter=156&product=010121`,
       ),
-      routeContext("failing-fixture-build"),
+      routeContext(FIXTURE_ADAPTER_TEST_BUILD_IDS.failing),
     );
 
     expect(response.status).toBe(500);

@@ -1,13 +1,13 @@
 import {
   ACCEPTANCE_FIXTURE_ARTIFACT,
-  ACCEPTANCE_FIXTURE_BUILD_IDS,
   ACCEPTANCE_FIXTURE_RELEASE,
+  ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
 } from "./metadata";
 
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
-  fixtureSchemaVersion: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+  fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   fixtureContentSha256:
-    "925b3515bbedcb699cacc8b8004a0df50e510af07c125323e4455d01e0cb0c44",
+    "c9441e1142bcb8592eb1292b2302983856127068fc59111a8c8065f808d4491a",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
@@ -27,7 +27,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "metadata.ts",
       sha256:
-        "1b337b04e73b06bd8141d2c9197238d79183c346acf6a99b7b384a0488f88c07",
+        "4305ddee39ee06bca4e701c8ec2d06ef31994f941494e53ac1e0d925a5ab75ec",
     },
     {
       path: "evidence/core-current.ts",
@@ -47,7 +47,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/error-cases.ts",
       sha256:
-        "ca56a20bef110af416817b3896cf9124da308330768c36a689ec76cfd3bf322c",
+        "f9017cbd4a37a5c09c1e6b3dc5acf41a6c9afd454518f4af4cbb42efc23163a1",
     },
   ],
   expectedFiles: [
@@ -59,7 +59,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/error-cases.ts",
       sha256:
-        "ca56a20bef110af416817b3896cf9124da308330768c36a689ec76cfd3bf322c",
+        "f9017cbd4a37a5c09c1e6b3dc5acf41a6c9afd454518f4af4cbb42efc23163a1",
     },
   ],
   fixtureIds: [

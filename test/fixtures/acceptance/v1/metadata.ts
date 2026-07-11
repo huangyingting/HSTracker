@@ -1,8 +1,15 @@
+export const ACCEPTANCE_FIXTURE_SCHEMA_VERSION = "acceptance-fixtures-v1";
+
 export const ACCEPTANCE_FIXTURE_BUILD_IDS = {
-  core: "acceptance-fixtures-v1",
+  core: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   discontinuity: "acceptance-fixtures-v1-discontinuity",
   quantityZero: "acceptance-fixtures-v1-quantity-zero",
   provisionalMutation: "acceptance-fixtures-v1-provisional-mutation",
+} as const;
+
+export const FIXTURE_ADAPTER_TEST_BUILD_IDS = {
+  failing: "failing-fixture-build",
+  unavailable: "unavailable-fixture-build",
 } as const;
 
 export const ACCEPTANCE_FIXTURE_RELEASE = {
