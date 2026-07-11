@@ -632,7 +632,7 @@ Successful `GET` responses include:
 Content-Type: text/csv; charset=utf-8; header=present
 Content-Disposition: attachment; filename="{deterministic filename}"
 Cache-Control: public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable
-ETag: "{SHA-256 of the uncompressed CSV entity bytes}"
+ETag: W/"sha256-{SHA-256 of the uncompressed CSV entity bytes}"
 X-Content-Type-Options: nosniff
 Vary: Accept-Encoding
 ```

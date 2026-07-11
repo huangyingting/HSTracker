@@ -213,6 +213,9 @@ ranking.
 
 A query starts after two normalized characters. Numeric queries use digit-prefix
 matching, so `01`, `0101`, and `010121` support progressive code discovery.
+The browser debounces eligible input by 150 ms, aborts superseded requests, and
+never auto-selects a late response. Search latency and payload gates are fixed
+by [MVP performance and caching targets](./2026-07-11-mvp-performance-and-caching-targets.md).
 
 ### Match order
 

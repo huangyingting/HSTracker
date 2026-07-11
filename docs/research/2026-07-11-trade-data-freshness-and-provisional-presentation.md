@@ -196,7 +196,8 @@ An automated source monitor checks CEPII:
 
 The public status becomes `CHECK_OVERDUE` when no source check has succeeded for
 14 calendar days. A newly detected release should be validated and promoted
-within seven calendar days.
+within 24 hours normally. Warn at 24 hours, page/escalate at 48 hours, and
+promote or expose `REFRESH_DELAYED` within seven calendar days.
 
 The monitor writes immutable public status snapshots plus one mutable pointer in
 private object storage. Runtime credentials remain read-only. The current
@@ -253,6 +254,15 @@ The effective ID is a structured content address that includes the immutable
 Given the ID, the runtime can load the retained source snapshot, reproduce the
 deadline transition, and verify the digest after a restart. It does not depend
 on an in-memory mapping or a runtime write.
+
+Runtime object-storage reads occur in a background poll every 55-60 seconds
+(60 seconds minus 0-5 seconds of jitter), not in the current-manifest request.
+The request serves the last validated in-memory or deployment-manifest snapshot
+and derives effective state.
+Its browser/shared cache TTL is at most 60/300 seconds and is clipped to the
+next state deadline, with no stale-content extension. The exact latency and
+failure contract is in
+[MVP performance and caching targets](./2026-07-11-mvp-performance-and-caching-targets.md).
 
 ### State machine
 
@@ -392,7 +402,8 @@ The exact transport is defined by the
 Immediately before download, the client refreshes the short-lived current
 manifest. It uses the latest effective status ID compatible with the active
 analysis build and the compatible product-search build, then updates any warning
-before requesting the immutable export.
+before requesting the immutable export. This preflight explicitly revalidates
+instead of passively reusing a still-fresh browser entry.
 
 The reusable attribution remains:
 

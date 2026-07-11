@@ -121,9 +121,11 @@ unrealistically low 10 KB average multiplied by 1.176 million query keys is
 about 12 GB and more than a million objects. A complete precomputed corpus is
 therefore a poor publication unit even before actual result sizes are measured.
 
-The native DuckDB artifact size is not yet known. Use a **2-6 GB planning
-envelope**, not a promise. The release manifest records the measured size, and
-volume sizing is gated on it.
+The native DuckDB artifact size is not yet known. The initial 2-6 GB estimate
+remains planning evidence, while the
+[performance contract](./2026-07-11-mvp-performance-and-caching-targets.md)
+sets an 8 GiB target and blocks promotion above 10 GiB pending a new
+architecture/cost decision. The release manifest records the measured size.
 
 ## Option comparison
 
@@ -477,18 +479,17 @@ result creates a new export URL; bytes at an existing URL remain immutable.
 
 1. **In-flight coalescing:** concurrent requests for one key share one
    calculation.
-2. **Process LRU:** byte-bounded, not merely entry-count-bounded. Start with a
-   conservative 64-128 MiB envelope and finalize it under the performance
-   ticket.
+2. **Process LRU:** byte-bounded, not merely entry-count-bounded. The accepted
+   128 MiB envelope is partitioned into 96 MiB analysis, 16 MiB search, 1 MiB
+   status/manifest, and 15 MiB unallocated reserve.
 3. **HTTP shared cache:** versioned analysis, search, and status-bound export
-   responses are immutable and may use a long shared-cache lifetime. A concrete
-   starting policy is
+   responses are immutable and use
    `public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800,
    immutable`.
 4. **Current manifest:** combine deployed build identities with the latest
-   effective freshness-status snapshot and use a short policy such as
-   `max-age=60, s-maxage=300`. Never cache it past the next seven- or 14-day
-   state-transition deadline.
+   effective freshness-status snapshot. Browser/shared TTLs are at most 60/300
+   seconds, clipped to the next seven- or 14-day state-transition deadline,
+   with `must-revalidate` and no stale-content extension.
 5. **Health and errors:** health is `no-store`; do not long-cache failures or
    malformed queries.
 
@@ -542,20 +543,25 @@ artifact remains a `503` availability failure.
   `READ_ONLY`, or use equivalent read-only instances if the Node client makes
   attachment lifecycle less reliable. Verify the chosen form in an integration
   test.
-- Maintain a small bounded connection pool. Never overlap unrelated queries on
-  one connection and assume that constitutes concurrency.
+- Start with two analytical connections. Never overlap unrelated queries on one
+  connection and assume that constitutes concurrency.
 - Put a global semaphore in front of analytical work. Request coalescing handles
-  identical keys; the semaphore bounds different-key work.
-- Tune pool size and DuckDB `threads` together to avoid CPU oversubscription.
-- Set DuckDB `memory_limit` below the container cgroup limit and place any
-  bounded spill directory on the volume, separate from immutable artifacts.
+  identical keys; the starting semaphore allows two different-key
+  computations, with a FIFO queue of 16 and a five-second queue deadline.
+- Pin DuckDB's global `threads` setting to two on the 2-vCPU trial class. The
+  two-connection semaphore bounds query count; the shared scheduler bounds total
+  workers. Any alternative pool/thread shape must pass the same load gate.
+- On the 2-GiB trial class, set DuckDB `memory_limit = 1GiB`, use a separate
+  volume spill directory, and set `max_temp_directory_size = 4GiB`.
 - Use prepared parameters after allowlist validation; never interpolate public
   query values into SQL.
 - Mark artifact files read-only at the filesystem level as defense in depth.
 
-The exact pool, thread, memory, timeout, and queue limits belong to the
-performance/caching ticket and must be load-tested against the highest-row-count
-products, cold page cache, cache misses, and concurrent distinct keys.
+Analysis execution is limited to five seconds after at most five seconds in
+queue, with a 12-second analysis-route deadline; CSV has a 15-second route
+deadline. The complete measurement, overload, memory, and cancellation contract
+is in
+[MVP performance and caching targets](./2026-07-11-mvp-performance-and-caching-targets.md).
 
 ## Offline publication pipeline
 
@@ -595,8 +601,9 @@ If CEPII replaces bytes at the same URL, the checksum mismatch fails closed.
 10. Reopen the file read-only through the production evidence adapter.
 11. Run schema checks, source reconciliations, the worked `cms-v1` fixture, and
     the decision-complete acceptance fixtures once that ticket publishes them.
-12. Benchmark representative sparse, median, and maximum-row products. An
-    artifact cannot be promoted if it misses the later performance gates.
+12. Benchmark the manifest-pinned sparse, median, and maximum-row products. An
+    artifact cannot be promoted if it misses the accepted latency, load,
+    memory, size, or cost gates.
 13. Compute the final artifact SHA-256 and write an immutable manifest.
 
 ### Manifest
@@ -693,30 +700,33 @@ execute DuckDB queries.
 
 Use one always-on Fly.io Machine in the primary audience region:
 
-- trial baseline: 2 shared vCPUs and 2 GB RAM;
-- one Fly Volume, initially 20-40 GB;
-- volume size rule: at least `3 * measured_artifact_size + spill/cache
-  allowance + 25% headroom`;
+- trial baseline: `shared-cpu-2x` and 2 GiB RAM, retained only if the complete
+  artifact passes every sustained performance gate;
+- one Fly Volume, initially 50 GiB;
+- volume size rule: enough for three hard-cap artifacts plus the 4-GiB spill
+  cap while retaining at least 25% free;
 - private S3-compatible object storage for accepted artifacts;
 - Fly health checks against `/healthz`; and
-- automatic restart, structured logs, and a documented restore runbook.
+- an `on-fail` Machine restart policy, structured logs, and a documented
+  restore runbook. Health checks control routing; they do not restart a Machine.
 
 Fly Volumes are local NVMe, belong to one Machine, and are not automatically
 replicated. That makes a single Machine an explicit availability trade-off,
-not durable storage. Fly recommends two volumes for redundancy; add a second
-Machine and independently hydrated volume when the acceptance target requires
-HA.
+not durable storage. The MVP accepts one Machine at 99.5% monthly availability.
+Add a second independently hydrated Machine/Volume after two misses in three
+months, an RTO breach caused by the single host, or adoption of a 99.9% target.
 
-The planning cost envelope for one small always-on Machine, 20-40 GB volume,
-and low traffic is roughly **USD 15-30/month plus object storage and egress**,
-not a quote. Fly currently documents volume capacity at USD 0.15/GB/month and
-North America/Europe public egress at USD 0.02/GB; compute varies by region,
-preset, RAM, and reservations. Recheck live pricing before implementation.
-Two replicas approximately double compute and serving-volume cost.
+The recurring low-traffic infrastructure ceiling is **USD 40/month**, including
+compute, the 50-GiB volume, private object storage, egress, and basic monitoring.
+Review the architecture before enabling a configuration forecast above USD
+50/month. Provider figures are not quotes; recheck live pricing before
+implementation and annual refresh. Two replicas approximately double compute
+and serving-volume cost.
 
 Downsize only after worst-product and concurrency benchmarks. Scale vertically
-first; then add identical read-only replicas, each pulling the same artifacts.
-Moving to PostgreSQL or ClickHouse is not the first scale step.
+first for origin compute, add an edge cache for measured geographic/cache-hit
+latency, and add identical read-only replicas for availability. Moving to
+PostgreSQL or ClickHouse is not the first scale step.
 
 ## Security and reliability boundaries
 
@@ -853,7 +863,7 @@ Do not replace those decisions with hidden implementation defaults.
 
 | Risk | Control |
 |---|---|
-| Artifact is larger than the planning envelope | Measure before volume purchase; size volume from the three-copy formula |
+| Artifact exceeds 8 GiB target or 10 GiB gate | Measure every build; block promotion above 10 GiB and recompute the three-copy volume rule |
 | Popular product defeats average-row assumptions | Benchmark maximum-row products and cold cache before promotion |
 | DuckDB exceeds container memory | Explicit cgroup-aware memory/spill limits and bounded query concurrency |
 | Native Node binary is absent/incompatible | glibc image, `serverExternalPackages`, container integration test |
