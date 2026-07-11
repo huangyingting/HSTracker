@@ -5,6 +5,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=156",
     status: 400,
     code: "INVALID_ANALYSIS_QUERY",
+    message: "The analysis query is invalid.",
   },
   {
     name: "malformed product",
@@ -12,6 +13,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=156&product=10121",
     status: 400,
     code: "INVALID_ANALYSIS_QUERY",
+    message: "The analysis query is invalid.",
   },
   {
     name: "unsupported query parameter",
@@ -19,6 +21,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=156&product=010121&window=3",
     status: 400,
     code: "INVALID_ANALYSIS_QUERY",
+    message: "The analysis query is invalid.",
   },
   {
     name: "unknown product",
@@ -26,6 +29,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=156&product=999999",
     status: 404,
     code: "UNKNOWN_PRODUCT",
+    message: "The requested HS12 product is not available.",
   },
   {
     name: "unknown exporter",
@@ -33,6 +37,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=999&product=010121",
     status: 404,
     code: "UNKNOWN_EXPORTER",
+    message: "The requested exporter is not available.",
   },
   {
     name: "retired build",
@@ -40,6 +45,7 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=156&product=010121",
     status: 410,
     code: "ANALYSIS_BUILD_RETIRED",
+    message: "The requested analysis build is no longer served.",
   },
   {
     name: "unavailable build",
@@ -47,5 +53,6 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     query: "exporter=156&product=010121",
     status: 503,
     code: "ANALYSIS_UNAVAILABLE",
+    message: "Candidate Market analysis is temporarily unavailable.",
   },
 ] as const;

@@ -20,6 +20,8 @@ const WEIGHTS = {
   supplierDiversity: 20,
 } as const;
 
+const IDENTITY_PROXY_ECONOMY_CODE = "490";
+
 const DISCOVERY_DISCLAIMER =
   "Candidate Market evidence is a discovery aid for further investigation, not a recommendation or prediction of commercial success.";
 
@@ -525,7 +527,7 @@ function calculateConfidence({
   addDeduction(
     deductions,
     "IDENTITY_PROXY",
-    candidate.economy.code === "490" ? 10 : 0,
+    candidate.economy.code === IDENTITY_PROXY_ECONOMY_CODE ? 10 : 0,
   );
 
   const afterDeductions = Math.max(
@@ -571,7 +573,7 @@ function buildCaveatCodes({
   if (candidate.bilateralFlowState === "NO_RECORDED_POSITIVE_FLOW") {
     caveats.push("NO_RECORDED_POSITIVE_FLOW");
   }
-  if (candidate.economy.code === "490") {
+  if (candidate.economy.code === IDENTITY_PROXY_ECONOMY_CODE) {
     caveats.push("IDENTITY_PROXY");
   }
   if (candidate.growth !== null && Math.abs(candidate.growth) > 0.75) {

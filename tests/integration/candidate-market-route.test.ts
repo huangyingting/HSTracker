@@ -104,7 +104,7 @@ describe("versioned Candidate Market route", () => {
         "application/json; charset=utf-8",
       );
       await expect(response.json()).resolves.toMatchObject({
-        error: { code: fixture.code },
+        error: { code: fixture.code, message: fixture.message },
       });
     },
   );

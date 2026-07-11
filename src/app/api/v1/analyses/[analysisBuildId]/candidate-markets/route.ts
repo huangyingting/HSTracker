@@ -69,7 +69,7 @@ async function respond(
       return errorResponse(
         error.status,
         error.code,
-        publicErrorMessage(error.code),
+        error.publicMessage,
       );
     }
 
@@ -123,21 +123,4 @@ function errorResponse(
       },
     },
   );
-}
-
-function publicErrorMessage(
-  code: CandidateMarketAnalysisError["code"],
-): string {
-  switch (code) {
-    case "INVALID_ANALYSIS_QUERY":
-      return "The analysis query is invalid.";
-    case "UNKNOWN_EXPORTER":
-      return "The requested exporter is not available.";
-    case "UNKNOWN_PRODUCT":
-      return "The requested HS12 product is not available.";
-    case "ANALYSIS_BUILD_RETIRED":
-      return "The requested analysis build is no longer served.";
-    case "ANALYSIS_UNAVAILABLE":
-      return "Candidate Market analysis is temporarily unavailable.";
-  }
 }
