@@ -7,6 +7,7 @@ import type {
   ProductSearchProduct,
   ProductSearchResult,
 } from "./product-catalog";
+import { isSuppressedProductQuery } from "./product-query";
 
 const MATCH_CLASS_ORDER: Record<ProductSearchMatchClass, number> = {
   EXACT_CODE: 0,
@@ -49,7 +50,7 @@ export function searchProductIndex(
   const normalizedQuery = unsupportedRevision
     ? normalizedInput
     : removeAcceptedHs12Scope(normalizedInput);
-  const querySuppressed = isSuppressedShortQuery(normalizedQuery);
+  const querySuppressed = isSuppressedProductQuery(normalizedQuery);
   const allMatches =
     querySuppressed || unsupportedRevision
       ? []
@@ -302,15 +303,6 @@ function hasUnsupportedHsRevision(normalizedQuery: string): boolean {
 function removeAcceptedHs12Scope(normalizedQuery: string): string {
   const revision = /^hs\s*(12|2012)(?:\s+|$)(.*)$/u.exec(normalizedQuery);
   return revision === null ? normalizedQuery : revision[2].trim();
-}
-
-function isSuppressedShortQuery(normalizedQuery: string): boolean {
-  const characters = [...normalizedQuery];
-  // Reviewed single-Han aliases are intentionally precise enough to search.
-  return (
-    characters.length < 2 &&
-    !characters.some((character) => /\p{Script=Han}/u.test(character))
-  );
 }
 
 function containsEveryToken(

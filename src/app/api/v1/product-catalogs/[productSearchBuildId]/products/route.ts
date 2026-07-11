@@ -41,7 +41,7 @@ async function respond(
 ): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const searchQuery = validateSearchParameters(url.searchParams);
+    const searchQuery = parseSearchParameters(url.searchParams);
     const { productSearchBuildId } = await context.params;
     const result = await catalog.search({
       productSearchBuildId,
@@ -87,7 +87,7 @@ async function respond(
   }
 }
 
-function validateSearchParameters(searchParameters: URLSearchParams): {
+function parseSearchParameters(searchParameters: URLSearchParams): {
   query: string;
   locale: ProductSearchLocale;
   limit: number;

@@ -2,13 +2,13 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
 import type {
   ProductSearchLocale,
   ProductSearchProduct,
   ProductSearchResult,
 } from "../catalog/product-catalog";
-
-const PRODUCT_SEARCH_BUILD_ID = "acceptance-product-search-v1";
+import { isSuppressedProductQuery } from "../catalog/product-query";
 
 const copy = {
   en: {
@@ -88,7 +88,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
           limit: "20",
         });
         const response = await fetch(
-          `/api/v1/product-catalogs/${PRODUCT_SEARCH_BUILD_ID}/products?${parameters}`,
+          `/api/v1/product-catalogs/${ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core}/products?${parameters}`,
           { signal: controller.signal },
         );
         if (!response.ok) {
@@ -127,7 +127,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
     const normalized = inputValue.normalize("NFKC").trim();
     if (
       normalized.length === 0 ||
-      isSuppressedShortInput(normalized)
+      isSuppressedProductQuery(normalized)
     ) {
       return;
     }
@@ -142,7 +142,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
           limit: "20",
         });
         const response = await fetch(
-          `/api/v1/product-catalogs/${PRODUCT_SEARCH_BUILD_ID}/products?${parameters}`,
+          `/api/v1/product-catalogs/${ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core}/products?${parameters}`,
           { signal: controller.signal },
         );
         if (!response.ok) {
@@ -284,7 +284,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
               setStatus(
                 normalized.length === 0
                   ? "idle"
-                  : isSuppressedShortInput(normalized)
+                  : isSuppressedProductQuery(normalized)
                     ? "too-short"
                     : "idle",
               );
@@ -393,14 +393,6 @@ function adjacentProductDescription(
   return locale === "en"
     ? product.auxiliaryDescriptionZhHans
     : product.sourceDescriptionEn;
-}
-
-function isSuppressedShortInput(value: string): boolean {
-  const characters = [...value];
-  return (
-    characters.length < 2 &&
-    !characters.some((character) => /\p{Script=Han}/u.test(character))
-  );
 }
 
 function optionId(productCode: string): string {
