@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import type { ProductSearchProduct } from "../catalog/product-catalog";
 import { PUBLIC_ANALYSIS_BUILD_ID } from "../domain/candidate-market/analysis-config";
@@ -263,7 +269,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     }
   }, [analyzeCandidateMarkets, exporter, product]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function restoreContextFromHistory() {
       const parameters = new URL(window.location.href).searchParams;
       const matchesLoadedContext =
