@@ -305,17 +305,17 @@
     }
   ],
   "coverageApproval": {
-    "approvedBy": "copilot:issue-22-complete-source-validation",
-    "approvedAt": "2026-07-11T17:12:02Z",
-    "rationale": "Exact V202601 full-source coverage; the independently checked 2012, 2023, and 2024 counts reconcile and the 2024 row decline matches the documented provisional warning.",
-    "evidenceUrl": "https://github.com/huangyingting/HSTracker/issues/22",
-    "sha256": "0149e07d6c0267534b58239d96addd8590095e5a8f339ac0dde97aee0eec48e6"
+    "approvedBy": "copilot:issue-22-independent-source-reconciliation",
+    "approvedAt": "2026-07-11T18:45:51Z",
+    "rationale": "Exact V202601 full-source coverage; an independent Info-ZIP/C++ streaming pass reconciled all 13 annual checks, and the 2024 row decline matches the documented provisional warning.",
+    "evidenceUrl": "https://github.com/huangyingting/HSTracker/issues/22#issuecomment-4948341704",
+    "sha256": "406326852934cc8c939f18e6488ab96a7b977f7bc9d83c5876f65b591d061066"
   },
   "staging": {
     "format": "parquet",
     "schemaVersion": "baci-parquet-staging-v1",
     "relativePath": "staging/2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
-    "manifestSha256": "7ab5cdf95ae0e3ed53a9096216ee39012822228a90644d861b85463e0a133818",
+    "manifestSha256": "3c91ea9778c1ba686ed03c5d3bb6375764ca2fadf0a21d2f567760328cf7d5eb",
     "partitionCount": 13,
     "rowCount": 142112452,
     "duckdbVersion": "v1.5.4",
