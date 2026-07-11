@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 function requiredOption(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) {
     throw new BaciStagingError(
-      "SOURCE_DESCRIPTOR_INVALID",
+      "CLI_ARGUMENT_INVALID",
       `--${name} is required.`,
     );
   }

@@ -147,6 +147,7 @@ export type StageBaciReleaseOutcome = {
 };
 
 export type BaciStagingErrorCode =
+  | "CLI_ARGUMENT_INVALID"
   | "SOURCE_ARCHIVE_INVALID"
   | "SOURCE_ARCHIVE_MISMATCH"
   | "SOURCE_COVERAGE_APPROVAL_REQUIRED"

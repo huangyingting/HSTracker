@@ -45,6 +45,18 @@ afterEach(async () => {
 });
 
 describe("pinned BACI release staging CLI", () => {
+  it("reports missing required options as CLI argument errors", async () => {
+    await expect(
+      runStagingCliArguments([
+        "--descriptor",
+        resolve("test/fixtures/pipeline/v1/safe-source.json"),
+      ]),
+    ).rejects.toMatchObject({
+      code: "CLI_ARGUMENT_INVALID",
+      message: "--approval is required.",
+    });
+  });
+
   it("publishes validated year-partitioned Parquet from a safe archive", async () => {
     const workspace = await temporaryWorkspace();
     const reportPath = join(workspace, "source-report.json");
@@ -540,6 +552,24 @@ async function runStagingCli({
   workspace: string;
   reportPath: string;
 }): Promise<{ status: string; stagingManifestPath: string }> {
+  return runStagingCliArguments([
+    "--descriptor",
+    descriptorPath,
+    "--approval",
+    approvalPath,
+    "--workspace",
+    workspace,
+    "--report",
+    reportPath,
+    ...(archivePath === undefined
+      ? []
+      : ["--archive", archivePath]),
+  ]);
+}
+
+async function runStagingCliArguments(
+  arguments_: string[],
+): Promise<{ status: string; stagingManifestPath: string }> {
   try {
     const { stdout } = await execFileAsync(
       "npm",
@@ -548,17 +578,7 @@ async function runStagingCli({
         "--silent",
         "stage:baci",
         "--",
-        "--descriptor",
-        descriptorPath,
-        "--approval",
-        approvalPath,
-        "--workspace",
-        workspace,
-        "--report",
-        reportPath,
-        ...(archivePath === undefined
-          ? []
-          : ["--archive", archivePath]),
+        ...arguments_,
       ],
       { timeout: 60_000 },
     );
