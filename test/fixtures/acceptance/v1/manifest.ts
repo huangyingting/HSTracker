@@ -7,7 +7,7 @@ import {
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   fixtureContentSha256:
-    "b350b3b7017d176ec18a05fa454b8f55c13f9a585bdc8a721166c6040ae75a0d",
+    "121011a968f14a1faa954ef126c6946cd4279b4d3b99ef3c9a56e9418e330ed7",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
@@ -68,12 +68,12 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "evidence/core-current.ts",
       sha256:
-        "62d6755c7908d89a2f88b8768cc1611c24d40cc4800a4f224413edd079fc8329",
+        "fce217a6e684161e1630f366bc9f069f2cb29785b305594bc6df9aae04df62e7",
     },
     {
       path: "evidence/microfixtures.ts",
       sha256:
-        "fa9db984a2b22a08b8c9a0adcce73c190da77513e1c1c3d2947722f9ae7dfab0",
+        "b5395f8f5a548747079d51471d16fd2323e65ae3338aa4ca584f02acd529dd64",
     },
     {
       path: "expected/core-analysis.ts",
