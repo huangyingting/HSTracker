@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" data-prototype="true">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Throwaway prototype comparing Candidate Market Score explanation patterns."
+    />
+    <title>HS Tracker - Score presentation prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./app.js"></script>
+  </head>
+  <body>
+    <!-- Three score-explanation variants inside the accepted focused workspace, switchable via ?variant=. -->
+    <div class="prototype-ribbon">
+      Prototype - illustrative data, not production analysis
+    </div>
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark">HS</span>
+        <span>
+          <strong>HS Tracker</strong>
+          <small>Candidate Market discovery</small>
+        </span>
+      </div>
+      <p>
+        Public trade evidence for deciding where deeper commercial investigation
+        is warranted. Not a prediction of sales, profit, or investment success.
+      </p>
+    </header>
+    <main id="app"></main>
+    <p id="prototype-status" class="sr-only" aria-live="polite"></p>
+    <nav class="prototype-switcher" aria-label="Prototype variants">
+      <button type="button" data-switch="previous" aria-label="Previous variant">
+        &larr;
+      </button>
+      <span id="variant-label"></span>
+      <button type="button" data-switch="next" aria-label="Next variant">
+        &rarr;
+      </button>
+    </nav>
+    <noscript>This prototype requires JavaScript.</noscript>
+  </body>
+</html>
