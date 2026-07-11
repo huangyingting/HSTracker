@@ -15,7 +15,10 @@ import type {
   CandidateMarketResult,
 } from "../domain/candidate-market/result";
 import type { EconomyRecord } from "../economy/economy-directory";
-import { CandidateMarketComparison } from "./candidate-market-comparison";
+import {
+  CandidateMarketComparison,
+  MAX_COMPARISON_CANDIDATES,
+} from "./candidate-market-comparison";
 import {
   CandidateMarketEvidence,
   candidateDisplayName,
@@ -34,26 +37,16 @@ const copy = {
     loading: "Loading the complete Candidate Market result…",
     ranked: "Ranked Candidate Markets",
     candidateList: "Candidate Markets",
-    selectedEvidence: "Selected Candidate Market evidence",
     analysisScope: "Analysis source scope",
     baciRelease: "BACI Release",
     sourceDate: "Source date",
     scoreWindow: "Candidate Market Score window",
     supportingEvidence: "Supporting evidence",
+    valueBasis: "Value basis",
+    nominalCurrentUsd: "Nominal current USD",
     finalizedYears: "Finalized Years",
     provisionalYear: "Provisional Year",
-    score: "Candidate Market Score",
-    rank: "Rank",
-    rankJoin: "of",
     confidence: "Data Confidence",
-    percentile: "Percentile",
-    finalizedEvidenceThrough: "Finalized Year evidence through",
-    marketSize: "Mean finalized imports",
-    marketGrowth: "Finalized annual growth",
-    foothold: "Recorded exporter foothold",
-    diversity: "Alternative-supplier diversity",
-    neutral: "Neutral evidence",
-    noFlow: "No recorded positive flow",
     emptyTitle: "No eligible Candidate Markets",
     emptyBody:
       "The selected context is valid, but no market has sufficient evidence in the finalized score window.",
@@ -80,26 +73,16 @@ const copy = {
     loading: "正在加载完整的候选市场结果…",
     ranked: "候选市场排名",
     candidateList: "候选市场",
-    selectedEvidence: "所选候选市场证据",
     analysisScope: "分析来源范围",
     baciRelease: "BACI 发布版本",
     sourceDate: "来源日期",
     scoreWindow: "候选市场评分窗口",
     supportingEvidence: "辅助证据",
+    valueBasis: "价值口径",
+    nominalCurrentUsd: "名义当期美元",
     finalizedYears: "计分定稿年份",
     provisionalYear: "暂定年份",
-    score: "候选市场评分",
-    rank: "排名",
-    rankJoin: "/",
     confidence: "数据置信度",
-    percentile: "百分位",
-    finalizedEvidenceThrough: "计分定稿证据截至",
-    marketSize: "计分定稿年份平均进口额",
-    marketGrowth: "计分定稿年份年增长率",
-    foothold: "已记录出口方市场基础",
-    diversity: "替代供应方多样性",
-    neutral: "中性证据",
-    noFlow: "未记录正向流量",
     emptyTitle: "没有符合条件的候选市场",
     emptyBody: "所选输入有效，但计分定稿窗口内没有候选市场具备足够证据。",
     malformed: "该分析情境无效。请检查所选出口经济体和产品。",
@@ -329,7 +312,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     setComparedCandidateCodes((current) =>
       current.includes(candidate.economy.code)
         ? current.filter((code) => code !== candidate.economy.code)
-        : current.length < 3
+        : current.length < MAX_COMPARISON_CANDIDATES
           ? [...current, candidate.economy.code]
           : current,
     );
@@ -429,7 +412,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               isCompared={comparedCandidateCodes.includes(
                 selectedCandidate.economy.code,
               )}
-              comparisonFull={comparedCandidateCodes.length >= 3}
+              comparisonFull={
+                comparedCandidateCodes.length >= MAX_COMPARISON_CANDIDATES
+              }
               onToggleComparison={toggleCandidateComparison}
             />
           </div>
@@ -508,6 +493,10 @@ function AnalysisContextStrip({
         <dd>
           {messages.provisionalYear} {result.provenance.provisionalYear}
         </dd>
+      </div>
+      <div>
+        <dt>{messages.valueBasis}</dt>
+        <dd>{messages.nominalCurrentUsd}</dd>
       </div>
     </dl>
   );

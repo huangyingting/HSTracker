@@ -16,7 +16,7 @@ const copy = {
     rank: "Rank",
     rankJoin: "of",
     relativeComposite:
-      "Relative composite of the four fixed-weight evidence components; not a probability.",
+      "Relative composite of the four fixed-weight evidence components; not a forecast, probability, or recommendation.",
     formulaLabel: "cms-v1 audit view",
     formula:
       "30% Market Size + 25% Market Growth + 25% Recorded Foothold + 20% Supplier Diversity",
@@ -77,7 +77,7 @@ const copy = {
     commonCandidates: "common Candidate Markets",
     noCaveats: "No candidate-specific caveats",
     noDiscontinuity: "No HS Product series discontinuity flagged",
-    discontinuity: "Possible HS Product series discontinuity",
+    discontinuity: "Possible discontinuity or exceptional global shock",
     unavailable: "Not available",
     provisionalSnapshot: "Provisional Year snapshot",
     supportingOnly: "Supporting evidence only",
@@ -103,7 +103,7 @@ const copy = {
     score: "候选市场评分",
     rank: "排名",
     rankJoin: "/",
-    relativeComposite: "四项固定权重证据的相对综合值；并非概率。",
+    relativeComposite: "四项固定权重证据的相对综合值；并非预测、概率或建议。",
     formulaLabel: "cms-v1 审核视图",
     formula:
       "30% 市场规模 + 25% 市场增长 + 25% 已记录市场基础 + 20% 供应方多样性",
@@ -157,7 +157,7 @@ const copy = {
     commonCandidates: "个共同候选市场",
     noCaveats: "无候选市场特定注意事项",
     noDiscontinuity: "未标记 HS 产品序列不连续",
-    discontinuity: "HS 产品序列可能不连续",
+    discontinuity: "可能存在不连续或异常全球冲击",
     unavailable: "不可用",
     provisionalSnapshot: "暂定年份快照",
     supportingOnly: "仅作辅助证据",
@@ -643,20 +643,18 @@ function componentInterpretation(
       : "由于该证据未计算，因此分配中性中点 50。";
   }
 
+  const standing = relativeStanding(percentile);
+
   if (locale === "zh-Hans") {
-    if (percentile >= 75) {
-      return "高于大多数观察候选市场。";
-    }
-    if (percentile >= 60) {
-      return "高于观察队列中点。";
-    }
-    if (percentile >= 40) {
-      return "接近观察队列中点。";
-    }
-    return "低于观察队列中点。";
+    return {
+      MOST: "高于大多数观察候选市场。",
+      ABOVE_MIDPOINT: "高于观察队列中点。",
+      NEAR_MIDPOINT: "接近观察队列中点。",
+      BELOW_MIDPOINT: "低于观察队列中点。",
+    }[standing];
   }
 
-  if (component === "SIZE" && percentile >= 75) {
+  if (component === "SIZE" && standing === "MOST") {
     return "Larger than most observed Candidate Markets.";
   }
   const subject = {
@@ -665,16 +663,27 @@ function componentInterpretation(
     FOOTHOLD: "recorded exporter foothold",
     DIVERSITY: "alternative-supplier diversity",
   }[component];
+  return {
+    MOST: `Above most observed Candidate Markets for ${subject}.`,
+    ABOVE_MIDPOINT: `Above the cohort midpoint for ${subject}.`,
+    NEAR_MIDPOINT: `Near the cohort midpoint for ${subject}.`,
+    BELOW_MIDPOINT: `Below the cohort midpoint for ${subject}.`,
+  }[standing];
+}
+
+function relativeStanding(
+  percentile: number,
+): "MOST" | "ABOVE_MIDPOINT" | "NEAR_MIDPOINT" | "BELOW_MIDPOINT" {
   if (percentile >= 75) {
-    return `Above most observed Candidate Markets for ${subject}.`;
+    return "MOST";
   }
   if (percentile >= 60) {
-    return `Above the cohort midpoint for ${subject}.`;
+    return "ABOVE_MIDPOINT";
   }
   if (percentile >= 40) {
-    return `Near the cohort midpoint for ${subject}.`;
+    return "NEAR_MIDPOINT";
   }
-  return `Below the cohort midpoint for ${subject}.`;
+  return "BELOW_MIDPOINT";
 }
 
 function confidenceDeductionLabel(
@@ -690,7 +699,7 @@ function confidenceDeductionLabel(
       UNKNOWN_ALTERNATIVE_SUPPLIER_STRUCTURE:
         "Unknown alternative-supplier structure",
       POSSIBLE_PRODUCT_SERIES_DISCONTINUITY:
-        "Possible HS Product series discontinuity",
+        "Possible discontinuity or exceptional global shock",
       LOW_WINDOW_STABILITY: "Low rank stability across score windows",
       SMALL_CANDIDATE_COHORT: "Small Candidate Market cohort",
       NO_EXPORTER_PRODUCT_HISTORY:
@@ -702,7 +711,7 @@ function confidenceDeductionLabel(
       MISSING_CUTOFF_YEAR_EVIDENCE: "缺少定稿截止年份证据",
       SMALL_BASE: "观察进口基数较小",
       UNKNOWN_ALTERNATIVE_SUPPLIER_STRUCTURE: "替代供应方结构未知",
-      POSSIBLE_PRODUCT_SERIES_DISCONTINUITY: "HS 产品序列可能不连续",
+      POSSIBLE_PRODUCT_SERIES_DISCONTINUITY: "可能存在不连续或异常全球冲击",
       LOW_WINDOW_STABILITY: "不同计分窗口的排名稳定性低",
       SMALL_CANDIDATE_COHORT: "候选市场队列较小",
       NO_EXPORTER_PRODUCT_HISTORY: "未记录出口经济体的 HS 产品历史",
@@ -721,7 +730,7 @@ function caveatLabel(code: CaveatCode, locale: EvidenceLocale): string {
       EXTREME_NOMINAL_GROWTH: "Extreme nominal growth",
       DOMINANT_SIZE_OUTLIER: "Dominant Market Size outlier",
       POSSIBLE_PRODUCT_SERIES_DISCONTINUITY:
-        "Possible HS Product series discontinuity",
+        "Possible discontinuity or exceptional global shock",
       LOW_WINDOW_STABILITY: "Low window stability",
       STABILITY_NOT_ESTIMATED_SMALL_COMMON_COHORT:
         "Stability not estimated - small common cohort",
@@ -731,7 +740,7 @@ function caveatLabel(code: CaveatCode, locale: EvidenceLocale): string {
       IDENTITY_PROXY: "来源身份代理",
       EXTREME_NOMINAL_GROWTH: "名义增长极端",
       DOMINANT_SIZE_OUTLIER: "市场规模显著离群",
-      POSSIBLE_PRODUCT_SERIES_DISCONTINUITY: "HS 产品序列可能不连续",
+      POSSIBLE_PRODUCT_SERIES_DISCONTINUITY: "可能存在不连续或异常全球冲击",
       LOW_WINDOW_STABILITY: "窗口稳定性低",
       STABILITY_NOT_ESTIMATED_SMALL_COMMON_COHORT:
         "稳定性未估计——共同队列较小",
@@ -853,6 +862,12 @@ function formatYearRange(years: readonly number[]): string {
   }
   if (years.length === 1) {
     return String(years[0]);
+  }
+  const isContiguous = years.every(
+    (year, index) => index === 0 || year === years[index - 1]! + 1,
+  );
+  if (!isContiguous) {
+    return years.join(", ");
   }
   return `${years[0]}–${years.at(-1)}`;
 }

@@ -58,6 +58,8 @@ const copy = {
 
 type ComparisonLocale = keyof typeof copy;
 
+export const MAX_COMPARISON_CANDIDATES = 3;
+
 export function CandidateMarketComparison({
   result,
   comparedCodes,
@@ -84,7 +86,7 @@ export function CandidateMarketComparison({
         <div>
           <p>{messages.region}</p>
           <h3>
-            {messages.tray} · {candidates.length}/3
+            {messages.tray} · {candidates.length}/{MAX_COMPARISON_CANDIDATES}
           </h3>
         </div>
         <span>

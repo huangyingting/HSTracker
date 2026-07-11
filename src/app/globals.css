@@ -638,7 +638,7 @@ a {
 .analysis-context {
   margin: 24px 0 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border: 1px solid var(--line);
   background: var(--ink);
   color: var(--paper-light);
@@ -1285,37 +1285,6 @@ a {
   font-weight: 500;
 }
 
-.basic-evidence {
-  margin: 0;
-  border-top: 1px solid var(--line);
-}
-
-.basic-evidence > div {
-  padding: 15px 0;
-  display: grid;
-  grid-template-columns: minmax(150px, 0.7fr) minmax(0, 1.3fr);
-  gap: 20px;
-  border-bottom: 1px solid var(--line);
-}
-
-.basic-evidence dt {
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 800;
-}
-
-.basic-evidence dd {
-  margin: 0;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 0.72rem;
-}
-
-.basic-evidence dd span {
-  color: var(--muted);
-}
-
 .evidence-source,
 .workspace-disclaimer {
   color: var(--muted);
@@ -1828,11 +1797,6 @@ a {
 
   .comparison-heading > span {
     text-align: left;
-  }
-
-  .basic-evidence > div {
-    grid-template-columns: 1fr;
-    gap: 7px;
   }
 
   .boundary-card {

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import type { CandidateMarketResult } from "../../src/domain/candidate-market/result";
+
 function countAnalysisRequests(page: Page): () => number {
   let count = 0;
   page.on("request", (request) => {
@@ -10,21 +12,35 @@ function countAnalysisRequests(page: Page): () => number {
   return () => count;
 }
 
+async function openCandidateMarket(page: Page, marketCode: string) {
+  const analysisRequestCount = countAnalysisRequests(page);
+  await page.goto(
+    `/?exporter=156&revision=HS12&product=010121&market=${marketCode}`,
+  );
+  return {
+    analysisRequestCount,
+    evidence: page.getByRole("region", {
+      name: "Selected Candidate Market evidence",
+    }),
+  };
+}
+
 test("an Export Market Analyst can audit Mexico without external calculation", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=484",
+  const { analysisRequestCount, evidence } = await openCandidateMarket(
+    page,
+    "484",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
   await expect(evidence.getByText("Candidate Market Score 70")).toBeVisible();
   await expect(evidence.getByText("Rank 2 of 13")).toBeVisible();
+  await expect(
+    evidence.getByText(
+      "Relative composite of the four fixed-weight evidence components; not a forecast, probability, or recommendation.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("Nominal current USD", { exact: true })).toBeVisible();
   await expect(
     evidence.getByText(
       "30% Market Size + 25% Market Growth + 25% Recorded Foothold + 20% Supplier Diversity",
@@ -134,18 +150,56 @@ test("an Export Market Analyst can audit Mexico without external calculation", a
   expect(analysisRequestCount()).toBe(1);
 });
 
+test("noncontiguous evidence periods disclose the years actually used", async ({
+  page,
+}) => {
+  const { evidence } = await openCandidateMarket(page, "152");
+  const scoreInputs = evidence.getByRole("table", {
+    name: "Candidate Market Score inputs",
+  });
+  const size = scoreInputs.getByRole("row", { name: /Market Size/ });
+  const growth = scoreInputs.getByRole("row", { name: /Market Growth/ });
+  const foothold = scoreInputs.getByRole("row", {
+    name: /Recorded Foothold/,
+  });
+
+  await expect(size).toContainText("2019, 2021, 2022, 2023 (4 years)");
+  await expect(growth).toContainText("2019, 2021, 2022, 2023 (4 years)");
+  await expect(foothold).toContainText("2019, 2021, 2022, 2023");
+  await expect(scoreInputs.getByText("2019–2023")).toHaveCount(0);
+});
+
+test("a product-series flag preserves the exceptional-shock explanation", async ({
+  page,
+}) => {
+  await page.route("**/candidate-markets?*", async (route) => {
+    const response = await route.fetch();
+    const result = (await response.json()) as CandidateMarketResult;
+    await route.fulfill({
+      response,
+      json: {
+        ...result,
+        productSeriesDiscontinuityYears: [2017],
+      },
+    });
+  });
+
+  const { evidence } = await openCandidateMarket(page, "484");
+
+  await expect(
+    evidence
+      .getByRole("region", { name: "Stability and caveats" })
+      .getByText("Possible discontinuity or exceptional global shock: 2017"),
+  ).toBeVisible();
+});
+
 test("South Africa exposes neutral reasons and the sparse-evidence cap", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=710",
+  const { analysisRequestCount, evidence } = await openCandidateMarket(
+    page,
+    "710",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   await expect(
     evidence.getByRole("heading", { name: "South Africa" }),
   ).toBeVisible();
@@ -211,15 +265,10 @@ test("South Africa exposes neutral reasons and the sparse-evidence cap", async (
 test("India distinguishes no recorded bilateral flow from no trade", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=699",
+  const { analysisRequestCount, evidence } = await openCandidateMarket(
+    page,
+    "699",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   await expect(evidence.getByRole("heading", { name: "India" })).toBeVisible();
 
   const foothold = evidence
@@ -254,15 +303,10 @@ test("India distinguishes no recorded bilateral flow from no trade", async ({
 test("BACI code 490 keeps its source identity and proxy caveat", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=490",
+  const { analysisRequestCount, evidence } = await openCandidateMarket(
+    page,
+    "490",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   await expect(
     evidence.getByRole("heading", {
       name: "Other Asia, n.e.s. (Taiwan proxy)",
@@ -303,15 +347,10 @@ test("BACI code 490 keeps its source identity and proxy caveat", async ({
 test("comparison stays client-local with consistent evidence units", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=484",
+  const { analysisRequestCount, evidence } = await openCandidateMarket(
+    page,
+    "484",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("button");
@@ -392,15 +431,10 @@ test("comparison stays client-local with consistent evidence units", async ({
 test("both integer-score tie groups preserve competition ranks", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=124",
+  const { analysisRequestCount, evidence } = await openCandidateMarket(
+    page,
+    "124",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("button");
@@ -453,9 +487,7 @@ test("audit evidence stacks without horizontal overflow on a narrow screen", asy
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=484",
-  );
+  await openCandidateMarket(page, "484");
 
   const scoreInputs = page.getByRole("table", {
     name: "Candidate Market Score inputs",
@@ -483,11 +515,7 @@ test("audit evidence stacks without horizontal overflow on a narrow screen", asy
 test("locale switching preserves the auditable comparison context", async ({
   page,
 }) => {
-  const analysisRequestCount = countAnalysisRequests(page);
-
-  await page.goto(
-    "/?exporter=156&revision=HS12&product=010121&market=484",
-  );
+  const { analysisRequestCount } = await openCandidateMarket(page, "484");
   await page
     .getByRole("button", { name: "Add Mexico to comparison" })
     .click();
