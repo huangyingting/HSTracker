@@ -1,25 +1,29 @@
 export const CANDIDATE_MARKETS_CSV_SCHEMA_VERSION =
   "candidate-markets-csv-v1";
 
+export type CandidateMarketCsvIdentity = {
+  analysisBuildId: string;
+  exporterCode: string;
+  productCode: string;
+  productSearchBuildId: string;
+  freshnessStatusId: string;
+  schemaVersion: typeof CANDIDATE_MARKETS_CSV_SCHEMA_VERSION;
+};
+
 export function candidateMarketCsvUrl({
   analysisBuildId,
   exporterCode,
   productCode,
   productSearchBuildId,
   freshnessStatusId,
-}: {
-  analysisBuildId: string;
-  exporterCode: string;
-  productCode: string;
-  productSearchBuildId: string;
-  freshnessStatusId: string;
-}): string {
+  schemaVersion,
+}: CandidateMarketCsvIdentity): string {
   const parameters = new URLSearchParams({
     exporter: exporterCode,
     product: productCode,
     productSearchBuildId,
     freshnessStatusId,
-    schema: CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
+    schema: schemaVersion,
   });
   return `/api/v1/analyses/${encodeURIComponent(
     analysisBuildId,

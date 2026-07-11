@@ -8,7 +8,11 @@ import {
   type CaveatCode,
 } from "../domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
-import { CANDIDATE_MARKETS_CSV_SCHEMA_VERSION } from "./candidate-market-csv-contract";
+import {
+  CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
+  type CandidateMarketCsvIdentity,
+} from "./candidate-market-csv-contract";
+import { assertCandidateMarketExportContext } from "./candidate-market-export-context";
 
 export { CANDIDATE_MARKETS_CSV_SCHEMA_VERSION };
 
@@ -207,7 +211,14 @@ export function serializeCandidateMarketCsv({
     );
   }
 
-  const exportId = createExportId(result, manifest);
+  const exportId = createExportId({
+    analysisBuildId: result.analysisBuildId,
+    exporterCode: result.query.exporter.code,
+    productCode: result.query.product.code,
+    productSearchBuildId: manifest.productSearchBuildId,
+    freshnessStatusId: manifest.freshness.freshnessStatusId,
+    schemaVersion: CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
+  });
   const common = createCommonRow(result, product, manifest, exportId);
   const rows =
     result.candidates.length === 0
@@ -250,17 +261,14 @@ export function serializeCandidateMarketCsv({
   };
 }
 
-function createExportId(
-  result: CandidateMarketResult,
-  manifest: CurrentAnalysisManifest,
-): string {
+function createExportId(identity: CandidateMarketCsvIdentity): string {
   const digestInput = [
-    `schema=${CANDIDATE_MARKETS_CSV_SCHEMA_VERSION}`,
-    `analysis_build_id=${result.analysisBuildId}`,
-    `exporter_code_baci=${result.query.exporter.code}`,
-    `product_code=${result.query.product.code}`,
-    `product_search_build_id=${manifest.productSearchBuildId}`,
-    `freshness_status_id=${manifest.freshness.freshnessStatusId}`,
+    `schema=${identity.schemaVersion}`,
+    `analysis_build_id=${identity.analysisBuildId}`,
+    `exporter_code_baci=${identity.exporterCode}`,
+    `product_code=${identity.productCode}`,
+    `product_search_build_id=${identity.productSearchBuildId}`,
+    `freshness_status_id=${identity.freshnessStatusId}`,
     "",
   ].join("\n");
   const digest = createHash("sha256").update(digestInput).digest("hex");
@@ -630,13 +638,8 @@ function validateBoundContext(
   product: CandidateMarketCsvInput["product"],
   manifest: CurrentAnalysisManifest,
 ): void {
-  const bindings: readonly (readonly [unknown, unknown, string])[] = [
-    [result.analysisBuildId, manifest.analysisBuildId, "analysis build"],
-    [
-      result.analysisReleaseCatalogSha256,
-      manifest.analysisReleaseCatalogSha256,
-      "analysis release catalog",
-    ],
+  assertCandidateMarketExportContext(result, manifest);
+  const productBindings: readonly (readonly [unknown, unknown, string])[] = [
     [result.query.product.hsRevision, product.hsRevision, "product HS revision"],
     [result.query.product.code, product.code, "product code"],
     [
@@ -644,93 +647,8 @@ function validateBoundContext(
       product.sourceDescriptionEn,
       "product source description",
     ],
-    [
-      result.provenance.baciRelease,
-      manifest.source.baciRelease,
-      "BACI Release",
-    ],
-    [
-      result.provenance.sourceUpdateDate,
-      manifest.source.sourceUpdateDate,
-      "source update date",
-    ],
-    [
-      result.provenance.hsRevision,
-      manifest.source.hsRevision,
-      "source HS revision",
-    ],
-    [
-      result.provenance.ingestedYears.start,
-      manifest.source.ingestedYears.start,
-      "ingested start year",
-    ],
-    [
-      result.provenance.ingestedYears.end,
-      manifest.source.ingestedYears.end,
-      "ingested end year",
-    ],
-    [
-      result.provenance.finalizedCutoffYear,
-      manifest.source.finalizedCutoffYear,
-      "finalized cutoff year",
-    ],
-    [
-      result.provenance.scoreWindow.start,
-      manifest.source.windows.score.start,
-      "score-window start",
-    ],
-    [
-      result.provenance.scoreWindow.end,
-      manifest.source.windows.score.end,
-      "score-window end",
-    ],
-    [
-      result.provenance.provisionalYear,
-      manifest.source.provisionalYear,
-      "provisional year",
-    ],
-    [
-      result.provenance.scoreVersion,
-      manifest.source.scoreVersion,
-      "score version",
-    ],
-    [
-      result.provenance.artifactBuildId,
-      manifest.source.artifact.buildId,
-      "artifact build",
-    ],
-    [
-      result.provenance.artifactSchemaVersion,
-      manifest.source.artifact.schemaVersion,
-      "artifact schema",
-    ],
-    [
-      result.provenance.artifactSha256,
-      manifest.source.artifact.sha256,
-      "artifact digest",
-    ],
-    [
-      result.releaseRevisionSummary.comparisonRelease,
-      manifest.revisionComparison.comparisonRelease,
-      "revision comparison release",
-    ],
-    [
-      result.releaseRevisionSummary.previousArtifactSha256,
-      manifest.revisionComparison.previousArtifactSha256,
-      "previous artifact digest",
-    ],
-    [
-      result.releaseRevisionSummary.notComparedReason,
-      manifest.revisionComparison.notComparedReason,
-      "revision comparison reason",
-    ],
-    [
-      manifest.freshness.servedBaciRelease,
-      result.provenance.baciRelease,
-      "freshness served release",
-    ],
   ];
-  const mismatch = bindings.find(([left, right]) => left !== right);
+  const mismatch = productBindings.find(([left, right]) => left !== right);
   if (mismatch !== undefined) {
     throw new TypeError(
       `Candidate Market CSV has an incompatible ${mismatch[2]} binding.`,

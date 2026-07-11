@@ -13,6 +13,7 @@ import {
   CandidateMarketCsvRepresentationError,
   serializeCandidateMarketCsv,
 } from "../../../../../../export/candidate-market-csv";
+import type { CandidateMarketCsvIdentity } from "../../../../../../export/candidate-market-csv-contract";
 import {
   resolveFixtureCurrentAnalysisManifest,
   resolveFixtureExportFreshnessStatus,
@@ -41,7 +42,7 @@ type CandidateMarketExportRouteContext = {
 
 class CandidateMarketExportRouteError extends Error {
   constructor(
-    readonly status: 400 | 404 | 409,
+    readonly status: 400 | 404 | 409 | 503,
     readonly code: string,
     readonly publicMessage: string,
     message: string,
@@ -55,59 +56,63 @@ export async function GET(
   request: Request,
   context: CandidateMarketExportRouteContext,
 ): Promise<Response> {
-  return respond(request, context, false);
+  return handleCandidateMarketCsvRequest(request, context, false);
 }
 
 export async function HEAD(
   request: Request,
   context: CandidateMarketExportRouteContext,
 ): Promise<Response> {
-  return respond(request, context, true);
+  return handleCandidateMarketCsvRequest(request, context, true);
 }
 
-async function respond(
+async function handleCandidateMarketCsvRequest(
   request: Request,
   context: CandidateMarketExportRouteContext,
   headOnly: boolean,
 ): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const query = validateSearchParameters(url.searchParams);
+    const parsedIdentity = validateSearchParameters(url.searchParams);
     const { analysisBuildId } = await context.params;
     validateIdentifier(analysisBuildId, "analysis build");
+    const identity: CandidateMarketCsvIdentity = {
+      analysisBuildId,
+      ...parsedIdentity,
+    };
 
     const manifest = resolveFixtureCurrentAnalysisManifest();
-    if (query.productSearchBuildId !== manifest.productSearchBuildId) {
+    if (identity.productSearchBuildId !== manifest.productSearchBuildId) {
       throw new CandidateMarketExportRouteError(
         404,
         "PRODUCT_SEARCH_BUILD_NOT_FOUND",
         "The requested product-search build is not available.",
-        `Product-search build ${query.productSearchBuildId} is not served.`,
+        `Product-search build ${identity.productSearchBuildId} is not served.`,
       );
     }
     const freshness = resolveFixtureExportFreshnessStatus(
-      query.freshnessStatusId,
+      identity.freshnessStatusId,
     );
     if (freshness === null) {
       throw new CandidateMarketExportRouteError(
         404,
         "FRESHNESS_STATUS_NOT_FOUND",
         "The requested freshness status is not available.",
-        `Freshness status ${query.freshnessStatusId} is not served.`,
+        `Freshness status ${identity.freshnessStatusId} is not served.`,
       );
     }
 
     const result = await analysis.analyze({
-      analysisBuildId,
-      exporterCode: query.exporter,
-      productCode: query.product,
+      analysisBuildId: identity.analysisBuildId,
+      exporterCode: identity.exporterCode,
+      productCode: identity.productCode,
     });
     if (result.analysisBuildId !== manifest.analysisBuildId) {
       throw new CandidateMarketExportRouteError(
         409,
         "INCOMPATIBLE_PRODUCT_SEARCH_BUILD",
         "The product-search build is not compatible with the analysis build.",
-        `Product-search build ${query.productSearchBuildId} is not bound to analysis build ${analysisBuildId}.`,
+        `Product-search build ${identity.productSearchBuildId} is not bound to analysis build ${analysisBuildId}.`,
       );
     }
     if (
@@ -117,13 +122,13 @@ async function respond(
         409,
         "INCOMPATIBLE_FRESHNESS_STATUS",
         "The freshness status is not compatible with the analysis release.",
-        `Freshness status ${query.freshnessStatusId} does not describe ${result.provenance.baciRelease}.`,
+        `Freshness status ${identity.freshnessStatusId} does not describe ${result.provenance.baciRelease}.`,
       );
     }
 
     const product = await findExactProduct(
-      query.productSearchBuildId,
-      query.product,
+      identity.productSearchBuildId,
+      identity.productCode,
     );
     const exported = serializeCandidateMarketCsv({
       result,
@@ -192,12 +197,9 @@ async function respond(
   }
 }
 
-function validateSearchParameters(searchParameters: URLSearchParams): {
-  exporter: string;
-  product: string;
-  productSearchBuildId: string;
-  freshnessStatusId: string;
-} {
+function validateSearchParameters(
+  searchParameters: URLSearchParams,
+): Omit<CandidateMarketCsvIdentity, "analysisBuildId"> {
   const keys = [...searchParameters.keys()];
   if (
     keys.length !== REQUIRED_SEARCH_PARAMETERS.length ||
@@ -239,10 +241,11 @@ function validateSearchParameters(searchParameters: URLSearchParams): {
   validateIdentifier(freshnessStatusId, "freshness status");
 
   return {
-    exporter,
-    product,
+    exporterCode: exporter,
+    productCode: product,
     productSearchBuildId,
     freshnessStatusId,
+    schemaVersion: schema,
   };
 }
 
@@ -266,7 +269,10 @@ async function findExactProduct(
     (match) => match.product.code === productCode,
   )?.product;
   if (product === undefined) {
-    throw new TypeError(
+    throw new CandidateMarketExportRouteError(
+      503,
+      "EXPORT_DEPENDENCY_INCOMPATIBLE",
+      "The compatible product catalog is temporarily unavailable.",
       `Product ${productCode} is absent from its compatible product catalog.`,
     );
   }

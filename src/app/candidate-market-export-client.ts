@@ -1,6 +1,13 @@
 import type { CandidateMarketResult } from "../domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
-import { candidateMarketCsvUrl } from "../export/candidate-market-csv-contract";
+import {
+  CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
+  candidateMarketCsvUrl,
+} from "../export/candidate-market-csv-contract";
+import {
+  assertCandidateMarketExportContext,
+  CandidateMarketExportContextError,
+} from "../export/candidate-market-export-context";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 
 export class CandidateMarketExportPreparationError extends Error {
@@ -29,7 +36,17 @@ export async function prepareCandidateMarketExport({
     signal,
     revalidate: true,
   });
-  validateManifestCompatibility(result, manifest);
+  try {
+    assertCandidateMarketExportContext(result, manifest);
+  } catch (error) {
+    if (error instanceof CandidateMarketExportContextError) {
+      throw new CandidateMarketExportPreparationError(
+        error.message,
+        manifest,
+      );
+    }
+    throw error;
+  }
 
   return {
     manifest,
@@ -39,46 +56,7 @@ export async function prepareCandidateMarketExport({
       productCode: result.query.product.code,
       productSearchBuildId: manifest.productSearchBuildId,
       freshnessStatusId: manifest.freshness.freshnessStatusId,
+      schemaVersion: CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
     }),
   };
-}
-
-function validateManifestCompatibility(
-  result: CandidateMarketResult,
-  manifest: CurrentAnalysisManifest,
-): void {
-  const bindings: readonly (readonly [unknown, unknown])[] = [
-    [result.analysisBuildId, manifest.analysisBuildId],
-    [
-      result.analysisReleaseCatalogSha256,
-      manifest.analysisReleaseCatalogSha256,
-    ],
-    [result.provenance.baciRelease, manifest.source.baciRelease],
-    [result.provenance.sourceUpdateDate, manifest.source.sourceUpdateDate],
-    [result.provenance.hsRevision, manifest.source.hsRevision],
-    [
-      result.provenance.finalizedCutoffYear,
-      manifest.source.finalizedCutoffYear,
-    ],
-    [result.provenance.scoreWindow.start, manifest.source.windows.score.start],
-    [result.provenance.scoreWindow.end, manifest.source.windows.score.end],
-    [result.provenance.provisionalYear, manifest.source.provisionalYear],
-    [result.provenance.scoreVersion, manifest.source.scoreVersion],
-    [result.provenance.artifactBuildId, manifest.source.artifact.buildId],
-    [
-      result.provenance.artifactSchemaVersion,
-      manifest.source.artifact.schemaVersion,
-    ],
-    [result.provenance.artifactSha256, manifest.source.artifact.sha256],
-    [
-      manifest.freshness.servedBaciRelease,
-      result.provenance.baciRelease,
-    ],
-  ];
-  if (bindings.some(([left, right]) => left !== right)) {
-    throw new CandidateMarketExportPreparationError(
-      "The current analysis manifest no longer describes this Candidate Market result.",
-      manifest,
-    );
-  }
 }

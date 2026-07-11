@@ -11,8 +11,8 @@ import {
 
 const copy = {
   en: {
-    region: "Candidate Market result export",
-    eyebrow: "Complete result export",
+    region: "Candidate Market Result Export",
+    eyebrow: "Candidate Market Result Export",
     scope: (count: number) =>
       count === 0
         ? "One attributable empty-analysis row"

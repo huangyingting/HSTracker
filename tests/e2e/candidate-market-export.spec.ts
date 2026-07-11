@@ -138,7 +138,7 @@ test("export preflight stops when the current analysis context changed", async (
 
   await expect(
     page
-      .getByRole("region", { name: "Candidate Market result export" })
+      .getByRole("region", { name: "Candidate Market Result Export" })
       .getByRole("alert"),
   ).toContainText(
     "The current analysis changed. Run the analysis again before exporting.",
@@ -309,7 +309,7 @@ test("a stale CSV response revalidates current context without substituting a do
 
   await expect(
     page
-      .getByRole("region", { name: "Candidate Market result export" })
+      .getByRole("region", { name: "Candidate Market Result Export" })
       .getByRole("alert"),
   ).toContainText(
     "The current analysis changed. Run the analysis again before exporting.",

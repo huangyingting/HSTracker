@@ -4,7 +4,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { CANDIDATE_MARKETS_CSV_COLUMNS } from "../../src/export/candidate-market-csv";
-import { candidateMarketCsvUrl } from "../../src/export/candidate-market-csv-contract";
+import {
+  CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
+  candidateMarketCsvUrl,
+} from "../../src/export/candidate-market-csv-contract";
 
 describe("Candidate Market Result Export boundary", () => {
   it("contains only contextual derived-result columns", () => {
@@ -43,6 +46,7 @@ describe("Candidate Market Result Export boundary", () => {
         productCode: "010121",
         productSearchBuildId: "products-v1",
         freshnessStatusId: "freshness:v1",
+        schemaVersion: CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
       }),
       "http://localhost",
     );
