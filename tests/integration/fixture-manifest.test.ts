@@ -59,6 +59,8 @@ describe("acceptance-fixtures-v1 manifest", () => {
         "one-candidate",
         "no-exporter-history",
         "confidence-floor",
+        "invalid-world-zero",
+        "invalid-recorded-bilateral-zero",
         "quantity-zero-mutation",
         "provisional-mutation",
       ]),

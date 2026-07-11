@@ -2,6 +2,11 @@ import type {
   CmsV1Inputs,
   MarketYearEvidence,
 } from "../../../../../src/evidence/trade-evidence-source";
+import {
+  ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
+  ACCEPTANCE_FIXTURE_ARTIFACT,
+  ACCEPTANCE_FIXTURE_RELEASE,
+} from "../metadata";
 
 type MicroCandidate = {
   code: string;
@@ -15,15 +20,6 @@ type MicroCandidate = {
   selectedExporterShareBps?: number;
   alternativeSupplierShares?: readonly string[];
 };
-
-const release = {
-  baciRelease: "V202601",
-  sourceUpdateDate: "2026-01-22",
-  hsRevision: "HS12",
-  ingestedYears: { start: 2012, end: 2024 },
-  finalizedCutoffYear: 2023,
-  provisionalYear: 2024,
-} as const;
 
 function makeInput(
   analysisBuildId: string,
@@ -76,14 +72,12 @@ function makeInput(
   return {
     analysisBuildId,
     analysisReleaseCatalogSha256:
-      "3b1ff899c301d11a2bb5c29e3040e9261a68633b54a7d94f4b15338129d4fcff",
+      ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
     artifact: {
       buildId: "acceptance-fixtures-v1-contract-artifact",
-      schemaVersion: "candidate-market-artifact-v1",
-      sha256:
-        "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+      ...ACCEPTANCE_FIXTURE_ARTIFACT,
     },
-    release,
+    release: ACCEPTANCE_FIXTURE_RELEASE,
     exporter: {
       code: "156",
       name: "China",
@@ -249,6 +243,24 @@ const confidenceFloor = makeInput("micro-confidence-floor", [
   },
 ]);
 
+const invalidWorldZero = makeInput("micro-invalid-world-zero", [
+  {
+    code: "101",
+    values: ["0", "1000", null, null, null],
+  },
+]);
+
+const invalidRecordedBilateralZero = makeInput(
+  "micro-invalid-recorded-bilateral-zero",
+  [
+    {
+      code: "101",
+      values: ["1000", "1000", "1000", "1000", "1000"],
+      selectedExporterShareBps: 1,
+    },
+  ],
+);
+
 export const MICRO_FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [componentPoolOne.analysisBuildId, componentPoolOne],
   [componentAllEqual.analysisBuildId, componentAllEqual],
@@ -264,4 +276,9 @@ export const MICRO_FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [stabilitySmall.analysisBuildId, stabilitySmall],
   [oneCandidate.analysisBuildId, oneCandidate],
   [confidenceFloor.analysisBuildId, confidenceFloor],
+  [invalidWorldZero.analysisBuildId, invalidWorldZero],
+  [
+    invalidRecordedBilateralZero.analysisBuildId,
+    invalidRecordedBilateralZero,
+  ],
 ]);

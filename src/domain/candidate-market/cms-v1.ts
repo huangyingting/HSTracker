@@ -147,10 +147,11 @@ function computeWindow(
 
   for (const candidate of candidates) {
     const rawScore =
-      0.3 * candidate.percentiles.size +
-      0.25 * candidate.percentiles.growth +
-      0.25 * candidate.percentiles.foothold +
-      0.2 * candidate.percentiles.diversity;
+      (WEIGHTS.marketSize * candidate.percentiles.size +
+        WEIGHTS.marketGrowth * candidate.percentiles.growth +
+        WEIGHTS.recordedFoothold * candidate.percentiles.foothold +
+        WEIGHTS.supplierDiversity * candidate.percentiles.diversity) /
+      100;
     candidate.score = roundHalfUp(rawScore);
   }
 
@@ -172,7 +173,7 @@ function computeWindow(
 function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate {
   const sortedRows = [...rows].sort((left, right) => left.year - right.year);
   const values = sortedRows.map((row) =>
-    parseNonnegativeDecimal(row.worldValueKusd, "worldValueKusd"),
+    parsePositiveDecimal(row.worldValueKusd, "worldValueKusd"),
   );
   const sizeKusd = mean(values);
   const observedYears = sortedRows.map((row) => row.year);
@@ -193,7 +194,7 @@ function computeRawCandidate(rows: readonly MarketYearEvidence[]): RawCandidate 
     (total, row) =>
       total +
       (row.selectedExporter.state === "RECORDED"
-        ? parseNonnegativeDecimal(
+        ? parsePositiveDecimal(
             row.selectedExporter.valueKusd,
             "selectedExporter.valueKusd",
           )

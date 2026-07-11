@@ -553,4 +553,28 @@ describe("CandidateMarketAnalysis", () => {
       sparseEvidenceCapApplied: false,
     });
   });
+
+  it.each([
+    {
+      analysisBuildId: "micro-invalid-world-zero",
+      message: "worldValueKusd must be positive.",
+    },
+    {
+      analysisBuildId: "micro-invalid-recorded-bilateral-zero",
+      message: "selectedExporter.valueKusd must be positive.",
+    },
+  ])(
+    "rejects zero-valued recorded evidence from $analysisBuildId",
+    async ({ analysisBuildId, message }) => {
+      const analysis = createFixtureCandidateMarketAnalysis();
+
+      await expect(
+        analysis.analyze({
+          analysisBuildId,
+          exporterCode: "156",
+          productCode: "010121",
+        }),
+      ).rejects.toThrow(message);
+    },
+  );
 });

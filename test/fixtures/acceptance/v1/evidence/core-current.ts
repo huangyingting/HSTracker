@@ -2,6 +2,12 @@ import type {
   CmsV1Inputs,
   MarketYearEvidence,
 } from "../../../../../src/evidence/trade-evidence-source";
+import {
+  ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
+  ACCEPTANCE_FIXTURE_ARTIFACT,
+  ACCEPTANCE_FIXTURE_BUILD_IDS,
+  ACCEPTANCE_FIXTURE_RELEASE,
+} from "../metadata";
 
 type CandidateDefinition = {
   code: string;
@@ -313,23 +319,14 @@ const provisionalMarketYears = [
 ];
 
 export const CORE_CURRENT_INPUT: CmsV1Inputs = {
-  analysisBuildId: "acceptance-fixtures-v1",
+  analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
   analysisReleaseCatalogSha256:
-    "3b1ff899c301d11a2bb5c29e3040e9261a68633b54a7d94f4b15338129d4fcff",
+    ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
   artifact: {
     buildId: "acceptance-fixtures-v1-core-artifact",
-    schemaVersion: "candidate-market-artifact-v1",
-    sha256:
-      "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    ...ACCEPTANCE_FIXTURE_ARTIFACT,
   },
-  release: {
-    baciRelease: "V202601",
-    sourceUpdateDate: "2026-01-22",
-    hsRevision: "HS12",
-    ingestedYears: { start: 2012, end: 2024 },
-    finalizedCutoffYear: 2023,
-    provisionalYear: 2024,
-  },
+  release: ACCEPTANCE_FIXTURE_RELEASE,
   exporter: {
     code: "156",
     name: "China",
@@ -373,7 +370,7 @@ export const EMPTY_INPUT: CmsV1Inputs = {
 
 export const DISCONTINUITY_INPUT: CmsV1Inputs = {
   ...CORE_CURRENT_INPUT,
-  analysisBuildId: "acceptance-fixtures-v1-discontinuity",
+  analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.discontinuity,
   product: EMPTY_INPUT.product,
   provisionalMarketYears: [],
   productYearTotals: [
@@ -394,7 +391,7 @@ export const DISCONTINUITY_INPUT: CmsV1Inputs = {
 
 export const QUANTITY_ZERO_INPUT: CmsV1Inputs = {
   ...CORE_CURRENT_INPUT,
-  analysisBuildId: "acceptance-fixtures-v1-quantity-zero",
+  analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.quantityZero,
   artifact: {
     ...CORE_CURRENT_INPUT.artifact,
     buildId: "acceptance-fixtures-v1-quantity-zero-artifact",
@@ -415,7 +412,7 @@ export const QUANTITY_ZERO_INPUT: CmsV1Inputs = {
 
 export const PROVISIONAL_MUTATION_INPUT: CmsV1Inputs = {
   ...CORE_CURRENT_INPUT,
-  analysisBuildId: "acceptance-fixtures-v1-provisional-mutation",
+  analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.provisionalMutation,
   artifact: {
     ...CORE_CURRENT_INPUT.artifact,
     buildId: "acceptance-fixtures-v1-provisional-mutation-artifact",

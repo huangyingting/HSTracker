@@ -17,10 +17,39 @@ import {
   QUANTITY_ZERO_INPUT,
 } from "../../test/fixtures/acceptance/v1/evidence/core-current";
 import { MICRO_FIXTURE_INPUTS } from "../../test/fixtures/acceptance/v1/evidence/microfixtures";
+import { ACCEPTANCE_FIXTURE_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
 import type {
   CmsV1Inputs,
   TradeEvidenceSource,
 } from "./trade-evidence-source";
+
+const FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
+  [
+    fixtureKey(ACCEPTANCE_FIXTURE_BUILD_IDS.core, "010121"),
+    CORE_CURRENT_INPUT,
+  ],
+  [fixtureKey(ACCEPTANCE_FIXTURE_BUILD_IDS.core, "851712"), EMPTY_INPUT],
+  [
+    fixtureKey(ACCEPTANCE_FIXTURE_BUILD_IDS.discontinuity, "851712"),
+    DISCONTINUITY_INPUT,
+  ],
+  [
+    fixtureKey(ACCEPTANCE_FIXTURE_BUILD_IDS.quantityZero, "010121"),
+    QUANTITY_ZERO_INPUT,
+  ],
+  [
+    fixtureKey(ACCEPTANCE_FIXTURE_BUILD_IDS.provisionalMutation, "010121"),
+    PROVISIONAL_MUTATION_INPUT,
+  ],
+  ...[...MICRO_FIXTURE_INPUTS.values()].map(
+    (input) =>
+      [fixtureKey(input.analysisBuildId, input.product.code), input] as const,
+  ),
+]);
+
+const AVAILABLE_BUILD_IDS = new Set(
+  [...FIXTURE_INPUTS.values()].map(({ analysisBuildId }) => analysisBuildId),
+);
 
 export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
   async loadCmsV1Inputs(
@@ -34,15 +63,7 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
       throw unavailableAnalysisBuild(query.analysisBuildId);
     }
 
-    const microfixture = MICRO_FIXTURE_INPUTS.get(query.analysisBuildId);
-    if (
-      query.analysisBuildId !== "acceptance-fixtures-v1" &&
-      query.analysisBuildId !== "acceptance-fixtures-v1-discontinuity" &&
-      query.analysisBuildId !== "acceptance-fixtures-v1-quantity-zero" &&
-      query.analysisBuildId !==
-        "acceptance-fixtures-v1-provisional-mutation" &&
-      microfixture === undefined
-    ) {
+    if (!AVAILABLE_BUILD_IDS.has(query.analysisBuildId)) {
       throw retiredAnalysisBuild(query.analysisBuildId);
     }
 
@@ -50,43 +71,14 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
       throw unknownExporter(query.exporterCode);
     }
 
-    if (microfixture !== undefined) {
-      if (query.productCode !== microfixture.product.code) {
-        throw unknownProduct(query.productCode);
-      }
-      return microfixture;
+    const input = FIXTURE_INPUTS.get(
+      fixtureKey(query.analysisBuildId, query.productCode),
+    );
+    if (input === undefined) {
+      throw unknownProduct(query.productCode);
     }
 
-    if (query.analysisBuildId === "acceptance-fixtures-v1-quantity-zero") {
-      if (query.productCode !== "010121") {
-        throw unknownProduct(query.productCode);
-      }
-      return QUANTITY_ZERO_INPUT;
-    }
-
-    if (
-      query.analysisBuildId === "acceptance-fixtures-v1-provisional-mutation"
-    ) {
-      if (query.productCode !== "010121") {
-        throw unknownProduct(query.productCode);
-      }
-      return PROVISIONAL_MUTATION_INPUT;
-    }
-
-    if (query.productCode === "010121") {
-      if (query.analysisBuildId !== "acceptance-fixtures-v1") {
-        throw unknownProduct(query.productCode);
-      }
-      return CORE_CURRENT_INPUT;
-    }
-
-    if (query.productCode === "851712") {
-      return query.analysisBuildId === "acceptance-fixtures-v1"
-        ? EMPTY_INPUT
-        : DISCONTINUITY_INPUT;
-    }
-
-    throw unknownProduct(query.productCode);
+    return input;
   }
 }
 
@@ -94,4 +86,8 @@ export function createFixtureCandidateMarketAnalysis(): CandidateMarketAnalysis 
   return new CmsV1CandidateMarketAnalysis(
     new FixtureTradeEvidenceSource(),
   );
+}
+
+function fixtureKey(analysisBuildId: string, productCode: string): string {
+  return `${analysisBuildId}:${productCode}`;
 }

@@ -1,37 +1,43 @@
+import {
+  ACCEPTANCE_FIXTURE_ARTIFACT,
+  ACCEPTANCE_FIXTURE_BUILD_IDS,
+  ACCEPTANCE_FIXTURE_RELEASE,
+} from "./metadata";
+
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
-  fixtureSchemaVersion: "acceptance-fixtures-v1",
+  fixtureSchemaVersion: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
   fixtureContentSha256:
-    "8793fbdc6eb4216f748947c52e2c4d8ea67da660b70fd6368f7c5d9bde89ef2e",
+    "070942431df4d4619a56137ac5b092a2d3da74d3697f3d05080d06cf7b59dfb4",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
-  artifactSchemaVersion: "candidate-market-artifact-v1",
+  artifactSchemaVersion: ACCEPTANCE_FIXTURE_ARTIFACT.schemaVersion,
   analysisResultSchemaVersion: "candidate-market-result-v1",
   productSearchSchemaVersion: "product-search-result-v1",
   sourceStatusSchemaVersion: "source-status-v1",
   release: {
-    baciRelease: "V202601",
-    sourceUpdateDate: "2026-01-22",
-    hsRevision: "HS12",
-    ingestedYears: { start: 2012, end: 2024 },
-    finalizedCutoffYear: 2023,
+    ...ACCEPTANCE_FIXTURE_RELEASE,
     primaryWindow: { start: 2019, end: 2023 },
     shortWindow: { start: 2021, end: 2023 },
     longWindow: { start: 2014, end: 2023 },
-    provisionalYear: 2024,
   },
   contentDigestAlgorithm:
     "sha256 of UTF-8 path:sha256-newline entries in contentFiles order",
   contentFiles: [
     {
+      path: "metadata.ts",
+      sha256:
+        "1b337b04e73b06bd8141d2c9197238d79183c346acf6a99b7b384a0488f88c07",
+    },
+    {
       path: "evidence/core-current.ts",
       sha256:
-        "2747e8c92a1250462598cb206511b336a800f00719703a49281e2643390a3732",
+        "62d6755c7908d89a2f88b8768cc1611c24d40cc4800a4f224413edd079fc8329",
     },
     {
       path: "evidence/microfixtures.ts",
       sha256:
-        "fcdc50a5d660f4316ea88ba581ce7940d2cb15630a97067c618b01fe46b5c910",
+        "93c79af255f2d4244925c5c49decd5ddd8f67dfcc8f64d4ae97a749d4baf32f8",
     },
     {
       path: "expected/core-analysis.ts",
@@ -74,6 +80,8 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     "one-candidate",
     "no-exporter-history",
     "confidence-floor",
+    "invalid-world-zero",
+    "invalid-recorded-bilateral-zero",
     "quantity-zero-mutation",
     "provisional-mutation",
   ],
