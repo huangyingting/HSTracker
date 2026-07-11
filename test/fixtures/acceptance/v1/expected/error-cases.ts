@@ -138,3 +138,54 @@ export const PRODUCT_CATALOG_ROUTE_ERROR_CASES = [
     message: "Product search is temporarily unavailable.",
   },
 ] as const;
+
+export const ECONOMY_ROUTE_ERROR_CASES = [
+  {
+    name: "missing query",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+    query: "",
+    status: 400,
+    code: "INVALID_ECONOMY_QUERY",
+    message: "The economy search query is invalid.",
+  },
+  {
+    name: "duplicate query",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+    query: "q=china&q=156",
+    status: 400,
+    code: "INVALID_ECONOMY_QUERY",
+    message: "The economy search query is invalid.",
+  },
+  {
+    name: "unsupported parameter",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+    query: "q=china&locale=en",
+    status: 400,
+    code: "INVALID_ECONOMY_QUERY",
+    message: "The economy search query is invalid.",
+  },
+  {
+    name: "overlong query",
+    build: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+    query: `q=${"a".repeat(101)}`,
+    status: 400,
+    code: "INVALID_ECONOMY_QUERY",
+    message: "The economy search query is invalid.",
+  },
+  {
+    name: "retired build",
+    build: "retired-fixture-build",
+    query: "q=china",
+    status: 410,
+    code: "ANALYSIS_BUILD_RETIRED",
+    message: "The requested analysis build is no longer served.",
+  },
+  {
+    name: "unavailable build",
+    build: FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable,
+    query: "q=china",
+    status: 503,
+    code: "ANALYSIS_UNAVAILABLE",
+    message: "Economy search is temporarily unavailable.",
+  },
+] as const;

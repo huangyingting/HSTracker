@@ -1,0 +1,103 @@
+import type { EconomyRecord } from "../../../../../src/economy/economy-directory";
+
+export const ACCEPTANCE_ECONOMIES: readonly EconomyRecord[] = [
+  {
+    code: "36",
+    iso2: "AU",
+    iso3: "AUS",
+    name: "Australia",
+    identityNote: null,
+  },
+  {
+    code: "76",
+    iso2: "BR",
+    iso3: "BRA",
+    name: "Brazil",
+    identityNote: null,
+  },
+  {
+    code: "124",
+    iso2: "CA",
+    iso3: "CAN",
+    name: "Canada",
+    identityNote: null,
+  },
+  {
+    code: "152",
+    iso2: "CL",
+    iso3: "CHL",
+    name: "Chile",
+    identityNote: null,
+  },
+  {
+    code: "156",
+    iso2: "CN",
+    iso3: "CHN",
+    name: "China",
+    identityNote: null,
+  },
+  {
+    code: "392",
+    iso2: "JP",
+    iso3: "JPN",
+    name: "Japan",
+    identityNote: null,
+  },
+  {
+    code: "404",
+    iso2: "KE",
+    iso3: "KEN",
+    name: "Kenya",
+    identityNote: null,
+  },
+  {
+    code: "484",
+    iso2: "MX",
+    iso3: "MEX",
+    name: "Mexico",
+    identityNote: null,
+  },
+  {
+    code: "490",
+    iso2: null,
+    iso3: null,
+    name: "Other Asia, nes",
+    identityNote:
+      "BACI code 490 is formally Other Asia, n.e.s.; CEPII documents it as a practical Taiwan proxy.",
+  },
+  {
+    code: "528",
+    iso2: "NL",
+    iso3: "NLD",
+    name: "Netherlands",
+    identityNote: null,
+  },
+  {
+    code: "616",
+    iso2: "PL",
+    iso3: "POL",
+    name: "Poland",
+    identityNote: null,
+  },
+  {
+    code: "699",
+    iso2: "IN",
+    iso3: "IND",
+    name: "India",
+    identityNote: null,
+  },
+  {
+    code: "710",
+    iso2: "ZA",
+    iso3: "ZAF",
+    name: "South Africa",
+    identityNote: null,
+  },
+  {
+    code: "842",
+    iso2: "US",
+    iso3: "USA",
+    name: "United States",
+    identityNote: null,
+  },
+];

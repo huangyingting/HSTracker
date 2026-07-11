@@ -7,13 +7,14 @@ import {
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   fixtureContentSha256:
-    "80a188fa8c5aa7de3f5ceee745f82a956261545c4f2820077af81a48b0d60e3c",
+    "b350b3b7017d176ec18a05fa454b8f55c13f9a585bdc8a721166c6040ae75a0d",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
   artifactSchemaVersion: ACCEPTANCE_FIXTURE_ARTIFACT.schemaVersion,
   analysisResultSchemaVersion: "candidate-market-result-v1",
   productSearchSchemaVersion: "product-search-result-v1",
+  economySearchSchemaVersion: "economy-search-result-v1",
   sourceStatusSchemaVersion: "source-status-v1",
   release: {
     ...ACCEPTANCE_FIXTURE_RELEASE,
@@ -27,7 +28,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "metadata.ts",
       sha256:
-        "c7389b8b119535b0fbd023088aaab19fd924692586799ecb6ee081bda6d39f83",
+        "e7ae62a03074feb078852479dc45d60661bc67a458a6947f372aa194b30c042e",
     },
     {
       path: "catalog/cap-codes.ts",
@@ -55,6 +56,16 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
         "5572b5c38563901bae7c8c46f258b3f6d85cf41946b66fb4b34cf1664ae9e9bf",
     },
     {
+      path: "economies/core.ts",
+      sha256:
+        "c654ac879b893c0dec7a1a16e35cc17dc9fea69c6469d2c0b19be1e39c67295d",
+    },
+    {
+      path: "economies/cap.ts",
+      sha256:
+        "e984eb890b4401c7b2ab5c99fce5c6860b5d1037f26c8837f3d198489d8c10e8",
+    },
+    {
       path: "evidence/core-current.ts",
       sha256:
         "62d6755c7908d89a2f88b8768cc1611c24d40cc4800a4f224413edd079fc8329",
@@ -72,7 +83,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/error-cases.ts",
       sha256:
-        "08eb7b198e0aed03533ca2d98d4bac6baffbf9ebe86b7a6eb105e8241c3fe901",
+        "5b7bf98426aea3065ccd2f5e84a93b604a6972b1e60c041599d073069d1eda03",
     },
     {
       path: "expected/product-search-cases.ts",
@@ -89,7 +100,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/error-cases.ts",
       sha256:
-        "08eb7b198e0aed03533ca2d98d4bac6baffbf9ebe86b7a6eb105e8241c3fe901",
+        "5b7bf98426aea3065ccd2f5e84a93b604a6972b1e60c041599d073069d1eda03",
     },
     {
       path: "expected/product-search-cases.ts",
@@ -128,5 +139,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     "product-catalog-core",
     "product-catalog-cap",
     "product-search-golden",
+    "economy-directory-core",
+    "economy-directory-cap",
   ],
 } as const;

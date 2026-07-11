@@ -45,11 +45,18 @@ const copy = {
 
 type ProductComboboxProps = {
   locale: ProductSearchLocale;
+  onSelectionChange: (
+    product: ProductSearchProduct | null,
+    source: "restore" | "user",
+  ) => void;
 };
 
 type SearchMatch = ProductSearchResult["matches"][number];
 
-export function ProductCombobox({ locale }: ProductComboboxProps) {
+export function ProductCombobox({
+  locale,
+  onSelectionChange,
+}: ProductComboboxProps) {
   const messages = copy[locale];
   const listboxId = useId();
   const requestSequence = useRef(0);
@@ -102,6 +109,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
         if (!userInteracted.current && restoredProduct !== undefined) {
           setSelectedProduct(restoredProduct);
           setStatus("idle");
+          onSelectionChange(restoredProduct, "restore");
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -115,7 +123,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
     })();
 
     return () => controller.abort();
-  }, []);
+  }, [onSelectionChange]);
 
   useEffect(() => {
     const sequence = requestSequence.current + 1;
@@ -196,6 +204,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
     setActiveIndex(-1);
     setOpen(false);
     setStatus("idle");
+    onSelectionChange(product, "user");
 
     const url = new URL(window.location.href);
     url.searchParams.set("revision", "HS12");
@@ -208,6 +217,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
       return;
     }
     setSelectedProduct(null);
+    onSelectionChange(null, "user");
     const url = new URL(window.location.href);
     url.searchParams.delete("revision");
     url.searchParams.delete("product");

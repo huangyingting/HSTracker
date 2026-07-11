@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { ProductCombobox } from "./product-combobox";
+import { DiscoveryWorkspace } from "./discovery-workspace";
 
 const copy = {
   en: {
@@ -138,7 +138,6 @@ export default function Home() {
           </p>
           <h1>{messages.heading}</h1>
           <p className="lede">{messages.lede}</p>
-          <ProductCombobox locale={locale} />
           <p className="access-note">
             <span className="access-icon" aria-hidden="true">
               ↗
@@ -174,6 +173,8 @@ export default function Home() {
           </dl>
         </aside>
       </section>
+
+      <DiscoveryWorkspace locale={locale} />
 
       <section className="reading-guide" aria-labelledby="guide-title">
         <div className="guide-heading">

@@ -12,6 +12,10 @@ export const FIXTURE_ADAPTER_TEST_BUILD_IDS = {
   unavailable: "unavailable-fixture-build",
 } as const;
 
+export const ECONOMY_DIRECTORY_FIXTURE_BUILD_IDS = {
+  cap: "acceptance-economy-cap-v1",
+} as const;
+
 export const ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS = {
   core: "acceptance-product-search-v1",
 } as const;
