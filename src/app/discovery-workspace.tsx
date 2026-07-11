@@ -13,9 +13,10 @@ import { PUBLIC_ANALYSIS_BUILD_ID } from "../domain/candidate-market/analysis-co
 import type {
   CandidateMarket,
   CandidateMarketResult,
-  EconomyIdentity,
 } from "../domain/candidate-market/result";
 import type { EconomyRecord } from "../economy/economy-directory";
+import { CandidateMarketComparison } from "./candidate-market-comparison";
+import { CandidateMarketEvidence } from "./candidate-market-evidence";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
 
@@ -133,6 +134,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
   const [result, setResult] = useState<CandidateMarketResult | null>(null);
+  const [comparedCandidateCodes, setComparedCandidateCodes] = useState<
+    readonly string[]
+  >([]);
   const [selectedCandidateCode, setSelectedCandidateCode] = useState<
     string | null
   >(
@@ -143,6 +147,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
     setResult(null);
+    setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("idle");
     const url = new URL(window.location.href);
@@ -191,6 +196,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     requestSequence.current = sequence;
     analyzedInputsInHistory.current = true;
     setResult(null);
+    setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("loading");
 
@@ -297,6 +303,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       setExporter(null);
       setProduct(null);
       setResult(null);
+      setComparedCandidateCodes([]);
       setSelectedCandidateCode(null);
       setStatus("idle");
       setControlRestorationKey((current) => current + 1);
@@ -312,6 +319,16 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     const url = new URL(window.location.href);
     url.searchParams.set("market", candidate.economy.code);
     window.history.pushState(null, "", url);
+  }
+
+  function toggleCandidateComparison(candidate: CandidateMarket) {
+    setComparedCandidateCodes((current) =>
+      current.includes(candidate.economy.code)
+        ? current.filter((code) => code !== candidate.economy.code)
+        : current.length < 3
+          ? [...current, candidate.economy.code]
+          : current,
+    );
   }
 
   const selectedCandidate =
@@ -360,8 +377,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       ) : null}
 
       {status === "success" && result !== null && selectedCandidate !== null ? (
-        <div className="candidate-workspace">
-          <section className="candidate-ranking" aria-labelledby="ranking-title">
+        <>
+          <div className="candidate-workspace">
+            <section className="candidate-ranking" aria-labelledby="ranking-title">
             <div className="candidate-heading">
               <div>
                 <p>{messages.eyebrow}</p>
@@ -398,15 +416,30 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 </li>
               ))}
             </ol>
-          </section>
+            </section>
 
-          <CandidateEvidence
-            candidate={selectedCandidate}
-            cohortSize={result.cohortSize}
-            exporter={result.query.exporter}
+            <CandidateMarketEvidence
+              candidate={selectedCandidate}
+              result={result}
+              locale={locale}
+              isCompared={comparedCandidateCodes.includes(
+                selectedCandidate.economy.code,
+              )}
+              comparisonFull={comparedCandidateCodes.length >= 3}
+              onToggleComparison={toggleCandidateComparison}
+            />
+          </div>
+          <CandidateMarketComparison
+            result={result}
+            comparedCodes={comparedCandidateCodes}
             locale={locale}
+            onRemove={(code) =>
+              setComparedCandidateCodes((current) =>
+                current.filter((candidateCode) => candidateCode !== code),
+              )
+            }
           />
-        </div>
+        </>
       ) : null}
 
       {status === "empty" ? (
@@ -473,109 +506,6 @@ function AnalysisContextStrip({
         </dd>
       </div>
     </dl>
-  );
-}
-
-function CandidateEvidence({
-  candidate,
-  cohortSize,
-  exporter,
-  locale,
-}: {
-  candidate: CandidateMarket;
-  cohortSize: number;
-  exporter: EconomyIdentity;
-  locale: WorkspaceLocale;
-}) {
-  const messages = copy[locale];
-  return (
-    <section
-      className="candidate-evidence"
-      aria-label={messages.selectedEvidence}
-    >
-      <p className="evidence-kicker">{messages.selectedEvidence}</p>
-      <h3>{candidate.economy.name}</h3>
-      <div className="evidence-summary">
-        <strong>
-          {messages.score} {candidate.score}
-        </strong>
-        <span>
-          {messages.rank} {candidate.rank} {messages.rankJoin} {cohortSize}
-        </span>
-        <span>
-          {messages.confidence}:{" "}
-          {localizedConfidence(candidate.confidence.label, locale)}{" "}
-          {candidate.confidence.score}
-        </span>
-      </div>
-      <dl className="basic-evidence">
-        <EvidenceRow
-          label={messages.marketSize}
-          value={`USD ${candidate.components.marketSize.meanCurrentUsd}`}
-          percentile={candidate.components.marketSize.percentile}
-          percentileLabel={messages.percentile}
-        />
-        <EvidenceRow
-          label={messages.marketGrowth}
-          value={
-            candidate.components.marketGrowth.state === "NEUTRAL"
-              ? messages.neutral
-              : candidate.components.marketGrowth.annualRate ?? messages.neutral
-          }
-          percentile={candidate.components.marketGrowth.percentile}
-          percentileLabel={messages.percentile}
-        />
-        <EvidenceRow
-          label={messages.foothold}
-          value={
-            candidate.components.recordedFoothold.bilateralFlowState ===
-            "NO_RECORDED_POSITIVE_FLOW"
-              ? messages.noFlow
-              : candidate.components.recordedFoothold.share
-          }
-          percentile={candidate.components.recordedFoothold.percentile}
-          percentileLabel={messages.percentile}
-        />
-        <EvidenceRow
-          label={messages.diversity}
-          value={
-            candidate.components.supplierDiversity.state === "NEUTRAL"
-              ? messages.neutral
-              : candidate.components.supplierDiversity.index ?? messages.neutral
-          }
-          percentile={candidate.components.supplierDiversity.percentile}
-          percentileLabel={messages.percentile}
-        />
-      </dl>
-      <p className="evidence-source">
-        {exporter.name} · HS 2012 · {messages.finalizedEvidenceThrough}{" "}
-        {candidate.latestFinalizedObservedYear}
-      </p>
-    </section>
-  );
-}
-
-function EvidenceRow({
-  label,
-  value,
-  percentile,
-  percentileLabel,
-}: {
-  label: string;
-  value: string;
-  percentile: number;
-  percentileLabel: string;
-}) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>
-        <strong>{value}</strong>
-        <span>
-          {percentileLabel} {percentile}
-        </span>
-      </dd>
-    </div>
   );
 }
 
