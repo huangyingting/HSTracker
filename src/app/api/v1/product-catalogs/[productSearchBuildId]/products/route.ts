@@ -56,7 +56,7 @@ async function respond(
       Vary: "Accept-Encoding",
     };
 
-    if (request.headers.get("if-none-match") === etag) {
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
       return new Response(null, { status: 304, headers });
     }
 
@@ -85,6 +85,26 @@ async function respond(
       correlationId,
     );
   }
+}
+
+function matchesIfNoneMatch(
+  ifNoneMatch: string | null,
+  representationEtag: string,
+): boolean {
+  if (ifNoneMatch === null) {
+    return false;
+  }
+  if (ifNoneMatch.trim() === "*") {
+    return true;
+  }
+
+  const target = /^(?:W\/)?"([^"]*)"$/u.exec(representationEtag)?.[1];
+  if (target === undefined) {
+    return false;
+  }
+
+  return [...ifNoneMatch.matchAll(/(?:^|,)\s*(?:W\/)?"([^"]*)"\s*(?=,|$)/gu)]
+    .some((match) => match[1] === target);
 }
 
 function parseSearchParameters(searchParameters: URLSearchParams): {

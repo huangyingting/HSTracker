@@ -75,6 +75,38 @@ describe("versioned Product Catalog route", () => {
     );
   });
 
+  it.each([
+    {
+      name: "equivalent strong validator",
+      header: (etag: string) => etag.replace(/^W\//u, ""),
+    },
+    {
+      name: "matching validator in a list",
+      header: (etag: string) => `"unrelated", ${etag}`,
+    },
+    {
+      name: "wildcard validator",
+      header: () => "*",
+    },
+  ])("uses weak comparison for $name", async ({ header }) => {
+    const build = ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core;
+    const url =
+      `http://localhost/api/v1/product-catalogs/${build}/products` +
+      "?q=horse&locale=en&limit=20";
+    const initial = await GET(new Request(url), routeContext(build));
+    const etag = initial.headers.get("etag")!;
+
+    const response = await GET(
+      new Request(url, {
+        headers: { "If-None-Match": header(etag) },
+      }),
+      routeContext(build),
+    );
+
+    expect(response.status).toBe(304);
+    expect(await response.text()).toBe("");
+  });
+
   it.each(PRODUCT_CATALOG_ROUTE_ERROR_CASES)(
     "returns a typed no-store error for $name",
     async (fixture) => {
