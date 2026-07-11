@@ -587,7 +587,7 @@ describe("CandidateMarketAnalysis", () => {
       message: "alternativeSupplierShares must be positive.",
     },
   ])(
-    "rejects zero-valued recorded evidence from $analysisBuildId",
+    "rejects invalid recorded evidence from $analysisBuildId",
     async ({ analysisBuildId, message }) => {
       const analysis = createFixtureCandidateMarketAnalysis();
 
