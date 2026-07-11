@@ -57,11 +57,7 @@ describe("Source Freshness Status", () => {
   );
 
   it.each([
-    [
-      "2027-03-09T11:59:59Z",
-      "UPDATE_IN_PROGRESS",
-      "2027-03-02T12:00:00Z",
-    ],
+    ["2027-03-09T11:59:59Z", "UPDATE_IN_PROGRESS", "2027-03-02T12:00:00Z"],
     ["2027-03-09T12:00:00Z", "REFRESH_DELAYED", "2027-03-09T12:00:00Z"],
     ["2027-03-09T12:00:01Z", "REFRESH_DELAYED", "2027-03-09T12:00:00Z"],
   ] as const)(
@@ -88,9 +84,7 @@ describe("Source Freshness Status", () => {
       "2027-03-10T12:00:00Z",
     );
 
-    expect(afterDeadline.freshnessStatusId).toBe(
-      atDeadline.freshnessStatusId,
-    );
+    expect(afterDeadline.freshnessStatusId).toBe(atDeadline.freshnessStatusId);
   });
 
   it.each([
@@ -113,4 +107,22 @@ describe("Source Freshness Status", () => {
       expect(status.state).toBe(expectedState);
     },
   );
+
+  it("keeps update-in-progress above an otherwise overdue source check", () => {
+    const status = evaluateSourceFreshness(
+      {
+        ...checkOverdueSnapshot,
+        latestKnownBaciRelease: "V202701",
+        newerReleaseDetectedAt: "2026-03-16T00:00:00Z",
+        publishedAt: "2026-03-16T00:00:00Z",
+      },
+      "2026-03-17T00:00:00Z",
+    );
+
+    expect(status).toMatchObject({
+      checkOverdueAt: "2026-03-15T00:00:00Z",
+      refreshDueAt: "2026-03-23T00:00:00Z",
+      state: "UPDATE_IN_PROGRESS",
+    });
+  });
 });

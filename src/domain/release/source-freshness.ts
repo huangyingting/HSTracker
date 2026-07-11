@@ -52,24 +52,34 @@ export function evaluateSourceFreshness(
       ? null
       : new Date(newerReleaseDetectedAt.getTime() + 7 * DAY_MILLISECONDS);
   const explicitDelay = snapshot.refreshFailed || snapshot.rollbackActive;
-  const state: SourceFreshnessState = explicitDelay
-    ? "REFRESH_DELAYED"
+  const resolution: {
+    state: SourceFreshnessState;
+    effectiveAt: string;
+  } = explicitDelay
+    ? {
+        state: "REFRESH_DELAYED",
+        effectiveAt: snapshot.publishedAt,
+      }
     : refreshDueAt !== null && asOfInstant >= refreshDueAt
-      ? "REFRESH_DELAYED"
+      ? {
+          state: "REFRESH_DELAYED",
+          effectiveAt: toPublicInstant(refreshDueAt),
+        }
       : newerReleaseDetectedAt !== null
-        ? "UPDATE_IN_PROGRESS"
+        ? {
+            state: "UPDATE_IN_PROGRESS",
+            effectiveAt: snapshot.newerReleaseDetectedAt!,
+          }
         : asOfInstant >= checkOverdueAt
-          ? "CHECK_OVERDUE"
-          : "LATEST_KNOWN";
-  const effectiveAt = explicitDelay
-    ? snapshot.publishedAt
-    : state === "REFRESH_DELAYED"
-      ? toPublicInstant(refreshDueAt!)
-      : state === "UPDATE_IN_PROGRESS"
-        ? snapshot.newerReleaseDetectedAt!
-        : state === "CHECK_OVERDUE"
-          ? toPublicInstant(checkOverdueAt)
-          : snapshot.publishedAt;
+          ? {
+              state: "CHECK_OVERDUE",
+              effectiveAt: toPublicInstant(checkOverdueAt),
+            }
+          : {
+              state: "LATEST_KNOWN",
+              effectiveAt: snapshot.publishedAt,
+            };
+  const { state, effectiveAt } = resolution;
   const publicFields = {
     sourceStatusSnapshotId: snapshot.sourceStatusSnapshotId,
     checkedAt: snapshot.checkedAt,

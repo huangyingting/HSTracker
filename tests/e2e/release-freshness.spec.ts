@@ -361,21 +361,37 @@ test("material Release Revision evidence stays separate from historical growth",
             notComparedReason: null,
             noLongerEligibleCount: 2,
           },
-          candidates: result.candidates.map((candidate) =>
-            candidate.economy.code === "484"
-              ? {
-                  ...candidate,
-                  releaseRevision: {
-                    state: "MATERIAL_CHANGE",
-                    previousReleaseRecomputedScore: 45,
-                    scoreChange: 12,
-                    previousReleaseRecomputedRankPercentile: "50.000",
-                    rankPercentileChange: "15.000",
-                    materialChange: true,
-                  },
-                }
-              : candidate,
-          ),
+          candidates: result.candidates.map((candidate) => {
+            const releaseRevision = {
+              "484": {
+                state: "MATERIAL_CHANGE",
+                previousReleaseRecomputedScore: 45,
+                scoreChange: 12,
+                previousReleaseRecomputedRankPercentile: "50.000",
+                rankPercentileChange: "15.000",
+                materialChange: true,
+              },
+              "528": {
+                state: "BELOW_THRESHOLD",
+                previousReleaseRecomputedScore: 82,
+                scoreChange: 3,
+                previousReleaseRecomputedRankPercentile: "95.000",
+                rankPercentileChange: "5.000",
+                materialChange: false,
+              },
+              "710": {
+                state: "NEWLY_ELIGIBLE",
+                previousReleaseRecomputedScore: null,
+                scoreChange: null,
+                previousReleaseRecomputedRankPercentile: null,
+                rankPercentileChange: null,
+                materialChange: null,
+              },
+            }[candidate.economy.code];
+            return releaseRevision === undefined
+              ? candidate
+              : { ...candidate, releaseRevision };
+          }),
         },
       });
     },
@@ -405,6 +421,15 @@ test("material Release Revision evidence stays separate from historical growth",
   await expect(
     page.getByRole("region", { name: "Source details" }),
   ).toContainText("No longer eligible in this release 2");
+
+  const candidates = page.getByRole("list", { name: "Candidate Markets" });
+  await candidates.getByRole("button", { name: /Netherlands/ }).click();
+  await expect(revision).toContainText("No material revision flag");
+  await expect(revision).toContainText("Previous-release recomputed score 82");
+
+  await candidates.getByRole("button", { name: /South Africa/ }).click();
+  await expect(revision).toContainText("Newly eligible in this release");
+  await expect(revision).not.toContainText("Previous-release recomputed score");
 });
 
 test("a skipped prior release keeps the canonical not-compared wording", async ({

@@ -442,14 +442,13 @@ function ReleaseRevisionEvidence({
   const messages = copy[locale];
   const revision = candidate.releaseRevision;
   const summary = result.releaseRevisionSummary;
-  const stateLabel =
-    revision.state === "MATERIAL_CHANGE"
-      ? `${messages.materialRevision} ${summary.comparisonRelease ?? ""}`.trim()
-      : revision.state === "BELOW_THRESHOLD"
-        ? messages.belowRevisionThreshold
-        : revision.state === "NEWLY_ELIGIBLE"
-          ? messages.newlyEligible
-          : messages.noPreviousRevision;
+  const stateLabel = {
+    NOT_COMPARED: messages.noPreviousRevision,
+    BELOW_THRESHOLD: messages.belowRevisionThreshold,
+    MATERIAL_CHANGE:
+      `${messages.materialRevision} ${summary.comparisonRelease ?? ""}`.trim(),
+    NEWLY_ELIGIBLE: messages.newlyEligible,
+  } satisfies Record<typeof revision.state, string>;
 
   return (
     <section
@@ -460,7 +459,7 @@ function ReleaseRevisionEvidence({
       <div>
         <p>{messages.releaseRevisionKicker}</p>
         <h4>{messages.releaseRevision}</h4>
-        <strong>{stateLabel}</strong>
+        <strong>{stateLabel[revision.state]}</strong>
       </div>
       {summary.comparisonRelease === null ? null : (
         <p>
