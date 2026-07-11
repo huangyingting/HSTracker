@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { createFixtureProductCatalog } from "../../src/catalog/fixture-product-catalog";
-import { PRODUCT_SEARCH_GOLDEN_CASES } from "../../test/fixtures/acceptance/v1/expected/product-search-cases";
+import {
+  PRODUCT_SEARCH_GOLDEN_CASES,
+  PRODUCT_SEARCH_GOLDEN_ERROR_CASES,
+} from "../../test/fixtures/acceptance/v1/expected/product-search-cases";
+import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+
+const PRODUCT_SEARCH_BUILD_ID = ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core;
 
 describe("ProductCatalog", () => {
   it("finds an HS12 product by its exact six-character code", async () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "010121",
       locale: "en",
       limit: 20,
@@ -16,7 +22,7 @@ describe("ProductCatalog", () => {
 
     expect(result).toEqual({
       schemaVersion: "product-search-result-v1",
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: {
         normalized: "010121",
         locale: "en",
@@ -51,7 +57,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "01",
       locale: "en",
       limit: 20,
@@ -99,7 +105,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "０１０１２１",
       locale: "en",
       limit: 20,
@@ -138,7 +144,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: fixture.query,
       locale: fixture.locale,
       limit: 20,
@@ -161,7 +167,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "horses live",
       locale: "en",
       limit: 20,
@@ -191,7 +197,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "hinnies, mules",
       locale: "en",
       limit: 20,
@@ -213,7 +219,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "马",
       locale: "zh-Hans",
       limit: 20,
@@ -246,7 +252,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "純種繁殖用活馬",
       locale: "zh-Hans",
       limit: 20,
@@ -266,7 +272,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "purebred horse",
       locale: "en",
       limit: 20,
@@ -286,7 +292,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "purebred",
       locale: "en",
       limit: 20,
@@ -306,7 +312,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "wire",
       locale: "en",
       limit: 20,
@@ -336,7 +342,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "breeding horse",
       locale: "en",
       limit: 20,
@@ -361,7 +367,7 @@ describe("ProductCatalog", () => {
       const catalog = createFixtureProductCatalog();
 
       const result = await catalog.search({
-        productSearchBuildId: "acceptance-product-search-v1",
+        productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
         query: "mobile",
         locale,
         limit: 20,
@@ -382,7 +388,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "horss",
       locale: "en",
       limit: 20,
@@ -412,7 +418,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "horses live pure bred breeding animalz",
       locale: "en",
       limit: 20,
@@ -432,7 +438,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "h",
       locale: "en",
       limit: 20,
@@ -452,7 +458,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "HS 2022 851713",
       locale: "en",
       limit: 20,
@@ -472,7 +478,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "HS 2012 010121",
       locale: "en",
       limit: 20,
@@ -490,7 +496,7 @@ describe("ProductCatalog", () => {
 
     await expect(
       catalog.search({
-        productSearchBuildId: "acceptance-product-search-v1",
+        productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
         query: "x".repeat(301),
         locale: "en",
         limit: 20,
@@ -509,7 +515,7 @@ describe("ProductCatalog", () => {
 
       await expect(
         catalog.search({
-          productSearchBuildId: "acceptance-product-search-v1",
+          productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
           query: "horse",
           locale: "en",
           limit,
@@ -554,7 +560,7 @@ describe("ProductCatalog", () => {
     const catalog = createFixtureProductCatalog();
 
     const result = await catalog.search({
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
       query: "catalog cap",
       locale: "en",
       limit: 20,
@@ -600,7 +606,7 @@ describe("ProductCatalog", () => {
       const catalog = createFixtureProductCatalog();
 
       const result = await catalog.search({
-        productSearchBuildId: "acceptance-product-search-v1",
+        productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
         query: fixture.query,
         locale: fixture.locale,
         limit: 20,
@@ -613,6 +619,26 @@ describe("ProductCatalog", () => {
           ...match,
         })),
       ).toEqual(fixture.expectedMatches);
+      expect(result.totalMatches).toBe(
+        fixture.expectedTotalMatches ?? fixture.expectedMatches.length,
+      );
+      expect(result.truncated).toBe(fixture.expectedTruncated ?? false);
+    },
+  );
+
+  it.each(PRODUCT_SEARCH_GOLDEN_ERROR_CASES)(
+    "conforms to the golden error case: $name",
+    async (fixture) => {
+      const catalog = createFixtureProductCatalog();
+
+      await expect(
+        catalog.search({
+          productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+          query: fixture.query,
+          locale: fixture.locale,
+          limit: 20,
+        }),
+      ).rejects.toMatchObject(fixture.expectedError);
     },
   );
 });

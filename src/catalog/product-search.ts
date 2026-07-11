@@ -71,6 +71,11 @@ export function searchProductIndex(
           .sort(compareRankedMatches)
           .map(({ product, match }) => ({ product, match }));
   const matches = allMatches.slice(0, query.limit);
+  const outcome = resolveSearchOutcome(
+    unsupportedRevision,
+    querySuppressed,
+    allMatches.length,
+  );
 
   return {
     schemaVersion: "product-search-result-v1",
@@ -80,20 +85,7 @@ export function searchProductIndex(
       locale: query.locale,
       limit: query.limit,
     },
-    state: unsupportedRevision
-      ? "UNSUPPORTED_HS_REVISION"
-      : querySuppressed
-        ? "SUPPRESSED_SHORT_QUERY"
-        : allMatches.length === 0
-          ? "NO_MATCH"
-          : "RESULTS",
-    messageCode: unsupportedRevision
-      ? "UNSUPPORTED_HS_REVISION"
-      : querySuppressed
-        ? "QUERY_TOO_SHORT"
-        : allMatches.length === 0
-          ? "NO_HS12_PRODUCT_MATCH"
-          : null,
+    ...outcome,
     totalMatches: allMatches.length,
     truncated: matches.length < allMatches.length,
     matches,
@@ -267,9 +259,34 @@ function compareRankedMatches(
       (right.unmatchedCharacters + right.editedCharacters) ||
     left.localePenalty - right.localePenalty ||
     left.fieldKindPenalty - right.fieldKindPenalty ||
-    left.product.code.localeCompare(right.product.code) ||
-    left.match.matchedText.localeCompare(right.match.matchedText)
+    left.product.code.localeCompare(right.product.code)
   );
+}
+
+function resolveSearchOutcome(
+  unsupportedRevision: boolean,
+  querySuppressed: boolean,
+  totalMatches: number,
+): Pick<ProductSearchResult, "state" | "messageCode"> {
+  if (unsupportedRevision) {
+    return {
+      state: "UNSUPPORTED_HS_REVISION",
+      messageCode: "UNSUPPORTED_HS_REVISION",
+    };
+  }
+  if (querySuppressed) {
+    return {
+      state: "SUPPRESSED_SHORT_QUERY",
+      messageCode: "QUERY_TOO_SHORT",
+    };
+  }
+  if (totalMatches === 0) {
+    return {
+      state: "NO_MATCH",
+      messageCode: "NO_HS12_PRODUCT_MATCH",
+    };
+  }
+  return { state: "RESULTS", messageCode: null };
 }
 
 function normalizeSearchText(value: string): string {
