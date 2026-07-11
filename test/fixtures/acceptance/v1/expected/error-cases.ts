@@ -1,0 +1,51 @@
+export const ANALYSIS_ROUTE_ERROR_CASES = [
+  {
+    name: "missing product",
+    build: "acceptance-fixtures-v1",
+    query: "exporter=156",
+    status: 400,
+    code: "INVALID_ANALYSIS_QUERY",
+  },
+  {
+    name: "malformed product",
+    build: "acceptance-fixtures-v1",
+    query: "exporter=156&product=10121",
+    status: 400,
+    code: "INVALID_ANALYSIS_QUERY",
+  },
+  {
+    name: "unsupported query parameter",
+    build: "acceptance-fixtures-v1",
+    query: "exporter=156&product=010121&window=3",
+    status: 400,
+    code: "INVALID_ANALYSIS_QUERY",
+  },
+  {
+    name: "unknown product",
+    build: "acceptance-fixtures-v1",
+    query: "exporter=156&product=999999",
+    status: 404,
+    code: "UNKNOWN_PRODUCT",
+  },
+  {
+    name: "unknown exporter",
+    build: "acceptance-fixtures-v1",
+    query: "exporter=999&product=010121",
+    status: 404,
+    code: "UNKNOWN_EXPORTER",
+  },
+  {
+    name: "retired build",
+    build: "retired-fixture-build",
+    query: "exporter=156&product=010121",
+    status: 410,
+    code: "ANALYSIS_BUILD_RETIRED",
+  },
+  {
+    name: "unavailable build",
+    build: "unavailable-fixture-build",
+    query: "exporter=156&product=010121",
+    status: 503,
+    code: "ANALYSIS_UNAVAILABLE",
+  },
+] as const;
