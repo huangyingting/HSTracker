@@ -18,7 +18,11 @@ export type MarketYearEvidence = {
   candidateMarket: EconomyIdentity;
   worldValueKusd: string;
   selectedExporter: SelectedExporterEvidence;
-  alternativeSupplierShares: readonly string[];
+  alternativeSuppliers: {
+    count: number;
+    valueKusd: string;
+    valueSquareSumKusdSquared: string;
+  };
   sourceFlowCount: number;
   quantityPresentCount: number;
 };

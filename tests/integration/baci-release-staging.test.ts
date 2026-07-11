@@ -131,13 +131,25 @@ describe("pinned BACI release staging CLI", () => {
           rowCount: 2,
         },
       ],
+      dimensionFiles: {
+        products: {
+          relativePath: "dimensions/products.parquet",
+          rowCount: 2,
+        },
+        economies: {
+          relativePath: "dimensions/economies.parquet",
+          rowCount: 3,
+        },
+      },
     });
     expect(report.staging.parquetSchema).toEqual(manifest.parquetSchema);
     expect(report.staging.partitions).toEqual(manifest.partitions);
+    expect(report.staging.dimensionFiles).toEqual(manifest.dimensionFiles);
     expect(report.staging.bytes).toBe(
       manifest.partitions.reduce(
         (sum: number, partition: { bytes: number }) => sum + partition.bytes,
-        0,
+        manifest.dimensionFiles.products.bytes +
+          manifest.dimensionFiles.economies.bytes,
       ),
     );
     await expect(
@@ -192,6 +204,26 @@ describe("pinned BACI release staging CLI", () => {
         FROM read_parquet('${parquetGlob}', hive_partitioning = false)
         LIMIT 1
       `);
+      const products = await connection.runAndReadAll(`
+        SELECT *
+        FROM read_parquet('${
+          join(
+            dirname(outcome.stagingManifestPath),
+            manifest.dimensionFiles.products.relativePath,
+          ).replaceAll("'", "''")
+        }')
+        ORDER BY hs12_code
+      `);
+      const economies = await connection.runAndReadAll(`
+        SELECT *
+        FROM read_parquet('${
+          join(
+            dirname(outcome.stagingManifestPath),
+            manifest.dimensionFiles.economies.relativePath,
+          ).replaceAll("'", "''")
+        }')
+        ORDER BY economy_code
+      `);
 
       expect(aggregate.getRowObjectsJson()[0]).toEqual({
         rowCount: "5",
@@ -209,6 +241,37 @@ describe("pinned BACI release staging CLI", () => {
         valueType: "DECIMAL(38,3)",
         quantityType: "DECIMAL(38,3)",
       });
+      expect(products.getRowObjectsJson()).toEqual([
+        {
+          hs12_code: "010121",
+          source_description: "Horses: live, pure-bred breeding animals",
+        },
+        {
+          hs12_code: "851712",
+          source_description:
+            "Telephones for cellular networks or for other wireless networks",
+        },
+      ]);
+      expect(economies.getRowObjectsJson()).toEqual([
+        {
+          economy_code: 156,
+          display_name: "China",
+          iso2: "CN",
+          iso3: "CHN",
+        },
+        {
+          economy_code: 276,
+          display_name: "Germany",
+          iso2: "DE",
+          iso3: "DEU",
+        },
+        {
+          economy_code: 842,
+          display_name: "United States of America",
+          iso2: "US",
+          iso3: "USA",
+        },
+      ]);
     } finally {
       connection.closeSync();
       instance.closeSync();

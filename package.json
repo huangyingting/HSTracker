@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:analysis-artifact": "tsx scripts/release/build-analysis-artifact.ts",
     "start": "next start",
     "stage:baci": "tsx scripts/release/stage-baci.ts",
     "prepare:standalone": "node scripts/prepare-standalone.mjs",

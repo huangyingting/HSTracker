@@ -315,11 +315,11 @@
     "format": "parquet",
     "schemaVersion": "baci-parquet-staging-v1",
     "relativePath": "staging/2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
-    "manifestSha256": "3c91ea9778c1ba686ed03c5d3bb6375764ca2fadf0a21d2f567760328cf7d5eb",
+    "manifestSha256": "839a443679946810b5a7e1ba883bbe4d4f7c616038cb4155c9b2ed1b12e84e3c",
     "partitionCount": 13,
     "rowCount": 142112452,
     "duckdbVersion": "v1.5.4",
-    "bytes": 1005096300,
+    "bytes": 1005214958,
     "parquetSchema": [
       {
         "name": "year",
@@ -444,6 +444,54 @@
         "bytes": 77668317,
         "sha256": "02067390e537549720ad9fd36dd1f6b09d6cb7be435f55d7be264ab645f4bb4c"
       }
-    ]
+    ],
+    "dimensionFiles": {
+      "products": {
+        "relativePath": "dimensions/products.parquet",
+        "rowCount": 5202,
+        "bytes": 114835,
+        "sha256": "17c1e3021b36de40840d4d1b74fabc7c4bd71fb3cb3c9067fdfaab4c420b11cf",
+        "schema": [
+          {
+            "name": "hs12_code",
+            "type": "VARCHAR",
+            "nullable": false
+          },
+          {
+            "name": "source_description",
+            "type": "VARCHAR",
+            "nullable": false
+          }
+        ]
+      },
+      "economies": {
+        "relativePath": "dimensions/economies.parquet",
+        "rowCount": 238,
+        "bytes": 3823,
+        "sha256": "a15dfb781d8339f463508adca07a4e90f0b27736177356eed726db71a91f38d7",
+        "schema": [
+          {
+            "name": "economy_code",
+            "type": "USMALLINT",
+            "nullable": false
+          },
+          {
+            "name": "display_name",
+            "type": "VARCHAR",
+            "nullable": false
+          },
+          {
+            "name": "iso2",
+            "type": "VARCHAR",
+            "nullable": true
+          },
+          {
+            "name": "iso3",
+            "type": "VARCHAR",
+            "nullable": true
+          }
+        ]
+      }
+    }
   }
 }

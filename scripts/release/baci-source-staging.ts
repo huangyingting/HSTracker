@@ -43,6 +43,16 @@ const PARQUET_SCHEMA = [
   ["value_kusd", "DECIMAL(38,3)", false],
   ["quantity_tons", "DECIMAL(38,3)", true],
 ] as const;
+const PRODUCT_DIMENSION_SCHEMA = [
+  ["hs12_code", "VARCHAR", false],
+  ["source_description", "VARCHAR", false],
+] as const;
+const ECONOMY_DIMENSION_SCHEMA = [
+  ["economy_code", "USMALLINT", false],
+  ["display_name", "VARCHAR", false],
+  ["iso2", "VARCHAR", true],
+  ["iso3", "VARCHAR", true],
+] as const;
 
 type TradeMember = {
   year: number;
@@ -130,6 +140,23 @@ type StagingPartition = {
   rowCount: number;
   bytes: number;
   sha256: string;
+};
+
+type StagingDimensionFile = {
+  relativePath: string;
+  rowCount: number;
+  bytes: number;
+  sha256: string;
+  schema: {
+    name: string;
+    type: string;
+    nullable: boolean;
+  }[];
+};
+
+type StagingDimensionFiles = {
+  products: StagingDimensionFile;
+  economies: StagingDimensionFile;
 };
 
 export type StageBaciReleaseOptions = {
@@ -277,6 +304,7 @@ export async function stageBaciRelease(
         nullable,
       })),
       partitions: staged.partitions,
+      dimensionFiles: staged.dimensionFiles,
       rowCount: staged.annualChecks.reduce(
         (sum, annual) => sum + annual.rowCount,
         0,
@@ -324,10 +352,12 @@ export async function stageBaciRelease(
         duckdbVersion: staged.duckdbVersion,
         bytes: staged.partitions.reduce(
           (sum, partition) => sum + partition.bytes,
-          0,
+          staged.dimensionFiles.products.bytes +
+            staged.dimensionFiles.economies.bytes,
         ),
         parquetSchema: manifest.parquetSchema,
         partitions: staged.partitions,
+        dimensionFiles: staged.dimensionFiles,
       },
     };
     const reportBytes = jsonBytes(report);
@@ -346,7 +376,11 @@ export async function stageBaciRelease(
         acceptedStagingPath,
         manifestBytes,
         reportBytes,
-        staged.partitions,
+        [
+          ...staged.partitions,
+          staged.dimensionFiles.products,
+          staged.dimensionFiles.economies,
+        ],
       );
       await commitJsonPublication(preparedReport);
     } catch (error) {
@@ -742,6 +776,7 @@ async function validateAndStageWithDuckDb(
   annualChecks: AnnualSourceCheck[];
   coverageDifferences: ReturnType<typeof compareCoverage>;
   partitions: StagingPartition[];
+  dimensionFiles: StagingDimensionFiles;
   duckdbVersion: string;
 }> {
   const spillPath = join(extractionPath, "duckdb-spill");
@@ -756,6 +791,11 @@ async function validateAndStageWithDuckDb(
     await connection.run("SET preserve_insertion_order = false");
     await createDimensionViews(connection, descriptor, extractionPath);
     const dimensions = await validateDimensions(connection, descriptor);
+    const dimensionFiles = await stageDimensionFiles(
+      connection,
+      partialStagingPath,
+      dimensions,
+    );
     const annualChecks: AnnualSourceCheck[] = [];
     const approvedByYear = new Map(
       approvedAnnualChecks.map((check) => [check.year, check] as const),
@@ -821,6 +861,7 @@ async function validateAndStageWithDuckDb(
       annualChecks,
       coverageDifferences,
       partitions,
+      dimensionFiles,
       duckdbVersion: requireQueryString(version, "version"),
     };
   } finally {
@@ -883,7 +924,12 @@ async function validateDimensions(
       SELECT
         COUNT(*)::UBIGINT AS "rowCount",
         COUNT(DISTINCT code)::UBIGINT AS "uniqueCount",
-        COUNT_IF(NOT regexp_full_match(code, '[0-9]{6}'))::UBIGINT
+        COUNT_IF(
+          code IS NULL
+          OR NOT regexp_full_match(code, '[0-9]{6}')
+          OR description IS NULL
+          OR trim(description) = ''
+        )::UBIGINT
           AS "invalidCount"
       FROM product_dimension
     `,
@@ -895,7 +941,10 @@ async function validateDimensions(
         COUNT(*)::UBIGINT AS "rowCount",
         COUNT(DISTINCT country_code)::UBIGINT AS "uniqueCount",
         COUNT_IF(
-          NOT regexp_full_match(country_code, '[0-9]{1,3}')
+          country_code IS NULL
+          OR NOT regexp_full_match(country_code, '[0-9]{1,3}')
+          OR country_name IS NULL
+          OR trim(country_name) = ''
         )::UBIGINT AS "invalidCount"
       FROM economy_dimension
     `,
@@ -916,6 +965,64 @@ async function validateDimensions(
     );
   }
   return { products, economies };
+}
+
+async function stageDimensionFiles(
+  connection: DuckDBConnection,
+  partialStagingPath: string,
+  dimensions: { products: number; economies: number },
+): Promise<StagingDimensionFiles> {
+  const productsRelativePath = "dimensions/products.parquet";
+  const economiesRelativePath = "dimensions/economies.parquet";
+  const productsPath = join(partialStagingPath, productsRelativePath);
+  const economiesPath = join(partialStagingPath, economiesRelativePath);
+  await mkdir(dirname(productsPath), { recursive: true });
+  await connection.run(`
+    COPY (
+      SELECT
+        code AS hs12_code,
+        description AS source_description
+      FROM product_dimension
+      ORDER BY code
+    ) TO ${sqlString(productsPath)}
+    (FORMAT PARQUET, COMPRESSION ZSTD)
+  `);
+  await connection.run(`
+    COPY (
+      SELECT
+        CAST(country_code AS USMALLINT) AS economy_code,
+        country_name AS display_name,
+        country_iso2 AS iso2,
+        country_iso3 AS iso3
+      FROM economy_dimension
+      ORDER BY CAST(country_code AS USMALLINT)
+    ) TO ${sqlString(economiesPath)}
+    (FORMAT PARQUET, COMPRESSION ZSTD)
+  `);
+  const productsIdentity = await fileIdentity(productsPath);
+  const economiesIdentity = await fileIdentity(economiesPath);
+  return {
+    products: {
+      relativePath: productsRelativePath,
+      rowCount: dimensions.products,
+      ...productsIdentity,
+      schema: PRODUCT_DIMENSION_SCHEMA.map(([name, type, nullable]) => ({
+        name,
+        type,
+        nullable,
+      })),
+    },
+    economies: {
+      relativePath: economiesRelativePath,
+      rowCount: dimensions.economies,
+      ...economiesIdentity,
+      schema: ECONOMY_DIMENSION_SCHEMA.map(([name, type, nullable]) => ({
+        name,
+        type,
+        nullable,
+      })),
+    },
+  };
 }
 
 async function createTradeView(
@@ -1252,7 +1359,11 @@ async function publishStaging(
   acceptedPath: string,
   manifestBytes: Buffer,
   reportBytes: Buffer,
-  partitions: readonly StagingPartition[],
+  dataFiles: readonly {
+    relativePath: string;
+    bytes: number;
+    sha256: string;
+  }[],
 ): Promise<void> {
   await mkdir(dirname(acceptedPath), { recursive: true });
   if (!(await pathExists(acceptedPath))) {
@@ -1279,17 +1390,17 @@ async function publishStaging(
         "The existing staging publication has an incompatible source report.",
       );
     }
-    for (const partition of partitions) {
+    for (const dataFile of dataFiles) {
       const identity = await fileIdentity(
-        join(acceptedPath, partition.relativePath),
+        join(acceptedPath, dataFile.relativePath),
       );
       if (
-        identity.bytes !== partition.bytes ||
-        identity.sha256 !== partition.sha256
+        identity.bytes !== dataFile.bytes ||
+        identity.sha256 !== dataFile.sha256
       ) {
         throw new BaciStagingError(
           "STAGING_PUBLICATION_FAILED",
-          `Existing staging partition ${partition.year} is corrupted.`,
+          `Existing staging file ${dataFile.relativePath} is corrupted.`,
         );
       }
     }

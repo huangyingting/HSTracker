@@ -7,6 +7,7 @@ import {
   ACCEPTANCE_FIXTURE_ARTIFACT,
   ACCEPTANCE_FIXTURE_RELEASE,
 } from "../metadata";
+import { alternativeSuppliersFromShares } from "./alternative-suppliers";
 
 type MicroCandidate = {
   code: string;
@@ -61,7 +62,9 @@ function makeInput(
           },
           worldValueKusd,
           selectedExporter,
-          alternativeSupplierShares,
+          alternativeSuppliers: alternativeSuppliersFromShares(
+            alternativeSupplierShares,
+          ),
           sourceFlowCount,
           quantityPresentCount: sourceFlowCount,
         },
@@ -121,7 +124,7 @@ function makeProvisionalInput(
         candidateMarket,
         worldValueKusd,
         selectedExporter,
-        alternativeSupplierShares: ["1.00"],
+        alternativeSuppliers: alternativeSuppliersFromShares(["1.00"]),
         sourceFlowCount,
         quantityPresentCount: sourceFlowCount,
       },

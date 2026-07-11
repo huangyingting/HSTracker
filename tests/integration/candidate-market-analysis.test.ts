@@ -608,7 +608,7 @@ describe("CandidateMarketAnalysis", () => {
     },
     {
       analysisBuildId: "micro-invalid-alternative-supplier-zero",
-      message: "alternativeSupplierShares must be positive.",
+      message: "Alternative supplier aggregates are inconsistent.",
     },
     {
       analysisBuildId: "micro-invalid-quantity-coverage",

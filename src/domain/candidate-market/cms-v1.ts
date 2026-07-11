@@ -246,7 +246,7 @@ function computeRawCandidate(
   }, 0);
   const worldValueKusd = values.reduce((total, value) => total + value, 0);
   const diversityByYear = sortedRows.flatMap((row) => {
-    const diversity = calculateAnnualDiversity(row.alternativeSupplierShares);
+    const diversity = calculateAnnualDiversity(row.alternativeSuppliers);
     return diversity === null ? [] : [{ year: row.year, diversity }];
   });
   return {
@@ -750,26 +750,50 @@ function calculateLogLinearGrowth(rows: readonly MarketYearEvidence[]): number {
   return Math.exp(numerator / denominator) - 1;
 }
 
-function calculateAnnualDiversity(rawShares: readonly string[]): number | null {
-  if (rawShares.length === 0) {
+function calculateAnnualDiversity(
+  suppliers: MarketYearEvidence["alternativeSuppliers"],
+): number | null {
+  if (!Number.isSafeInteger(suppliers.count) || suppliers.count < 0) {
+    throw new Error(
+      "alternativeSuppliers.count must be a nonnegative safe integer.",
+    );
+  }
+  if (suppliers.count === 0) {
+    if (
+      Number(suppliers.valueKusd) !== 0 ||
+      Number(suppliers.valueSquareSumKusdSquared) !== 0
+    ) {
+      throw new Error(
+        "Empty alternative supplier evidence must have zero values.",
+      );
+    }
     return null;
   }
-  if (rawShares.length === 1) {
+
+  const valueKusd = parsePositiveDecimal(
+    suppliers.valueKusd,
+    "alternativeSuppliers.valueKusd",
+  );
+  const valueSquareSumKusdSquared = parsePositiveDecimal(
+    suppliers.valueSquareSumKusdSquared,
+    "alternativeSuppliers.valueSquareSumKusdSquared",
+  );
+  const rawHhi = valueSquareSumKusdSquared / valueKusd ** 2;
+  const minimumHhi = 1 / suppliers.count;
+  if (
+    rawHhi < minimumHhi &&
+    !nearlyEqual(rawHhi, minimumHhi) ||
+    rawHhi > 1 ||
+    (suppliers.count > 1 && nearlyEqual(rawHhi, 1))
+  ) {
+    throw new Error("Alternative supplier aggregates are inconsistent.");
+  }
+  if (suppliers.count === 1) {
     return 0;
   }
 
-  const shares = rawShares.map((share) =>
-    parsePositiveDecimal(share, "alternativeSupplierShares"),
-  );
-  const total = shares.reduce((sum, share) => sum + share, 0);
-  if (!nearlyEqual(total, 1)) {
-    throw new Error("Alternative supplier shares must sum to one.");
-  }
-
-  const supplierCount = shares.length;
   const normalizedHhi =
-    (shares.reduce((sum, share) => sum + share ** 2, 0) - 1 / supplierCount) /
-    (1 - 1 / supplierCount);
+    (rawHhi - 1 / suppliers.count) / (1 - 1 / suppliers.count);
   return 1 - normalizedHhi;
 }
 

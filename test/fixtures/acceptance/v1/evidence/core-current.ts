@@ -8,6 +8,7 @@ import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   ACCEPTANCE_FIXTURE_RELEASE,
 } from "../metadata";
+import { alternativeSuppliersFromShares } from "./alternative-suppliers";
 
 type CandidateDefinition = {
   code: string;
@@ -258,7 +259,9 @@ function marketYear(
     },
     worldValueKusd,
     selectedExporter: exporter,
-    alternativeSupplierShares: candidate.alternativeSupplierShares,
+    alternativeSuppliers: alternativeSuppliersFromShares(
+      candidate.alternativeSupplierShares,
+    ),
     sourceFlowCount,
     quantityPresentCount: quantityPresentCount ?? sourceFlowCount,
   };
