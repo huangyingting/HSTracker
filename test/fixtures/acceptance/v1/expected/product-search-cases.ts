@@ -259,6 +259,34 @@ export const PRODUCT_SEARCH_GOLDEN_CASES: readonly ProductSearchGoldenCase[] = [
     ],
   },
   {
+    name: "reviewed alias prefix",
+    query: "purebred",
+    locale: "en",
+    expectedState: "RESULTS",
+    expectedMatches: [
+      {
+        code: "010121",
+        class: "ALIAS_PREFIX",
+        field: "ALIAS_EN",
+        matchedText: "purebred horse",
+      },
+    ],
+  },
+  {
+    name: "reviewed alias tokens",
+    query: "telephone horse",
+    locale: "en",
+    expectedState: "RESULTS",
+    expectedMatches: [
+      {
+        code: "010121",
+        class: "ALIAS_TOKENS",
+        field: "ALIAS_EN",
+        matchedText: "wireless purebred horse telephone",
+      },
+    ],
+  },
+  {
     name: "stable capped alias tie",
     query: "catalog cap",
     locale: "en",

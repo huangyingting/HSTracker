@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+import { PUBLIC_PRODUCT_SEARCH_BUILD_ID } from "../catalog/product-catalog-config";
 import type {
   ProductSearchLocale,
   ProductSearchProduct,
@@ -88,7 +88,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
           limit: "20",
         });
         const response = await fetch(
-          `/api/v1/product-catalogs/${ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core}/products?${parameters}`,
+          productSearchUrl(parameters),
           { signal: controller.signal },
         );
         if (!response.ok) {
@@ -142,7 +142,7 @@ export function ProductCombobox({ locale }: ProductComboboxProps) {
           limit: "20",
         });
         const response = await fetch(
-          `/api/v1/product-catalogs/${ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core}/products?${parameters}`,
+          productSearchUrl(parameters),
           { signal: controller.signal },
         );
         if (!response.ok) {
@@ -397,4 +397,8 @@ function adjacentProductDescription(
 
 function optionId(productCode: string): string {
   return `product-option-${productCode}`;
+}
+
+function productSearchUrl(parameters: URLSearchParams): string {
+  return `/api/v1/product-catalogs/${PUBLIC_PRODUCT_SEARCH_BUILD_ID}/products?${parameters}`;
 }
