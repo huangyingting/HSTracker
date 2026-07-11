@@ -68,7 +68,7 @@ export function evaluateSourceFreshness(
       : newerReleaseDetectedAt !== null
         ? {
             state: "UPDATE_IN_PROGRESS",
-            effectiveAt: snapshot.newerReleaseDetectedAt!,
+            effectiveAt: toPublicInstant(newerReleaseDetectedAt),
           }
         : asOfInstant >= checkOverdueAt
           ? {
@@ -110,13 +110,13 @@ export function evaluateSourceFreshness(
 export function nextSourceFreshnessTransitionAt(
   freshness: EffectiveSourceFreshness,
 ): string | null {
-  if (freshness.state === "LATEST_KNOWN") {
-    return freshness.checkOverdueAt;
-  }
-  if (freshness.state === "UPDATE_IN_PROGRESS") {
-    return freshness.refreshDueAt;
-  }
-  return null;
+  const transitionByState: Record<SourceFreshnessState, string | null> = {
+    LATEST_KNOWN: freshness.checkOverdueAt,
+    UPDATE_IN_PROGRESS: freshness.refreshDueAt,
+    REFRESH_DELAYED: null,
+    CHECK_OVERDUE: null,
+  };
+  return transitionByState[freshness.state];
 }
 
 function parseUtcInstant(value: string): Date {

@@ -1,5 +1,8 @@
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
-import { RELEASE_REVISION_NOT_COMPARED_REASONS } from "../domain/release/release-revision";
+import {
+  RELEASE_REVISION_NOT_COMPARED_REASONS,
+  type ReleaseRevisionNotComparedReason,
+} from "../domain/release/release-revision";
 import {
   SOURCE_FRESHNESS_STATES,
   type SourceFreshnessState,
@@ -194,7 +197,9 @@ function isFreshnessState(value: unknown): value is SourceFreshnessState {
   );
 }
 
-function isRevisionReason(value: unknown): boolean {
+function isRevisionReason(
+  value: unknown,
+): value is ReleaseRevisionNotComparedReason | null {
   return (
     value === null ||
     RELEASE_REVISION_NOT_COMPARED_REASONS.some((reason) => reason === value)
