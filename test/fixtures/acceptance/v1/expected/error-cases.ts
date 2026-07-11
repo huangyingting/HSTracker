@@ -1,6 +1,8 @@
 import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
+  ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
   FIXTURE_ADAPTER_TEST_BUILD_IDS,
+  PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS,
 } from "../metadata";
 
 export const ANALYSIS_ROUTE_ERROR_CASES = [
@@ -59,5 +61,80 @@ export const ANALYSIS_ROUTE_ERROR_CASES = [
     status: 503,
     code: "ANALYSIS_UNAVAILABLE",
     message: "Candidate Market analysis is temporarily unavailable.",
+  },
+] as const;
+
+export const PRODUCT_CATALOG_ROUTE_ERROR_CASES = [
+  {
+    name: "missing locale",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: "q=horse&limit=20",
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "duplicate query",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: "q=horse&q=phone&locale=en&limit=20",
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "unsupported query parameter",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: "q=horse&locale=en&limit=20&revision=HS12",
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "unsupported locale",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: "q=horse&locale=fr&limit=20",
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "out-of-range limit",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: "q=horse&locale=en&limit=21",
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "fractional limit",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: "q=horse&locale=en&limit=1.5",
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "overlong query",
+    build: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    query: `q=${"a".repeat(301)}&locale=en&limit=20`,
+    status: 400,
+    code: "INVALID_PRODUCT_SEARCH_QUERY",
+    message: "The product search query is invalid.",
+  },
+  {
+    name: "retired build",
+    build: "retired-product-search-v1",
+    query: "q=horse&locale=en&limit=20",
+    status: 410,
+    code: "PRODUCT_SEARCH_BUILD_RETIRED",
+    message: "The requested product search build is no longer served.",
+  },
+  {
+    name: "unavailable build",
+    build: PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS.unavailable,
+    query: "q=horse&locale=en&limit=20",
+    status: 503,
+    code: "PRODUCT_SEARCH_UNAVAILABLE",
+    message: "Product search is temporarily unavailable.",
   },
 ] as const;

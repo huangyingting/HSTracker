@@ -12,6 +12,15 @@ export const FIXTURE_ADAPTER_TEST_BUILD_IDS = {
   unavailable: "unavailable-fixture-build",
 } as const;
 
+export const ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS = {
+  core: "acceptance-product-search-v1",
+} as const;
+
+export const PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS = {
+  failing: "failing-product-search-v1",
+  unavailable: "unavailable-product-search-v1",
+} as const;
+
 export const ACCEPTANCE_FIXTURE_RELEASE = {
   baciRelease: "V202601",
   sourceUpdateDate: "2026-01-22",

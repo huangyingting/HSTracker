@@ -7,7 +7,7 @@ import {
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
   fixtureContentSha256:
-    "6acdf6de6abeaaa33ee51155e27cfcf861efcfe117b4b639c4859d7912f945ea",
+    "e4747a35ad740eaa5146a23865e0a36bfe63ad16e8e693ffeb6dbfb1edbaa303",
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
@@ -27,7 +27,27 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "metadata.ts",
       sha256:
-        "4305ddee39ee06bca4e701c8ec2d06ef31994f941494e53ac1e0d925a5ab75ec",
+        "c7389b8b119535b0fbd023088aaab19fd924692586799ecb6ee081bda6d39f83",
+    },
+    {
+      path: "catalog/products.ts",
+      sha256:
+        "71e8903002bf177f9dbb524f39f6b933ccd8e662ace032c3d15c87b272705d2c",
+    },
+    {
+      path: "catalog/translations.ts",
+      sha256:
+        "3e57a9116ffc0eec7a20e15bd5ac46687d5aac5223555052675d53f499e11213",
+    },
+    {
+      path: "catalog/aliases.ts",
+      sha256:
+        "b4eb2d14791302a778a062ead5979f37675f4b5270c63cd207f73eb25fa91da2",
+    },
+    {
+      path: "catalog/traditional-to-simplified.ts",
+      sha256:
+        "5572b5c38563901bae7c8c46f258b3f6d85cf41946b66fb4b34cf1664ae9e9bf",
     },
     {
       path: "evidence/core-current.ts",
@@ -47,7 +67,12 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/error-cases.ts",
       sha256:
-        "f9017cbd4a37a5c09c1e6b3dc5acf41a6c9afd454518f4af4cbb42efc23163a1",
+        "08eb7b198e0aed03533ca2d98d4bac6baffbf9ebe86b7a6eb105e8241c3fe901",
+    },
+    {
+      path: "expected/product-search-cases.ts",
+      sha256:
+        "7575f14e6629399615871788849c568d34d6143a4f4b8a2fd7374c4f0a0750a4",
     },
   ],
   expectedFiles: [
@@ -59,7 +84,12 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/error-cases.ts",
       sha256:
-        "f9017cbd4a37a5c09c1e6b3dc5acf41a6c9afd454518f4af4cbb42efc23163a1",
+        "08eb7b198e0aed03533ca2d98d4bac6baffbf9ebe86b7a6eb105e8241c3fe901",
+    },
+    {
+      path: "expected/product-search-cases.ts",
+      sha256:
+        "7575f14e6629399615871788849c568d34d6143a4f4b8a2fd7374c4f0a0750a4",
     },
   ],
   fixtureIds: [
@@ -90,5 +120,8 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     "invalid-quantity-coverage",
     "quantity-zero-mutation",
     "provisional-mutation",
+    "product-catalog-core",
+    "product-catalog-cap",
+    "product-search-golden",
   ],
 } as const;

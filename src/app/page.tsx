@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { ProductCombobox } from "./product-combobox";
+
 const copy = {
   en: {
     brandTagline: "Public trade intelligence",
@@ -136,6 +138,7 @@ export default function Home() {
           </p>
           <h1>{messages.heading}</h1>
           <p className="lede">{messages.lede}</p>
+          <ProductCombobox locale={locale} />
           <p className="access-note">
             <span className="access-icon" aria-hidden="true">
               ↗
