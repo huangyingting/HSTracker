@@ -1,0 +1,529 @@
+{
+  "schemaVersion": "candidate-market-artifact-build-report-v1",
+  "status": "accepted",
+  "sourceSha256": "2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+  "stagingManifestSha256": "839a443679946810b5a7e1ba883bbe4d4f7c616038cb4155c9b2ed1b12e84e3c",
+  "artifactManifestSha256": "fb6dedb323266fd86b8b1ce384a2e493aba6ad2302c247dbfcbc31c0cffa8ffa",
+  "artifactManifest": {
+    "schemaVersion": "candidate-market-artifact-manifest-v1",
+    "baciRelease": "V202601",
+    "sourceUrl": "https://www.cepii.fr/DATA_DOWNLOAD/baci/data/BACI_HS12_V202601.zip",
+    "sourceBytes": 1267950839,
+    "sourceSha256": "2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+    "sourceUpdateDate": "2026-01-22",
+    "license": {
+      "name": "Etalab Open Licence 2.0",
+      "url": "https://www.etalab.gouv.fr/wp-content/uploads/2018/11/open-licence.pdf"
+    },
+    "attribution": "Source: CEPII BACI, HS 2012, V202601 (updated 2026-01-22), Etalab Open Licence 2.0.",
+    "hsRevision": "HS12",
+    "ingestedYears": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024
+    ],
+    "finalizedYears": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023
+    ],
+    "provisionalYears": [
+      2024
+    ],
+    "finalizedCutoffYear": 2023,
+    "scoreWindow": {
+      "start": 2019,
+      "end": 2023
+    },
+    "annualSourceChecks": [
+      {
+        "year": 2012,
+        "rowCount": 9012155,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 8750360,
+        "quantityNullCount": 261795,
+        "valueTotalKusd": "17972752433.687",
+        "quantityTotalTons": "12685182120.307"
+      },
+      {
+        "year": 2013,
+        "rowCount": 9787220,
+        "exporterCount": 227,
+        "importerCount": 227,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 9591994,
+        "quantityNullCount": 195226,
+        "valueTotalKusd": "18225849837.702",
+        "quantityTotalTons": "12987014665.493"
+      },
+      {
+        "year": 2014,
+        "rowCount": 10205742,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 9996502,
+        "quantityNullCount": 209240,
+        "valueTotalKusd": "18463083636.292",
+        "quantityTotalTons": "12684138042.992"
+      },
+      {
+        "year": 2015,
+        "rowCount": 10782381,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 10480245,
+        "quantityNullCount": 302136,
+        "valueTotalKusd": "16229671660.397",
+        "quantityTotalTons": "12965506669.695"
+      },
+      {
+        "year": 2016,
+        "rowCount": 10868820,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 10595775,
+        "quantityNullCount": 273045,
+        "valueTotalKusd": "15814309753.505",
+        "quantityTotalTons": "13811075896.657"
+      },
+      {
+        "year": 2017,
+        "rowCount": 11213140,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 10951978,
+        "quantityNullCount": 261162,
+        "valueTotalKusd": "17521257096.803",
+        "quantityTotalTons": "14655512546.270"
+      },
+      {
+        "year": 2018,
+        "rowCount": 11370143,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 11094229,
+        "quantityNullCount": 275914,
+        "valueTotalKusd": "19183248793.835",
+        "quantityTotalTons": "14424027314.577"
+      },
+      {
+        "year": 2019,
+        "rowCount": 11506556,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 11223739,
+        "quantityNullCount": 282817,
+        "valueTotalKusd": "18663269491.288",
+        "quantityTotalTons": "15059226254.375"
+      },
+      {
+        "year": 2020,
+        "rowCount": 11150663,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 10862655,
+        "quantityNullCount": 288008,
+        "valueTotalKusd": "17228715158.025",
+        "quantityTotalTons": "14599197765.389"
+      },
+      {
+        "year": 2021,
+        "rowCount": 11673491,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 11359113,
+        "quantityNullCount": 314378,
+        "valueTotalKusd": "21575008465.236",
+        "quantityTotalTons": "14712636023.890"
+      },
+      {
+        "year": 2022,
+        "rowCount": 11677171,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5198,
+        "quantityPresentCount": 11332829,
+        "quantityNullCount": 344342,
+        "valueTotalKusd": "24261192792.824",
+        "quantityTotalTons": "14264516636.598"
+      },
+      {
+        "year": 2023,
+        "rowCount": 11755559,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5199,
+        "quantityPresentCount": 11339067,
+        "quantityNullCount": 416492,
+        "valueTotalKusd": "23020022036.504",
+        "quantityTotalTons": "15444036029.289"
+      },
+      {
+        "year": 2024,
+        "rowCount": 11109411,
+        "exporterCount": 226,
+        "importerCount": 226,
+        "observedProductCount": 5198,
+        "quantityPresentCount": 10748249,
+        "quantityNullCount": 361162,
+        "valueTotalKusd": "22885405222.978",
+        "quantityTotalTons": "14748198526.504"
+      }
+    ],
+    "stagingManifestSha256": "839a443679946810b5a7e1ba883bbe4d4f7c616038cb4155c9b2ed1b12e84e3c",
+    "coverageApprovalSha256": "406326852934cc8c939f18e6488ab96a7b977f7bc9d83c5876f65b591d061066",
+    "pipelineGitSha": "2a1169de115fc433a12e281b7851453cffccceda",
+    "duckdbVersion": "v1.5.4",
+    "artifact": {
+      "schemaVersion": "candidate-market-artifact-v1",
+      "buildId": "candidate-market-artifact-v1-d025d4114299ed99",
+      "relativePath": "candidate-market.duckdb",
+      "bytes": 1002975232,
+      "sha256": "d025d4114299ed99c90350298ce854a20355d5fb082b969c148a16ec8353a90b"
+    },
+    "tableRowCounts": {
+      "bilateral_year": 142112452,
+      "market_year": 11184765,
+      "product_year": 67585,
+      "economy": 238,
+      "product": 5202,
+      "artifact_metadata": 12
+    },
+    "scoreVersionsSupported": [
+      "cms-v1"
+    ],
+    "builtAt": "2026-07-11T19:28:58Z",
+    "benchmarkQueries": [
+      {
+        "role": "sparse",
+        "productCode": "811252",
+        "exporterCode": "72",
+        "completeRowCount": 105,
+        "primaryWindowRowCount": 31,
+        "candidateCount": 18,
+        "resultBytes": 30001,
+        "selectionAlgorithm": "complete-bilateral-row-count-v1"
+      },
+      {
+        "role": "median",
+        "productCode": "400110",
+        "exporterCode": "156",
+        "completeRowCount": 20186,
+        "primaryWindowRowCount": 8322,
+        "candidateCount": 202,
+        "resultBytes": 283728,
+        "selectionAlgorithm": "complete-bilateral-row-count-v1"
+      },
+      {
+        "role": "upper-quartile",
+        "productCode": "760611",
+        "exporterCode": "156",
+        "completeRowCount": 37947,
+        "primaryWindowRowCount": 14789,
+        "candidateCount": 218,
+        "resultBytes": 299204,
+        "selectionAlgorithm": "complete-bilateral-row-count-v1"
+      },
+      {
+        "role": "maximum-row",
+        "productCode": "392690",
+        "exporterCode": "156",
+        "completeRowCount": 178380,
+        "primaryWindowRowCount": 73690,
+        "candidateCount": 225,
+        "resultBytes": 304583,
+        "selectionAlgorithm": "complete-bilateral-row-count-v1"
+      }
+    ]
+  },
+  "artifact": {
+    "schemaVersion": "candidate-market-artifact-v1",
+    "buildId": "candidate-market-artifact-v1-d025d4114299ed99",
+    "relativePath": "candidate-market.duckdb",
+    "bytes": 1002975232,
+    "sha256": "d025d4114299ed99c90350298ce854a20355d5fb082b969c148a16ec8353a90b"
+  },
+  "tableRowCounts": {
+    "bilateral_year": 142112452,
+    "market_year": 11184765,
+    "product_year": 67585,
+    "economy": 238,
+    "product": 5202,
+    "artifact_metadata": 12
+  },
+  "reconciliation": {
+    "sourceRows": 142112452,
+    "bilateralRows": 142112452,
+    "sourceValueTotalKusd": "251043786379.076",
+    "bilateralValueTotalKusd": "251043786379.076",
+    "sourceQuantityPresentCount": 138326735,
+    "marketQuantityPresentCount": 138326735,
+    "sourceQuantityTotalTons": "183040268492.036",
+    "marketQuantityTotalTons": "183040268492.036",
+    "annual": [
+      {
+        "year": 2012,
+        "sourceRows": 9012155,
+        "bilateralRows": 9012155,
+        "sourceValueTotalKusd": "17972752433.687",
+        "bilateralValueTotalKusd": "17972752433.687",
+        "marketValueTotalKusd": "17972752433.687",
+        "productValueTotalKusd": "17972752433.687",
+        "sourceQuantityPresentCount": 8750360,
+        "marketQuantityPresentCount": 8750360,
+        "sourceQuantityTotalTons": "12685182120.307",
+        "marketQuantityTotalTons": "12685182120.307"
+      },
+      {
+        "year": 2013,
+        "sourceRows": 9787220,
+        "bilateralRows": 9787220,
+        "sourceValueTotalKusd": "18225849837.702",
+        "bilateralValueTotalKusd": "18225849837.702",
+        "marketValueTotalKusd": "18225849837.702",
+        "productValueTotalKusd": "18225849837.702",
+        "sourceQuantityPresentCount": 9591994,
+        "marketQuantityPresentCount": 9591994,
+        "sourceQuantityTotalTons": "12987014665.493",
+        "marketQuantityTotalTons": "12987014665.493"
+      },
+      {
+        "year": 2014,
+        "sourceRows": 10205742,
+        "bilateralRows": 10205742,
+        "sourceValueTotalKusd": "18463083636.292",
+        "bilateralValueTotalKusd": "18463083636.292",
+        "marketValueTotalKusd": "18463083636.292",
+        "productValueTotalKusd": "18463083636.292",
+        "sourceQuantityPresentCount": 9996502,
+        "marketQuantityPresentCount": 9996502,
+        "sourceQuantityTotalTons": "12684138042.992",
+        "marketQuantityTotalTons": "12684138042.992"
+      },
+      {
+        "year": 2015,
+        "sourceRows": 10782381,
+        "bilateralRows": 10782381,
+        "sourceValueTotalKusd": "16229671660.397",
+        "bilateralValueTotalKusd": "16229671660.397",
+        "marketValueTotalKusd": "16229671660.397",
+        "productValueTotalKusd": "16229671660.397",
+        "sourceQuantityPresentCount": 10480245,
+        "marketQuantityPresentCount": 10480245,
+        "sourceQuantityTotalTons": "12965506669.695",
+        "marketQuantityTotalTons": "12965506669.695"
+      },
+      {
+        "year": 2016,
+        "sourceRows": 10868820,
+        "bilateralRows": 10868820,
+        "sourceValueTotalKusd": "15814309753.505",
+        "bilateralValueTotalKusd": "15814309753.505",
+        "marketValueTotalKusd": "15814309753.505",
+        "productValueTotalKusd": "15814309753.505",
+        "sourceQuantityPresentCount": 10595775,
+        "marketQuantityPresentCount": 10595775,
+        "sourceQuantityTotalTons": "13811075896.657",
+        "marketQuantityTotalTons": "13811075896.657"
+      },
+      {
+        "year": 2017,
+        "sourceRows": 11213140,
+        "bilateralRows": 11213140,
+        "sourceValueTotalKusd": "17521257096.803",
+        "bilateralValueTotalKusd": "17521257096.803",
+        "marketValueTotalKusd": "17521257096.803",
+        "productValueTotalKusd": "17521257096.803",
+        "sourceQuantityPresentCount": 10951978,
+        "marketQuantityPresentCount": 10951978,
+        "sourceQuantityTotalTons": "14655512546.270",
+        "marketQuantityTotalTons": "14655512546.270"
+      },
+      {
+        "year": 2018,
+        "sourceRows": 11370143,
+        "bilateralRows": 11370143,
+        "sourceValueTotalKusd": "19183248793.835",
+        "bilateralValueTotalKusd": "19183248793.835",
+        "marketValueTotalKusd": "19183248793.835",
+        "productValueTotalKusd": "19183248793.835",
+        "sourceQuantityPresentCount": 11094229,
+        "marketQuantityPresentCount": 11094229,
+        "sourceQuantityTotalTons": "14424027314.577",
+        "marketQuantityTotalTons": "14424027314.577"
+      },
+      {
+        "year": 2019,
+        "sourceRows": 11506556,
+        "bilateralRows": 11506556,
+        "sourceValueTotalKusd": "18663269491.288",
+        "bilateralValueTotalKusd": "18663269491.288",
+        "marketValueTotalKusd": "18663269491.288",
+        "productValueTotalKusd": "18663269491.288",
+        "sourceQuantityPresentCount": 11223739,
+        "marketQuantityPresentCount": 11223739,
+        "sourceQuantityTotalTons": "15059226254.375",
+        "marketQuantityTotalTons": "15059226254.375"
+      },
+      {
+        "year": 2020,
+        "sourceRows": 11150663,
+        "bilateralRows": 11150663,
+        "sourceValueTotalKusd": "17228715158.025",
+        "bilateralValueTotalKusd": "17228715158.025",
+        "marketValueTotalKusd": "17228715158.025",
+        "productValueTotalKusd": "17228715158.025",
+        "sourceQuantityPresentCount": 10862655,
+        "marketQuantityPresentCount": 10862655,
+        "sourceQuantityTotalTons": "14599197765.389",
+        "marketQuantityTotalTons": "14599197765.389"
+      },
+      {
+        "year": 2021,
+        "sourceRows": 11673491,
+        "bilateralRows": 11673491,
+        "sourceValueTotalKusd": "21575008465.236",
+        "bilateralValueTotalKusd": "21575008465.236",
+        "marketValueTotalKusd": "21575008465.236",
+        "productValueTotalKusd": "21575008465.236",
+        "sourceQuantityPresentCount": 11359113,
+        "marketQuantityPresentCount": 11359113,
+        "sourceQuantityTotalTons": "14712636023.890",
+        "marketQuantityTotalTons": "14712636023.890"
+      },
+      {
+        "year": 2022,
+        "sourceRows": 11677171,
+        "bilateralRows": 11677171,
+        "sourceValueTotalKusd": "24261192792.824",
+        "bilateralValueTotalKusd": "24261192792.824",
+        "marketValueTotalKusd": "24261192792.824",
+        "productValueTotalKusd": "24261192792.824",
+        "sourceQuantityPresentCount": 11332829,
+        "marketQuantityPresentCount": 11332829,
+        "sourceQuantityTotalTons": "14264516636.598",
+        "marketQuantityTotalTons": "14264516636.598"
+      },
+      {
+        "year": 2023,
+        "sourceRows": 11755559,
+        "bilateralRows": 11755559,
+        "sourceValueTotalKusd": "23020022036.504",
+        "bilateralValueTotalKusd": "23020022036.504",
+        "marketValueTotalKusd": "23020022036.504",
+        "productValueTotalKusd": "23020022036.504",
+        "sourceQuantityPresentCount": 11339067,
+        "marketQuantityPresentCount": 11339067,
+        "sourceQuantityTotalTons": "15444036029.289",
+        "marketQuantityTotalTons": "15444036029.289"
+      },
+      {
+        "year": 2024,
+        "sourceRows": 11109411,
+        "bilateralRows": 11109411,
+        "sourceValueTotalKusd": "22885405222.978",
+        "bilateralValueTotalKusd": "22885405222.978",
+        "marketValueTotalKusd": "22885405222.978",
+        "productValueTotalKusd": "22885405222.978",
+        "sourceQuantityPresentCount": 10748249,
+        "marketQuantityPresentCount": 10748249,
+        "sourceQuantityTotalTons": "14748198526.504",
+        "marketQuantityTotalTons": "14748198526.504"
+      }
+    ]
+  },
+  "sizeGate": {
+    "targetBytes": 8589934592,
+    "limitBytes": 10737418240,
+    "status": "accepted"
+  },
+  "benchmarkQueries": [
+    {
+      "role": "sparse",
+      "productCode": "811252",
+      "exporterCode": "72",
+      "completeRowCount": 105,
+      "primaryWindowRowCount": 31,
+      "candidateCount": 18,
+      "resultBytes": 30001,
+      "selectionAlgorithm": "complete-bilateral-row-count-v1"
+    },
+    {
+      "role": "median",
+      "productCode": "400110",
+      "exporterCode": "156",
+      "completeRowCount": 20186,
+      "primaryWindowRowCount": 8322,
+      "candidateCount": 202,
+      "resultBytes": 283728,
+      "selectionAlgorithm": "complete-bilateral-row-count-v1"
+    },
+    {
+      "role": "upper-quartile",
+      "productCode": "760611",
+      "exporterCode": "156",
+      "completeRowCount": 37947,
+      "primaryWindowRowCount": 14789,
+      "candidateCount": 218,
+      "resultBytes": 299204,
+      "selectionAlgorithm": "complete-bilateral-row-count-v1"
+    },
+    {
+      "role": "maximum-row",
+      "productCode": "392690",
+      "exporterCode": "156",
+      "completeRowCount": 178380,
+      "primaryWindowRowCount": 73690,
+      "candidateCount": 225,
+      "resultBytes": 304583,
+      "selectionAlgorithm": "complete-bilateral-row-count-v1"
+    }
+  ],
+  "maximumRowSmokeResult": {
+    "status": "accepted",
+    "productCode": "392690",
+    "exporterCode": "156",
+    "candidateCount": 225,
+    "resultBytes": 304583,
+    "resultSha256": "77229ff8c38daef8d8ecd4c863f58339997737a66fd7c1316d241d38ddd8bdd7"
+  },
+  "timingsMs": {
+    "schemaMs": 22.87,
+    "tablesMs": 70930.297,
+    "reconciliationMs": 37957.454,
+    "optimizeMs": 151.49,
+    "readOnlyReopenMs": 16.354,
+    "benchmarkSelectionMs": 4648.943,
+    "total": 115666.366
+  },
+  "builtAt": "2026-07-11T19:28:58Z"
+}
