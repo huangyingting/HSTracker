@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-prototype="true">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Throwaway prototype comparing three Candidate Market discovery workflows."
+    />
+    <title>HS Tracker - Candidate Market workflow prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./app.js"></script>
+  </head>
+  <body>
+    <!-- Three variants of the Candidate Market discovery flow, switchable via ?variant=, on a throwaway static route. -->
+    <div class="prototype-ribbon">
+      PROTOTYPE - illustrative data and placeholder scoring only
+    </div>
+    <main id="app"></main>
+    <nav id="prototype-switcher" class="prototype-switcher" aria-label="Prototype variants">
+      <button type="button" data-switch="previous" aria-label="Previous variant">←</button>
+      <span id="variant-label"></span>
+      <button type="button" data-switch="next" aria-label="Next variant">→</button>
+    </nav>
+    <noscript>This prototype requires JavaScript.</noscript>
+  </body>
+</html>
