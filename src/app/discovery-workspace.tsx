@@ -169,25 +169,15 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadCurrentAnalysisManifest({
-      fetcher: fetch,
-      signal: controller.signal,
-      revalidate: false,
-    })
-      .then((manifest) => {
-        if (!controller.signal.aborted) {
-          setCurrentManifest(manifest);
-          setCurrentManifestStatus("ready");
-        }
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          console.error("Current analysis manifest request failed", error);
-          setCurrentManifestStatus("failed");
-        }
-      });
-    return () => controller.abort();
-  }, []);
+    const timeout = window.setTimeout(
+      () => void loadCurrentManifest(controller.signal, false),
+      0,
+    );
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [loadCurrentManifest]);
 
   const recoverRetiredAnalysis = useCallback(async () => {
     if (currentManifest === null) {

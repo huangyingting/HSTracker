@@ -323,6 +323,7 @@ export const CORE_CURRENT_INPUT: CmsV1Inputs = {
   analysisReleaseCatalogSha256:
     ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
   artifact: {
+    baciRelease: ACCEPTANCE_FIXTURE_RELEASE.baciRelease,
     buildId: "acceptance-fixtures-v1-core-artifact",
     ...ACCEPTANCE_FIXTURE_ARTIFACT,
   },

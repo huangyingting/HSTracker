@@ -63,6 +63,10 @@ export function computeCmsV1(
   inputs: CmsV1Inputs,
   previousArtifact: ReleaseRevisionPreviousArtifact | null = null,
 ): CandidateMarketResult {
+  if (inputs.artifact.baciRelease !== inputs.release.baciRelease) {
+    throw new TypeError("A Candidate Market Score cannot mix BACI Releases.");
+  }
+
   const cutoffYear = inputs.release.finalizedCutoffYear;
   const primaryWindow = { start: cutoffYear - 4, end: cutoffYear };
   const threeYearWindow = { start: cutoffYear - 2, end: cutoffYear };

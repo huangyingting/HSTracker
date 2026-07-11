@@ -74,6 +74,7 @@ function makeInput(
     analysisReleaseCatalogSha256:
       ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
     artifact: {
+      baciRelease: ACCEPTANCE_FIXTURE_RELEASE.baciRelease,
       buildId: "acceptance-fixtures-v1-contract-artifact",
       ...ACCEPTANCE_FIXTURE_ARTIFACT,
     },

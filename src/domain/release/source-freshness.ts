@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
 
-export type SourceFreshnessState =
-  | "LATEST_KNOWN"
-  | "UPDATE_IN_PROGRESS"
-  | "REFRESH_DELAYED"
-  | "CHECK_OVERDUE";
+export const SOURCE_FRESHNESS_STATES = [
+  "LATEST_KNOWN",
+  "UPDATE_IN_PROGRESS",
+  "REFRESH_DELAYED",
+  "CHECK_OVERDUE",
+] as const;
+
+export type SourceFreshnessState = (typeof SOURCE_FRESHNESS_STATES)[number];
 
 export type SourceStatusSnapshot = {
   schemaVersion: "source-status-v1";
@@ -38,9 +41,7 @@ export function evaluateSourceFreshness(
   asOf: string,
 ): EffectiveSourceFreshness {
   const checkedAt = parseUtcInstant(snapshot.checkedAt);
-  const checkOverdueAt = new Date(
-    checkedAt.getTime() + 14 * DAY_MILLISECONDS,
-  );
+  const checkOverdueAt = new Date(checkedAt.getTime() + 14 * DAY_MILLISECONDS);
   const asOfInstant = parseUtcInstant(asOf);
   const newerReleaseDetectedAt =
     snapshot.newerReleaseDetectedAt === null
@@ -98,7 +99,9 @@ export function evaluateSourceFreshness(
 
 function parseUtcInstant(value: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value)) {
-    throw new TypeError(`Expected a whole-second UTC instant, received ${value}.`);
+    throw new TypeError(
+      `Expected a whole-second UTC instant, received ${value}.`,
+    );
   }
   const instant = new Date(value);
   if (Number.isNaN(instant.getTime())) {

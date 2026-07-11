@@ -37,4 +37,24 @@ describe("Current Analysis Manifest", () => {
       "The freshness snapshot does not describe the deployed BACI Release.",
     );
   });
+
+  it("clips caching at the refresh-due transition", () => {
+    const asOf = "2027-03-09T11:59:59Z";
+    const manifest = resolveCurrentAnalysisManifest(
+      FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
+      {
+        ...FIXTURE_SOURCE_STATUS_SNAPSHOT,
+        checkedAt: "2027-03-01T00:00:00Z",
+        latestKnownBaciRelease: "V202701",
+        newerReleaseDetectedAt: "2027-03-02T12:00:00Z",
+        publishedAt: "2027-03-02T12:00:00Z",
+      },
+      asOf,
+    );
+
+    expect(manifest.freshness.state).toBe("UPDATE_IN_PROGRESS");
+    expect(currentManifestCacheControl(manifest.freshness, asOf)).toBe(
+      "public, max-age=1, s-maxage=1, must-revalidate",
+    );
+  });
 });

@@ -62,7 +62,7 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
   await expect(page).toHaveURL(
     /exporter=156.*revision=HS12.*product=010121.*market=528/,
   );
-  await expect(page.getByText("V202601")).toBeVisible();
+  await expect(page.getByText("V202601", { exact: true })).toBeVisible();
   await expect(page.getByText("Finalized Years 2019–2023")).toBeVisible();
   await expect(page.getByText("Provisional Year 2024")).toBeVisible();
 
@@ -229,7 +229,7 @@ test("a valid empty analysis preserves context without a partial ranking", async
       name: "No eligible Candidate Markets",
     }),
   ).toBeVisible();
-  await expect(page.getByText("V202601")).toBeVisible();
+  await expect(page.getByText("V202601", { exact: true })).toBeVisible();
   await expect(page.getByText("Finalized Years 2019–2023")).toBeVisible();
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }),

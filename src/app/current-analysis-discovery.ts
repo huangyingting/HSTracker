@@ -1,4 +1,9 @@
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import { RELEASE_REVISION_NOT_COMPARED_REASONS } from "../domain/release/release-revision";
+import {
+  SOURCE_FRESHNESS_STATES,
+  type SourceFreshnessState,
+} from "../domain/release/source-freshness";
 
 type DiscoveryErrorCode = "HTTP_ERROR" | "INVALID_MANIFEST";
 
@@ -183,20 +188,15 @@ function isYearRange(value: unknown): value is {
   );
 }
 
-function isFreshnessState(value: unknown): boolean {
-  return (
-    value === "LATEST_KNOWN" ||
-    value === "UPDATE_IN_PROGRESS" ||
-    value === "REFRESH_DELAYED" ||
-    value === "CHECK_OVERDUE"
+function isFreshnessState(value: unknown): value is SourceFreshnessState {
+  return SOURCE_FRESHNESS_STATES.some(
+    (freshnessState) => freshnessState === value,
   );
 }
 
 function isRevisionReason(value: unknown): boolean {
   return (
     value === null ||
-    value === "NO_PREVIOUS_ARTIFACT" ||
-    value === "NO_COMPATIBLE_PREVIOUS_ARTIFACT" ||
-    value === "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW"
+    RELEASE_REVISION_NOT_COMPARED_REASONS.some((reason) => reason === value)
   );
 }

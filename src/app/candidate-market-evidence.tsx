@@ -93,9 +93,6 @@ const copy = {
     releaseRevisionExplanation:
       "Release Revision means evidence changed between BACI releases, not historical growth.",
     noPreviousRevision: "No compatible prior release comparison",
-    incompatibleRevision: "No compatible prior release comparison",
-    missingRevisionWindow:
-      "The prior release artifact cannot cover this exact score window.",
     materialRevision: "Changed materially since",
     belowRevisionThreshold: "No material revision flag",
     newlyEligible: "Newly eligible in this release",
@@ -188,8 +185,6 @@ const copy = {
     releaseRevisionExplanation:
       "发布版本修订表示证据在 BACI 数据版之间发生变化，而非历史增长。",
     noPreviousRevision: "没有兼容的先前发布版本比较",
-    incompatibleRevision: "没有兼容的先前发布版本比较",
-    missingRevisionWindow: "先前发布版本工件无法覆盖完全相同的评分窗口。",
     materialRevision: "自以下版本以来发生实质性变化",
     belowRevisionThreshold: "无实质性修订标记",
     newlyEligible: "在此发布版本中新进入符合条件队列",
@@ -454,7 +449,7 @@ function ReleaseRevisionEvidence({
         ? messages.belowRevisionThreshold
         : revision.state === "NEWLY_ELIGIBLE"
           ? messages.newlyEligible
-          : notComparedLabel(summary.notComparedReason, locale);
+          : messages.noPreviousRevision;
 
   return (
     <section
@@ -501,20 +496,6 @@ function ReleaseRevisionEvidence({
       <p>{messages.releaseRevisionExplanation}</p>
     </section>
   );
-}
-
-function notComparedLabel(
-  reason: CandidateMarketResult["releaseRevisionSummary"]["notComparedReason"],
-  locale: EvidenceLocale,
-): string {
-  const messages = copy[locale];
-  if (reason === "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW") {
-    return messages.missingRevisionWindow;
-  }
-  if (reason === "NO_COMPATIBLE_PREVIOUS_ARTIFACT") {
-    return messages.incompatibleRevision;
-  }
-  return messages.noPreviousRevision;
 }
 
 function formatSignedNumber(value: number | string | null): string {

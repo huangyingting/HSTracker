@@ -27,6 +27,7 @@ export type CmsV1Inputs = {
   analysisBuildId: string;
   analysisReleaseCatalogSha256: string;
   artifact: {
+    baciRelease: string;
     buildId: string;
     schemaVersion: string;
     sha256: string;

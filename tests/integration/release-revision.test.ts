@@ -243,4 +243,16 @@ describe("Release Revision comparison", () => {
         ?.provisionalEvidence,
     ).toEqual(currentByCode.get("484")?.provisionalEvidence);
   });
+
+  it("rejects an artifact bound to a different BACI Release before scoring", () => {
+    expect(() =>
+      computeCmsV1({
+        ...CORE_CURRENT_INPUT,
+        artifact: {
+          ...CORE_CURRENT_INPUT.artifact,
+          baciRelease: "V202501",
+        },
+      }),
+    ).toThrow("A Candidate Market Score cannot mix BACI Releases.");
+  });
 });

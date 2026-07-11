@@ -35,9 +35,6 @@ const copy = {
     documentation: "CEPII BACI documentation",
     ingestedYears: "Ingested years",
     finalizedCutoff: "Finalized cutoff",
-    threeYear: "3-year window",
-    fiveYear: "5-year score window",
-    tenYear: "10-year window",
     provisionalYear: "Provisional Year",
     provisionalRule: "supporting evidence only - excluded from score and rank",
     analysisBuild: "Analysis build",
@@ -83,9 +80,6 @@ const copy = {
     documentation: "CEPII BACI 文档",
     ingestedYears: "已摄取年份",
     finalizedCutoff: "定稿截止年份",
-    threeYear: "3 年窗口",
-    fiveYear: "5 年评分窗口",
-    tenYear: "10 年窗口",
     provisionalYear: "暂定年份",
     provisionalRule: "仅作辅助证据 - 不计入评分和排名",
     analysisBuild: "分析构建",
@@ -167,9 +161,10 @@ export function SourceScope({
       </div>
       {result === null ? null : (
         <dl className="source-scope-facts">
-          <div>
-            <dt>{messages.baciReleaseLabel}</dt>
-          </div>
+          <SourceDetail
+            label={messages.baciReleaseLabel}
+            value={result.provenance.baciRelease}
+          />
           <SourceDetail
             label={messages.sourceDateLabel}
             value={result.provenance.sourceUpdateDate}
@@ -209,15 +204,15 @@ export function SourceScope({
               value={String(source.finalizedCutoffYear)}
             />
             <SourceDetail
-              label={messages.threeYear}
+              label={windowLabel(source.windows.threeYear, false, locale)}
               value={formatWindow(source.windows.threeYear)}
             />
             <SourceDetail
-              label={messages.fiveYear}
+              label={windowLabel(source.windows.score, true, locale)}
               value={formatWindow(source.windows.score)}
             />
             <SourceDetail
-              label={messages.tenYear}
+              label={windowLabel(source.windows.tenYear, false, locale)}
               value={formatWindow(source.windows.tenYear)}
             />
             <SourceDetail
@@ -330,6 +325,18 @@ function formatWindow(
   separator = "–",
 ): string {
   return `${window.start}${separator}${window.end}`;
+}
+
+function windowLabel(
+  window: { start: number; end: number },
+  scoreWindow: boolean,
+  locale: SourceScopeLocale,
+): string {
+  const yearCount = window.end - window.start + 1;
+  if (locale === "zh-Hans") {
+    return `${yearCount} 年${scoreWindow ? "评分" : ""}窗口`;
+  }
+  return `${yearCount}-year${scoreWindow ? " score" : ""} window`;
 }
 
 function formatSourceDate(date: string, locale: SourceScopeLocale): string {

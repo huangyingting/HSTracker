@@ -26,6 +26,9 @@ test("an Export Market Analyst can inspect the exact current source scope", asyn
   await expect(scope).toContainText(
     "Score window 2019-2023 - provisional context 2024",
   );
+  await expect(
+    scope.locator(".source-scope-facts").getByText("V202601", { exact: true }),
+  ).toBeVisible();
   await expect(scope.getByText("Latest known BACI release")).toBeVisible();
   await scope.getByRole("button", { name: "Source details" }).click();
 
@@ -402,4 +405,55 @@ test("material Release Revision evidence stays separate from historical growth",
   await expect(
     page.getByRole("region", { name: "Source details" }),
   ).toContainText("No longer eligible in this release 2");
+});
+
+test("a skipped prior release keeps the canonical not-compared wording", async ({
+  page,
+}) => {
+  await page.route(
+    "**/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?*",
+    async (route) => {
+      const response = await route.fetch();
+      const result = (await response.json()) as {
+        candidates: Array<Record<string, unknown>>;
+      } & Record<string, unknown>;
+      await route.fulfill({
+        response,
+        json: {
+          ...result,
+          releaseRevisionSummary: {
+            comparisonRelease: "V202401",
+            previousArtifactSha256:
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            notComparedReason: "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
+            noLongerEligibleCount: null,
+          },
+          candidates: result.candidates.map((candidate) => ({
+            ...candidate,
+            releaseRevision: {
+              state: "NOT_COMPARED",
+              previousReleaseRecomputedScore: null,
+              scoreChange: null,
+              previousReleaseRecomputedRankPercentile: null,
+              rankPercentileChange: null,
+              materialChange: null,
+            },
+          })),
+        },
+      });
+    },
+  );
+
+  await page.goto("/?exporter=156&revision=HS12&product=010121&market=484");
+
+  const revision = page
+    .getByRole("region", { name: "Selected Candidate Market evidence" })
+    .getByRole("region", { name: "Release Revision" });
+  await expect(revision).toContainText(
+    "No compatible prior release comparison",
+  );
+  await expect(revision).toContainText("Comparison release: V202401");
+  await expect(revision).not.toContainText(
+    "The prior release artifact cannot cover this exact score window.",
+  );
 });
