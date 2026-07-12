@@ -23,7 +23,10 @@ import {
   createRuntimeReleaseObjectReader,
 } from "../../src/release/release-object-storage";
 import { ReleaseHydrator } from "../../src/release/release-hydration";
-import { ReleasePublisher } from "../../src/release/release-publication";
+import {
+  ReleasePublisher,
+  type PublishedDeployment,
+} from "../../src/release/release-publication";
 import { S3ReleaseObjectStore } from "../../src/release/s3-release-object-store";
 import { SourceStatusReader } from "../../src/release/source-status-publication";
 import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
@@ -273,13 +276,17 @@ describe("S3 release object store", () => {
       ],
       environment,
     );
-    await expect(
-      new SourceStatusReader(objectStore).current(),
-    ).resolves.toMatchObject({
+    const promotedStatus = await new SourceStatusReader(
+      objectStore,
+    ).current();
+    expect(promotedStatus).toMatchObject({
       servedBaciRelease: "VTEST001",
       publishedAt: "2026-07-12T03:00:00Z",
       state: "LATEST_KNOWN",
     });
+    expect(
+      second.sourceStatusFallback.sourceStatusSnapshotId,
+    ).toBe(promotedStatus?.sourceStatusSnapshotId);
     const rolledBack = await runReleaseCommand(
       "scripts/release/rollback-release.ts",
       ["--activated-at", "2026-07-12T04:00:00Z"],
@@ -296,10 +303,14 @@ describe("S3 release object store", () => {
       previousDeploymentPairingId: first.deploymentPairingId,
     });
     expect(rolledBack).toMatchObject({
-      deploymentPairingId: first.deploymentPairingId,
+      analysisBuildId: first.analysisBuildId,
+      productSearchBuildId: first.productSearchBuildId,
       activatedAt: "2026-07-12T04:00:00Z",
       previousDeploymentPairingId: second.deploymentPairingId,
     });
+    expect(rolledBack.deploymentPairingId).not.toBe(
+      first.deploymentPairingId,
+    );
     await expect(new ReleasePublisher(objectStore).current()).resolves.toEqual(
       rolledBack,
     );
@@ -323,6 +334,9 @@ describe("S3 release object store", () => {
       volumePath: join(root, "volume"),
     });
     expect(hydrated.deployment).toEqual(rolledBack);
+    expect(hydrated.sourceStatusFallback).toEqual(
+      hydrated.deploymentManifest.sourceStatusFallback,
+    );
     await expect(
       readFile(hydrated.analysisArtifactPath, "utf8"),
     ).resolves.toBe("fixture DuckDB artifact v1");
@@ -427,7 +441,7 @@ async function runReleaseCommand(
   script: string,
   arguments_: string[],
   environment: NodeJS.ProcessEnv,
-): Promise<Record<string, unknown>> {
+): Promise<PublishedDeployment> {
   const result = await execFileAsync(
     join(process.cwd(), "node_modules", ".bin", "tsx"),
     [script, ...arguments_],
@@ -436,7 +450,7 @@ async function runReleaseCommand(
       env: environment,
     },
   );
-  return JSON.parse(result.stdout) as Record<string, unknown>;
+  return JSON.parse(result.stdout) as PublishedDeployment;
 }
 
 async function waitForMinio(endpoint: string): Promise<void> {

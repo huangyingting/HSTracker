@@ -150,10 +150,13 @@ function observeSourceStatusPolling(
     current: event.current,
   };
   if (event.current.level === "page") {
-    console.error("Source freshness requires operator action", details);
+    console.error(
+      "Source Freshness Status requires operator action",
+      details,
+    );
   } else if (event.current.level === "warn") {
-    console.warn("Source freshness warning", details);
+    console.warn("Source Freshness Status warning", details);
   } else {
-    console.info("Source freshness alert resolved", details);
+    console.info("Source Freshness Status alert resolved", details);
   }
 }

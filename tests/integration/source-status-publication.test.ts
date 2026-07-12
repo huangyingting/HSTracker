@@ -49,7 +49,7 @@ describe("Source Freshness Status publication", () => {
     await expect(publisher.current()).resolves.toEqual(accepted);
   });
 
-  it("retains same-release snapshots and resets history for a new served release", async () => {
+  it("retains snapshots across served releases", async () => {
     const publisher = new SourceStatusPublisher(
       new InMemoryReleaseObjectStore(),
     );
@@ -88,7 +88,7 @@ describe("Source Freshness Status publication", () => {
     });
     await expect(publisher.currentAndRetained()).resolves.toEqual({
       current: nextRelease,
-      retained: [],
+      retained: [first, second],
     });
   });
 });

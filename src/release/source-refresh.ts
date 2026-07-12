@@ -75,7 +75,18 @@ export class SourceRefreshOrchestrator {
       this.input.deployments.current(),
       this.input.statuses.current(),
     ]);
-    if (initialDeployment === null || initialStatus === null) {
+    if (initialDeployment === null) {
+      throw invalidRefreshState(
+        "Refresh requires an active deployment and detected Source Freshness Status.",
+      );
+    }
+    if (initialDeployment.baciRelease === input.baciRelease) {
+      return this.reconcileCompletedRefresh(
+        initialDeployment,
+        initialStatus,
+      );
+    }
+    if (initialStatus === null) {
       throw invalidRefreshState(
         "Refresh requires an active deployment and detected Source Freshness Status.",
       );
@@ -198,6 +209,75 @@ export class SourceRefreshOrchestrator {
     }
   }
 
+  private async reconcileCompletedRefresh(
+    deployment: PublishedDeployment,
+    currentStatus: PublishedSourceStatusSnapshot | null,
+  ): Promise<{
+    deployment: PublishedDeployment;
+    status: PublishedSourceStatusSnapshot;
+  }> {
+    const fallback = deployment.sourceStatusFallback;
+    if (
+      fallback.servedBaciRelease !== deployment.baciRelease ||
+      fallback.latestKnownBaciRelease !== deployment.baciRelease ||
+      fallback.newerReleaseDetectedAt !== null ||
+      fallback.refreshFailed ||
+      fallback.rollbackActive
+    ) {
+      throw invalidRefreshState(
+        "The active deployment does not contain a completed refresh fallback.",
+      );
+    }
+    return this.reconcileDeploymentStatus(
+      deployment,
+      currentStatus,
+      "BACI release is active but its Source Freshness Status reconciliation failed.",
+    );
+  }
+
+  private async reconcileDeploymentStatus(
+    deployment: PublishedDeployment,
+    currentStatus: PublishedSourceStatusSnapshot | null,
+    failureMessage: string,
+  ): Promise<{
+    deployment: PublishedDeployment;
+    status: PublishedSourceStatusSnapshot;
+  }> {
+    const fallback = deployment.sourceStatusFallback;
+    if (
+      currentStatus !== null &&
+      currentStatus.servedBaciRelease === deployment.baciRelease &&
+      Date.parse(currentStatus.publishedAt) >=
+        Date.parse(fallback.publishedAt)
+    ) {
+      return { deployment, status: currentStatus };
+    }
+    try {
+      const status = await this.input.statuses.publish({
+        checkedAt: fallback.checkedAt,
+        servedBaciRelease: fallback.servedBaciRelease,
+        latestKnownBaciRelease: fallback.latestKnownBaciRelease,
+        newerReleaseDetectedAt: fallback.newerReleaseDetectedAt,
+        refreshFailed: fallback.refreshFailed,
+        rollbackActive: fallback.rollbackActive,
+        publishedAt: fallback.publishedAt,
+      });
+      return { deployment, status };
+    } catch (error) {
+      this.input.observe?.({
+        type: "refresh-status-publication-failed",
+        baciRelease: deployment.baciRelease,
+        failedAt: fallback.publishedAt,
+        error,
+      });
+      throw new SourceRefreshError(
+        "REFRESH_STATUS_FAILED",
+        failureMessage,
+        { cause: error },
+      );
+    }
+  }
+
   private async refreshState(
     expectedDeploymentPairingId: string,
   ): Promise<{
@@ -226,48 +306,55 @@ export class SourceRefreshOrchestrator {
     deployment: PublishedDeployment;
     status: PublishedSourceStatusSnapshot;
   }> {
-    const currentStatus = await this.input.statuses.current();
-    if (currentStatus === null) {
+    const [currentDeployment, currentStatus] = await Promise.all([
+      this.input.deployments.current(),
+      this.input.statuses.current(),
+    ]);
+    if (
+      currentDeployment !== null &&
+      currentDeployment.sourceStatusFallback.rollbackActive &&
+      currentDeployment.sourceStatusFallback.publishedAt ===
+        input.activatedAt
+    ) {
+      const reconciled = await this.reconcileDeploymentStatus(
+        currentDeployment,
+        currentStatus,
+        "BACI rollback is active but its Source Freshness Status reconciliation failed.",
+      );
+      this.input.observe?.({
+        type: "rollback-activated",
+        baciRelease: currentDeployment.baciRelease,
+        activatedAt: input.activatedAt,
+      });
+      return reconciled;
+    }
+    if (
+      currentDeployment === null ||
+      currentStatus === null ||
+      currentStatus.servedBaciRelease !==
+        currentDeployment.baciRelease
+    ) {
       throw invalidRefreshState(
         "Rollback requires an active Source Freshness Status.",
       );
     }
-    const deployment = await this.input.deployments.rollback(input);
-    try {
-      const status = await this.input.statuses.publish({
-        checkedAt: currentStatus.checkedAt,
-        servedBaciRelease: deployment.baciRelease,
-        latestKnownBaciRelease:
-          currentStatus.latestKnownBaciRelease,
-        newerReleaseDetectedAt:
-          deployment.baciRelease ===
-          currentStatus.latestKnownBaciRelease
-            ? null
-            : (currentStatus.newerReleaseDetectedAt ??
-              input.activatedAt),
-        refreshFailed: false,
-        rollbackActive: true,
-        publishedAt: input.activatedAt,
-      });
-      this.input.observe?.({
-        type: "rollback-activated",
-        baciRelease: deployment.baciRelease,
-        activatedAt: input.activatedAt,
-      });
-      return { deployment, status };
-    } catch (error) {
-      this.input.observe?.({
-        type: "refresh-status-publication-failed",
-        baciRelease: deployment.baciRelease,
-        failedAt: input.activatedAt,
-        error,
-      });
-      throw new SourceRefreshError(
-        "REFRESH_STATUS_FAILED",
-        "BACI rollback was activated but its Source Freshness Status was not published.",
-        { cause: error },
-      );
-    }
+    const deployment = await this.input.deployments.rollback({
+      ...input,
+      expectedCurrentDeploymentPairingId:
+        currentDeployment.deploymentPairingId,
+      sourceStatus: sourceStatusSnapshot(currentStatus),
+    });
+    const result = await this.reconcileDeploymentStatus(
+      deployment,
+      currentStatus,
+      "BACI rollback was activated but its Source Freshness Status was not published.",
+    );
+    this.input.observe?.({
+      type: "rollback-activated",
+      baciRelease: deployment.baciRelease,
+      activatedAt: input.activatedAt,
+    });
+    return result;
   }
 }
 

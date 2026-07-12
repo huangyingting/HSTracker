@@ -20,6 +20,7 @@ import {
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
+import { currentUtcSecond } from "../operations/utc-clock";
 import {
   type AnalysisArtifactReference,
 } from "../release/release-manifest";
@@ -73,9 +74,8 @@ export class VerifiedReleaseRuntime {
   static async load(
     input: VerifiedReleaseRuntimeInput,
   ): Promise<VerifiedReleaseRuntime> {
-    const hydrated = await new ReleaseHydrator(
-      input.objectStore,
-    ).hydrateCurrent({
+    const hydrator = new ReleaseHydrator(input.objectStore);
+    const hydrated = await hydrator.hydrateCurrent({
       volumePath: input.volumePath,
     });
     const [manifest, previousManifest, catalogManifest] = await Promise.all([
@@ -146,6 +146,7 @@ export class VerifiedReleaseRuntime {
       );
       const sourceStatus = hydrated.sourceStatusFallback;
       assertStatusMicroCacheBudget(deployment, [sourceStatus]);
+      await hydrator.commitResidentActivation(hydrated);
       return new VerifiedReleaseRuntime(
         hydrated,
         manifest,
@@ -617,8 +618,4 @@ function object(value: unknown, label: string): Record<string, unknown> {
     throw new Error(`${label} must be an object.`);
   }
   return value as Record<string, unknown>;
-}
-
-function currentUtcSecond(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/u, "Z");
 }

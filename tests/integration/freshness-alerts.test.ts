@@ -15,7 +15,7 @@ const REFRESHING: SourceStatusSnapshot = {
   publishedAt: "2027-03-02T12:00:00Z",
 };
 
-describe("freshness operations alerts", () => {
+describe("Source Freshness Status operations alerts", () => {
   it.each([
     ["2027-03-03T11:59:59Z", "none", null],
     ["2027-03-03T12:00:00Z", "warn", "refresh-over-24-hours"],

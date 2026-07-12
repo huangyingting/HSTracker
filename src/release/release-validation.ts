@@ -15,6 +15,13 @@ export function string(value: unknown, label: string): string {
   return value;
 }
 
+export function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean.`);
+  }
+  return value;
+}
+
 export function count(value: unknown, label: string): number {
   if (
     typeof value !== "number" ||

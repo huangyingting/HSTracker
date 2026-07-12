@@ -2,6 +2,7 @@ import {
   evaluateSourceFreshness,
   type SourceStatusSnapshot,
 } from "../domain/release/source-freshness";
+import { currentUtcSecond } from "../operations/utc-clock";
 import type { ReleaseObjectReader } from "../release/release-object-store";
 import {
   SourceStatusReader,
@@ -277,10 +278,6 @@ export class SourceStatusPoller {
       });
     }
   }
-}
-
-function currentUtcSecond(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/u, "Z");
 }
 
 export function sourceFreshnessAlert(

@@ -89,10 +89,12 @@ npm run release:rollback -- \
 ```
 
 Rollback is reversible because it retains the displaced pairing as previous.
-The operational rollback command also publishes `REFRESH_DELAYED` with an
-explicit rollback marker. The deployment pointer embeds the same safe fallback,
-so a process starting before its first status poll cannot claim
-`LATEST_KNOWN`.
+It publishes a new immutable deployment manifest that reuses the target
+artifacts while embedding the rollback's `REFRESH_DELAYED` fallback. The
+operational rollback command publishes the identical status through the status
+pointer. The deployment pointer and manifest therefore agree before a process
+starts, and retrying status reconciliation cannot toggle back to the displaced
+release.
 
 ## Source monitoring and refresh
 
@@ -107,7 +109,9 @@ npm run source:monitor
 Every successful check publishes an immutable status snapshot before replacing
 `source-status-pointers/current.json`. A failed check leaves the accepted
 snapshot and deployment untouched. The workflow's `source-monitor` environment
-must provide the write-scoped S3 variables listed above.
+must provide the write-scoped S3 variables listed above. The pointer retains
+references to prior immutable snapshots across served releases so supported
+export identities remain reproducible after restart or rollback.
 
 When a newer release is detected, use `npm run release:refresh` rather than the
 low-level promotion command:
@@ -137,7 +141,11 @@ staging, builds both accepted candidates, verifies the requested BACI release
 before any activation, promotes one exact pairing, and then publishes the
 completed status. Any build or promotion failure keeps the prior pairing active
 and immediately publishes `REFRESH_DELAYED`; private diagnostics go only to the
-operator stream.
+operator stream. Deployment-pointer activation is the commit point: a
+post-commit status-pointer failure is retried as status reconciliation without
+rebuilding or activating again. An already-running process continues serving
+its one loaded pairing; process replacement/cutover is owned by deployment
+orchestration rather than an in-process artifact hot swap.
 
 ## Runtime hydration
 
@@ -163,7 +171,7 @@ process becomes ready. Startup:
    identity;
 4. opens both DuckDB artifacts read-only and loads the economy and product
    search adapters; and
-5. loads the deployment pointer's validated source-status fallback; and
+5. loads the deployment manifest's validated source-status fallback; and
 6. runs the manifest-selected maximum-row analysis, product, and economy smoke
    query before installing the runtime.
 
@@ -171,7 +179,11 @@ process becomes ready. Startup:
 process-specific `.partial` directory, fsyncs files and directories, and
 atomically renames the complete directory into the serving volume. A resident
 pairing is fully reverified before reuse. Failed hydration removes partial
-state and never installs a runtime.
+state and never installs a runtime. Only after all startup smoke checks pass
+does the runtime atomically replace `active-deployment.json` in the volume and
+prune inactive pairing directories. If the deployment pointer cannot be read
+later, this record selects and fully reverifies the last smoke-tested resident
+pairing; an empty or corrupt volume still fails closed.
 
 After readiness, route handlers use the installed in-process adapters. No
 analysis, product-search, economy, export, current, or health request reads

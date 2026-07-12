@@ -23,9 +23,8 @@ describe("immutable release publication", () => {
   it("publishes and activates one exact compatible pairing", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
     const candidate = await writeAcceptedReleaseCandidate(root);
-    const publisher = new ReleasePublisher(
-      new InMemoryReleaseObjectStore(),
-    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
 
     const published = await publisher.promote({
       ...candidate,
@@ -52,9 +51,8 @@ describe("immutable release publication", () => {
   it("keeps the active identity when the accepted inputs repeat", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
     const candidate = await writeAcceptedReleaseCandidate(root);
-    const publisher = new ReleasePublisher(
-      new InMemoryReleaseObjectStore(),
-    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
     const first = await publisher.promote({
       ...candidate,
       activatedAt: "2026-07-12T02:00:00Z",
@@ -173,9 +171,8 @@ describe("immutable release publication", () => {
         productSearchBuildId: "product-search-v1-3333333333333333",
       },
     );
-    const publisher = new ReleasePublisher(
-      new InMemoryReleaseObjectStore(),
-    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
     const first = await publisher.promote({
       ...firstCandidate,
       activatedAt: "2026-07-12T02:00:00Z",
@@ -189,12 +186,30 @@ describe("immutable release publication", () => {
       activatedAt: "2026-07-12T04:00:00Z",
     });
 
-    expect(rolledBack).toEqual({
-      ...first,
+    expect(rolledBack).toMatchObject({
+      analysisBuildId: first.analysisBuildId,
+      productSearchBuildId: first.productSearchBuildId,
+      baciRelease: first.baciRelease,
       activatedAt: "2026-07-12T04:00:00Z",
       previousDeploymentPairingId: second.deploymentPairingId,
+      sourceStatusFallback: {
+        servedBaciRelease: first.baciRelease,
+        rollbackActive: true,
+      },
     });
+    expect(rolledBack.deploymentPairingId).not.toBe(
+      first.deploymentPairingId,
+    );
     expect(await publisher.current()).toEqual(rolledBack);
+    const hydrated = await new ReleaseHydrator(
+      objectStore,
+    ).hydrateCurrent({
+      volumePath: join(root, "volume"),
+    });
+    expect(hydrated.sourceStatusFallback).toEqual(
+      hydrated.deploymentManifest.sourceStatusFallback,
+    );
+    expect(hydrated.sourceStatusFallback.rollbackActive).toBe(true);
   });
 
   it("keeps the active pairing when uploaded bytes fail read-back verification", async () => {
@@ -388,13 +403,14 @@ describe("immutable release publication", () => {
     const secondHydrated = await hydrator.hydrateCurrent({
       volumePath,
     });
+    await hydrator.commitResidentActivation(secondHydrated);
 
     expect((await stat(secondHydrated.analysisArtifactPath)).ino).toBe(
       firstArtifact.ino,
     );
-    expect(await readdir(volumePath)).toEqual([
-      second.deploymentPairingId,
-    ]);
+    expect((await readdir(volumePath)).sort()).toEqual(
+      ["active-deployment.json", second.deploymentPairingId].sort(),
+    );
     expect(second.deploymentPairingId).not.toBe(
       first.deploymentPairingId,
     );
@@ -433,6 +449,7 @@ describe("immutable release publication", () => {
     const secondHydrated = await hydrator.hydrateCurrent({
       volumePath,
     });
+    await hydrator.commitResidentActivation(secondHydrated);
 
     expect(secondHydrated.previousAnalysis).not.toBeNull();
     expect(
@@ -442,9 +459,9 @@ describe("immutable release publication", () => {
         )
       ).ino,
     ).toBe(firstArtifact.ino);
-    expect(await readdir(volumePath)).toEqual([
-      second.deploymentPairingId,
-    ]);
+    expect((await readdir(volumePath)).sort()).toEqual(
+      ["active-deployment.json", second.deploymentPairingId].sort(),
+    );
     expect(second.previousDeploymentPairingId).toBe(
       first.deploymentPairingId,
     );

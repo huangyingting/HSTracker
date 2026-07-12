@@ -1,4 +1,9 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -159,6 +164,162 @@ describe("verified release runtime", () => {
     ]);
   }, 20_000);
 
+  it("restarts from the last smoke-tested resident release during an object-store outage", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    initial.close();
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore: {
+        getObject() {
+          return Promise.reject(
+            new Error("object storage unavailable"),
+          );
+        },
+      },
+      volumePath,
+      now: () => "2026-08-01T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.currentAnalysis()).toMatchObject({
+      analysisBuildId: published.analysisBuildId,
+      productSearchBuildId: published.productSearchBuildId,
+      source: { baciRelease: "V202601" },
+      freshness: {
+        servedBaciRelease: "V202601",
+        state: "CHECK_OVERDUE",
+      },
+    });
+  }, 20_000);
+
+  it("fails closed during a cold object-store outage", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+
+    await expect(
+      VerifiedReleaseRuntime.load({
+        objectStore: {
+          getObject() {
+            return Promise.reject(
+              new Error("object storage unavailable"),
+            );
+          },
+        },
+        volumePath: join(root, "volume"),
+      }),
+    ).rejects.toThrow(
+      "Object storage is unavailable and no verified resident deployment is active.",
+    );
+  });
+
+  it("fails closed when the resident activation is corrupt during an outage", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const volumePath = join(root, "volume");
+    await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+    });
+    initial.close();
+    await writeFile(
+      join(volumePath, "active-deployment.json"),
+      "{}",
+    );
+
+    await expect(
+      VerifiedReleaseRuntime.load({
+        objectStore: {
+          getObject() {
+            return Promise.reject(
+              new Error("object storage unavailable"),
+            );
+          },
+        },
+        volumePath,
+      }),
+    ).rejects.toThrow(
+      "Resident deployment activation schema is incompatible.",
+    );
+  }, 20_000);
+
+  it("keeps the prior resident activation when a newly hydrated release fails smoke validation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const invalidCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "invalid"),
+      {
+        valueOffset: 25,
+        benchmarkCandidateCount: 2,
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+    });
+    initial.close();
+    await publisher.promote({
+      ...invalidCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    await expect(
+      VerifiedReleaseRuntime.load({
+        objectStore,
+        volumePath,
+      }),
+    ).rejects.toThrow(
+      "Verified release startup smoke validation failed.",
+    );
+
+    const recovered = await VerifiedReleaseRuntime.load({
+      objectStore: {
+        getObject() {
+          return Promise.reject(
+            new Error("object storage unavailable"),
+          );
+        },
+      },
+      volumePath,
+    });
+    runtimes.push(recovered);
+    expect(recovered.currentAnalysis()).toMatchObject({
+      analysisBuildId: first.analysisBuildId,
+      productSearchBuildId: first.productSearchBuildId,
+    });
+  }, 20_000);
+
   it("hydrates previous evidence missing from a legacy resident volume", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
@@ -256,9 +417,10 @@ describe("verified release runtime", () => {
       runtime.health("runtime-test-build").freshness
         .sourceStatusSnapshotId;
 
-    expect(rolledBack.deploymentPairingId).toBe(
+    expect(rolledBack.deploymentPairingId).not.toBe(
       first.deploymentPairingId,
     );
+    expect(rolledBack.analysisBuildId).toBe(first.analysisBuildId);
     expect(reactivatedStatusId).not.toBe(initialStatusId);
   }, 20_000);
 

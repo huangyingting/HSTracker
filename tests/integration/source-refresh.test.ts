@@ -5,10 +5,17 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
+import type {
+  ReleaseObjectIdentity,
+  ReleaseObjectStore,
+} from "../../src/release/release-object-store";
 import { ReleaseHydrator } from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { SourceRefreshOrchestrator } from "../../src/release/source-refresh";
-import { SourceStatusPublisher } from "../../src/release/source-status-publication";
+import {
+  ACTIVE_SOURCE_STATUS_POINTER_KEY,
+  SourceStatusPublisher,
+} from "../../src/release/source-status-publication";
 import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
 
 describe("source refresh orchestration", () => {
@@ -295,6 +302,89 @@ describe("source refresh orchestration", () => {
     });
   });
 
+  it("reconciles status after deployment activation without rebuilding the release", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
+    const initialCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "initial"),
+      { baciRelease: "V202601" },
+    );
+    const refreshedCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "refreshed"),
+      {
+        baciRelease: "V202701",
+        sourceSha256: "b".repeat(64),
+        sourceUpdateDate: "2027-01-22",
+        builtAt: "2027-03-03T00:00:00Z",
+        analysisArtifactBuildId:
+          "candidate-market-artifact-v1-4444444444444444",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
+    const objectStore =
+      new OneShotSourceStatusActivationFailureStore();
+    const deployments = new ReleasePublisher(objectStore);
+    const initial = await deployments.promote({
+      ...initialCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-02T12:00:00Z",
+      servedBaciRelease: initial.baciRelease,
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2027-03-02T12:00:00Z",
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-02T12:00:00Z",
+    });
+    objectStore.rejectNextSourceStatusActivation();
+    const orchestrator = new SourceRefreshOrchestrator({
+      deployments,
+      statuses,
+    });
+    const build = vi.fn(async () => refreshedCandidate);
+
+    await expect(
+      orchestrator.refresh({
+        baciRelease: "V202701",
+        activatedAt: "2027-03-03T01:00:00Z",
+        build,
+      }),
+    ).rejects.toMatchObject({
+      name: "SourceRefreshError",
+      code: "REFRESH_STATUS_FAILED",
+    });
+    await expect(deployments.current()).resolves.toMatchObject({
+      baciRelease: "V202701",
+      previousDeploymentPairingId: initial.deploymentPairingId,
+    });
+    await expect(statuses.current()).resolves.toMatchObject({
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202701",
+    });
+
+    const recoveryBuild = vi.fn(async () => {
+      throw new Error("reconciliation must not rebuild");
+    });
+    await expect(
+      orchestrator.refresh({
+        baciRelease: "V202701",
+        activatedAt: "2027-03-03T01:00:00Z",
+        build: recoveryBuild,
+      }),
+    ).resolves.toMatchObject({
+      deployment: { baciRelease: "V202701" },
+      status: {
+        servedBaciRelease: "V202701",
+        latestKnownBaciRelease: "V202701",
+        refreshFailed: false,
+        rollbackActive: false,
+      },
+    });
+    expect(build).toHaveBeenCalledOnce();
+    expect(recoveryBuild).not.toHaveBeenCalled();
+  });
+
   it("rolls back through the atomic pairing path and immediately marks freshness delayed", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
     const firstCandidate = await writeAcceptedReleaseCandidate(
@@ -317,6 +407,7 @@ describe("source refresh orchestration", () => {
       ...firstCandidate,
       activatedAt: "2026-07-12T02:00:00Z",
     });
+
     const second = await deployments.promote({
       ...secondCandidate,
       activatedAt: "2027-03-03T01:00:00Z",
@@ -341,9 +432,13 @@ describe("source refresh orchestration", () => {
     });
 
     expect(rolledBack.deployment).toMatchObject({
-      deploymentPairingId: first.deploymentPairingId,
+      analysisBuildId: first.analysisBuildId,
+      productSearchBuildId: first.productSearchBuildId,
       previousDeploymentPairingId: second.deploymentPairingId,
     });
+    expect(rolledBack.deployment.deploymentPairingId).not.toBe(
+      first.deploymentPairingId,
+    );
     expect(rolledBack.status).toMatchObject({
       servedBaciRelease: "V202601",
       latestKnownBaciRelease: "V202701",
@@ -352,8 +447,127 @@ describe("source refresh orchestration", () => {
       rollbackActive: true,
       state: "REFRESH_DELAYED",
     });
+    expect(
+      rolledBack.deployment.sourceStatusFallback
+        .sourceStatusSnapshotId,
+    ).toBe(rolledBack.status.sourceStatusSnapshotId);
     await expect(deployments.current()).resolves.toEqual(
       rolledBack.deployment,
     );
   });
+
+  it("reconciles a committed rollback without toggling back to the displaced release", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+      { baciRelease: "V202601" },
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        baciRelease: "V202701",
+        sourceSha256: "b".repeat(64),
+        analysisArtifactBuildId:
+          "candidate-market-artifact-v1-4444444444444444",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
+    const objectStore =
+      new OneShotSourceStatusActivationFailureStore();
+    const deployments = new ReleasePublisher(objectStore);
+    await deployments.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const second = await deployments.promote({
+      ...secondCandidate,
+      activatedAt: "2027-03-03T01:00:00Z",
+    });
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-03T01:00:00Z",
+      servedBaciRelease: second.baciRelease,
+      latestKnownBaciRelease: second.baciRelease,
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-03T01:00:00Z",
+    });
+    objectStore.rejectNextSourceStatusActivation();
+    const orchestrator = new SourceRefreshOrchestrator({
+      deployments,
+      statuses,
+    });
+
+    await expect(
+      orchestrator.rollback({
+        activatedAt: "2027-03-03T02:00:00Z",
+      }),
+    ).rejects.toMatchObject({
+      name: "SourceRefreshError",
+      code: "REFRESH_STATUS_FAILED",
+    });
+    const committed = await deployments.current();
+    expect(committed).toMatchObject({
+      baciRelease: "V202601",
+      previousDeploymentPairingId: second.deploymentPairingId,
+      sourceStatusFallback: { rollbackActive: true },
+    });
+
+    await expect(
+      orchestrator.rollback({
+        activatedAt: "2027-03-03T02:00:00Z",
+      }),
+    ).resolves.toMatchObject({
+      deployment: {
+        deploymentPairingId: committed?.deploymentPairingId,
+        baciRelease: "V202601",
+      },
+      status: {
+        servedBaciRelease: "V202601",
+        rollbackActive: true,
+      },
+    });
+    await expect(deployments.current()).resolves.toEqual(committed);
+  });
 });
+
+class OneShotSourceStatusActivationFailureStore
+  implements ReleaseObjectStore
+{
+  private readonly store = new InMemoryReleaseObjectStore();
+  private rejectSourceStatusActivation = false;
+
+  rejectNextSourceStatusActivation(): void {
+    this.rejectSourceStatusActivation = true;
+  }
+
+  getObject(key: string) {
+    return this.store.getObject(key);
+  }
+
+  putImmutable(
+    key: string,
+    body: AsyncIterable<Uint8Array>,
+    identity: ReleaseObjectIdentity,
+  ) {
+    return this.store.putImmutable(key, body, identity);
+  }
+
+  compareAndSwap(
+    key: string,
+    expectedVersion: string | null,
+    body: Uint8Array,
+  ) {
+    if (
+      this.rejectSourceStatusActivation &&
+      key === ACTIVE_SOURCE_STATUS_POINTER_KEY
+    ) {
+      this.rejectSourceStatusActivation = false;
+      return Promise.reject(
+        new Error("injected source-status activation failure"),
+      );
+    }
+    return this.store.compareAndSwap(key, expectedVersion, body);
+  }
+}

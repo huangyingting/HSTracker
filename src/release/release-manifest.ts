@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import type { ReleaseObjectIdentity } from "./release-object-store";
 import {
+  boolean,
   count,
   hs12,
   prefixedId,
@@ -78,6 +79,7 @@ export type PublishedDeployment = {
   analysisReleaseCatalogSha256: string;
   productSearchBuildId: string;
   baciRelease: string;
+  sourceStatusFallback: SourceStatusSnapshot;
   activatedAt: string;
   previousDeploymentPairingId: string | null;
 };
@@ -289,12 +291,20 @@ export function publishedDeployment(
       deployment.analysisReleaseCatalogSha256,
     productSearchBuildId: deployment.productSearchBuildId,
     baciRelease: deployment.baciRelease,
+    sourceStatusFallback: pointer.sourceStatusFallback,
     activatedAt: pointer.activatedAt,
     previousDeploymentPairingId:
       pointer.previous === null
         ? null
         : deploymentPairingIdFromKey(pointer.previous.key),
   };
+}
+
+export function sameSourceStatusSnapshot(
+  left: SourceStatusSnapshot,
+  right: SourceStatusSnapshot,
+): boolean {
+  return releaseJsonBytes(left).equals(releaseJsonBytes(right));
 }
 
 export async function readReleaseMetadata(
@@ -427,13 +437,6 @@ function validateDeploymentPairingManifest(
   ) {
     throw new Error("Deployment pairing identity is inconsistent.");
   }
-}
-
-function boolean(value: unknown, label: string): boolean {
-  if (typeof value !== "boolean") {
-    throw new Error(`${label} must be a boolean.`);
-  }
-  return value;
 }
 
 function sameAnalysisArtifactReference(

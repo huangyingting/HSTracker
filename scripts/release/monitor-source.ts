@@ -1,10 +1,11 @@
 import { parseArgs } from "node:util";
 
+import { privateErrorDiagnostic } from "../../src/operations/private-error-diagnostic";
+import { currentUtcSecond } from "../../src/operations/utc-clock";
 import {
   CepiiBaciReleaseSource,
   SourceMonitor,
 } from "../../src/release/source-monitor";
-import { privateErrorDiagnostic } from "../../src/operations/private-error-diagnostic";
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
@@ -54,7 +55,3 @@ async function main(): Promise<void> {
 void main().catch((error: unknown) => {
   writeReleaseCommandError("CEPII source check", error);
 });
-
-function currentUtcSecond(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/u, "Z");
-}

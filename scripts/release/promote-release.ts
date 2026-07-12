@@ -1,15 +1,21 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 
+import { MAX_RELEASE_METADATA_BYTES } from "../../src/release/release-manifest";
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
-import {
-  ReleasePublisher,
-  type PublishedDeployment,
-} from "../../src/release/release-publication";
+import { ReleasePublisher } from "../../src/release/release-publication";
 import { compareBaciReleases } from "../../src/release/source-monitor";
 import {
+  createPublishedSourceStatusSnapshot,
+  sourceStatusSnapshot,
   SourceStatusPublisher,
   type PublishedSourceStatusSnapshot,
 } from "../../src/release/source-status-publication";
+import {
+  record,
+  string,
+} from "../../src/release/release-validation";
 import {
   requiredOption,
   writeReleaseCommandError,
@@ -28,19 +34,44 @@ async function main(): Promise<void> {
   const objectStore = createPromotionReleaseObjectStore();
   const publisher = new ReleasePublisher(objectStore);
   const statuses = new SourceStatusPublisher(objectStore);
-  const currentDeployment = await publisher.current();
+  const analysisDirectoryPath = requiredOption(
+    values["analysis-directory"],
+    "analysis-directory",
+  );
+  const productCatalogDirectoryPath = requiredOption(
+    values["product-catalog-directory"],
+    "product-catalog-directory",
+  );
   const activatedAt = requiredOption(
     values["activated-at"],
     "activated-at",
   );
+  const [currentDeployment, currentStatus, baciRelease] =
+    await Promise.all([
+      publisher.current(),
+      statuses.current(),
+      candidateBaciRelease(analysisDirectoryPath),
+    ]);
+  if (
+    currentDeployment !== null &&
+    currentStatus !== null &&
+    currentStatus.servedBaciRelease !==
+      currentDeployment.baciRelease
+  ) {
+    throw new Error(
+      "Active deployment and Source Freshness Status are incompatible.",
+    );
+  }
+  const statusInput = promotedSourceFreshnessStatus(
+    currentStatus,
+    baciRelease,
+    activatedAt,
+  );
   const published = await publisher.promote({
-    analysisDirectoryPath: requiredOption(
-      values["analysis-directory"],
-      "analysis-directory",
-    ),
-    productCatalogDirectoryPath: requiredOption(
-      values["product-catalog-directory"],
-      "product-catalog-directory",
+    analysisDirectoryPath,
+    productCatalogDirectoryPath,
+    sourceStatusFallback: sourceStatusSnapshot(
+      createPublishedSourceStatusSnapshot(statusInput),
     ),
     activatedAt,
   });
@@ -48,16 +79,25 @@ async function main(): Promise<void> {
     currentDeployment?.deploymentPairingId !==
       published.deploymentPairingId
   ) {
-    const currentStatus = await statuses.current();
-    await statuses.publish(
-      promotedSourceFreshnessStatus(
-        currentStatus,
-        published,
-        activatedAt,
-      ),
-    );
+    await statuses.publish(statusInput);
   }
   process.stdout.write(`${JSON.stringify(published)}\n`);
+}
+
+async function candidateBaciRelease(
+  analysisDirectoryPath: string,
+): Promise<string> {
+  const bytes = await readFile(
+    join(analysisDirectoryPath, "artifact-manifest.json"),
+  );
+  if (bytes.byteLength > MAX_RELEASE_METADATA_BYTES) {
+    throw new Error("Analysis artifact manifest is oversized.");
+  }
+  const manifest = record(
+    JSON.parse(bytes.toString("utf8")),
+    "analysis artifact manifest",
+  );
+  return string(manifest.baciRelease, "analysis BACI Release");
 }
 
 void main().catch((error: unknown) => {
@@ -66,14 +106,14 @@ void main().catch((error: unknown) => {
 
 function promotedSourceFreshnessStatus(
   current: PublishedSourceStatusSnapshot | null,
-  published: PublishedDeployment,
+  baciRelease: string,
   activatedAt: string,
 ) {
   if (current === null) {
     return {
       checkedAt: activatedAt,
-      servedBaciRelease: published.baciRelease,
-      latestKnownBaciRelease: published.baciRelease,
+      servedBaciRelease: baciRelease,
+      latestKnownBaciRelease: baciRelease,
       newerReleaseDetectedAt: null,
       refreshFailed: false,
       rollbackActive: false,
@@ -81,21 +121,21 @@ function promotedSourceFreshnessStatus(
     } as const;
   }
   const promotedReleaseIsNewer =
-    published.baciRelease !== current.latestKnownBaciRelease &&
+    baciRelease !== current.latestKnownBaciRelease &&
     compareBaciReleases(
-      published.baciRelease,
+      baciRelease,
       current.latestKnownBaciRelease,
     ) > 0;
   const latestKnownBaciRelease = promotedReleaseIsNewer
-    ? published.baciRelease
+    ? baciRelease
     : current.latestKnownBaciRelease;
   const promotedReleaseIsLatest =
-    published.baciRelease === latestKnownBaciRelease;
+    baciRelease === latestKnownBaciRelease;
   return {
     checkedAt: promotedReleaseIsNewer
       ? activatedAt
       : current.checkedAt,
-    servedBaciRelease: published.baciRelease,
+    servedBaciRelease: baciRelease,
     latestKnownBaciRelease,
     newerReleaseDetectedAt: promotedReleaseIsLatest
       ? null

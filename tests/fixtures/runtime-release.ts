@@ -26,6 +26,7 @@ export async function writeRuntimeReleaseCandidate(
     baciRelease?: string;
     valueOffset?: number;
     finalizedCutoffYear?: number;
+    benchmarkCandidateCount?: number;
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -90,7 +91,7 @@ export async function writeRuntimeReleaseCandidate(
         exporterCode: "156",
         completeRowCount: 6,
         primaryWindowRowCount: 5,
-        candidateCount: 1,
+        candidateCount: options.benchmarkCandidateCount ?? 1,
         resultBytes: 1,
         selectionAlgorithm: "complete-bilateral-row-count-v1",
       },

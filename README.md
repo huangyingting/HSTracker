@@ -44,7 +44,9 @@ queries have all been verified. Invalid configuration, incompatible manifests,
 or corrupt bytes fail startup. Once ready, public requests use only resident
 read-only adapters and never depend on object storage. A separate 55-60-second
 background poll validates immutable Source Freshness Status snapshots; startup
-uses the deployment's embedded fallback if that poll is unavailable.
+uses the deployment's embedded fallback if that poll is unavailable. After one
+successful smoke-tested startup, a verified local activation record allows the
+same resident pairing to restart during an object-storage outage.
 
 `/api/v1/analyses/current` reports the active analysis and search identities.
 `/healthz` additionally reports the deployment pairing, artifact identities,

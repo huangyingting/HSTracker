@@ -12,6 +12,7 @@ import {
   publishedDeployment,
   readReleaseMetadata,
   releaseJsonBytes,
+  sameSourceStatusSnapshot,
   type ActiveDeploymentPointer,
   type AnalysisArtifactReference,
   type DeploymentPairingManifest,
@@ -26,6 +27,10 @@ import {
   type ReleaseObjectIdentity,
   type ReleaseObjectStore,
 } from "./release-object-store";
+import {
+  createPublishedSourceStatusSnapshot,
+  sourceStatusSnapshot,
+} from "./source-status-publication";
 import {
   count,
   hs12,
@@ -52,6 +57,8 @@ export type PromoteReleaseInput = {
 
 export type RollbackReleaseInput = {
   activatedAt: string;
+  sourceStatus?: SourceStatusSnapshot;
+  expectedCurrentDeploymentPairingId?: string;
 };
 
 export class ReleasePublicationError extends Error {
@@ -208,6 +215,16 @@ export class ReleasePublisher {
         "No previous deployment pairing is available.",
       );
     }
+    if (
+      input.expectedCurrentDeploymentPairingId !== undefined &&
+      input.expectedCurrentDeploymentPairingId !==
+        current.deployment.deploymentPairingId
+    ) {
+      throw new ReleasePublicationError(
+        "ACTIVATION_PRECONDITION_FAILED",
+        "Active deployment changed before rollback.",
+      );
+    }
     const previousBytes = await readVerifiedReference(
       this.objectStore,
       current.pointer.previous,
@@ -215,19 +232,53 @@ export class ReleasePublisher {
     const previous = parseDeploymentPairingManifest(
       JSON.parse(previousBytes.toString("utf8")),
     );
+    const sourceStatusFallback = rollbackSourceStatus(
+      parseSourceStatusSnapshot(
+        input.sourceStatus ??
+          current.deployment.sourceStatusFallback,
+      ),
+      previous.baciRelease,
+      input.activatedAt,
+    );
+    if (
+      sourceStatusFallback.servedBaciRelease !== previous.baciRelease
+    ) {
+      throw new ReleasePublicationError(
+        "PAIRING_INCOMPATIBLE",
+        "Rollback Source Freshness Status does not match the target deployment.",
+      );
+    }
+    const pairingBase = {
+      schemaVersion: "deployment-pairing-manifest-v1",
+      baciRelease: previous.baciRelease,
+      analysisBuildId: previous.analysisBuildId,
+      analysisReleaseCatalogSha256:
+        previous.analysisReleaseCatalogSha256,
+      productSearchBuildId: previous.productSearchBuildId,
+      sourceStatusFallback,
+      analysis: previous.analysis,
+      productSearch: previous.productSearch,
+    } as const;
+    const deployment: DeploymentPairingManifest = {
+      ...pairingBase,
+      deploymentPairingId: contentAddressedId(
+        "deployment-pairing-v1",
+        pairingBase,
+      ),
+    };
+    const deploymentReference = await this.publishBytes(
+      `deployment-pairings/${deployment.deploymentPairingId}.json`,
+      releaseJsonBytes(deployment),
+    );
     const pointer: ActiveDeploymentPointer = {
       schemaVersion: "active-deployment-pointer-v1",
-      current: current.pointer.previous,
+      current: deploymentReference,
       previous: current.pointer.current,
-      sourceStatusFallback: rollbackSourceStatus(
-        current.pointer.sourceStatusFallback,
-        previous.baciRelease,
-        input.activatedAt,
-      ),
+      sourceStatusFallback,
       activatedAt: input.activatedAt,
     };
     await this.activatePointer(current.pointerVersion, pointer);
-    return publishedDeployment(pointer, previous);
+    return publishedDeployment(pointer, deployment);
   }
 
   async current(): Promise<PublishedDeployment | null> {
@@ -372,8 +423,10 @@ export class ReleasePublisher {
       JSON.parse(deploymentBytes.toString("utf8")),
     );
     if (
-      pointer.sourceStatusFallback.servedBaciRelease !==
-      deployment.baciRelease
+      !sameSourceStatusSnapshot(
+        pointer.sourceStatusFallback,
+        deployment.sourceStatusFallback,
+      )
     ) {
       throw new Error(
         "Active deployment source-status fallback is incompatible.",
@@ -509,14 +562,9 @@ function rollbackSourceStatus(
     rollbackActive: true,
     publishedAt: activatedAt,
   } as const;
-  return {
-    schemaVersion: "source-status-v1",
-    sourceStatusSnapshotId: contentAddressedId(
-      "source-status-rollback-v1",
-      fields,
-    ),
-    ...fields,
-  };
+  return sourceStatusSnapshot(
+    createPublishedSourceStatusSnapshot(fields),
+  );
 }
 
 async function validateProductCandidate(

@@ -17,6 +17,7 @@ import {
   type ReleaseObjectStore,
 } from "./release-object-store";
 import {
+  boolean,
   prefixedId,
   record,
   sha256String,
@@ -97,8 +98,6 @@ export class SourceStatusReader {
     );
     for (const status of retained) {
       if (
-        status.servedBaciRelease !==
-          current.status.servedBaciRelease ||
         Date.parse(status.publishedAt) >
           Date.parse(current.status.publishedAt) ||
         Date.parse(status.checkedAt) >
@@ -217,7 +216,7 @@ export class SourceStatusPublisher extends SourceStatusReader {
     const pointer: ActiveSourceStatusPointer = {
       schemaVersion: "active-source-status-pointer-v1",
       current: reference,
-      retained: retainedReferences(current, status),
+      retained: retainedReferences(current),
       publishedAt: status.publishedAt,
     };
     const pointerBytes = releaseJsonBytes(pointer);
@@ -418,12 +417,8 @@ function parseActiveSourceStatusPointer(
 
 function retainedReferences(
   current: CurrentSourceStatus | null,
-  next: PublishedSourceStatusSnapshot,
 ): ReleaseObjectReference[] {
-  if (
-    current === null ||
-    current.status.servedBaciRelease !== next.servedBaciRelease
-  ) {
+  if (current === null) {
     return [];
   }
   const references = [
@@ -488,13 +483,6 @@ function nullableUtcTimestamp(
   label: string,
 ): string | null {
   return value === null ? null : utcTimestamp(value, label);
-}
-
-function boolean(value: unknown, label: string): boolean {
-  if (typeof value !== "boolean") {
-    throw new Error(`${label} must be a boolean.`);
-  }
-  return value;
 }
 
 function nonnegativeInteger(value: unknown, label: string): number {

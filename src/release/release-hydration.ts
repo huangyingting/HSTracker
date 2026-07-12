@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import {
   accessRuntimePath,
@@ -15,12 +15,17 @@ import {
 } from "../runtime-file-access";
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
+  MAX_RELEASE_METADATA_BYTES,
   assertDeploymentReleaseCatalog,
+  contentAddressedId,
+  deploymentPairingIdFromKey,
   parseActiveDeploymentPointer,
   parseAnalysisReleaseCatalog,
   parseDeploymentPairingManifest,
   publishedDeployment,
   readReleaseMetadata,
+  releaseJsonBytes,
+  sameSourceStatusSnapshot,
   type ActiveDeploymentPointer,
   type AnalysisArtifactReference,
   type AnalysisReleaseCatalog,
@@ -35,14 +40,18 @@ import {
   type ReleaseObjectIdentity,
   type ReleaseObjectReader,
 } from "./release-object-store";
+import { record, string } from "./release-validation";
 
 export type HydrateCurrentReleaseInput = {
   volumePath: string;
 };
 
+const RESIDENT_ACTIVATION_FILE = "active-deployment.json";
+
 export type HydratedRelease = {
   deployment: PublishedDeployment;
   deploymentManifest: DeploymentPairingManifest;
+  deploymentPointer: ActiveDeploymentPointer;
   sourceStatusFallback: SourceStatusSnapshot;
   analysisReleaseCatalog: AnalysisReleaseCatalog;
   rootPath: string;
@@ -75,27 +84,37 @@ export class ReleaseHydrator {
   async hydrateCurrent(
     input: HydrateCurrentReleaseInput,
   ): Promise<HydratedRelease> {
-    const pointer = await this.readPointer();
+    const volumePath = resolve(
+      /* turbopackIgnore: true */ input.volumePath,
+    );
+    await makeRuntimeDirectory(volumePath, { recursive: true });
+    let pointer: ActiveDeploymentPointer;
+    try {
+      pointer = await this.readPointer();
+    } catch (error) {
+      if (!(error instanceof ActiveDeploymentUnavailableError)) {
+        throw error;
+      }
+      return this.hydrateResidentActivation(volumePath, error);
+    }
     const deploymentBytes = await this.readVerifiedObject(pointer.current);
     const deployment = parseDeploymentPairingManifest(
       JSON.parse(deploymentBytes.toString("utf8")),
     );
     if (
-      pointer.sourceStatusFallback.servedBaciRelease !==
-      deployment.baciRelease
+      !sameSourceStatusSnapshot(
+        pointer.sourceStatusFallback,
+        deployment.sourceStatusFallback,
+      )
     ) {
       throw new Error(
         "Active deployment source-status fallback is incompatible.",
       );
     }
-    const volumePath = resolve(
-      /* turbopackIgnore: true */ input.volumePath,
-    );
     const finalPath = join(
       /* turbopackIgnore: true */ volumePath,
       deployment.deploymentPairingId,
     );
-    await makeRuntimeDirectory(volumePath, { recursive: true });
     if (await exists(finalPath)) {
       await verifyResidentReleaseBase(
         finalPath,
@@ -118,7 +137,6 @@ export class ReleaseHydrator {
         finalPath,
         releaseCatalog,
       );
-      await pruneInactivePairings(volumePath, finalPath);
       return hydratedRelease(
         finalPath,
         pointer,
@@ -254,7 +272,6 @@ export class ReleaseHydrator {
         await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
       }
       await syncDirectory(volumePath);
-      await pruneInactivePairings(volumePath, finalPath);
     } catch (error) {
       await removeRuntimePath(partialPath, {
         force: true,
@@ -270,17 +287,144 @@ export class ReleaseHydrator {
     );
   }
 
-  private async readPointer(): Promise<ActiveDeploymentPointer> {
-    const stored = await this.objectStore.getObject(
-      ACTIVE_DEPLOYMENT_POINTER_KEY,
+  async commitResidentActivation(
+    hydrated: HydratedRelease,
+  ): Promise<void> {
+    const volumePath = dirname(hydrated.rootPath);
+    const base = {
+      schemaVersion: "resident-deployment-activation-v1",
+      pointer: hydrated.deploymentPointer,
+    } as const;
+    const activation = {
+      ...base,
+      activationId: contentAddressedId(
+        "resident-deployment-activation-v1",
+        base,
+      ),
+    };
+    const bytes = releaseJsonBytes(activation);
+    const partialPath = join(
+      /* turbopackIgnore: true */ volumePath,
+      `.${RESIDENT_ACTIVATION_FILE}-${process.pid}-${activation.activationId}.partial`,
     );
+    const activePath = join(
+      /* turbopackIgnore: true */ volumePath,
+      RESIDENT_ACTIVATION_FILE,
+    );
+    await removeRuntimePath(partialPath, { force: true });
+    try {
+      await writeVerifiedFile(
+        partialPath,
+        singleChunk(bytes),
+        releaseObjectIdentity(bytes),
+      );
+      await renameRuntimePath(partialPath, activePath);
+      await syncDirectory(volumePath);
+    } finally {
+      await removeRuntimePath(partialPath, { force: true });
+    }
+    await pruneInactivePairings(volumePath, hydrated.rootPath);
+  }
+
+  private async readPointer(): Promise<ActiveDeploymentPointer> {
+    let stored: Awaited<
+      ReturnType<ReleaseObjectReader["getObject"]>
+    >;
+    try {
+      stored = await this.objectStore.getObject(
+        ACTIVE_DEPLOYMENT_POINTER_KEY,
+      );
+    } catch (error) {
+      throw new ActiveDeploymentUnavailableError({ cause: error });
+    }
     if (stored === null) {
-      throw new Error("No active deployment pairing is available.");
+      throw new ActiveDeploymentUnavailableError();
     }
     return parseActiveDeploymentPointer(
       JSON.parse(
         (await readReleaseMetadata(stored.body)).toString("utf8"),
       ),
+    );
+  }
+
+  private async hydrateResidentActivation(
+    volumePath: string,
+    unavailable: ActiveDeploymentUnavailableError,
+  ): Promise<HydratedRelease> {
+    let activationBytes: Buffer;
+    try {
+      activationBytes = await readRuntimeFile(
+        join(
+          /* turbopackIgnore: true */ volumePath,
+          RESIDENT_ACTIVATION_FILE,
+        ),
+      );
+    } catch (error) {
+      throw new Error(
+        "Object storage is unavailable and no verified resident deployment is active.",
+        { cause: new AggregateError([unavailable, error]) },
+      );
+    }
+    if (activationBytes.byteLength > MAX_RELEASE_METADATA_BYTES) {
+      throw new Error("Resident deployment activation is oversized.");
+    }
+    const pointer = parseResidentActivation(
+      JSON.parse(activationBytes.toString("utf8")),
+    );
+    const pairingId = deploymentPairingIdFromKey(
+      pointer.current.key,
+    );
+    const finalPath = join(
+      /* turbopackIgnore: true */ volumePath,
+      pairingId,
+    );
+    const deploymentBytes = await readRuntimeFile(
+      join(
+        /* turbopackIgnore: true */ finalPath,
+        "deployment-manifest.json",
+      ),
+    );
+    verifyIdentity(
+      releaseObjectIdentity(deploymentBytes),
+      pointer.current,
+    );
+    const deployment = parseDeploymentPairingManifest(
+      JSON.parse(deploymentBytes.toString("utf8")),
+    );
+    if (
+      deployment.deploymentPairingId !== pairingId ||
+      !sameSourceStatusSnapshot(
+        pointer.sourceStatusFallback,
+        deployment.sourceStatusFallback,
+      )
+    ) {
+      throw new Error(
+        "Resident deployment activation is incompatible.",
+      );
+    }
+    const releaseCatalog = parseAnalysisReleaseCatalog(
+      JSON.parse(
+        await readRuntimeFile(
+          join(
+            /* turbopackIgnore: true */ finalPath,
+            "analysis-release-catalog.json",
+          ),
+          "utf8",
+        ),
+      ),
+    );
+    assertDeploymentReleaseCatalog(deployment, releaseCatalog);
+    await verifyResidentReleaseBase(
+      finalPath,
+      deployment,
+      deploymentBytes,
+    );
+    await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
+    return hydratedRelease(
+      finalPath,
+      pointer,
+      deployment,
+      releaseCatalog,
     );
   }
 
@@ -596,7 +740,8 @@ function hydratedRelease(
   return {
     deployment: publishedDeployment(pointer, deployment),
     deploymentManifest: deployment,
-    sourceStatusFallback: pointer.sourceStatusFallback,
+    deploymentPointer: pointer,
+    sourceStatusFallback: deployment.sourceStatusFallback,
     analysisReleaseCatalog,
     rootPath,
     analysisArtifactPath: join(
@@ -638,6 +783,47 @@ function hydratedRelease(
             ),
           },
   };
+}
+
+function parseResidentActivation(
+  value: unknown,
+): ActiveDeploymentPointer {
+  const activation = record(
+    value,
+    "resident deployment activation",
+  );
+  if (
+    activation.schemaVersion !==
+    "resident-deployment-activation-v1"
+  ) {
+    throw new Error(
+      "Resident deployment activation schema is incompatible.",
+    );
+  }
+  const pointer = parseActiveDeploymentPointer(activation.pointer);
+  const base = {
+    schemaVersion: "resident-deployment-activation-v1",
+    pointer,
+  } as const;
+  if (
+    string(
+      activation.activationId,
+      "resident deployment activation ID",
+    ) !==
+    contentAddressedId("resident-deployment-activation-v1", base)
+  ) {
+    throw new Error(
+      "Resident deployment activation identity is inconsistent.",
+    );
+  }
+  return pointer;
+}
+
+class ActiveDeploymentUnavailableError extends Error {
+  constructor(options?: ErrorOptions) {
+    super("No active deployment pairing is available.", options);
+    this.name = "ActiveDeploymentUnavailableError";
+  }
 }
 
 async function syncDirectory(path: string): Promise<void> {
