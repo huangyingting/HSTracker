@@ -1,6 +1,9 @@
 import { getApplicationRuntime } from "../../runtime/application-runtime";
 import { jsonErrorResponseFor } from "../../http/json-error-response";
-import { measureRuntimeRequestSync } from "../../runtime/runtime-metrics";
+import {
+  classifyRuntimeRequest,
+  measureRuntimeRequestSync,
+} from "../../runtime/runtime-metrics";
 import { withoutResponseBody } from "../../http/response";
 import {
   RequestDeadlineExceededError,
@@ -12,7 +15,18 @@ import { utf8ByteLength } from "../../runtime/serialized-size";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export function GET(): Response {
+export function GET(request?: Request): Response {
+  return respond(request, "GET");
+}
+
+export function HEAD(request?: Request): Response {
+  return withoutResponseBody(respond(request, "HEAD"));
+}
+
+function respond(
+  request: Request | undefined,
+  method: "GET" | "HEAD",
+): Response {
   const deadline = createSynchronousRequestDeadline(
     ROUTE_DEADLINE_MS.health,
   );
@@ -22,6 +36,7 @@ export function GET(): Response {
   return measureRuntimeRequestSync(
     applicationRuntime,
     "health",
+    classifyRuntimeRequest(request, method),
     (measurement) => {
       const health = applicationRuntime.health(buildId);
       const body = measurement.measureSerialization(
@@ -38,12 +53,19 @@ export function GET(): Response {
         headers: {
           "Cache-Control": "no-store",
           "Content-Type": "application/json",
+          "X-HS-Tracker-Build-Id": buildId,
+          "X-HS-Tracker-Machine-Class":
+            process.env.HS_TRACKER_MACHINE_CLASS?.trim() || "local",
+          "X-HS-Tracker-Machine-Id":
+            process.env.FLY_MACHINE_ID?.trim() ||
+            process.env.HS_TRACKER_MACHINE_ID?.trim() ||
+            "local",
+          "X-HS-Tracker-Region":
+            process.env.FLY_REGION?.trim() ||
+            process.env.HS_TRACKER_REGION?.trim() ||
+            "loc",
         },
       });
     },
   );
-}
-
-export function HEAD(): Response {
-  return withoutResponseBody(GET());
 }

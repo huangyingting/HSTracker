@@ -1,3 +1,5 @@
+import { useId, useState } from "react";
+
 import type {
   CandidateMarket,
   CandidateMarketResult,
@@ -23,6 +25,7 @@ const copy = {
     rounding: "Rounded half-up to the displayed integer score",
     hiddenPrecision: "Intermediate weighted decimals are not displayed.",
     sharedRank: "Equal displayed integer scores share a competition rank.",
+    scoreDetails: "Score details",
     scoreInputs: "Candidate Market Score inputs",
     component: "Component",
     rawEvidence: "Raw evidence",
@@ -122,6 +125,7 @@ const copy = {
     rounding: "按四舍五入显示整数评分",
     hiddenPrecision: "不显示中间加权小数。",
     sharedRank: "相同的显示整数评分共享一个竞争排名。",
+    scoreDetails: "评分详情",
     scoreInputs: "候选市场评分输入",
     component: "组成项",
     rawEvidence: "原始证据",
@@ -231,6 +235,8 @@ export function CandidateMarketEvidence({
   onToggleComparison,
 }: CandidateMarketEvidenceProps) {
   const messages = copy[locale];
+  const scoreDetailsId = useId();
+  const [scoreDetailsOpen, setScoreDetailsOpen] = useState(false);
   const scoreInputs = buildScoreInputs(candidate, result, locale);
   const displayName = candidateDisplayName(candidate, locale);
   const finalizedYearCount =
@@ -268,73 +274,90 @@ export function CandidateMarketEvidence({
       </div>
       <p className="score-explanation">{messages.relativeComposite}</p>
 
-      <section className="formula-banner" aria-label={messages.formulaLabel}>
-        <div>
-          <p>{messages.formulaLabel}</p>
-          <strong>{messages.formula}</strong>
-        </div>
-        <span>{messages.rounding}</span>
-      </section>
+      <button
+        type="button"
+        className="score-details-toggle"
+        aria-expanded={scoreDetailsOpen}
+        aria-controls={scoreDetailsId}
+        onClick={() => setScoreDetailsOpen((open) => !open)}
+      >
+        {messages.scoreDetails}
+      </button>
+      <div
+        id={scoreDetailsId}
+        className="score-details"
+        data-open={scoreDetailsOpen}
+        role="region"
+        aria-label={messages.scoreDetails}
+      >
+        <section className="formula-banner" aria-label={messages.formulaLabel}>
+          <div>
+            <p>{messages.formulaLabel}</p>
+            <strong>{messages.formula}</strong>
+          </div>
+          <span>{messages.rounding}</span>
+        </section>
 
-      <div className="score-inputs-wrap">
-        <table aria-label={messages.scoreInputs}>
-          <thead>
-            <tr>
-              <th scope="col">{messages.component}</th>
-              <th scope="col">{messages.rawEvidence}</th>
-              <th scope="col">{messages.state}</th>
-              <th scope="col">{messages.percentile}</th>
-              <th scope="col">{messages.weight}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scoreInputs.map((input) => (
-              <tr key={input.label} data-state={input.state}>
-                <th scope="row">{input.label}</th>
-                <td>
-                  <strong>{input.raw}</strong>
-                  <small>{input.period}</small>
-                  <small className="score-interpretation">
-                    {input.interpretation}
-                  </small>
-                </td>
-                <td>
-                  <span
-                    className={`evidence-state ${input.state.toLowerCase()}`}
-                  >
-                    {input.state === "COMPUTED"
-                      ? messages.computed
-                      : messages.neutral}
-                  </span>
-                </td>
-                <td
-                  aria-label={
-                    input.state === "NEUTRAL"
-                      ? messages.neutralStanding
-                      : `${messages.percentile} ${input.percentile}`
-                  }
-                >
-                  {input.state === "NEUTRAL" ? (
-                    <strong>{messages.neutralStanding}</strong>
-                  ) : (
-                    <>
-                      <small>{messages.percentile}</small>{" "}
-                      <strong>{input.percentile}</strong>
-                      <small>{messages.observedCohort}</small>
-                    </>
-                  )}
-                </td>
-                <td>
-                  <strong>{input.weight}%</strong>
-                </td>
+        <div className="score-inputs-wrap">
+          <table aria-label={messages.scoreInputs}>
+            <thead>
+              <tr>
+                <th scope="col">{messages.component}</th>
+                <th scope="col">{messages.rawEvidence}</th>
+                <th scope="col">{messages.state}</th>
+                <th scope="col">{messages.percentile}</th>
+                <th scope="col">{messages.weight}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {scoreInputs.map((input) => (
+                <tr key={input.label} data-state={input.state}>
+                  <th scope="row">{input.label}</th>
+                  <td>
+                    <strong>{input.raw}</strong>
+                    <small>{input.period}</small>
+                    <small className="score-interpretation">
+                      {input.interpretation}
+                    </small>
+                  </td>
+                  <td>
+                    <span
+                      className={`evidence-state ${input.state.toLowerCase()}`}
+                    >
+                      {input.state === "COMPUTED"
+                        ? messages.computed
+                        : messages.neutral}
+                    </span>
+                  </td>
+                  <td
+                    aria-label={
+                      input.state === "NEUTRAL"
+                        ? messages.neutralStanding
+                        : `${messages.percentile} ${input.percentile}`
+                    }
+                  >
+                    {input.state === "NEUTRAL" ? (
+                      <strong>{messages.neutralStanding}</strong>
+                    ) : (
+                      <>
+                        <small>{messages.percentile}</small>{" "}
+                        <strong>{input.percentile}</strong>
+                        <small>{messages.observedCohort}</small>
+                      </>
+                    )}
+                  </td>
+                  <td>
+                    <strong>{input.weight}%</strong>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="score-audit-note">
+          {messages.hiddenPrecision} {messages.sharedRank}
+        </p>
       </div>
-      <p className="score-audit-note">
-        {messages.hiddenPrecision} {messages.sharedRank}
-      </p>
 
       <section className="confidence-ledger" aria-label={messages.confidence}>
         <div className="confidence-heading">

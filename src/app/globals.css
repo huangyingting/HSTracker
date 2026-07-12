@@ -1058,6 +1058,10 @@ a {
   line-height: 1.5;
 }
 
+.score-details-toggle {
+  display: none;
+}
+
 .formula-banner {
   margin: 0 -26px;
   padding: 18px 26px;
@@ -2045,6 +2049,24 @@ a {
 
   .candidate-evidence {
     padding: 20px;
+  }
+
+  .score-details-toggle {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-bottom: 24px;
+    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .score-details[data-open="false"] {
+    display: none;
   }
 
   .formula-banner {

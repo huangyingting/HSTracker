@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "browser-lab-report-v1",
+  "measurementClass": "local-smoke",
+  "identity": {
+    "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+    "buildId": "issue-30-local",
+    "baciRelease": "V202601",
+    "analysisBuildId": "acceptance-fixtures-v1",
+    "productSearchBuildId": "acceptance-product-search-v3",
+    "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    "machineId": "local-machine",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "origin": "http://127.0.0.1:3200",
+  "generatedAt": "2026-07-12T17:44:19.729Z",
+  "attestation": {
+    "schemaVersion": "runtime-identity-attestation-v1",
+    "origin": "http://127.0.0.1:3200",
+    "identity": {
+      "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+      "buildId": "issue-30-local",
+      "baciRelease": "V202601",
+      "analysisBuildId": "acceptance-fixtures-v1",
+      "productSearchBuildId": "acceptance-product-search-v3",
+      "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+      "machineId": "local-machine",
+      "machineClass": "local",
+      "region": "loc"
+    },
+    "health": {
+      "path": "/healthz",
+      "bodySha256": "8518c5a41f54cee0e977476377dba725360f35e3f8a0810639e0d13a23057138"
+    },
+    "currentManifest": {
+      "path": "/api/v1/analyses/current",
+      "etag": "W/\"efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975\"",
+      "bodySha256": "efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975",
+      "schemaVersion": "current-analysis-manifest-v1"
+    }
+  },
+  "products": {
+    "median": {
+      "productRole": "median",
+      "trials": [
+        {
+          "trialIndex": 0,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "lcpMs": 588,
+            "cls": 0,
+            "interactionToNextPaintMs": 556.8000000119209,
+            "longestTaskMs": 275,
+            "criticalCompressedBytes": 18419,
+            "totalFirstPartyCompressedBytes": 343689,
+            "firstPartyJavaScriptCompressedBytes": 307299,
+            "candidateResultBytes": 19687,
+            "candidateResultCompressedBytes": 20194
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 447.80000001192093,
+            "candidateMarketChangeInteractionToNextPaintMs": 102.2999999821186,
+            "scoreDetailOpenInteractionToNextPaintMs": 556.8000000119209,
+            "scoreDetailCloseInteractionToNextPaintMs": 117.5
+          },
+          "violations": []
+        }
+      ],
+      "measuredTrialCount": 1,
+      "failedTrialCount": 0
+    },
+    "maximum-row": {
+      "productRole": "maximum-row",
+      "trials": [
+        {
+          "trialIndex": 0,
+          "productRole": "maximum-row",
+          "status": "measured",
+          "metrics": {
+            "lcpMs": 580,
+            "cls": 0,
+            "interactionToNextPaintMs": 176.39999997615814,
+            "longestTaskMs": 281,
+            "criticalCompressedBytes": 18419,
+            "totalFirstPartyCompressedBytes": 343687,
+            "firstPartyJavaScriptCompressedBytes": 307299,
+            "candidateResultBytes": 19687,
+            "candidateResultCompressedBytes": 20194
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 447.40000000596046,
+            "candidateMarketChangeInteractionToNextPaintMs": 147.69999998807907,
+            "scoreDetailOpenInteractionToNextPaintMs": 176.39999997615814,
+            "scoreDetailCloseInteractionToNextPaintMs": 125.69999998807907
+          },
+          "violations": []
+        }
+      ],
+      "measuredTrialCount": 1,
+      "failedTrialCount": 0
+    }
+  }
+}

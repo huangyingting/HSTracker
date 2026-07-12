@@ -25,6 +25,12 @@ describe("GET /healthz", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-hs-tracker-build-id")).toBe(
+      "acceptance-fixtures-v1",
+    );
+    expect(response.headers.get("x-hs-tracker-machine-class")).toBeTruthy();
+    expect(response.headers.get("x-hs-tracker-machine-id")).toBeTruthy();
+    expect(response.headers.get("x-hs-tracker-region")).toBeTruthy();
     await expect(response.json()).resolves.toEqual({
       status: "ok",
       buildId: "acceptance-fixtures-v1",

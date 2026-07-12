@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "mixed-load-plan-v1",
+  "measurementClass": "local-smoke",
+  "identity": {
+    "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+    "buildId": "issue-30-local",
+    "baciRelease": "V202601",
+    "analysisBuildId": "acceptance-fixtures-v1",
+    "productSearchBuildId": "acceptance-product-search-v3",
+    "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    "machineId": "local-machine",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "origin": "http://127.0.0.1:3200",
+  "healthCheck": {
+    "method": "GET",
+    "path": "/healthz"
+  },
+  "sustainedRequestsPerSecond": 20,
+  "sustainedSeconds": 20,
+  "burstRequestsPerSecond": 10,
+  "burstSeconds": 3,
+  "coordinatedBurstIntervalSeconds": 20,
+  "requestTimeoutMs": 15000,
+  "routeTemplates": {
+    "currentManifest": {
+      "method": "GET",
+      "pathTemplate": "/api/v1/analyses/current"
+    },
+    "search": {
+      "method": "GET",
+      "pathTemplate": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=horse&locale=en&limit=20"
+    },
+    "analysis": {
+      "method": "GET",
+      "pathTemplate": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product={analysisKey}"
+    },
+    "csv": {
+      "method": "GET",
+      "pathTemplate": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product={analysisKey}&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1"
+    }
+  },
+  "analysisHotKeys": [
+    "851712"
+  ],
+  "analysisDistinctKeys": [
+    "010121",
+    "900001",
+    "900002",
+    "900003",
+    "900004",
+    "900005",
+    "900006",
+    "900007",
+    "900008",
+    "900009",
+    "900010",
+    "900011",
+    "900012",
+    "900013",
+    "900014",
+    "900015",
+    "900016",
+    "900017",
+    "900018",
+    "900019",
+    "900020",
+    "900021",
+    "900022",
+    "900023",
+    "900024",
+    "900025",
+    "900026",
+    "900027",
+    "900028",
+    "900029",
+    "900030",
+    "900031",
+    "900032",
+    "900033",
+    "900034",
+    "900035",
+    "900036",
+    "900037",
+    "900038",
+    "900039",
+    "900040",
+    "900041",
+    "900042",
+    "900043",
+    "900044",
+    "900045",
+    "900046",
+    "900047"
+  ],
+  "maximumRowAnalysisKey": "010121"
+}

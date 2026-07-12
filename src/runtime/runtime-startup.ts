@@ -3,6 +3,10 @@ import { isAbsolute } from "node:path";
 import type { ReleaseObjectReader } from "../release/release-object-store";
 import { createRuntimeReleaseObjectReader } from "../release/release-object-storage";
 import { privateErrorDiagnostic } from "../operations/private-error-diagnostic";
+import {
+  observeSourceStatusPollMetric,
+  startRuntimeMetricCollection,
+} from "../operations/runtime-prometheus-metrics";
 import { writeStructuredLog } from "../operations/structured-log";
 import {
   createFixtureApplicationRuntime,
@@ -44,6 +48,7 @@ export async function startApplicationRuntime(
   stop: () => void;
 }> {
   const environment = input.environment ?? process.env;
+  startRuntimeMetricCollection();
   const mode = runtimeMode(environment);
   if (mode === "fixture") {
     const buildId = applicationBuildId(environment);
@@ -172,6 +177,7 @@ function applicationBuildId(environment: Environment): string {
 function observeSourceStatusPolling(
   event: SourceStatusPollerEvent,
 ): void {
+  observeSourceStatusPollMetric(event);
   if (
     event.type === "status-poll-failed" &&
     event.consecutiveFailures === 3

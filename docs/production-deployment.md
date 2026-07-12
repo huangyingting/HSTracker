@@ -1,5 +1,8 @@
 # Production deployment and restore
 
+Performance promotion and runtime monitoring are documented in
+[`promotion-and-observability.md`](promotion-and-observability.md). and restore
+
 The production baseline is one always-on `shared-cpu-2x` Fly Machine with
 2 GiB RAM, one encrypted 50-GiB Fly Volume, and a private Tigris bucket. The
 configured candidate URL is:

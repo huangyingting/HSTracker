@@ -31,6 +31,7 @@ describe("production deployment configuration", () => {
       env: {
         HOSTNAME: "0.0.0.0",
         PORT: "3000",
+        HS_TRACKER_MACHINE_CLASS: "shared-cpu-2x",
         HS_TRACKER_RUNTIME_MODE: "release",
         HS_TRACKER_RELEASE_VOLUME_PATH: "/data/releases",
         HS_TRACKER_RELEASE_S3_REGION: "auto",
@@ -71,11 +72,18 @@ describe("production deployment configuration", () => {
           snapshot_retention: 5,
         },
       ],
+      metrics: [
+        {
+          port: 3000,
+          path: "/metrics",
+        },
+      ],
       restart: [{ policy: "on-failure", retries: 10 }],
       vm: [{ size: "shared-cpu-2x", memory: "2gb" }],
     });
     expect(config.env).toEqual({
       HOSTNAME: "0.0.0.0",
+      HS_TRACKER_MACHINE_CLASS: "shared-cpu-2x",
       HS_TRACKER_RELEASE_S3_ENDPOINT: "https://t3.storage.dev",
       HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE: "false",
       HS_TRACKER_RELEASE_S3_REGION: "auto",

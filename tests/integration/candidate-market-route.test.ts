@@ -11,6 +11,7 @@ import {
 import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import {
+  RUNTIME_PROBE_CACHE_STATE_HEADER,
   subscribeRuntimeMetrics,
   type RuntimeRequestMetric,
 } from "../../src/runtime/runtime-metrics";
@@ -221,18 +222,26 @@ describe("versioned Candidate Market route", () => {
 
     try {
       const first = await GET(
-        new Request(url),
+        new Request(url, {
+          headers: { "X-HS-Tracker-Probe": "external-v1" },
+        }),
         routeContext("acceptance-fixtures-v1"),
       );
       const firstBody = await first.text();
-      await GET(
-        new Request(url),
+      const second = await GET(
+        new Request(url, {
+          headers: { "X-HS-Tracker-Probe": "external-v1" },
+        }),
         routeContext("acceptance-fixtures-v1"),
       );
+      expect(first.headers.get(RUNTIME_PROBE_CACHE_STATE_HEADER)).toBe("miss");
+      expect(second.headers.get(RUNTIME_PROBE_CACHE_STATE_HEADER)).toBe("hit");
 
       expect(metrics).toEqual([
         {
           routeFamily: "candidate-market",
+          method: "GET",
+          synthetic: true,
           status: 200,
           cacheState: "miss",
           activeAnalysisBuildId: "acceptance-fixtures-v1",
@@ -268,6 +277,8 @@ describe("versioned Candidate Market route", () => {
         },
         {
           routeFamily: "candidate-market",
+          method: "GET",
+          synthetic: true,
           status: 200,
           cacheState: "hit",
           activeAnalysisBuildId: "acceptance-fixtures-v1",

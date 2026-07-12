@@ -489,6 +489,15 @@ test("audit evidence stacks without horizontal overflow on a narrow screen", asy
   await page.setViewportSize({ width: 390, height: 844 });
   await openCandidateMarket(page, "484");
 
+  const scoreDetailsButton = page.getByRole("button", {
+    name: "Score details",
+  });
+  const scoreDetails = page.getByRole("region", { name: "Score details" });
+  await expect(scoreDetailsButton).toBeVisible();
+  await expect(scoreDetails).toBeHidden();
+  await scoreDetailsButton.click();
+  await expect(scoreDetails).toBeVisible();
+
   const scoreInputs = page.getByRole("table", {
     name: "Candidate Market Score inputs",
   });
@@ -510,6 +519,8 @@ test("audit evidence stacks without horizontal overflow on a narrow screen", asy
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+  await scoreDetailsButton.click();
+  await expect(scoreDetails).toBeHidden();
 });
 
 test("locale switching preserves the auditable comparison context", async ({

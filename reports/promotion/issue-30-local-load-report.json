@@ -1,0 +1,420 @@
+{
+  "schemaVersion": "mixed-load-report-v1",
+  "measurementClass": "local-smoke",
+  "identity": {
+    "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+    "buildId": "issue-30-local",
+    "baciRelease": "V202601",
+    "analysisBuildId": "acceptance-fixtures-v1",
+    "productSearchBuildId": "acceptance-product-search-v3",
+    "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    "machineId": "local-machine",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "attestation": {
+    "schemaVersion": "runtime-identity-attestation-v1",
+    "origin": "http://127.0.0.1:3200",
+    "identity": {
+      "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+      "buildId": "issue-30-local",
+      "baciRelease": "V202601",
+      "analysisBuildId": "acceptance-fixtures-v1",
+      "productSearchBuildId": "acceptance-product-search-v3",
+      "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+      "machineId": "local-machine",
+      "machineClass": "local",
+      "region": "loc"
+    },
+    "health": {
+      "path": "/healthz",
+      "bodySha256": "8518c5a41f54cee0e977476377dba725360f35e3f8a0810639e0d13a23057138"
+    },
+    "currentManifest": {
+      "path": "/api/v1/analyses/current",
+      "etag": "W/\"efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975\"",
+      "bodySha256": "efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975",
+      "schemaVersion": "current-analysis-manifest-v1"
+    }
+  },
+  "origin": "http://127.0.0.1:3200",
+  "generatedAt": "2026-07-12T17:42:09Z",
+  "toolVersion": "http-performance-runner-v1",
+  "targetLoad": {
+    "sessions": 20,
+    "sustainedRequestsPerSecond": 20,
+    "sustainedSeconds": 20,
+    "routeMix": {
+      "currentManifest": 0.1,
+      "search": 0.25,
+      "analysis": 0.55,
+      "csv": 0.1
+    },
+    "analysisHotKeyFraction": 0.8,
+    "analysisUncachedKeyFraction": 0.2,
+    "burstRequestsPerSecond": 10,
+    "burstSeconds": 3,
+    "coordinatedDistinctKeys": 4,
+    "coordinatedBurstIntervalSeconds": 20,
+    "includesMaximumRowProduct": true,
+    "cacheStatesVerified": false,
+    "queueRejections": 0,
+    "unretryableErrors": 79,
+    "timeouts": 0,
+    "routeP95Ms": {
+      "currentManifest": 17.342883000000256,
+      "search": 6.780710999999428,
+      "analysis": 7.823599999999715,
+      "csv": 5.747698000000128
+    },
+    "peakCgroupMemoryFraction": 0.11625607052371312,
+    "peakProcessRssFraction": 0.011556924005823893,
+    "peakSpillBytes": 0,
+    "sparseOrMedianSpillCount": 0,
+    "minimumVolumeFreeFraction": 0.43343548084614414,
+    "sharedCpuBurstBalanceDepleted": false
+  },
+  "observations": {
+    "source": "runtime-prometheus-v1",
+    "sampleCount": 24,
+    "peakCgroupMemoryFraction": 0.11625607052371312,
+    "peakProcessRssFraction": 0.011556924005823893,
+    "peakSpillBytes": 0,
+    "sparseOrMedianSpillCount": 0,
+    "minimumVolumeFreeFraction": 0.43343548084614414,
+    "sharedCpuBurstBalanceDepleted": false
+  },
+  "firstFailure": {
+    "phase": "coordinated",
+    "sessionId": "coordinated-0-1",
+    "sequence": 1,
+    "offsetSeconds": 0,
+    "routeKind": "analysis",
+    "status": 404,
+    "timedOut": false,
+    "elapsedMs": 13.552067999999963
+  },
+  "cacheViolations": [
+    {
+      "phase": "sustained",
+      "sessionId": "session-4",
+      "sequence": 104,
+      "offsetSeconds": 5.2,
+      "routeKind": "csv",
+      "analysisKey": "900013",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-5",
+      "sequence": 105,
+      "offsetSeconds": 5.25,
+      "routeKind": "csv",
+      "analysisKey": "900015",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-6",
+      "sequence": 106,
+      "offsetSeconds": 5.3,
+      "routeKind": "csv",
+      "analysisKey": "900017",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-7",
+      "sequence": 107,
+      "offsetSeconds": 5.35,
+      "routeKind": "csv",
+      "analysisKey": "900019",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-8",
+      "sequence": 108,
+      "offsetSeconds": 5.4,
+      "routeKind": "csv",
+      "analysisKey": "900021",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-9",
+      "sequence": 109,
+      "offsetSeconds": 5.45,
+      "routeKind": "csv",
+      "analysisKey": "900023",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-10",
+      "sequence": 110,
+      "offsetSeconds": 5.5,
+      "routeKind": "csv",
+      "analysisKey": "900025",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-11",
+      "sequence": 111,
+      "offsetSeconds": 5.55,
+      "routeKind": "csv",
+      "analysisKey": "900027",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-12",
+      "sequence": 112,
+      "offsetSeconds": 5.6,
+      "routeKind": "csv",
+      "analysisKey": "900029",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-13",
+      "sequence": 113,
+      "offsetSeconds": 5.65,
+      "routeKind": "csv",
+      "analysisKey": "900031",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-14",
+      "sequence": 114,
+      "offsetSeconds": 5.7,
+      "routeKind": "csv",
+      "analysisKey": "900033",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-15",
+      "sequence": 115,
+      "offsetSeconds": 5.75,
+      "routeKind": "csv",
+      "analysisKey": "900035",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-16",
+      "sequence": 116,
+      "offsetSeconds": 5.8,
+      "routeKind": "csv",
+      "analysisKey": "900037",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-17",
+      "sequence": 117,
+      "offsetSeconds": 5.85,
+      "routeKind": "csv",
+      "analysisKey": "900039",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-18",
+      "sequence": 118,
+      "offsetSeconds": 5.9,
+      "routeKind": "csv",
+      "analysisKey": "900041",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-19",
+      "sequence": 119,
+      "offsetSeconds": 5.95,
+      "routeKind": "csv",
+      "analysisKey": "900043",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-4",
+      "sequence": 324,
+      "offsetSeconds": 16.2,
+      "routeKind": "csv",
+      "analysisKey": "900014",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-5",
+      "sequence": 325,
+      "offsetSeconds": 16.25,
+      "routeKind": "csv",
+      "analysisKey": "900016",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-6",
+      "sequence": 326,
+      "offsetSeconds": 16.3,
+      "routeKind": "csv",
+      "analysisKey": "900018",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-7",
+      "sequence": 327,
+      "offsetSeconds": 16.35,
+      "routeKind": "csv",
+      "analysisKey": "900020",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-8",
+      "sequence": 328,
+      "offsetSeconds": 16.4,
+      "routeKind": "csv",
+      "analysisKey": "900022",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-9",
+      "sequence": 329,
+      "offsetSeconds": 16.45,
+      "routeKind": "csv",
+      "analysisKey": "900024",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-10",
+      "sequence": 330,
+      "offsetSeconds": 16.5,
+      "routeKind": "csv",
+      "analysisKey": "900026",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-11",
+      "sequence": 331,
+      "offsetSeconds": 16.55,
+      "routeKind": "csv",
+      "analysisKey": "900028",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-12",
+      "sequence": 332,
+      "offsetSeconds": 16.6,
+      "routeKind": "csv",
+      "analysisKey": "900030",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-13",
+      "sequence": 333,
+      "offsetSeconds": 16.65,
+      "routeKind": "csv",
+      "analysisKey": "900032",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-14",
+      "sequence": 334,
+      "offsetSeconds": 16.7,
+      "routeKind": "csv",
+      "analysisKey": "900034",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-15",
+      "sequence": 335,
+      "offsetSeconds": 16.75,
+      "routeKind": "csv",
+      "analysisKey": "900036",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-16",
+      "sequence": 336,
+      "offsetSeconds": 16.8,
+      "routeKind": "csv",
+      "analysisKey": "900038",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-17",
+      "sequence": 337,
+      "offsetSeconds": 16.85,
+      "routeKind": "csv",
+      "analysisKey": "900040",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-18",
+      "sequence": 338,
+      "offsetSeconds": 16.9,
+      "routeKind": "csv",
+      "analysisKey": "900042",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "sustained",
+      "sessionId": "session-19",
+      "sequence": 339,
+      "offsetSeconds": 16.95,
+      "routeKind": "csv",
+      "analysisKey": "900044",
+      "expected": "hit",
+      "actual": "miss"
+    }
+  ],
+  "status": "measurement-complete"
+}

@@ -14,6 +14,7 @@ kill_timeout = 30
 [env]
   HOSTNAME = "0.0.0.0"
   PORT = "3000"
+  HS_TRACKER_MACHINE_CLASS = "shared-cpu-2x"
   HS_TRACKER_RUNTIME_MODE = "release"
   HS_TRACKER_RELEASE_VOLUME_PATH = "/data/releases"
   HS_TRACKER_RELEASE_S3_REGION = "auto"
@@ -51,6 +52,10 @@ kill_timeout = 30
   destination = "/data"
   initial_size = "50gb"
   snapshot_retention = 5
+
+[metrics]
+  port = 3000
+  path = "/metrics"
 
 [[vm]]
   size = "shared-cpu-2x"

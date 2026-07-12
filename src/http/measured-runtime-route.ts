@@ -7,6 +7,7 @@ import {
   isRequestDeadlineExceededError,
 } from "../runtime/request-deadline";
 import {
+  classifyRuntimeRequest,
   measureRuntimeRequest,
   type RuntimeRequestMeasurement,
   type RuntimeRouteFamily,
@@ -49,6 +50,7 @@ export function createMeasuredRuntimeRoute<Context>(
     return measureRuntimeRequest(
       runtime,
       config.routeFamily,
+      classifyRuntimeRequest(request, headOnly ? "HEAD" : "GET"),
       async (measurement) => {
         const deadline = createRequestDeadline(
           request.signal,

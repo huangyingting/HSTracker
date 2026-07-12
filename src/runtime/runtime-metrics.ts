@@ -17,6 +17,8 @@ export type RuntimeRouteFamily =
 
 export type RuntimeRequestMetric = Readonly<{
   routeFamily: RuntimeRouteFamily;
+  method: "GET" | "HEAD";
+  synthetic: boolean;
   status: number;
   cacheState: RuntimeOperationObservation["cacheState"] | "bypass";
   activeAnalysisBuildId: string;
@@ -50,6 +52,10 @@ export type RuntimeRequestMeasurement = {
 type MetricListener = (metric: RuntimeRequestMetric) => void;
 
 const metricsChannel = channel("hs-tracker.runtime.request");
+const EXTERNAL_PROBE_HEADER = "x-hs-tracker-probe";
+const EXTERNAL_PROBE_VALUE = "external-v1";
+export const RUNTIME_PROBE_CACHE_STATE_HEADER =
+  "X-HS-Tracker-Cache-State";
 
 type MetricsGlobal = typeof globalThis & {
   __hsTrackerRuntimeMetricListeners?: Set<MetricListener>;
@@ -58,12 +64,19 @@ type MetricsGlobal = typeof globalThis & {
 export async function measureRuntimeRequest(
   runtime: ApplicationRuntime,
   routeFamily: RuntimeRouteFamily,
+  classification: RuntimeRequestClassification,
   run: (measurement: RuntimeRequestMeasurement) => Promise<Response>,
 ): Promise<Response> {
-  const active = startRuntimeMeasurement(runtime, routeFamily);
+  const active = startRuntimeMeasurement(
+    runtime,
+    routeFamily,
+    classification,
+  );
   let status = 500;
   try {
-    const response = await run(active.measurement);
+    const response = active.annotateProbeResponse(
+      await run(active.measurement),
+    );
     status = response.status;
     return response;
   } finally {
@@ -74,12 +87,17 @@ export async function measureRuntimeRequest(
 export function measureRuntimeRequestSync(
   runtime: ApplicationRuntime,
   routeFamily: RuntimeRouteFamily,
+  classification: RuntimeRequestClassification,
   run: (measurement: RuntimeRequestMeasurement) => Response,
 ): Response {
-  const active = startRuntimeMeasurement(runtime, routeFamily);
+  const active = startRuntimeMeasurement(
+    runtime,
+    routeFamily,
+    classification,
+  );
   let status = 500;
   try {
-    const response = run(active.measurement);
+    const response = active.annotateProbeResponse(run(active.measurement));
     status = response.status;
     return response;
   } finally {
@@ -90,8 +108,10 @@ export function measureRuntimeRequestSync(
 function startRuntimeMeasurement(
   runtime: ApplicationRuntime,
   routeFamily: RuntimeRouteFamily,
+  classification: RuntimeRequestClassification,
 ): {
   measurement: RuntimeRequestMeasurement;
+  annotateProbeResponse(response: Response): Response;
   publishMetric(status: number): void;
 } {
   const startedAt = performance.now();
@@ -116,9 +136,26 @@ function startRuntimeMeasurement(
 
   return {
     measurement,
+    annotateProbeResponse(response) {
+      if (!classification.synthetic) {
+        return response;
+      }
+      const headers = new Headers(response.headers);
+      headers.set(
+        RUNTIME_PROBE_CACHE_STATE_HEADER,
+        operation?.cacheState ?? "bypass",
+      );
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    },
     publishMetric(status) {
       publishRuntimeMetric({
         routeFamily,
+        method: classification.method,
+        synthetic: classification.synthetic,
         status,
         cacheState: operation?.cacheState ?? "bypass",
         activeAnalysisBuildId: manifest.analysisBuildId,
@@ -139,6 +176,23 @@ function startRuntimeMeasurement(
         },
       });
     },
+  };
+}
+
+export type RuntimeRequestClassification = Readonly<{
+  method: "GET" | "HEAD";
+  synthetic: boolean;
+}>;
+
+export function classifyRuntimeRequest(
+  request: Request | undefined,
+  method: RuntimeRequestClassification["method"],
+): RuntimeRequestClassification {
+  return {
+    method,
+    synthetic:
+      request?.headers.get(EXTERNAL_PROBE_HEADER) ===
+      EXTERNAL_PROBE_VALUE,
   };
 }
 

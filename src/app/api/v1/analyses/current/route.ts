@@ -12,7 +12,10 @@ import {
   ROUTE_DEADLINE_MS,
   createSynchronousRequestDeadline,
 } from "../../../../../runtime/request-deadline";
-import { measureRuntimeRequestSync } from "../../../../../runtime/runtime-metrics";
+import {
+  classifyRuntimeRequest,
+  measureRuntimeRequestSync,
+} from "../../../../../runtime/runtime-metrics";
 import { utf8ByteLength } from "../../../../../runtime/serialized-size";
 
 export const runtime = "nodejs";
@@ -34,6 +37,7 @@ function respond(request: Request, headOnly: boolean): Response {
   const response = measureRuntimeRequestSync(
     applicationRuntime,
     "current-analysis",
+    classifyRuntimeRequest(request, headOnly ? "HEAD" : "GET"),
     (measurement) => {
       const { manifest, asOf } =
         applicationRuntime.currentAnalysisSnapshot();

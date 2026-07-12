@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "browser-lab-plan-v1",
+  "measurementClass": "local-smoke",
+  "identity": {
+    "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+    "buildId": "issue-30-local",
+    "baciRelease": "V202601",
+    "analysisBuildId": "acceptance-fixtures-v1",
+    "productSearchBuildId": "acceptance-product-search-v3",
+    "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    "machineId": "local-machine",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "origin": "http://127.0.0.1:3200",
+  "journeys": [
+    {
+      "productRole": "median",
+      "trialCount": 1,
+      "actions": [
+        {
+          "kind": "select-context",
+          "label": "Select China and median product",
+          "exporterComboboxLocator": {
+            "by": "role",
+            "role": "combobox",
+            "name": "Export economy"
+          },
+          "exporterQuery": "China",
+          "exporterOptionLocator": {
+            "by": "role",
+            "role": "option",
+            "name": "China"
+          },
+          "productComboboxLocator": {
+            "by": "role",
+            "role": "combobox",
+            "name": "HS 2012 product"
+          },
+          "productQuery": "010121",
+          "productOptionLocator": {
+            "by": "role",
+            "role": "option",
+            "name": "010121"
+          }
+        },
+        {
+          "kind": "analyze",
+          "label": "Analyze Candidate Markets",
+          "analyzeButtonLocator": {
+            "by": "role",
+            "role": "button",
+            "name": "Analyze Candidate Markets"
+          },
+          "completeListLocator": {
+            "by": "role",
+            "role": "list",
+            "name": "Candidate Markets"
+          }
+        },
+        {
+          "kind": "change-candidate-market",
+          "label": "Select second-ranked market",
+          "candidateLocator": {
+            "by": "css",
+            "selector": ".candidate-ranking ol li:nth-child(2) button"
+          }
+        },
+        {
+          "kind": "open-score-detail",
+          "label": "Open score details",
+          "openTriggerLocator": {
+            "by": "role",
+            "role": "button",
+            "name": "Score details"
+          },
+          "detailLocator": {
+            "by": "role",
+            "role": "region",
+            "name": "Score details"
+          }
+        },
+        {
+          "kind": "close-score-detail",
+          "label": "Close score details",
+          "closeTriggerLocator": {
+            "by": "role",
+            "role": "button",
+            "name": "Score details"
+          }
+        }
+      ]
+    },
+    {
+      "productRole": "maximum-row",
+      "trialCount": 1,
+      "actions": [
+        {
+          "kind": "select-context",
+          "label": "Select China and maximum-row product",
+          "exporterComboboxLocator": {
+            "by": "role",
+            "role": "combobox",
+            "name": "Export economy"
+          },
+          "exporterQuery": "China",
+          "exporterOptionLocator": {
+            "by": "role",
+            "role": "option",
+            "name": "China"
+          },
+          "productComboboxLocator": {
+            "by": "role",
+            "role": "combobox",
+            "name": "HS 2012 product"
+          },
+          "productQuery": "010121",
+          "productOptionLocator": {
+            "by": "role",
+            "role": "option",
+            "name": "010121"
+          }
+        },
+        {
+          "kind": "analyze",
+          "label": "Analyze Candidate Markets",
+          "analyzeButtonLocator": {
+            "by": "role",
+            "role": "button",
+            "name": "Analyze Candidate Markets"
+          },
+          "completeListLocator": {
+            "by": "role",
+            "role": "list",
+            "name": "Candidate Markets"
+          }
+        },
+        {
+          "kind": "change-candidate-market",
+          "label": "Select second-ranked market",
+          "candidateLocator": {
+            "by": "css",
+            "selector": ".candidate-ranking ol li:nth-child(2) button"
+          }
+        },
+        {
+          "kind": "open-score-detail",
+          "label": "Open score details",
+          "openTriggerLocator": {
+            "by": "role",
+            "role": "button",
+            "name": "Score details"
+          },
+          "detailLocator": {
+            "by": "role",
+            "role": "region",
+            "name": "Score details"
+          }
+        },
+        {
+          "kind": "close-score-detail",
+          "label": "Close score details",
+          "closeTriggerLocator": {
+            "by": "role",
+            "role": "button",
+            "name": "Score details"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,230 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "UTC month-to-date request SLI",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 99,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 99.5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(increase(hs_tracker_http_requests_total{synthetic=\"false\",status=~\"2..|304\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[$__range])) / clamp_min(sum(increase(hs_tracker_http_requests_total{synthetic=\"false\",status!~\"400|404|409|410\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[$__range])), 1)",
+          "legendFormat": "request SLI"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Request rate",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route_family) (rate(hs_tracker_http_requests_total{synthetic=\"false\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[5m]))",
+          "legendFormat": "{{route_family}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Route p95 / p99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route_family) (rate(hs_tracker_route_duration_seconds_bucket{route_family=~\"$route_family\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[5m])))",
+          "legendFormat": "{{route_family}} p95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by (le, route_family) (rate(hs_tracker_route_duration_seconds_bucket{route_family=~\"$route_family\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[5m])))",
+          "legendFormat": "{{route_family}} p99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "500 / 503 rate",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(hs_tracker_http_requests_total{synthetic=\"false\",status=~\"500|503\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[10m])) / clamp_min(sum(rate(hs_tracker_http_requests_total{synthetic=\"false\",analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[10m])), 1)",
+          "legendFormat": "server-error fraction"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Queue wait and depth",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(hs_tracker_analysis_queue_wait_seconds_bucket{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[5m])))",
+          "legendFormat": "queue p95 seconds"
+        },
+        {
+          "refId": "B",
+          "expr": "hs_tracker_analysis_queue_depth{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "queue depth"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Cgroup memory and process RSS",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hs_tracker_cgroup_memory_current_fraction{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "cgroup fraction"
+        },
+        {
+          "refId": "B",
+          "expr": "hs_tracker_process_rss_bytes{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "RSS bytes"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Process cache bytes",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 15 },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hs_tracker_analysis_cache_bytes{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "analysis"
+        },
+        {
+          "refId": "B",
+          "expr": "hs_tracker_search_cache_bytes{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "search"
+        },
+        {
+          "refId": "C",
+          "expr": "hs_tracker_status_cache_bytes{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "status"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Source freshness polling and alerts",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 15 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(hs_tracker_source_status_poll_failures_total[15m])",
+          "legendFormat": "poll failures"
+        },
+        {
+          "refId": "B",
+          "expr": "hs_tracker_source_status_poll_consecutive_failures",
+          "legendFormat": "consecutive failures"
+        },
+        {
+          "refId": "C",
+          "expr": "hs_tracker_source_freshness_alert",
+          "legendFormat": "{{level}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Spill, volume, and CPU throttling",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hs_tracker_duckdb_spill_bytes{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "spill bytes"
+        },
+        {
+          "refId": "B",
+          "expr": "hs_tracker_volume_free_fraction{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}",
+          "legendFormat": "volume free fraction"
+        },
+        {
+          "refId": "C",
+          "expr": "rate(hs_tracker_cgroup_cpu_throttled_periods_total{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[5m]) / clamp_min(rate(hs_tracker_cgroup_cpu_periods_total{analysis_build_id=~\"$analysis_build_id\",baci_release=~\"$baci_release\"}[5m]), 0.001)",
+          "legendFormat": "CPU throttled-period fraction"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["hs-tracker", "production"],
+  "templating": {
+    "list": [
+      {
+        "name": "analysis_build_id",
+        "type": "query",
+        "datasource": "Prometheus on Fly",
+        "query": "label_values(hs_tracker_http_requests_total, analysis_build_id)",
+        "includeAll": true,
+        "allValue": ".*"
+      },
+      {
+        "name": "baci_release",
+        "type": "query",
+        "datasource": "Prometheus on Fly",
+        "query": "label_values(hs_tracker_http_requests_total, baci_release)",
+        "includeAll": true,
+        "allValue": ".*"
+      },
+      {
+        "name": "route_family",
+        "type": "query",
+        "datasource": "Prometheus on Fly",
+        "query": "label_values(hs_tracker_http_requests_total, route_family)",
+        "includeAll": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "time": { "from": "now/M", "to": "now" },
+  "timezone": "utc",
+  "title": "HS Tracker Production",
+  "uid": "hs-tracker-production",
+  "version": 1
+}

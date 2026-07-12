@@ -58,8 +58,9 @@ describe("production container", () => {
   });
 
   it("serves health from the pinned glibc runtime as a non-root process", async () => {
-    const [health, processUser, libc] = await Promise.all([
+    const [health, metrics, processUser, libc] = await Promise.all([
       fetch(`${origin}/healthz`),
+      fetch(`${origin}/metrics`),
       execFileAsync("docker", [
         "exec",
         containerId,
@@ -79,6 +80,12 @@ describe("production container", () => {
       status: "ok",
       buildId: "container-integration-v1",
     });
+    expect(metrics.headers.get("content-type")).toBe(
+      "text/plain; version=0.0.4; charset=utf-8",
+    );
+    expect(await metrics.text()).toContain(
+      "hs_tracker_http_requests_total",
+    );
     expect(processUser.stdout.trim()).toBe("1000");
     expect(libc.stdout.trim()).toMatch(/^glibc 2\./u);
   });

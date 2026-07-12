@@ -1,0 +1,891 @@
+{
+  "schemaVersion": "origin-benchmark-plan-v1",
+  "measurementClass": "local-smoke",
+  "identity": {
+    "fixtureManifestSha256": "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+    "buildId": "issue-30-local",
+    "baciRelease": "V202601",
+    "analysisBuildId": "acceptance-fixtures-v1",
+    "productSearchBuildId": "acceptance-product-search-v3",
+    "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    "machineId": "local-machine",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "origin": "http://127.0.0.1:3200",
+  "healthCheck": {
+    "method": "GET",
+    "path": "/healthz"
+  },
+  "warmupSamples": 5,
+  "timedSamples": 1,
+  "requests": [
+    {
+      "operation": "html-shell",
+      "request": {
+        "method": "GET",
+        "path": "/"
+      }
+    },
+    {
+      "operation": "current-manifest",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/current"
+      }
+    },
+    {
+      "operation": "health",
+      "request": {
+        "method": "GET",
+        "path": "/healthz"
+      }
+    },
+    {
+      "operation": "economy-search-uncached",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-0"
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "economy:sparse:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-0"
+          }
+        },
+        {
+          "semanticKey": "economy:sparse:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-1"
+          }
+        },
+        {
+          "semanticKey": "economy:sparse:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-2"
+          }
+        },
+        {
+          "semanticKey": "economy:sparse:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-3"
+          }
+        },
+        {
+          "semanticKey": "economy:sparse:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-4"
+          }
+        },
+        {
+          "semanticKey": "economy:sparse:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-sparse-5"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "economy-search-uncached",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-0"
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "economy:median:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-0"
+          }
+        },
+        {
+          "semanticKey": "economy:median:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-1"
+          }
+        },
+        {
+          "semanticKey": "economy:median:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-2"
+          }
+        },
+        {
+          "semanticKey": "economy:median:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-3"
+          }
+        },
+        {
+          "semanticKey": "economy:median:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-4"
+          }
+        },
+        {
+          "semanticKey": "economy:median:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-median-5"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "economy-search-uncached",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-0"
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "economy:maximum-row:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-0"
+          }
+        },
+        {
+          "semanticKey": "economy:maximum-row:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-1"
+          }
+        },
+        {
+          "semanticKey": "economy:maximum-row:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-2"
+          }
+        },
+        {
+          "semanticKey": "economy:maximum-row:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-3"
+          }
+        },
+        {
+          "semanticKey": "economy:maximum-row:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-4"
+          }
+        },
+        {
+          "semanticKey": "economy:maximum-row:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=local-maximum-row-5"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "economy-search-process-hit",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=China-sparse"
+      }
+    },
+    {
+      "operation": "economy-search-process-hit",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=China-median"
+      }
+    },
+    {
+      "operation": "economy-search-process-hit",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/economies?q=China-maximum-row"
+      }
+    },
+    {
+      "operation": "product-search-uncached",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-0&locale=en&limit=20"
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "product:sparse:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-0&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:sparse:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-1&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:sparse:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-2&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:sparse:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-3&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:sparse:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-4&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:sparse:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-sparse-5&locale=en&limit=20"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "product-search-uncached",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-0&locale=en&limit=20"
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "product:median:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-0&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:median:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-1&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:median:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-2&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:median:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-3&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:median:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-4&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:median:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-median-5&locale=en&limit=20"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "product-search-uncached",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-0&locale=en&limit=20"
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "product:maximum-row:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-0&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:maximum-row:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-1&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:maximum-row:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-2&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:maximum-row:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-3&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:maximum-row:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-4&locale=en&limit=20"
+          }
+        },
+        {
+          "semanticKey": "product:maximum-row:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=local-maximum-row-5&locale=en&limit=20"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "product-search-process-hit",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=horse-sparse&locale=en&limit=20"
+      }
+    },
+    {
+      "operation": "product-search-process-hit",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=horse-median&locale=en&limit=20"
+      }
+    },
+    {
+      "operation": "product-search-process-hit",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/product-catalogs/acceptance-product-search-v3/products?q=horse-maximum-row&locale=en&limit=20"
+      }
+    },
+    {
+      "operation": "candidate-analysis-uncached",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+        "headers": {
+          "X-HS-Tracker-Local-Sample": "analysis-sparse-0"
+        }
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "analysis:sparse:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-sparse-0"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:sparse:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-sparse-1"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:sparse:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-sparse-2"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:sparse:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-sparse-3"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:sparse:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-sparse-4"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:sparse:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-sparse-5"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "operation": "candidate-analysis-uncached",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+        "headers": {
+          "X-HS-Tracker-Local-Sample": "analysis-median-0"
+        }
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "analysis:median:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-median-0"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:median:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-median-1"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:median:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-median-2"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:median:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-median-3"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:median:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-median-4"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:median:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-median-5"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "operation": "candidate-analysis-uncached",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+        "headers": {
+          "X-HS-Tracker-Local-Sample": "analysis-maximum-row-0"
+        }
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "analysis:maximum-row:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-maximum-row-0"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:maximum-row:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-maximum-row-1"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:maximum-row:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-maximum-row-2"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:maximum-row:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-maximum-row-3"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:maximum-row:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-maximum-row-4"
+            }
+          }
+        },
+        {
+          "semanticKey": "analysis:maximum-row:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=851712",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "analysis-maximum-row-5"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "operation": "candidate-analysis-process-hit",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121"
+      }
+    },
+    {
+      "operation": "candidate-analysis-process-hit",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121"
+      }
+    },
+    {
+      "operation": "candidate-analysis-process-hit",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121"
+      }
+    },
+    {
+      "operation": "csv-uncached",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+        "headers": {
+          "X-HS-Tracker-Local-Sample": "csv-sparse-0"
+        }
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "csv:sparse:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-sparse-0"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:sparse:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-sparse-1"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:sparse:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-sparse-2"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:sparse:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-sparse-3"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:sparse:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-sparse-4"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:sparse:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-sparse-5"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "operation": "csv-uncached",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+        "headers": {
+          "X-HS-Tracker-Local-Sample": "csv-median-0"
+        }
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "csv:median:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-median-0"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:median:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-median-1"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:median:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-median-2"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:median:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-median-3"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:median:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-median-4"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:median:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-median-5"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "operation": "csv-uncached",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+        "headers": {
+          "X-HS-Tracker-Local-Sample": "csv-maximum-row-0"
+        }
+      },
+      "sampleRequests": [
+        {
+          "semanticKey": "csv:maximum-row:0",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-maximum-row-0"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:maximum-row:1",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-maximum-row-1"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:maximum-row:2",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-maximum-row-2"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:maximum-row:3",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-maximum-row-3"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:maximum-row:4",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-maximum-row-4"
+            }
+          }
+        },
+        {
+          "semanticKey": "csv:maximum-row:5",
+          "request": {
+            "method": "GET",
+            "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=851712&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1",
+            "headers": {
+              "X-HS-Tracker-Local-Sample": "csv-maximum-row-5"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "operation": "csv-analysis-hit",
+      "productRole": "sparse",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1"
+      }
+    },
+    {
+      "operation": "csv-analysis-hit",
+      "productRole": "median",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1"
+      }
+    },
+    {
+      "operation": "csv-analysis-hit",
+      "productRole": "maximum-row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1"
+      }
+    }
+  ]
+}

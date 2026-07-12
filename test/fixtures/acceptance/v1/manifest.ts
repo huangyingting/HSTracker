@@ -3,11 +3,11 @@ import {
   ACCEPTANCE_FIXTURE_RELEASE,
   ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
 } from "./metadata";
+import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../../../src/promotion/acceptance-fixture";
 
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
-  fixtureContentSha256:
-    "669bc2ba8b839fb1f9c19b8903c637eef06256f9882a8a96d6a9c45ca35ce74e",
+  fixtureContentSha256: ACCEPTANCE_FIXTURE_CONTENT_SHA256,
   fixtureOnly: true,
   scoreVersion: "cms-v1",
   exportSchemaVersion: "candidate-markets-csv-v1",
