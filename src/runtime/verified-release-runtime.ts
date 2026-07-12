@@ -17,7 +17,10 @@ import {
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
-import type { AnalysisArtifactReference } from "../release/release-manifest";
+import {
+  contentAddressedId,
+  type AnalysisArtifactReference,
+} from "../release/release-manifest";
 import {
   ReleaseHydrator,
   type HydratedRelease,
@@ -111,7 +114,10 @@ export class VerifiedReleaseRuntime {
         manifest,
         previousManifest,
       );
-      const sourceStatus = fallbackSourceStatus(hydrated);
+      const sourceStatus = fallbackSourceStatus(
+        hydrated,
+        manifest,
+      );
       return new VerifiedReleaseRuntime(
         hydrated,
         manifest,
@@ -424,6 +430,16 @@ function releaseRevisionIdentity(
       notComparedReason: "NO_PREVIOUS_ARTIFACT",
     };
   }
+  if (
+    previous.baciRelease === current.baciRelease ||
+    previous.hsRevision !== current.hsRevision
+  ) {
+    return {
+      comparisonRelease: null,
+      previousArtifactSha256: null,
+      notComparedReason: "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+    };
+  }
   const requiredYears = yearsBetween(
     current.scoreWindow.start,
     current.scoreWindow.end,
@@ -448,12 +464,22 @@ function yearsBetween(start: number, end: number): number[] {
 
 function fallbackSourceStatus(
   hydrated: HydratedRelease,
+  manifest: AnalysisArtifactManifest,
 ): SourceStatusSnapshot {
   return {
     schemaVersion: "source-status-v1",
-    sourceStatusSnapshotId:
-      `source-status:deployment:${hydrated.deployment.deploymentPairingId}`,
-    checkedAt: hydrated.deployment.activatedAt,
+    sourceStatusSnapshotId: contentAddressedId(
+      "source-status-bootstrap-v1",
+      {
+        deploymentPairingId:
+          hydrated.deployment.deploymentPairingId,
+        activatedAt: hydrated.deployment.activatedAt,
+        baciRelease: hydrated.deployment.baciRelease,
+        checkedAt: manifest.builtAt,
+        artifactSha256: manifest.artifact.sha256,
+      },
+    ),
+    checkedAt: manifest.builtAt,
     servedBaciRelease: hydrated.deployment.baciRelease,
     latestKnownBaciRelease: hydrated.deployment.baciRelease,
     newerReleaseDetectedAt: null,

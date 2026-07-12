@@ -2,6 +2,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  stat,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -340,6 +341,100 @@ describe("immutable release publication", () => {
     expect(await readdir(volumePath)).toEqual([
       published.deploymentPairingId,
     ]);
+  });
+
+  it("reuses unchanged analysis bytes and prunes retired pairing directories", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        productCatalogVersion: "v2",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const hydrator = new ReleaseHydrator(objectStore);
+    const firstHydrated = await hydrator.hydrateCurrent({ volumePath });
+    const firstArtifact = await stat(
+      firstHydrated.analysisArtifactPath,
+    );
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const secondHydrated = await hydrator.hydrateCurrent({
+      volumePath,
+    });
+
+    expect((await stat(secondHydrated.analysisArtifactPath)).ino).toBe(
+      firstArtifact.ino,
+    );
+    expect(await readdir(volumePath)).toEqual([
+      second.deploymentPairingId,
+    ]);
+    expect(second.deploymentPairingId).not.toBe(
+      first.deploymentPairingId,
+    );
+  });
+
+  it("reuses a retired current artifact as the next previous artifact", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        analysisArtifactVersion: "v2",
+        analysisArtifactBuildId:
+          "candidate-market-artifact-v1-4444444444444444",
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const hydrator = new ReleaseHydrator(objectStore);
+    const firstHydrated = await hydrator.hydrateCurrent({ volumePath });
+    const firstArtifact = await stat(
+      firstHydrated.analysisArtifactPath,
+    );
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const secondHydrated = await hydrator.hydrateCurrent({
+      volumePath,
+    });
+
+    expect(secondHydrated.previousAnalysis).not.toBeNull();
+    expect(
+      (
+        await stat(
+          secondHydrated.previousAnalysis!.artifactPath,
+        )
+      ).ino,
+    ).toBe(firstArtifact.ino);
+    expect(await readdir(volumePath)).toEqual([
+      second.deploymentPairingId,
+    ]);
+    expect(second.previousDeploymentPairingId).toBe(
+      first.deploymentPairingId,
+    );
   });
 
   it("removes partial hydration when downloaded bytes fail verification", async () => {

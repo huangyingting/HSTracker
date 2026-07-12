@@ -65,6 +65,7 @@ export function compareReleaseRevisions({
     return notCompared(currentRelease.candidates, "NO_PREVIOUS_ARTIFACT");
   }
   if (
+    previousArtifact.baciRelease === currentRelease.baciRelease ||
     previousArtifact.hsRevision !== currentRelease.hsRevision ||
     previousArtifact.scoreVersion !== currentRelease.scoreVersion ||
     previousArtifact.scoreWindowUsed.start !==

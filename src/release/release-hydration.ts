@@ -2,11 +2,14 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
+  link,
   mkdir,
   open,
   readFile,
+  readdir,
   rename,
   rm,
+  stat,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
@@ -93,7 +96,11 @@ export class ReleaseHydrator {
         ),
       );
       assertDeploymentReleaseCatalog(deployment, releaseCatalog);
-      await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
+      await this.ensureResidentPreviousAnalysis(
+        finalPath,
+        releaseCatalog,
+      );
+      await pruneInactivePairings(volumePath, finalPath);
       return hydratedRelease(
         finalPath,
         pointer,
@@ -117,26 +124,42 @@ export class ReleaseHydrator {
     await mkdir(partialPath);
     try {
       const downloads: Promise<void>[] = [
-        this.downloadVerified(
+        this.materializeVerified(
+          volumePath,
           deployment.analysis.artifact.artifact,
           join(partialPath, "candidate-market.duckdb"),
+          [
+            "candidate-market.duckdb",
+            "previous-candidate-market.duckdb",
+          ],
         ),
-        this.downloadVerified(
+        this.materializeVerified(
+          volumePath,
           deployment.analysis.artifact.manifest,
           join(partialPath, "artifact-manifest.json"),
+          [
+            "artifact-manifest.json",
+            "previous-artifact-manifest.json",
+          ],
         ),
-        writeVerifiedFile(
-          join(partialPath, "analysis-release-catalog.json"),
-          singleChunk(releaseCatalogBytes),
+        this.materializeVerified(
+          volumePath,
           deployment.analysis.releaseCatalog,
+          join(partialPath, "analysis-release-catalog.json"),
+          ["analysis-release-catalog.json"],
+          releaseCatalogBytes,
         ),
-        this.downloadVerified(
+        this.materializeVerified(
+          volumePath,
           deployment.productSearch.catalog,
           join(partialPath, "product-catalog.json"),
+          ["product-catalog.json"],
         ),
-        this.downloadVerified(
+        this.materializeVerified(
+          volumePath,
           deployment.productSearch.manifest,
           join(partialPath, "catalog-manifest.json"),
+          ["catalog-manifest.json"],
         ),
         writeVerifiedFile(
           join(partialPath, "deployment-manifest.json"),
@@ -146,13 +169,23 @@ export class ReleaseHydrator {
       ];
       if (releaseCatalog.previous !== null) {
         downloads.push(
-          this.downloadVerified(
+          this.materializeVerified(
+            volumePath,
             releaseCatalog.previous.artifact,
             join(partialPath, "previous-candidate-market.duckdb"),
+            [
+              "candidate-market.duckdb",
+              "previous-candidate-market.duckdb",
+            ],
           ),
-          this.downloadVerified(
+          this.materializeVerified(
+            volumePath,
             releaseCatalog.previous.manifest,
             join(partialPath, "previous-artifact-manifest.json"),
+            [
+              "artifact-manifest.json",
+              "previous-artifact-manifest.json",
+            ],
           ),
         );
       }
@@ -173,6 +206,7 @@ export class ReleaseHydrator {
         await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
       }
       await syncDirectory(volumePath);
+      await pruneInactivePairings(volumePath, finalPath);
     } catch (error) {
       await rm(partialPath, { force: true, recursive: true });
       throw error;
@@ -221,6 +255,136 @@ export class ReleaseHydrator {
     }
     await writeVerifiedFile(path, stored.body, reference);
   }
+
+  private async materializeVerified(
+    volumePath: string,
+    reference: ReleaseObjectReference,
+    path: string,
+    reusableNames: readonly string[],
+    knownBytes?: Uint8Array,
+  ): Promise<void> {
+    const reusablePath = await findReusableFile(
+      volumePath,
+      reusableNames,
+      reference,
+    );
+    if (reusablePath !== null) {
+      await link(reusablePath, path);
+      return;
+    }
+    if (knownBytes !== undefined) {
+      await writeVerifiedFile(
+        path,
+        singleChunk(knownBytes),
+        reference,
+      );
+      return;
+    }
+    await this.downloadVerified(reference, path);
+  }
+
+  private async ensureResidentPreviousAnalysis(
+    rootPath: string,
+    releaseCatalog: AnalysisReleaseCatalog,
+  ): Promise<void> {
+    if (releaseCatalog.previous === null) {
+      return;
+    }
+
+    const files = [
+      {
+        name: "previous-candidate-market.duckdb",
+        reference: releaseCatalog.previous.artifact,
+      },
+      {
+        name: "previous-artifact-manifest.json",
+        reference: releaseCatalog.previous.manifest,
+      },
+    ] as const;
+    for (const { name, reference } of files) {
+      const path = join(rootPath, name);
+      if (await exists(path)) {
+        await verifyFile(path, reference);
+        continue;
+      }
+      const partialPath = join(
+        rootPath,
+        `.${name}-${process.pid}.partial`,
+      );
+      await rm(partialPath, { force: true });
+      try {
+        await this.downloadVerified(reference, partialPath);
+        await rename(partialPath, path);
+        await syncDirectory(rootPath);
+      } finally {
+        await rm(partialPath, { force: true });
+      }
+    }
+    await verifyResidentPreviousAnalysis(rootPath, releaseCatalog);
+  }
+}
+
+async function findReusableFile(
+  volumePath: string,
+  names: readonly string[],
+  expected: ReleaseObjectIdentity,
+): Promise<string | null> {
+  const entries = await readdir(volumePath, { withFileTypes: true });
+  for (const entry of entries) {
+    if (
+      !entry.isDirectory() ||
+      !isDeploymentPairingDirectory(entry.name)
+    ) {
+      continue;
+    }
+    for (const name of names) {
+      const candidatePath = join(volumePath, entry.name, name);
+      try {
+        if ((await stat(candidatePath)).size !== expected.bytes) {
+          continue;
+        }
+        await verifyFile(candidatePath, expected);
+        return candidatePath;
+      } catch (error) {
+        if (
+          isEnoent(error) ||
+          error instanceof ReleaseHydrationError
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+  return null;
+}
+
+async function pruneInactivePairings(
+  volumePath: string,
+  activePath: string,
+): Promise<void> {
+  const activeName = activePath.slice(volumePath.length + 1);
+  const entries = await readdir(volumePath, { withFileTypes: true });
+  await Promise.all(
+    entries
+      .filter(
+        (entry) =>
+          entry.isDirectory() &&
+          entry.name !== activeName &&
+          isDeploymentPairingDirectory(entry.name),
+      )
+      .map((entry) =>
+        rm(join(volumePath, entry.name), {
+          force: true,
+          recursive: true,
+        }),
+      ),
+  );
+  await syncDirectory(volumePath);
+}
+
+function isDeploymentPairingDirectory(name: string): boolean {
+  return /^deployment-pairing-v1-[a-f0-9]{16}$/u.test(name);
 }
 
 async function writeVerifiedFile(

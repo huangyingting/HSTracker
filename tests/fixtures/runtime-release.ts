@@ -23,6 +23,7 @@ export const RUNTIME_RELEASE_FIXTURE = {
 export async function writeRuntimeReleaseCandidate(
   root: string,
   options: {
+    baciRelease?: string;
     valueOffset?: number;
     finalizedCutoffYear?: number;
   } = {},
@@ -41,6 +42,7 @@ export async function writeRuntimeReleaseCandidate(
     analysisDirectoryPath,
     "candidate-market.duckdb",
   );
+  const baciRelease = options.baciRelease ?? BACI_RELEASE;
   const finalizedCutoffYear =
     options.finalizedCutoffYear ?? 2023;
   const ingestedYears = Array.from(
@@ -51,6 +53,7 @@ export async function writeRuntimeReleaseCandidate(
   const provisionalYear = ingestedYears.at(-1)!;
   await writeRuntimeDuckDb(
     artifactPath,
+    baciRelease,
     options.valueOffset ?? 0,
     finalizedCutoffYear,
   );
@@ -60,7 +63,7 @@ export async function writeRuntimeReleaseCandidate(
     `candidate-market-artifact-v1-${artifactIdentity.sha256.slice(0, 16)}`;
   const artifactManifest = {
     schemaVersion: "candidate-market-artifact-manifest-v1",
-    baciRelease: BACI_RELEASE,
+    baciRelease,
     sourceSha256: SOURCE_SHA256,
     sourceUpdateDate: "2026-01-22",
     hsRevision: "HS12",
@@ -132,7 +135,7 @@ export async function writeRuntimeReleaseCandidate(
   const catalogIdentity = releaseObjectIdentity(catalogBytes);
   const catalogManifest = {
     schemaVersion: "product-catalog-manifest-v1",
-    baciRelease: BACI_RELEASE,
+    baciRelease,
     sourceArchiveSha256: SOURCE_SHA256,
     hsRevision: "HS12",
     productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
@@ -180,6 +183,7 @@ export async function writeRuntimeReleaseCandidate(
 
 async function writeRuntimeDuckDb(
   path: string,
+  baciRelease: string,
   valueOffset: number,
   finalizedCutoffYear: number,
 ): Promise<void> {
@@ -218,7 +222,7 @@ async function writeRuntimeDuckDb(
     }
     const metadata = {
       artifact_schema_version: "candidate-market-artifact-v1",
-      baci_release: BACI_RELEASE,
+      baci_release: baciRelease,
       finalized_cutoff_year: String(finalizedCutoffYear),
       hs_revision: "HS12",
       source_update_date: "2026-01-22",

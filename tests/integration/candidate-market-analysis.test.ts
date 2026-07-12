@@ -9,6 +9,42 @@ import {
 } from "../../test/fixtures/acceptance/v1/expected/core-analysis";
 
 describe("CandidateMarketAnalysis", () => {
+  it("does not recompute previous evidence from the same BACI Release", async () => {
+    let previousReads = 0;
+    const analysis = new CmsV1CandidateMarketAnalysis(
+      {
+        async loadCmsV1Inputs() {
+          return CORE_CURRENT_INPUT;
+        },
+      },
+      {
+        source: {
+          async loadCmsV1Inputs() {
+            previousReads += 1;
+            throw new Error("Same-release evidence must not be queried.");
+          },
+        },
+        baciRelease: CORE_CURRENT_INPUT.release.baciRelease,
+        artifactSha256: "b".repeat(64),
+        hsRevision: "HS12",
+        availableYears: [2019, 2020, 2021, 2022, 2023],
+      },
+    );
+
+    const result = await analysis.analyze({
+      analysisBuildId: CORE_CURRENT_INPUT.analysisBuildId,
+      exporterCode: "156",
+      productCode: "010121",
+    });
+
+    expect(previousReads).toBe(0);
+    expect(result.releaseRevisionSummary).toMatchObject({
+      comparisonRelease: null,
+      previousArtifactSha256: null,
+      notComparedReason: "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+    });
+  });
+
   it("accepts valid highly concentrated alternative supplier aggregates", async () => {
     const input = {
       ...CORE_CURRENT_INPUT,

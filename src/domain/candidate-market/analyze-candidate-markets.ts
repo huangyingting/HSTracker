@@ -36,13 +36,37 @@ export class CmsV1CandidateMarketAnalysis implements CandidateMarketAnalysis {
     const previousArtifact =
       this.previousRelease === null
         ? null
-        : await loadPreviousArtifact(
-            query,
-            inputs.release.finalizedCutoffYear,
-            this.previousRelease,
-          );
+        : this.previousRelease.baciRelease ===
+            inputs.release.baciRelease
+          ? unrecomputedPreviousArtifact(
+              inputs.release.finalizedCutoffYear,
+              this.previousRelease,
+            )
+          : await loadPreviousArtifact(
+              query,
+              inputs.release.finalizedCutoffYear,
+              this.previousRelease,
+            );
     return computeCmsV1(inputs, previousArtifact);
   }
+}
+
+function unrecomputedPreviousArtifact(
+  currentFinalizedCutoffYear: number,
+  previous: PreviousReleaseEvidence,
+): ReleaseRevisionPreviousArtifact {
+  return {
+    baciRelease: previous.baciRelease,
+    artifactSha256: previous.artifactSha256,
+    hsRevision: previous.hsRevision,
+    scoreVersion: "cms-v1",
+    availableYears: previous.availableYears,
+    scoreWindowUsed: {
+      start: currentFinalizedCutoffYear - 4,
+      end: currentFinalizedCutoffYear,
+    },
+    recomputedCandidates: [],
+  };
 }
 
 async function loadPreviousArtifact(
@@ -67,6 +91,8 @@ async function loadPreviousArtifact(
         "Previous release evidence does not match its artifact identity.",
       );
     }
+    // Recompute prior-release bytes over the current finalized window only for
+    // Release Revision comparison; this never changes the current score.
     const result = computeCmsV1({
       ...inputs,
       marketYears: [

@@ -11,6 +11,7 @@ import type {
 } from "../../src/release/release-object-store";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { VerifiedReleaseRuntime } from "../../src/runtime/verified-release-runtime";
+import { CountingReleaseReader } from "../fixtures/counting-release-reader";
 import {
   RUNTIME_RELEASE_FIXTURE,
   writeRuntimeReleaseCandidate,
@@ -72,8 +73,9 @@ describe("verified release runtime", () => {
       },
       previousAnalysisArtifact: null,
       freshness: {
-        sourceStatusSnapshotId:
-          `source-status:deployment:${published.deploymentPairingId}`,
+        sourceStatusSnapshotId: expect.stringMatching(
+          /^source-status-bootstrap-v1-[a-f0-9]{16}$/u,
+        ),
         freshnessStatusId: expect.stringMatching(/^freshness:/u),
         state: "LATEST_KNOWN",
       },
@@ -129,6 +131,135 @@ describe("verified release runtime", () => {
       "deployment-pointers/current.json",
       `deployment-pairings/${published.deploymentPairingId}.json`,
     ]);
+  }, 20_000);
+
+  it("hydrates previous evidence missing from a legacy resident volume", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+      {
+        baciRelease: "V202501",
+        finalizedCutoffYear: 2022,
+      },
+    );
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const published = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    initial.close();
+    const residentPath = join(
+      volumePath,
+      published.deploymentPairingId,
+    );
+    await Promise.all([
+      rm(join(residentPath, "previous-candidate-market.duckdb")),
+      rm(join(residentPath, "previous-artifact-manifest.json")),
+    ]);
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.currentAnalysis().revisionComparison).toMatchObject({
+      comparisonRelease: "V202501",
+      notComparedReason: null,
+    });
+  }, 20_000);
+
+  it("changes bootstrap status identity when a pairing is reactivated", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T01:00:00Z",
+    });
+    const initialStatusId =
+      initial.health("runtime-test-build").freshness
+        .sourceStatusSnapshotId;
+    initial.close();
+    await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const rolledBack = await publisher.rollback({
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T03:00:00Z",
+    });
+    runtimes.push(runtime);
+    const reactivatedStatusId =
+      runtime.health("runtime-test-build").freshness
+        .sourceStatusSnapshotId;
+
+    expect(rolledBack.deploymentPairingId).toBe(
+      first.deploymentPairingId,
+    );
+    expect(reactivatedStatusId).not.toBe(initialStatusId);
+  }, 20_000);
+
+  it("does not reset bootstrap source-check age on activation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-08-01T02:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-08-01T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.currentAnalysis().freshness).toMatchObject({
+      checkedAt: "2026-07-12T01:00:00Z",
+      state: "CHECK_OVERDUE",
+      effectiveAt: "2026-07-26T01:00:00Z",
+    });
   }, 20_000);
 
   it("serves real analysis and product search without request-time object storage", async () => {
@@ -275,7 +406,10 @@ describe("verified release runtime", () => {
     temporaryDirectories.push(root);
     const firstCandidate = await writeRuntimeReleaseCandidate(
       join(root, "first"),
-      { finalizedCutoffYear: 2022 },
+      {
+        baciRelease: "V202501",
+        finalizedCutoffYear: 2022,
+      },
     );
     const secondCandidate = await writeRuntimeReleaseCandidate(
       join(root, "second"),
@@ -321,23 +455,74 @@ describe("verified release runtime", () => {
       resultRelease: result.provenance.baciRelease,
     }).toEqual({
       previousHealth: {
-        baciRelease: "V202601",
+        baciRelease: "V202501",
         buildId: firstManifest.artifact.buildId,
         schemaVersion: "candidate-market-artifact-v1",
         sha256: firstManifest.artifact.sha256,
       },
       currentRevision: {
-        comparisonRelease: "V202601",
+        comparisonRelease: "V202501",
         previousArtifactSha256: firstManifest.artifact.sha256,
         notComparedReason: null,
       },
       resultRevision: {
-        comparisonRelease: "V202601",
+        comparisonRelease: "V202501",
         previousArtifactSha256: firstManifest.artifact.sha256,
         notComparedReason: null,
         noLongerEligibleCount: 0,
       },
       resultRelease: "V202601",
+    });
+  }, 20_000);
+
+  it("does not treat a same-release artifact rebuild as a Release Revision", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const published = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    const result = await runtime.analyze({
+      analysisBuildId: published.analysisBuildId,
+      exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+
+    expect({
+      current: runtime.currentAnalysis().revisionComparison,
+      result: result.releaseRevisionSummary,
+    }).toEqual({
+      current: {
+        comparisonRelease: null,
+        previousArtifactSha256: null,
+        notComparedReason: "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+      },
+      result: {
+        comparisonRelease: null,
+        previousArtifactSha256: null,
+        notComparedReason: "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+        noLongerEligibleCount: null,
+      },
     });
   }, 20_000);
 });
@@ -355,17 +540,6 @@ class ResidentReleaseReader implements ReleaseObjectReader {
     ) {
       throw new Error(`Resident startup attempted to download ${key}.`);
     }
-    return this.delegate.getObject(key);
-  }
-}
-
-class CountingReleaseReader implements ReleaseObjectReader {
-  readCount = 0;
-
-  constructor(private readonly delegate: ReleaseObjectReader) {}
-
-  async getObject(key: string): Promise<ReleaseObject | null> {
-    this.readCount += 1;
     return this.delegate.getObject(key);
   }
 }

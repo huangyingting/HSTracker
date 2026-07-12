@@ -154,6 +154,15 @@ describe("Release Revision comparison", () => {
     [
       {
         ...previousArtifact,
+        baciRelease: currentRelease.baciRelease,
+      },
+      "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+      null,
+      null,
+    ],
+    [
+      {
+        ...previousArtifact,
         availableYears: [2019, 2020, 2021, 2022],
       },
       "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
