@@ -5,6 +5,7 @@ import {
 } from "../domain/release/source-freshness";
 import {
   contentAddressedId,
+  MAX_RELEASE_METADATA_BYTES,
   readReleaseMetadata,
   releaseJsonBytes,
   type ReleaseObjectReference,
@@ -44,7 +45,13 @@ export type PublishedSourceStatusSnapshot = SourceStatusPublicationInput & {
 export type ActiveSourceStatusPointer = {
   schemaVersion: "active-source-status-pointer-v1";
   current: ReleaseObjectReference;
+  retained: ReleaseObjectReference[];
   publishedAt: string;
+};
+
+export type RetainedSourceStatuses = {
+  current: PublishedSourceStatusSnapshot;
+  retained: PublishedSourceStatusSnapshot[];
 };
 
 type CurrentSourceStatus = {
@@ -67,10 +74,52 @@ export class SourceStatusPublicationError extends Error {
 }
 
 export class SourceStatusReader {
+  private readonly statusCache = new Map<
+    string,
+    PublishedSourceStatusSnapshot
+  >();
+
   constructor(protected readonly objectStore: ReleaseObjectReader) {}
 
   async current(): Promise<PublishedSourceStatusSnapshot | null> {
     return (await this.loadCurrent())?.status ?? null;
+  }
+
+  async currentAndRetained(): Promise<RetainedSourceStatuses | null> {
+    const current = await this.loadCurrent();
+    if (current === null) {
+      return null;
+    }
+    const retained = await Promise.all(
+      current.pointer.retained.map((reference) =>
+        this.readStatus(reference),
+      ),
+    );
+    for (const status of retained) {
+      if (
+        status.servedBaciRelease !==
+          current.status.servedBaciRelease ||
+        Date.parse(status.publishedAt) >
+          Date.parse(current.status.publishedAt) ||
+        Date.parse(status.checkedAt) >
+          Date.parse(current.status.checkedAt)
+      ) {
+        throw new Error(
+          "A retained source-status snapshot is incompatible with the active snapshot.",
+        );
+      }
+    }
+    const retainedKeys = new Set(
+      [current.pointer.current, ...current.pointer.retained].map(
+        statusReferenceCacheKey,
+      ),
+    );
+    for (const key of this.statusCache.keys()) {
+      if (!retainedKeys.has(key)) {
+        this.statusCache.delete(key);
+      }
+    }
+    return { current: current.status, retained };
   }
 
   protected async loadCurrent(): Promise<CurrentSourceStatus | null> {
@@ -85,13 +134,7 @@ export class SourceStatusReader {
         (await readReleaseMetadata(storedPointer.body)).toString("utf8"),
       ),
     );
-    const statusBytes = await readVerifiedStatusObject(
-      this.objectStore,
-      pointer.current,
-    );
-    const status = parsePublishedSourceStatusSnapshot(
-      JSON.parse(statusBytes.toString("utf8")),
-    );
+    const status = await this.readStatus(pointer.current);
     if (status.publishedAt !== pointer.publishedAt) {
       throw new Error(
         "The active source-status pointer does not match its snapshot.",
@@ -102,6 +145,25 @@ export class SourceStatusReader {
       pointerVersion: storedPointer.version,
       status,
     };
+  }
+
+  private async readStatus(
+    reference: ReleaseObjectReference,
+  ): Promise<PublishedSourceStatusSnapshot> {
+    const cacheKey = statusReferenceCacheKey(reference);
+    const cached = this.statusCache.get(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const statusBytes = await readVerifiedStatusObject(
+      this.objectStore,
+      reference,
+    );
+    const status = parsePublishedSourceStatusSnapshot(
+      JSON.parse(statusBytes.toString("utf8")),
+    );
+    this.statusCache.set(cacheKey, status);
+    return status;
   }
 }
 
@@ -155,13 +217,21 @@ export class SourceStatusPublisher extends SourceStatusReader {
     const pointer: ActiveSourceStatusPointer = {
       schemaVersion: "active-source-status-pointer-v1",
       current: reference,
+      retained: retainedReferences(current, status),
       publishedAt: status.publishedAt,
     };
+    const pointerBytes = releaseJsonBytes(pointer);
+    if (pointerBytes.byteLength > MAX_RELEASE_METADATA_BYTES) {
+      throw new SourceStatusPublicationError(
+        "STATUS_ACTIVATION_FAILED",
+        "Source-status pointer exceeds its metadata size limit.",
+      );
+    }
     try {
       await this.store.compareAndSwap(
         ACTIVE_SOURCE_STATUS_POINTER_KEY,
         current?.pointerVersion ?? null,
-        releaseJsonBytes(pointer),
+        pointerBytes,
       );
     } catch (error) {
       throw new SourceStatusPublicationError(
@@ -338,11 +408,48 @@ function parseActiveSourceStatusPointer(
   return {
     schemaVersion: "active-source-status-pointer-v1",
     current: objectReference(pointer.current),
+    retained: referenceArray(pointer.retained),
     publishedAt: utcTimestamp(
       pointer.publishedAt,
       "source-status pointer publication time",
     ),
   };
+}
+
+function retainedReferences(
+  current: CurrentSourceStatus | null,
+  next: PublishedSourceStatusSnapshot,
+): ReleaseObjectReference[] {
+  if (
+    current === null ||
+    current.status.servedBaciRelease !== next.servedBaciRelease
+  ) {
+    return [];
+  }
+  const references = [
+    ...current.pointer.retained,
+    current.pointer.current,
+  ];
+  return [
+    ...new Map(
+      references.map((reference) => [reference.key, reference]),
+    ).values(),
+  ];
+}
+
+function statusReferenceCacheKey(
+  reference: ReleaseObjectReference,
+): string {
+  return `${reference.key}:${reference.bytes}:${reference.sha256}`;
+}
+
+function referenceArray(value: unknown): ReleaseObjectReference[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      "Active source-status retained references must be an array.",
+    );
+  }
+  return value.map(objectReference);
 }
 
 function objectReference(value: unknown): ReleaseObjectReference {

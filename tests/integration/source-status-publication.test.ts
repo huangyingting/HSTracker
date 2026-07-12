@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
 
-describe("source-status publication", () => {
+describe("Source Freshness Status publication", () => {
   it("refuses to move the active pointer backward in publication time", async () => {
     const publisher = new SourceStatusPublisher(
       new InMemoryReleaseObjectStore(),
@@ -47,5 +47,48 @@ describe("source-status publication", () => {
       code: "STATUS_REGRESSION",
     });
     await expect(publisher.current()).resolves.toEqual(accepted);
+  });
+
+  it("retains same-release snapshots and resets history for a new served release", async () => {
+    const publisher = new SourceStatusPublisher(
+      new InMemoryReleaseObjectStore(),
+    );
+    const first = await publisher.publish({
+      checkedAt: "2026-03-02T00:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202601",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2026-03-02T00:00:00Z",
+    });
+    const second = await publisher.publish({
+      checkedAt: "2026-03-03T00:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2026-03-03T00:00:00Z",
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2026-03-03T00:00:00Z",
+    });
+
+    await expect(publisher.currentAndRetained()).resolves.toEqual({
+      current: second,
+      retained: [first],
+    });
+
+    const nextRelease = await publisher.publish({
+      checkedAt: "2026-03-04T00:00:00Z",
+      servedBaciRelease: "V202701",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2026-03-04T00:00:00Z",
+    });
+    await expect(publisher.currentAndRetained()).resolves.toEqual({
+      current: nextRelease,
+      retained: [],
+    });
   });
 });

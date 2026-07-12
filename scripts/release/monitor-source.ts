@@ -4,6 +4,7 @@ import {
   CepiiBaciReleaseSource,
   SourceMonitor,
 } from "../../src/release/source-monitor";
+import { privateErrorDiagnostic } from "../../src/operations/private-error-diagnostic";
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
@@ -37,7 +38,7 @@ async function main(): Promise<void> {
         `${JSON.stringify({
           event: event.type,
           checkedAt: event.checkedAt,
-          diagnostic: privateDiagnostic(event.error),
+          diagnostic: privateErrorDiagnostic(event.error),
         })}\n`,
       );
     },
@@ -56,13 +57,4 @@ void main().catch((error: unknown) => {
 
 function currentUtcSecond(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/u, "Z");
-}
-
-function privateDiagnostic(error: unknown): {
-  name: string;
-  message: string;
-} {
-  return error instanceof Error
-    ? { name: error.name, message: error.message }
-    : { name: "UnknownError", message: String(error) };
 }

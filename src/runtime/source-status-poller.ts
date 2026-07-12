@@ -62,6 +62,7 @@ type SourceStatusPollerInput = {
   objectStore: ReleaseObjectReader;
   servedBaciRelease: string;
   fallback: SourceStatusSnapshot;
+  retain?: (snapshots: SourceStatusSnapshot[]) => void;
   accept: (snapshot: SourceStatusSnapshot) => void;
   now?: () => string;
   monotonicNow?: () => number;
@@ -171,10 +172,11 @@ export class SourceStatusPoller {
     const polledAt = this.now();
     this.state = { ...this.state, lastAttemptAt: polledAt };
     try {
-      const published = await this.reader.current();
-      if (published === null) {
+      const statuses = await this.reader.currentAndRetained();
+      if (statuses === null) {
         throw new Error("No active source-status snapshot is available.");
       }
+      const published = statuses.current;
       if (
         published.servedBaciRelease !== this.input.servedBaciRelease
       ) {
@@ -200,6 +202,9 @@ export class SourceStatusPoller {
       const changed =
         published.sourceStatusSnapshotId !==
         this.current.sourceStatusSnapshotId;
+      this.input.retain?.(
+        [published, ...statuses.retained].map(sourceStatusSnapshot),
+      );
       if (changed) {
         const snapshot = sourceStatusSnapshot(published);
         this.input.accept(snapshot);

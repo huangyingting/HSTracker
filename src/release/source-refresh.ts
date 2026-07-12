@@ -42,7 +42,6 @@ export type SourceRefreshEvent =
 type SourceRefreshOrchestratorInput = {
   deployments: ReleasePublisher;
   statuses: SourceStatusPublisher;
-  build: SourceRefreshBuild;
   observe?: (event: SourceRefreshEvent) => void;
 };
 
@@ -66,6 +65,7 @@ export class SourceRefreshOrchestrator {
   async refresh(input: {
     baciRelease: string;
     activatedAt: string;
+    build: SourceRefreshBuild;
     signal?: AbortSignal;
   }): Promise<{
     deployment: PublishedDeployment;
@@ -77,7 +77,7 @@ export class SourceRefreshOrchestrator {
     ]);
     if (initialDeployment === null || initialStatus === null) {
       throw invalidRefreshState(
-        "Refresh requires an active deployment and detected source status.",
+        "Refresh requires an active deployment and detected Source Freshness Status.",
       );
     }
     if (
@@ -94,7 +94,7 @@ export class SourceRefreshOrchestrator {
 
     let deployment: PublishedDeployment;
     try {
-      const candidate = await this.input.build({
+      const candidate = await input.build({
         baciRelease: input.baciRelease,
         signal: input.signal,
       });
@@ -171,7 +171,7 @@ export class SourceRefreshOrchestrator {
           currentStatus.servedBaciRelease !== input.baciRelease)
       ) {
         throw new Error(
-          "Source status changed incompatibly during promotion.",
+          "Source Freshness Status changed incompatibly during promotion.",
         );
       }
       const completedStatusInput = completedRefreshStatus(
@@ -192,7 +192,7 @@ export class SourceRefreshOrchestrator {
       });
       throw new SourceRefreshError(
         "REFRESH_STATUS_FAILED",
-        "BACI release was promoted but its source status was not published.",
+        "BACI release was promoted but its Source Freshness Status was not published.",
         { cause: error },
       );
     }
@@ -229,7 +229,7 @@ export class SourceRefreshOrchestrator {
     const currentStatus = await this.input.statuses.current();
     if (currentStatus === null) {
       throw invalidRefreshState(
-        "Rollback requires an active source status.",
+        "Rollback requires an active Source Freshness Status.",
       );
     }
     const deployment = await this.input.deployments.rollback(input);
@@ -264,7 +264,7 @@ export class SourceRefreshOrchestrator {
       });
       throw new SourceRefreshError(
         "REFRESH_STATUS_FAILED",
-        "BACI rollback was activated but its source status was not published.",
+        "BACI rollback was activated but its Source Freshness Status was not published.",
         { cause: error },
       );
     }

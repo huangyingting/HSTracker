@@ -8,7 +8,10 @@ import {
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
 import { resolveReleaseRevisionComparisonIdentity } from "../domain/release/release-revision";
-import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
+import {
+  evaluateSourceFreshness,
+  type SourceStatusSnapshot,
+} from "../domain/release/source-freshness";
 import { DuckDbEconomyDirectory } from "../economy/duckdb-economy-directory";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import {
@@ -52,11 +55,20 @@ export class VerifiedReleaseRuntime {
     private readonly productCatalog: ProductCatalog,
     private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
-  ) {}
+  ) {
+    this.retainedSourceStatuses.set(
+      sourceStatus.sourceStatusSnapshotId,
+      sourceStatus,
+    );
+  }
 
   private sourceStatusDiagnostics:
     | (() => SourceStatusPollerDiagnostics)
     | null = null;
+  private readonly retainedSourceStatuses = new Map<
+    string,
+    SourceStatusSnapshot
+  >();
 
   static async load(
     input: VerifiedReleaseRuntimeInput,
@@ -133,7 +145,7 @@ export class VerifiedReleaseRuntime {
         previousManifest,
       );
       const sourceStatus = hydrated.sourceStatusFallback;
-      assertStatusMicroCacheBudget(deployment, sourceStatus);
+      assertStatusMicroCacheBudget(deployment, [sourceStatus]);
       return new VerifiedReleaseRuntime(
         hydrated,
         manifest,
@@ -214,10 +226,16 @@ export class VerifiedReleaseRuntime {
   }
 
   resolveFreshnessStatus(freshnessStatusId: string) {
-    const freshness = this.currentAnalysis().freshness;
-    return freshness.freshnessStatusId === freshnessStatusId
-      ? freshness
-      : null;
+    const now = this.now();
+    for (const snapshot of this.retainedSourceStatuses.values()) {
+      for (const asOf of freshnessTransitionTimes(snapshot, now)) {
+        const freshness = evaluateSourceFreshness(snapshot, asOf);
+        if (freshness.freshnessStatusId === freshnessStatusId) {
+          return freshness;
+        }
+      }
+    }
+    return null;
   }
 
   sourceStatusFallback(): SourceStatusSnapshot {
@@ -239,8 +257,41 @@ export class VerifiedReleaseRuntime {
     ) {
       throw new Error("The source-status snapshot publication regressed.");
     }
-    assertStatusMicroCacheBudget(this.deployment, snapshot);
+    const retained = new Map(this.retainedSourceStatuses);
+    retained.set(snapshot.sourceStatusSnapshotId, snapshot);
+    assertStatusMicroCacheBudget(this.deployment, [...retained.values()]);
+    this.replaceRetainedSourceStatuses(retained.values());
     this.sourceStatus = snapshot;
+  }
+
+  retainSourceStatuses(snapshots: SourceStatusSnapshot[]): void {
+    const retained = new Map<string, SourceStatusSnapshot>();
+    retained.set(
+      this.sourceStatus.sourceStatusSnapshotId,
+      this.sourceStatus,
+    );
+    for (const snapshot of snapshots) {
+      if (
+        snapshot.servedBaciRelease ===
+        this.deployment.source.baciRelease
+      ) {
+        retained.set(snapshot.sourceStatusSnapshotId, snapshot);
+      }
+    }
+    assertStatusMicroCacheBudget(this.deployment, [...retained.values()]);
+    this.replaceRetainedSourceStatuses(retained.values());
+  }
+
+  private replaceRetainedSourceStatuses(
+    snapshots: Iterable<SourceStatusSnapshot>,
+  ): void {
+    this.retainedSourceStatuses.clear();
+    for (const snapshot of snapshots) {
+      this.retainedSourceStatuses.set(
+        snapshot.sourceStatusSnapshotId,
+        snapshot,
+      );
+    }
   }
 
   observeSourceStatusPolling(
@@ -291,7 +342,7 @@ export class VerifiedReleaseRuntime {
         statusMicroCache: {
           bytes: statusMicroCacheWeight(
             this.deployment,
-            this.sourceStatus,
+            [...this.retainedSourceStatuses.values()],
           ),
           maxBytes: RUNTIME_RESOURCE_POLICY.statusMicroCacheMaxBytes,
         },
@@ -309,9 +360,9 @@ export class VerifiedReleaseRuntime {
 
 function assertStatusMicroCacheBudget(
   deployment: CurrentAnalysisDeployment,
-  sourceStatus: SourceStatusSnapshot,
+  sourceStatuses: SourceStatusSnapshot[],
 ): void {
-  const bytes = statusMicroCacheWeight(deployment, sourceStatus);
+  const bytes = statusMicroCacheWeight(deployment, sourceStatuses);
   if (bytes > RUNTIME_RESOURCE_POLICY.statusMicroCacheMaxBytes) {
     throw new Error(
       "The effective manifest/status micro-cache exceeds its byte cap.",
@@ -321,9 +372,25 @@ function assertStatusMicroCacheBudget(
 
 function statusMicroCacheWeight(
   deployment: CurrentAnalysisDeployment,
-  sourceStatus: SourceStatusSnapshot,
+  sourceStatuses: SourceStatusSnapshot[],
 ): number {
-  return serializedWeight({ deployment, sourceStatus });
+  return serializedWeight({ deployment, sourceStatuses });
+}
+
+function freshnessTransitionTimes(
+  snapshot: SourceStatusSnapshot,
+  now: string,
+): string[] {
+  const initial = evaluateSourceFreshness(
+    snapshot,
+    snapshot.publishedAt,
+  );
+  return [
+    snapshot.publishedAt,
+    initial.refreshDueAt,
+    initial.checkOverdueAt,
+    now,
+  ].filter((value): value is string => value !== null);
 }
 
 function validateHydratedPairing(

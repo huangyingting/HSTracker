@@ -166,7 +166,10 @@ export class SourceMonitor {
   }
 }
 
-function compareBaciReleases(left: string, right: string): number {
+export function compareBaciReleases(
+  left: string,
+  right: string,
+): number {
   return baciReleaseNumber(left) - baciReleaseNumber(right);
 }
 

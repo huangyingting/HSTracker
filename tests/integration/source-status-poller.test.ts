@@ -23,7 +23,7 @@ const FALLBACK: SourceStatusSnapshot = {
   publishedAt: "2026-03-01T00:00:00Z",
 };
 
-describe("runtime source-status poller", () => {
+describe("runtime Source Freshness Status poller", () => {
   it("adopts a verified compatible snapshot and uses 55-60 second jitter", async () => {
     const objectStore = new InMemoryReleaseObjectStore();
     const published = await new SourceStatusPublisher(objectStore).publish({

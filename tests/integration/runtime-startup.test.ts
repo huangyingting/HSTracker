@@ -117,7 +117,17 @@ describe("Next.js runtime startup", () => {
       ...candidate,
       activatedAt: "2026-07-12T02:00:00Z",
     });
-    const status = await new SourceStatusPublisher(objectStore).publish({
+    const statuses = new SourceStatusPublisher(objectStore);
+    const retainedStatus = await statuses.publish({
+      checkedAt: "2026-07-12T02:00:30Z",
+      servedBaciRelease: published.baciRelease,
+      latestKnownBaciRelease: published.baciRelease,
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2026-07-12T02:00:30Z",
+    });
+    const status = await statuses.publish({
       checkedAt: "2026-07-12T02:01:00Z",
       servedBaciRelease: published.baciRelease,
       latestKnownBaciRelease: "V202701",
@@ -163,6 +173,16 @@ describe("Next.js runtime startup", () => {
           lastSuccessfulPollAt: "2026-07-12T02:02:00Z",
         },
       },
+    });
+    expect(
+      started.runtime.resolveFreshnessStatus(
+        retainedStatus.freshnessStatusId,
+      ),
+    ).toMatchObject({
+      sourceStatusSnapshotId:
+        retainedStatus.sourceStatusSnapshotId,
+      freshnessStatusId: retainedStatus.freshnessStatusId,
+      state: "LATEST_KNOWN",
     });
   }, 20_000);
 

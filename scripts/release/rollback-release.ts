@@ -21,9 +21,6 @@ async function main(): Promise<void> {
   const published = await new SourceRefreshOrchestrator({
     deployments: new ReleasePublisher(objectStore),
     statuses: new SourceStatusPublisher(objectStore),
-    async build() {
-      throw new Error("Rollback cannot invoke a release build.");
-    },
   }).rollback({
     activatedAt: requiredOption(values["activated-at"], "activated-at"),
   });

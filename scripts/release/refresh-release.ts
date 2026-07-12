@@ -2,6 +2,7 @@ import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 
 import { buildProductCatalogArtifact } from "../catalog/product-catalog-artifact";
+import { privateErrorDiagnostic } from "../../src/operations/private-error-diagnostic";
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import {
@@ -54,6 +55,10 @@ async function main(): Promise<void> {
     deployments: new ReleasePublisher(objectStore),
     statuses: new SourceStatusPublisher(objectStore),
     observe: writePrivateRefreshDiagnostic,
+  });
+  const result = await orchestrator.refresh({
+    baciRelease,
+    activatedAt,
     async build({ baciRelease: requestedRelease, signal }) {
       if (requestedRelease !== baciRelease) {
         throw new Error("Refresh build target changed unexpectedly.");
@@ -131,10 +136,6 @@ async function main(): Promise<void> {
       };
     },
   });
-  const result = await orchestrator.refresh({
-    baciRelease,
-    activatedAt,
-  });
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
@@ -150,17 +151,8 @@ function writePrivateRefreshDiagnostic(
       ...event,
       error:
         "error" in event
-          ? privateDiagnostic(event.error)
+          ? privateErrorDiagnostic(event.error)
           : undefined,
     })}\n`,
   );
-}
-
-function privateDiagnostic(error: unknown): {
-  name: string;
-  message: string;
-} {
-  return error instanceof Error
-    ? { name: error.name, message: error.message }
-    : { name: "UnknownError", message: String(error) };
 }

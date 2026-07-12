@@ -273,6 +273,13 @@ describe("S3 release object store", () => {
       ],
       environment,
     );
+    await expect(
+      new SourceStatusReader(objectStore).current(),
+    ).resolves.toMatchObject({
+      servedBaciRelease: "VTEST001",
+      publishedAt: "2026-07-12T03:00:00Z",
+      state: "LATEST_KNOWN",
+    });
     const rolledBack = await runReleaseCommand(
       "scripts/release/rollback-release.ts",
       ["--activated-at", "2026-07-12T04:00:00Z"],

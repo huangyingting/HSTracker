@@ -52,12 +52,12 @@ describe("source refresh orchestration", () => {
     const orchestrator = new SourceRefreshOrchestrator({
       deployments,
       statuses,
-      build,
     });
 
     const result = await orchestrator.refresh({
       baciRelease: "V202701",
       activatedAt: "2027-03-03T01:00:00Z",
+      build,
     });
 
     expect(build).toHaveBeenCalledWith({
@@ -122,9 +122,6 @@ describe("source refresh orchestration", () => {
     const orchestrator = new SourceRefreshOrchestrator({
       deployments,
       statuses,
-      build: async () => {
-        throw privateFailure;
-      },
       observe: (event) => diagnostics.push(event),
     });
 
@@ -132,6 +129,9 @@ describe("source refresh orchestration", () => {
       orchestrator.refresh({
         baciRelease: "V202701",
         activatedAt: "2027-03-03T01:00:00Z",
+        build: async () => {
+          throw privateFailure;
+        },
       }),
     ).rejects.toMatchObject({
       name: "SourceRefreshError",
@@ -195,13 +195,13 @@ describe("source refresh orchestration", () => {
     const orchestrator = new SourceRefreshOrchestrator({
       deployments,
       statuses,
-      build: async () => wrongCandidate,
     });
 
     await expect(
       orchestrator.refresh({
         baciRelease: "V202701",
         activatedAt: "2027-03-03T01:00:00Z",
+        build: async () => wrongCandidate,
       }),
     ).rejects.toMatchObject({
       name: "SourceRefreshError",
@@ -264,15 +264,15 @@ describe("source refresh orchestration", () => {
     const orchestrator = new SourceRefreshOrchestrator({
       deployments,
       statuses,
-      build: async () => {
-        markBuildStarted();
-        return buildFinished;
-      },
     });
 
     const refreshing = orchestrator.refresh({
       baciRelease: "V202701",
       activatedAt: "2027-03-04T01:00:00Z",
+      build: async () => {
+        markBuildStarted();
+        return buildFinished;
+      },
     });
     await buildStarted;
     await statuses.publish({
@@ -334,9 +334,6 @@ describe("source refresh orchestration", () => {
     const orchestrator = new SourceRefreshOrchestrator({
       deployments,
       statuses,
-      build: async () => {
-        throw new Error("rollback must not build");
-      },
     });
 
     const rolledBack = await orchestrator.rollback({

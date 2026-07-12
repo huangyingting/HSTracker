@@ -1,5 +1,6 @@
 import type { ReleaseObjectReader } from "../release/release-object-store";
 import { createRuntimeReleaseObjectReader } from "../release/release-object-storage";
+import { privateErrorDiagnostic } from "../operations/private-error-diagnostic";
 import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,
@@ -69,6 +70,8 @@ export async function startApplicationRuntime(
     servedBaciRelease:
       verifiedRuntime.currentAnalysis().source.baciRelease,
     fallback: verifiedRuntime.sourceStatusFallback(),
+    retain: (snapshots) =>
+      verifiedRuntime.retainSourceStatuses(snapshots),
     accept: (snapshot) =>
       verifiedRuntime.acceptSourceStatus(snapshot),
     now: input.now,
@@ -134,7 +137,7 @@ function observeSourceStatusPolling(
   ) {
     console.warn("Source-status pointer polling is degraded", {
       consecutiveFailures: event.consecutiveFailures,
-      error: privateDiagnostic(event.error),
+      error: privateErrorDiagnostic(event.error),
     });
     return;
   }
@@ -153,13 +156,4 @@ function observeSourceStatusPolling(
   } else {
     console.info("Source freshness alert resolved", details);
   }
-}
-
-function privateDiagnostic(error: unknown): {
-  name: string;
-  message: string;
-} {
-  return error instanceof Error
-    ? { name: error.name, message: error.message }
-    : { name: "UnknownError", message: String(error) };
 }
