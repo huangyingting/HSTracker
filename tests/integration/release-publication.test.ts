@@ -108,44 +108,57 @@ describe("immutable release publication", () => {
     );
   });
 
-  it("keeps the product-search identity when only analysis content changes", async () => {
-    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedReleaseCandidate(
-      join(root, "first"),
-    );
-    const refreshedCandidate = await writeAcceptedReleaseCandidate(
-      join(root, "refreshed"),
-      {
-        analysisArtifactVersion: "v2",
+  it.each([
+    {
+      mutation: "artifact bytes",
+      options: { analysisArtifactVersion: "v2" },
+    },
+    {
+      mutation: "artifact build ID",
+      options: {
         analysisArtifactBuildId:
           "candidate-market-artifact-v1-4444444444444444",
       },
-    );
-    const publisher = new ReleasePublisher(
-      new InMemoryReleaseObjectStore(),
-    );
-    const first = await publisher.promote({
-      ...firstCandidate,
-      activatedAt: "2026-07-12T02:00:00Z",
-    });
+    },
+  ])(
+    "keeps the product-search identity when only analysis $mutation change",
+    async ({ options }) => {
+      const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+      const firstCandidate = await writeAcceptedReleaseCandidate(
+        join(root, "first"),
+      );
+      const refreshedCandidate = await writeAcceptedReleaseCandidate(
+        join(root, "refreshed"),
+        options,
+      );
+      const publisher = new ReleasePublisher(
+        new InMemoryReleaseObjectStore(),
+      );
+      const first = await publisher.promote({
+        ...firstCandidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      });
 
-    const refreshed = await publisher.promote({
-      ...refreshedCandidate,
-      activatedAt: "2026-07-12T03:00:00Z",
-    });
+      const refreshed = await publisher.promote({
+        ...refreshedCandidate,
+        activatedAt: "2026-07-12T03:00:00Z",
+      });
 
-    expect(refreshed.productSearchBuildId).toBe(first.productSearchBuildId);
-    expect(refreshed.analysisBuildId).not.toBe(first.analysisBuildId);
-    expect(refreshed.analysisReleaseCatalogSha256).not.toBe(
-      first.analysisReleaseCatalogSha256,
-    );
-    expect(refreshed.deploymentPairingId).not.toBe(
-      first.deploymentPairingId,
-    );
-    expect(refreshed.previousDeploymentPairingId).toBe(
-      first.deploymentPairingId,
-    );
-  });
+      expect(refreshed.productSearchBuildId).toBe(
+        first.productSearchBuildId,
+      );
+      expect(refreshed.analysisBuildId).not.toBe(first.analysisBuildId);
+      expect(refreshed.analysisReleaseCatalogSha256).not.toBe(
+        first.analysisReleaseCatalogSha256,
+      );
+      expect(refreshed.deploymentPairingId).not.toBe(
+        first.deploymentPairingId,
+      );
+      expect(refreshed.previousDeploymentPairingId).toBe(
+        first.deploymentPairingId,
+      );
+    },
+  );
 
   it("rolls back atomically to the retained previous pairing", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));

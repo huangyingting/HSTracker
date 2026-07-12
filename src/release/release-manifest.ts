@@ -206,6 +206,18 @@ export function releaseObjectIdentity(
   };
 }
 
+export async function streamReleaseObjectIdentity(
+  body: AsyncIterable<Uint8Array>,
+): Promise<ReleaseObjectIdentity> {
+  const digest = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of body) {
+    bytes += chunk.byteLength;
+    digest.update(chunk);
+  }
+  return { bytes, sha256: digest.digest("hex") };
+}
+
 export function releaseJsonBytes(value: unknown): Buffer {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
 }

@@ -8,6 +8,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 
+import { streamReleaseObjectIdentity } from "./release-manifest";
 import type {
   ReleaseObject,
   ReleaseObjectIdentity,
@@ -197,13 +198,11 @@ async function streamMatchesIdentity(
   body: AsyncIterable<Uint8Array>,
   expected: ReleaseObjectIdentity,
 ): Promise<boolean> {
-  const digest = createHash("sha256");
-  let bytes = 0;
-  for await (const chunk of body) {
-    bytes += chunk.byteLength;
-    digest.update(chunk);
-  }
-  return bytes === expected.bytes && digest.digest("hex") === expected.sha256;
+  const actual = await streamReleaseObjectIdentity(body);
+  return (
+    actual.bytes === expected.bytes &&
+    actual.sha256 === expected.sha256
+  );
 }
 
 function serviceErrorStatus(error: unknown): number | undefined {

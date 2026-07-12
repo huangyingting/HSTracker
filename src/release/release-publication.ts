@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -12,6 +11,7 @@ import {
   releaseJsonBytes,
   releaseObjectIdentity,
   singleChunk,
+  streamReleaseObjectIdentity,
   type ActiveDeploymentPointer,
   type AnalysisArtifactReference,
   type DeploymentPairingManifest,
@@ -244,7 +244,7 @@ export class ReleasePublisher {
       candidate.artifactIdentity,
     );
     const manifest = await this.publishBytes(
-      `${prefix}/artifact-manifest.json`,
+      `${prefix}/manifests/${candidate.manifestIdentity.sha256}.json`,
       candidate.manifestBytes,
     );
     return {
@@ -270,7 +270,7 @@ export class ReleasePublisher {
       candidate.catalogIdentity,
     );
     const manifest = await this.publishBytes(
-      `${prefix}/catalog-manifest.json`,
+      `${prefix}/manifests/${candidate.manifestIdentity.sha256}.json`,
       candidate.manifestBytes,
     );
     return {
@@ -561,7 +561,7 @@ async function verifyStoredObject(
       `Uploaded release object ${key} is unavailable.`,
     );
   }
-  const actualIdentity = await streamIdentity(stored.body);
+  const actualIdentity = await streamReleaseObjectIdentity(stored.body);
   if (
     actualIdentity.bytes !== expectedIdentity.bytes ||
     actualIdentity.sha256 !== expectedIdentity.sha256
@@ -596,25 +596,13 @@ async function fileIdentity(
   path: string,
 ): Promise<ReleaseObjectIdentity> {
   const [streamed, details] = await Promise.all([
-    streamIdentity(createReadStream(path)),
+    streamReleaseObjectIdentity(createReadStream(path)),
     stat(path),
   ]);
   if (streamed.bytes !== details.size) {
     throw new Error(`File size changed while reading ${path}.`);
   }
   return streamed;
-}
-
-async function streamIdentity(
-  body: AsyncIterable<Uint8Array>,
-): Promise<ReleaseObjectIdentity> {
-  const digest = createHash("sha256");
-  let bytes = 0;
-  for await (const chunk of body) {
-    bytes += chunk.byteLength;
-    digest.update(chunk);
-  }
-  return { bytes, sha256: digest.digest("hex") };
 }
 
 function contentId(prefix: string, value: unknown): string {

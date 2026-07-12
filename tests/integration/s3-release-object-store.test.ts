@@ -330,11 +330,22 @@ describe("S3 release object store", () => {
     );
     const pointer = JSON.parse(pointerText) as {
       current: { key: string };
+      previous: { key: string } | null;
     };
-    const deploymentText = await objectText(
-      objectStore,
+    const deploymentKeys = [
       pointer.current.key,
+      ...(pointer.previous === null ? [] : [pointer.previous.key]),
+    ];
+    const deploymentMetadata = await Promise.all(
+      deploymentKeys.map((key) => publicDeploymentMetadata(key)),
     );
+    return [pointerText, ...deploymentMetadata.flat()];
+  }
+
+  async function publicDeploymentMetadata(
+    deploymentKey: string,
+  ): Promise<string[]> {
+    const deploymentText = await objectText(objectStore, deploymentKey);
     const deployment = JSON.parse(deploymentText) as {
       analysis: {
         artifact: { manifest: { key: string } };
@@ -353,11 +364,10 @@ describe("S3 release object store", () => {
           deployment.analysis.artifact.manifest.key,
         ),
         objectText(objectStore, deployment.productSearch.manifest.key),
-      ]);
-    return [
-      pointerText,
-      deploymentText,
-      releaseCatalogText,
+      ]      );
+      return [
+        deploymentText,
+        releaseCatalogText,
       artifactManifestText,
       catalogManifestText,
     ];

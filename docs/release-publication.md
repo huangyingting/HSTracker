@@ -59,9 +59,11 @@ deployment-pointers/current.json
 ```
 
 Only `deployment-pointers/current.json` is mutable. S3 conditional writes make
-pointer activation compare-and-swap; all other writes require the key not to
-exist and permit only identity-equivalent retries. Public deployment metadata
-contains object keys and content identities, never bucket URLs or credentials.
+pointer activation compare-and-swap. Artifact and catalog manifests use their
+own SHA-256-addressed keys beneath those prefixes, so metadata-only rebuilds
+cannot collide. All immutable writes require the key not to exist and permit
+only identity-equivalent retries. Public deployment metadata contains object
+keys and content identities, never bucket URLs or credentials.
 
 ## Promote and roll back
 
