@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import {
+  createRuntimeReadStream,
+  readRuntimeFile,
+  statRuntimePath,
+} from "../runtime-file-access";
 import type {
   ProductAliasRecord,
   ProductCatalog,
@@ -40,10 +43,17 @@ export class ImmutableProductCatalog implements ProductCatalog {
   static async open(
     options: ImmutableProductCatalogOptions,
   ): Promise<ImmutableProductCatalog> {
-    const catalogPath = resolve(options.catalogPath);
+    const catalogPath = resolve(
+      /* turbopackIgnore: true */ options.catalogPath,
+    );
     const manifest = object(
       JSON.parse(
-        await readFile(resolve(options.catalogManifestPath), "utf8"),
+        await readRuntimeFile(
+          resolve(
+            /* turbopackIgnore: true */ options.catalogManifestPath,
+          ),
+          "utf8",
+        ),
       ),
       "catalog manifest",
     );
@@ -71,7 +81,7 @@ export class ImmutableProductCatalog implements ProductCatalog {
     }
 
     const artifact = parseCatalogArtifact(
-      JSON.parse(await readFile(catalogPath, "utf8")),
+      JSON.parse(await readRuntimeFile(catalogPath, "utf8")),
     );
     const manifestBuildId = string(
       manifest.productSearchBuildId,
@@ -229,10 +239,13 @@ async function fileIdentity(
   path: string,
 ): Promise<{ bytes: number; sha256: string }> {
   const digest = createHash("sha256");
-  for await (const chunk of createReadStream(path)) {
+  for await (const chunk of createRuntimeReadStream(path)) {
     digest.update(chunk);
   }
-  return { bytes: (await stat(path)).size, sha256: digest.digest("hex") };
+  return {
+    bytes: (await statRuntimePath(path)).size,
+    sha256: digest.digest("hex"),
+  };
 }
 
 function object(value: unknown, label: string): Record<string, unknown> {

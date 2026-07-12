@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 import type { ProductCatalog } from "../catalog/product-catalog";
 import { ImmutableProductCatalog } from "../catalog/immutable-product-catalog";
 import {
@@ -27,6 +25,7 @@ import {
   type HydratedRelease,
 } from "../release/release-hydration";
 import type { ReleaseObjectReader } from "../release/release-object-store";
+import { readRuntimeFile } from "../runtime-file-access";
 
 type VerifiedReleaseRuntimeInput = {
   objectStore: ReleaseObjectReader;
@@ -465,7 +464,7 @@ function fallbackSourceStatus(
 }
 
 async function readJson(path: string): Promise<unknown> {
-  return JSON.parse(await readFile(path, "utf8"));
+  return JSON.parse(await readRuntimeFile(path, "utf8"));
 }
 
 function object(value: unknown, label: string): Record<string, unknown> {

@@ -1,18 +1,18 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import {
-  access,
-  link,
-  mkdir,
-  open,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  stat,
-} from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import {
+  accessRuntimePath,
+  linkRuntimePath,
+  makeRuntimeDirectory,
+  openRuntimePath,
+  readRuntimeDirectory,
+  readRuntimeFile,
+  removeRuntimePath,
+  renameRuntimePath,
+  statRuntimePath,
+} from "../runtime-file-access";
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
   assertDeploymentReleaseCatalog,
@@ -78,9 +78,14 @@ export class ReleaseHydrator {
     const deployment = parseDeploymentPairingManifest(
       JSON.parse(deploymentBytes.toString("utf8")),
     );
-    const volumePath = resolve(input.volumePath);
-    const finalPath = join(volumePath, deployment.deploymentPairingId);
-    await mkdir(volumePath, { recursive: true });
+    const volumePath = resolve(
+      /* turbopackIgnore: true */ input.volumePath,
+    );
+    const finalPath = join(
+      /* turbopackIgnore: true */ volumePath,
+      deployment.deploymentPairingId,
+    );
+    await makeRuntimeDirectory(volumePath, { recursive: true });
     if (await exists(finalPath)) {
       await verifyResidentReleaseBase(
         finalPath,
@@ -89,8 +94,11 @@ export class ReleaseHydrator {
       );
       const releaseCatalog = parseAnalysisReleaseCatalog(
         JSON.parse(
-          await readFile(
-            join(finalPath, "analysis-release-catalog.json"),
+          await readRuntimeFile(
+            join(
+              /* turbopackIgnore: true */ finalPath,
+              "analysis-release-catalog.json",
+            ),
             "utf8",
           ),
         ),
@@ -117,17 +125,23 @@ export class ReleaseHydrator {
     );
     assertDeploymentReleaseCatalog(deployment, releaseCatalog);
     const partialPath = join(
-      volumePath,
+      /* turbopackIgnore: true */ volumePath,
       `.${deployment.deploymentPairingId}-${process.pid}.partial`,
     );
-    await rm(partialPath, { force: true, recursive: true });
-    await mkdir(partialPath);
+    await removeRuntimePath(partialPath, {
+      force: true,
+      recursive: true,
+    });
+    await makeRuntimeDirectory(partialPath);
     try {
       const downloads: Promise<void>[] = [
         this.materializeVerified(
           volumePath,
           deployment.analysis.artifact.artifact,
-          join(partialPath, "candidate-market.duckdb"),
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "candidate-market.duckdb",
+          ),
           [
             "candidate-market.duckdb",
             "previous-candidate-market.duckdb",
@@ -136,7 +150,10 @@ export class ReleaseHydrator {
         this.materializeVerified(
           volumePath,
           deployment.analysis.artifact.manifest,
-          join(partialPath, "artifact-manifest.json"),
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "artifact-manifest.json",
+          ),
           [
             "artifact-manifest.json",
             "previous-artifact-manifest.json",
@@ -145,24 +162,36 @@ export class ReleaseHydrator {
         this.materializeVerified(
           volumePath,
           deployment.analysis.releaseCatalog,
-          join(partialPath, "analysis-release-catalog.json"),
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "analysis-release-catalog.json",
+          ),
           ["analysis-release-catalog.json"],
           releaseCatalogBytes,
         ),
         this.materializeVerified(
           volumePath,
           deployment.productSearch.catalog,
-          join(partialPath, "product-catalog.json"),
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "product-catalog.json",
+          ),
           ["product-catalog.json"],
         ),
         this.materializeVerified(
           volumePath,
           deployment.productSearch.manifest,
-          join(partialPath, "catalog-manifest.json"),
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "catalog-manifest.json",
+          ),
           ["catalog-manifest.json"],
         ),
         writeVerifiedFile(
-          join(partialPath, "deployment-manifest.json"),
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "deployment-manifest.json",
+          ),
           singleChunk(deploymentBytes),
           pointer.current,
         ),
@@ -172,7 +201,10 @@ export class ReleaseHydrator {
           this.materializeVerified(
             volumePath,
             releaseCatalog.previous.artifact,
-            join(partialPath, "previous-candidate-market.duckdb"),
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "previous-candidate-market.duckdb",
+            ),
             [
               "candidate-market.duckdb",
               "previous-candidate-market.duckdb",
@@ -181,7 +213,10 @@ export class ReleaseHydrator {
           this.materializeVerified(
             volumePath,
             releaseCatalog.previous.manifest,
-            join(partialPath, "previous-artifact-manifest.json"),
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "previous-artifact-manifest.json",
+            ),
             [
               "artifact-manifest.json",
               "previous-artifact-manifest.json",
@@ -192,12 +227,15 @@ export class ReleaseHydrator {
       await Promise.all(downloads);
       await syncDirectory(partialPath);
       try {
-        await rename(partialPath, finalPath);
+        await renameRuntimePath(partialPath, finalPath);
       } catch (error) {
         if (!(await exists(finalPath))) {
           throw error;
         }
-        await rm(partialPath, { force: true, recursive: true });
+        await removeRuntimePath(partialPath, {
+          force: true,
+          recursive: true,
+        });
         await verifyResidentReleaseBase(
           finalPath,
           deployment,
@@ -208,7 +246,10 @@ export class ReleaseHydrator {
       await syncDirectory(volumePath);
       await pruneInactivePairings(volumePath, finalPath);
     } catch (error) {
-      await rm(partialPath, { force: true, recursive: true });
+      await removeRuntimePath(partialPath, {
+        force: true,
+        recursive: true,
+      });
       throw error;
     }
     return hydratedRelease(
@@ -269,7 +310,7 @@ export class ReleaseHydrator {
       reference,
     );
     if (reusablePath !== null) {
-      await link(reusablePath, path);
+      await linkRuntimePath(reusablePath, path);
       return;
     }
     if (knownBytes !== undefined) {
@@ -302,22 +343,25 @@ export class ReleaseHydrator {
       },
     ] as const;
     for (const { name, reference } of files) {
-      const path = join(rootPath, name);
+      const path = join(
+        /* turbopackIgnore: true */ rootPath,
+        name,
+      );
       if (await exists(path)) {
         await verifyFile(path, reference);
         continue;
       }
       const partialPath = join(
-        rootPath,
+        /* turbopackIgnore: true */ rootPath,
         `.${name}-${process.pid}.partial`,
       );
-      await rm(partialPath, { force: true });
+      await removeRuntimePath(partialPath, { force: true });
       try {
         await this.downloadVerified(reference, partialPath);
-        await rename(partialPath, path);
+        await renameRuntimePath(partialPath, path);
         await syncDirectory(rootPath);
       } finally {
-        await rm(partialPath, { force: true });
+        await removeRuntimePath(partialPath, { force: true });
       }
     }
     await verifyResidentPreviousAnalysis(rootPath, releaseCatalog);
@@ -329,7 +373,7 @@ async function findReusableFile(
   names: readonly string[],
   expected: ReleaseObjectIdentity,
 ): Promise<string | null> {
-  const entries = await readdir(volumePath, { withFileTypes: true });
+  const entries = await readRuntimeDirectory(volumePath);
   for (const entry of entries) {
     if (
       !entry.isDirectory() ||
@@ -338,9 +382,16 @@ async function findReusableFile(
       continue;
     }
     for (const name of names) {
-      const candidatePath = join(volumePath, entry.name, name);
+      const candidatePath = join(
+        /* turbopackIgnore: true */ volumePath,
+        entry.name,
+        name,
+      );
       try {
-        if ((await stat(candidatePath)).size !== expected.bytes) {
+        if (
+          (await statRuntimePath(candidatePath)).size !==
+          expected.bytes
+        ) {
           continue;
         }
         await verifyFile(candidatePath, expected);
@@ -364,7 +415,7 @@ async function pruneInactivePairings(
   activePath: string,
 ): Promise<void> {
   const activeName = activePath.slice(volumePath.length + 1);
-  const entries = await readdir(volumePath, { withFileTypes: true });
+  const entries = await readRuntimeDirectory(volumePath);
   await Promise.all(
     entries
       .filter(
@@ -374,10 +425,16 @@ async function pruneInactivePairings(
           isDeploymentPairingDirectory(entry.name),
       )
       .map((entry) =>
-        rm(join(volumePath, entry.name), {
-          force: true,
-          recursive: true,
-        }),
+        removeRuntimePath(
+          join(
+            /* turbopackIgnore: true */ volumePath,
+            entry.name,
+          ),
+          {
+            force: true,
+            recursive: true,
+          },
+        ),
       ),
   );
   await syncDirectory(volumePath);
@@ -392,7 +449,7 @@ async function writeVerifiedFile(
   body: AsyncIterable<Uint8Array>,
   expected: ReleaseObjectIdentity,
 ): Promise<void> {
-  const handle = await open(path, "wx");
+  const handle = await openRuntimePath(path, "wx");
   const digest = createHash("sha256");
   let bytes = 0;
   try {
@@ -418,27 +475,45 @@ async function verifyResidentReleaseBase(
 ): Promise<void> {
   await Promise.all([
     verifyFile(
-      join(rootPath, "candidate-market.duckdb"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "candidate-market.duckdb",
+      ),
       deployment.analysis.artifact.artifact,
     ),
     verifyFile(
-      join(rootPath, "artifact-manifest.json"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "artifact-manifest.json",
+      ),
       deployment.analysis.artifact.manifest,
     ),
     verifyFile(
-      join(rootPath, "analysis-release-catalog.json"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "analysis-release-catalog.json",
+      ),
       deployment.analysis.releaseCatalog,
     ),
     verifyFile(
-      join(rootPath, "product-catalog.json"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "product-catalog.json",
+      ),
       deployment.productSearch.catalog,
     ),
     verifyFile(
-      join(rootPath, "catalog-manifest.json"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "catalog-manifest.json",
+      ),
       deployment.productSearch.manifest,
     ),
     verifyFile(
-      join(rootPath, "deployment-manifest.json"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "deployment-manifest.json",
+      ),
       releaseObjectIdentity(deploymentBytes),
     ),
   ]);
@@ -453,11 +528,17 @@ async function verifyResidentPreviousAnalysis(
   }
   await Promise.all([
     verifyFile(
-      join(rootPath, "previous-candidate-market.duckdb"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "previous-candidate-market.duckdb",
+      ),
       releaseCatalog.previous.artifact,
     ),
     verifyFile(
-      join(rootPath, "previous-artifact-manifest.json"),
+      join(
+        /* turbopackIgnore: true */ rootPath,
+        "previous-artifact-manifest.json",
+      ),
       releaseCatalog.previous.manifest,
     ),
   ]);
@@ -467,7 +548,7 @@ async function verifyFile(
   path: string,
   expected: ReleaseObjectIdentity,
 ): Promise<void> {
-  const handle = await open(path, "r");
+  const handle = await openRuntimePath(path, "r");
   const digest = createHash("sha256");
   let bytes = 0;
   try {
@@ -507,29 +588,41 @@ function hydratedRelease(
     deploymentManifest: deployment,
     analysisReleaseCatalog,
     rootPath,
-    analysisArtifactPath: join(rootPath, "candidate-market.duckdb"),
+    analysisArtifactPath: join(
+      /* turbopackIgnore: true */ rootPath,
+      "candidate-market.duckdb",
+    ),
     analysisArtifactManifestPath: join(
-      rootPath,
+      /* turbopackIgnore: true */ rootPath,
       "artifact-manifest.json",
     ),
     analysisReleaseCatalogPath: join(
-      rootPath,
+      /* turbopackIgnore: true */ rootPath,
       "analysis-release-catalog.json",
     ),
-    productCatalogPath: join(rootPath, "product-catalog.json"),
-    productCatalogManifestPath: join(rootPath, "catalog-manifest.json"),
-    deploymentManifestPath: join(rootPath, "deployment-manifest.json"),
+    productCatalogPath: join(
+      /* turbopackIgnore: true */ rootPath,
+      "product-catalog.json",
+    ),
+    productCatalogManifestPath: join(
+      /* turbopackIgnore: true */ rootPath,
+      "catalog-manifest.json",
+    ),
+    deploymentManifestPath: join(
+      /* turbopackIgnore: true */ rootPath,
+      "deployment-manifest.json",
+    ),
     previousAnalysis:
       analysisReleaseCatalog.previous === null
         ? null
         : {
             reference: analysisReleaseCatalog.previous,
             artifactPath: join(
-              rootPath,
+              /* turbopackIgnore: true */ rootPath,
               "previous-candidate-market.duckdb",
             ),
             artifactManifestPath: join(
-              rootPath,
+              /* turbopackIgnore: true */ rootPath,
               "previous-artifact-manifest.json",
             ),
           },
@@ -537,7 +630,7 @@ function hydratedRelease(
 }
 
 async function syncDirectory(path: string): Promise<void> {
-  const handle = await open(path, constants.O_RDONLY);
+  const handle = await openRuntimePath(path, constants.O_RDONLY);
   try {
     await handle.sync();
   } finally {
@@ -547,7 +640,7 @@ async function syncDirectory(path: string): Promise<void> {
 
 async function exists(path: string): Promise<boolean> {
   try {
-    await access(path);
+    await accessRuntimePath(path);
     return true;
   } catch (error) {
     if (isEnoent(error)) {

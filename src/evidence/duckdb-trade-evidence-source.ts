@@ -1,6 +1,4 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -19,6 +17,10 @@ import type {
   MarketYearEvidence,
   TradeEvidenceSource,
 } from "./trade-evidence-source";
+import {
+  createRuntimeReadStream,
+  statRuntimePath,
+} from "../runtime-file-access";
 import {
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
@@ -46,7 +48,9 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     options: DuckDbTradeEvidenceSourceOptions,
   ): Promise<DuckDbTradeEvidenceSource> {
     validateRuntimeIdentity(options);
-    const artifactPath = resolve(options.artifactPath);
+    const artifactPath = resolve(
+      /* turbopackIgnore: true */ options.artifactPath,
+    );
     const manifest = await readAnalysisArtifactManifest(
       options.artifactManifestPath,
     );
@@ -332,11 +336,11 @@ async function verifyArtifactIdentity(
   artifactPath: string,
   expected: AnalysisArtifactManifest["artifact"],
 ): Promise<void> {
-  if ((await stat(artifactPath)).size !== expected.bytes) {
+  if ((await statRuntimePath(artifactPath)).size !== expected.bytes) {
     throw new Error("DuckDB artifact size does not match its manifest.");
   }
   const digest = createHash("sha256");
-  for await (const chunk of createReadStream(artifactPath)) {
+  for await (const chunk of createRuntimeReadStream(artifactPath)) {
     digest.update(chunk);
   }
   if (digest.digest("hex") !== expected.sha256) {

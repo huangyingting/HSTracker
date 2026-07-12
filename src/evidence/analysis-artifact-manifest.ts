@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -9,6 +8,7 @@ import {
   string,
   utcTimestamp,
 } from "../release/release-validation";
+import { readRuntimeFile } from "../runtime-file-access";
 
 export type AnalysisArtifactBenchmarkQuery = {
   role: "sparse" | "median" | "upper-quartile" | "maximum-row";
@@ -44,7 +44,12 @@ export async function readAnalysisArtifactManifest(
   path: string,
 ): Promise<AnalysisArtifactManifest> {
   return parseAnalysisArtifactManifest(
-    JSON.parse(await readFile(resolve(path), "utf8")),
+    JSON.parse(
+      await readRuntimeFile(
+        resolve(/* turbopackIgnore: true */ path),
+        "utf8",
+      ),
+    ),
   );
 }
 
