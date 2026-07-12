@@ -10,22 +10,22 @@ import {
 import { join, resolve } from "node:path";
 
 import {
-  ACTIVE_DEPLOYMENT_POINTER_KEY as ACTIVE_POINTER_KEY,
-  deploymentPairingIdFromKey as pairingIdFromKey,
-  parseActiveDeploymentPointer as parsePointer,
-  parseDeploymentPairingManifest as parseDeployment,
+  ACTIVE_DEPLOYMENT_POINTER_KEY,
+  parseActiveDeploymentPointer,
+  parseDeploymentPairingManifest,
+  publishedDeployment,
   readReleaseMetadata,
-  releaseObjectIdentity as identity,
-  singleChunk as oneChunk,
+  releaseObjectIdentity,
+  singleChunk,
   type ActiveDeploymentPointer,
   type DeploymentPairingManifest,
+  type PublishedDeployment,
   type ReleaseObjectReference,
 } from "./release-manifest";
 import type {
   ReleaseObjectIdentity,
   ReleaseObjectReader,
 } from "./release-object-store";
-import type { PublishedDeployment } from "./release-publication";
 
 export type HydrateCurrentReleaseInput = {
   volumePath: string;
@@ -60,7 +60,7 @@ export class ReleaseHydrator {
   ): Promise<HydratedRelease> {
     const pointer = await this.readPointer();
     const deploymentBytes = await this.readVerifiedObject(pointer.current);
-    const deployment = parseDeployment(
+    const deployment = parseDeploymentPairingManifest(
       JSON.parse(deploymentBytes.toString("utf8")),
     );
     const volumePath = resolve(input.volumePath);
@@ -101,7 +101,7 @@ export class ReleaseHydrator {
         ),
         writeVerifiedFile(
           join(partialPath, "deployment-manifest.json"),
-          oneChunk(deploymentBytes),
+          singleChunk(deploymentBytes),
           pointer.current,
         ),
       ]);
@@ -124,11 +124,13 @@ export class ReleaseHydrator {
   }
 
   private async readPointer(): Promise<ActiveDeploymentPointer> {
-    const stored = await this.objectStore.getObject(ACTIVE_POINTER_KEY);
+    const stored = await this.objectStore.getObject(
+      ACTIVE_DEPLOYMENT_POINTER_KEY,
+    );
     if (stored === null) {
       throw new Error("No active deployment pairing is available.");
     }
-    return parsePointer(
+    return parseActiveDeploymentPointer(
       JSON.parse(
         (await readReleaseMetadata(stored.body)).toString("utf8"),
       ),
@@ -143,7 +145,7 @@ export class ReleaseHydrator {
       throw new Error("A deployment object is unavailable.");
     }
     const bytes = await readReleaseMetadata(stored.body);
-    verifyIdentity(identity(bytes), reference);
+    verifyIdentity(releaseObjectIdentity(bytes), reference);
     return bytes;
   }
 
@@ -211,7 +213,7 @@ async function verifyResidentRelease(
     ),
     verifyFile(
       join(rootPath, "deployment-manifest.json"),
-      identity(deploymentBytes),
+      releaseObjectIdentity(deploymentBytes),
     ),
   ]);
 }
@@ -255,20 +257,7 @@ function hydratedRelease(
   deployment: DeploymentPairingManifest,
 ): HydratedRelease {
   return {
-    deployment: {
-      schemaVersion: "published-deployment-v1",
-      deploymentPairingId: deployment.deploymentPairingId,
-      analysisBuildId: deployment.analysisBuildId,
-      analysisReleaseCatalogSha256:
-        deployment.analysisReleaseCatalogSha256,
-      productSearchBuildId: deployment.productSearchBuildId,
-      baciRelease: deployment.baciRelease,
-      activatedAt: pointer.activatedAt,
-      previousDeploymentPairingId:
-        pointer.previous === null
-          ? null
-          : pairingIdFromKey(pointer.previous.key),
-    },
+    deployment: publishedDeployment(pointer, deployment),
     rootPath,
     analysisArtifactPath: join(rootPath, "candidate-market.duckdb"),
     analysisArtifactManifestPath: join(

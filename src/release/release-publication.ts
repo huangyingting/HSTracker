@@ -4,16 +4,17 @@ import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import {
-  ACTIVE_DEPLOYMENT_POINTER_KEY as ACTIVE_POINTER_KEY,
-  deploymentPairingIdFromKey as pairingIdFromKey,
-  parseActiveDeploymentPointer as parsePointer,
-  parseDeploymentPairingManifest as parseDeployment,
+  ACTIVE_DEPLOYMENT_POINTER_KEY,
+  parseActiveDeploymentPointer,
+  parseDeploymentPairingManifest,
+  publishedDeployment,
   readReleaseMetadata,
-  releaseObjectIdentity as identity,
-  singleChunk as oneChunk,
+  releaseObjectIdentity,
+  singleChunk,
   type ActiveDeploymentPointer,
   type AnalysisArtifactReference,
   type DeploymentPairingManifest,
+  type PublishedDeployment,
   type ProductCatalogReference,
   type ReleaseObjectReference,
 } from "./release-manifest";
@@ -21,9 +22,18 @@ import type {
   ReleaseObjectIdentity,
   ReleaseObjectStore,
 } from "./release-object-store";
+import {
+  count,
+  hs12,
+  record,
+  sha256String,
+  string,
+} from "./release-validation";
 
 const RESULT_SCHEMA_VERSION = "candidate-market-result-v1";
 const SCORE_VERSION = "cms-v1";
+
+export type { PublishedDeployment } from "./release-manifest";
 
 export type PromoteReleaseInput = {
   analysisDirectoryPath: string;
@@ -33,17 +43,6 @@ export type PromoteReleaseInput = {
 
 export type RollbackReleaseInput = {
   activatedAt: string;
-};
-
-export type PublishedDeployment = {
-  schemaVersion: "published-deployment-v1";
-  deploymentPairingId: string;
-  analysisBuildId: string;
-  analysisReleaseCatalogSha256: string;
-  productSearchBuildId: string;
-  baciRelease: string;
-  activatedAt: string;
-  previousDeploymentPairingId: string | null;
 };
 
 export class ReleasePublicationError extends Error {
@@ -175,7 +174,7 @@ export class ReleasePublisher {
       this.objectStore,
       current.pointer.previous,
     );
-    const previous = parseDeployment(
+    const previous = parseDeploymentPairingManifest(
       JSON.parse(previousBytes.toString("utf8")),
     );
     const pointer: ActiveDeploymentPointer = {
@@ -212,7 +211,9 @@ export class ReleasePublisher {
       scoreVersion: SCORE_VERSION,
       resultSchemaVersion: RESULT_SCHEMA_VERSION,
     });
-    const releaseCatalogIdentity = identity(releaseCatalogBytes);
+    const releaseCatalogIdentity = releaseObjectIdentity(
+      releaseCatalogBytes,
+    );
     const releaseCatalog = await this.publishBytes(
       `analysis-release-catalogs/${releaseCatalogIdentity.sha256}.json`,
       releaseCatalogBytes,
@@ -298,10 +299,10 @@ export class ReleasePublisher {
     key: string,
     bytes: Buffer,
   ): Promise<ReleaseObjectReference> {
-    const expectedIdentity = identity(bytes);
+    const expectedIdentity = releaseObjectIdentity(bytes);
     await this.objectStore.putImmutable(
       key,
-      oneChunk(bytes),
+      singleChunk(bytes),
       expectedIdentity,
     );
     await verifyStoredObject(this.objectStore, key, expectedIdentity);
@@ -309,11 +310,13 @@ export class ReleasePublisher {
   }
 
   private async loadCurrentState(): Promise<CurrentState | null> {
-    const storedPointer = await this.objectStore.getObject(ACTIVE_POINTER_KEY);
+    const storedPointer = await this.objectStore.getObject(
+      ACTIVE_DEPLOYMENT_POINTER_KEY,
+    );
     if (storedPointer === null) {
       return null;
     }
-    const pointer = parsePointer(
+    const pointer = parseActiveDeploymentPointer(
       JSON.parse(
         (await readReleaseMetadata(storedPointer.body)).toString("utf8"),
       ),
@@ -325,7 +328,9 @@ export class ReleasePublisher {
     return {
       pointer,
       pointerVersion: storedPointer.version,
-      deployment: parseDeployment(JSON.parse(deploymentBytes.toString("utf8"))),
+      deployment: parseDeploymentPairingManifest(
+        JSON.parse(deploymentBytes.toString("utf8")),
+      ),
     };
   }
 
@@ -335,7 +340,7 @@ export class ReleasePublisher {
   ): Promise<void> {
     try {
       await this.objectStore.compareAndSwap(
-        ACTIVE_POINTER_KEY,
+        ACTIVE_DEPLOYMENT_POINTER_KEY,
         expectedVersion,
         jsonBytes(pointer),
       );
@@ -360,7 +365,7 @@ async function validateAnalysisCandidate(
     readFile(manifestPath),
     readFile(reportPath),
   ]);
-  const manifestIdentity = identity(manifestBytes);
+  const manifestIdentity = releaseObjectIdentity(manifestBytes);
   const manifest = record(JSON.parse(manifestBytes.toString("utf8")), "artifact manifest");
   const report = record(JSON.parse(reportBytes.toString("utf8")), "artifact build report");
   if (
@@ -421,7 +426,7 @@ async function validateProductCandidate(
     readFile(manifestPath),
     readFile(reportPath),
   ]);
-  const manifestIdentity = identity(manifestBytes);
+  const manifestIdentity = releaseObjectIdentity(manifestBytes);
   const manifest = record(JSON.parse(manifestBytes.toString("utf8")), "catalog manifest");
   const report = record(JSON.parse(reportBytes.toString("utf8")), "catalog build report");
   if (
@@ -570,7 +575,7 @@ async function readVerifiedReference(
     throw new Error(`Referenced release object ${reference.key} is unavailable.`);
   }
   const bytes = await readReleaseMetadata(stored.body);
-  const actualIdentity = identity(bytes);
+  const actualIdentity = releaseObjectIdentity(bytes);
   if (
     actualIdentity.bytes !== reference.bytes ||
     actualIdentity.sha256 !== reference.sha256
@@ -578,26 +583,6 @@ async function readVerifiedReference(
     throw new Error(`Referenced release object ${reference.key} is corrupt.`);
   }
   return bytes;
-}
-
-function publishedDeployment(
-  pointer: ActiveDeploymentPointer,
-  deployment: DeploymentPairingManifest,
-): PublishedDeployment {
-  return {
-    schemaVersion: "published-deployment-v1",
-    deploymentPairingId: deployment.deploymentPairingId,
-    analysisBuildId: deployment.analysisBuildId,
-    analysisReleaseCatalogSha256:
-      deployment.analysisReleaseCatalogSha256,
-    productSearchBuildId: deployment.productSearchBuildId,
-    baciRelease: deployment.baciRelease,
-    activatedAt: pointer.activatedAt,
-    previousDeploymentPairingId:
-      pointer.previous === null
-        ? null
-        : pairingIdFromKey(pointer.previous.key),
-  };
 }
 
 async function fileIdentity(
@@ -637,51 +622,11 @@ function jsonBytes(value: unknown): Buffer {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function record(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${label} must be an object.`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function string(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${label} must be a nonempty string.`);
-  }
-  return value;
-}
-
 function stringArray(value: unknown, label: string): string[] {
   if (!Array.isArray(value)) {
     throw new Error(`${label} must be an array.`);
   }
   return value.map((entry) => string(entry, `${label} entry`));
-}
-
-function count(value: unknown, label: string): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw new Error(`${label} must be a nonnegative safe integer.`);
-  }
-  return value;
-}
-
-function sha256String(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (!/^[a-f0-9]{64}$/u.test(candidate)) {
-    throw new Error(`${label} must be a lowercase SHA-256.`);
-  }
-  return candidate;
-}
-
-function hs12(value: unknown, label: string): "HS12" {
-  if (value !== "HS12") {
-    throw new Error(`${label} must be HS12.`);
-  }
-  return value;
 }
 
 function productSearchBuildId(value: unknown): string {

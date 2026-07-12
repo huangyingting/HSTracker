@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 
 import type { ReleaseObjectIdentity } from "./release-object-store";
+import {
+  count,
+  hs12,
+  record,
+  sha256String,
+  string,
+} from "./release-validation";
 
 export const ACTIVE_DEPLOYMENT_POINTER_KEY =
   "deployment-pointers/current.json";
@@ -49,6 +56,17 @@ export type ActiveDeploymentPointer = {
   current: ReleaseObjectReference;
   previous: ReleaseObjectReference | null;
   activatedAt: string;
+};
+
+export type PublishedDeployment = {
+  schemaVersion: "published-deployment-v1";
+  deploymentPairingId: string;
+  analysisBuildId: string;
+  analysisReleaseCatalogSha256: string;
+  productSearchBuildId: string;
+  baciRelease: string;
+  activatedAt: string;
+  previousDeploymentPairingId: string | null;
 };
 
 export function parseActiveDeploymentPointer(
@@ -134,6 +152,26 @@ export function deploymentPairingIdFromKey(key: string): string {
     throw new Error("Deployment pairing key is invalid.");
   }
   return match[1];
+}
+
+export function publishedDeployment(
+  pointer: ActiveDeploymentPointer,
+  deployment: DeploymentPairingManifest,
+): PublishedDeployment {
+  return {
+    schemaVersion: "published-deployment-v1",
+    deploymentPairingId: deployment.deploymentPairingId,
+    analysisBuildId: deployment.analysisBuildId,
+    analysisReleaseCatalogSha256:
+      deployment.analysisReleaseCatalogSha256,
+    productSearchBuildId: deployment.productSearchBuildId,
+    baciRelease: deployment.baciRelease,
+    activatedAt: pointer.activatedAt,
+    previousDeploymentPairingId:
+      pointer.previous === null
+        ? null
+        : deploymentPairingIdFromKey(pointer.previous.key),
+  };
 }
 
 export async function readReleaseMetadata(
@@ -239,46 +277,6 @@ function prefixedId(
     throw new Error(`${label} is malformed.`);
   }
   return candidate;
-}
-
-function record(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${label} must be an object.`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function string(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${label} must be a nonempty string.`);
-  }
-  return value;
-}
-
-function count(value: unknown, label: string): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw new Error(`${label} must be a nonnegative safe integer.`);
-  }
-  return value;
-}
-
-function sha256String(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (!/^[a-f0-9]{64}$/u.test(candidate)) {
-    throw new Error(`${label} must be a lowercase SHA-256.`);
-  }
-  return candidate;
-}
-
-function hs12(value: unknown, label: string): "HS12" {
-  if (value !== "HS12") {
-    throw new Error(`${label} must be HS12.`);
-  }
-  return value;
 }
 
 function utcTimestamp(value: unknown, label: string): string {
