@@ -281,6 +281,7 @@ describe("S3 release object store", () => {
     ).current();
     expect(promotedStatus).toMatchObject({
       servedBaciRelease: "VTEST001",
+      checkedAt: "2026-07-12T01:00:00Z",
       publishedAt: "2026-07-12T03:00:00Z",
       state: "LATEST_KNOWN",
     });

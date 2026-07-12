@@ -359,7 +359,7 @@ export function parsePublishedSourceStatusSnapshot(
     ),
     newerReleaseDetectedAt: nullableUtcTimestamp(
       snapshot.newerReleaseDetectedAt,
-      "newer release detection time",
+      "newer BACI Release detection time",
     ),
     refreshFailed: boolean(snapshot.refreshFailed, "refresh failure"),
     rollbackActive: boolean(snapshot.rollbackActive, "rollback state"),
@@ -375,7 +375,7 @@ export function parsePublishedSourceStatusSnapshot(
     ),
     freshnessStatusId: string(
       snapshot.freshnessStatusId,
-      "freshness status ID",
+      "Source Freshness Status ID",
     ),
     checkedAt: parsed.checkedAt,
     checkOverdueAt: utcTimestamp(
@@ -428,7 +428,7 @@ function validatedSourceFields(
   const checkedAt = utcTimestamp(input.checkedAt, "source check time");
   const newerReleaseDetectedAt = nullableUtcTimestamp(
     input.newerReleaseDetectedAt,
-    "newer release detection time",
+    "newer BACI Release detection time",
   );
   const publishedAt = utcTimestamp(
     input.publishedAt,
@@ -442,7 +442,7 @@ function validatedSourceFields(
     Date.parse(newerReleaseDetectedAt) > Date.parse(publishedAt)
   ) {
     throw new Error(
-      "Newer release detection time cannot follow status publication.",
+      "Newer BACI Release detection time cannot follow status publication.",
     );
   }
   return {

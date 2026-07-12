@@ -49,7 +49,7 @@ describe("Source Freshness Status publication", () => {
     await expect(publisher.current()).resolves.toEqual(accepted);
   });
 
-  it("retains snapshots across served releases", async () => {
+  it("retains snapshots across served BACI Releases", async () => {
     const publisher = new SourceStatusPublisher(
       new InMemoryReleaseObjectStore(),
     );

@@ -17,8 +17,6 @@ jobs:
     env:
       HS_TRACKER_RELEASE_S3_BUCKET: ${{ secrets.HS_TRACKER_RELEASE_S3_BUCKET }}
       HS_TRACKER_RELEASE_S3_REGION: ${{ secrets.HS_TRACKER_RELEASE_S3_REGION }}
-      HS_TRACKER_RELEASE_S3_ENDPOINT: ${{ secrets.HS_TRACKER_RELEASE_S3_ENDPOINT }}
-      HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE: ${{ secrets.HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE }}
       HS_TRACKER_RELEASE_WRITE_ACCESS_KEY_ID: ${{ secrets.HS_TRACKER_RELEASE_WRITE_ACCESS_KEY_ID }}
       HS_TRACKER_RELEASE_WRITE_SECRET_ACCESS_KEY: ${{ secrets.HS_TRACKER_RELEASE_WRITE_SECRET_ACCESS_KEY }}
 
@@ -36,4 +34,14 @@ jobs:
         run: npm ci
 
       - name: Check CEPII BACI Release
-        run: npm run source:monitor
+        env:
+          SOURCE_MONITOR_S3_ENDPOINT: ${{ secrets.HS_TRACKER_RELEASE_S3_ENDPOINT }}
+          SOURCE_MONITOR_S3_FORCE_PATH_STYLE: ${{ secrets.HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE }}
+        run: |
+          if [[ -n "${SOURCE_MONITOR_S3_ENDPOINT}" ]]; then
+            export HS_TRACKER_RELEASE_S3_ENDPOINT="${SOURCE_MONITOR_S3_ENDPOINT}"
+          fi
+          if [[ -n "${SOURCE_MONITOR_S3_FORCE_PATH_STYLE}" ]]; then
+            export HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE="${SOURCE_MONITOR_S3_FORCE_PATH_STYLE}"
+          fi
+          npm run source:monitor

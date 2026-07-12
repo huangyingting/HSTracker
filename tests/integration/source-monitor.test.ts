@@ -23,7 +23,7 @@ const SOURCE_STATUS_FALLBACK = {
 } satisfies SourceStatusSnapshot;
 
 describe("CEPII source monitor", () => {
-  it("publishes a new successful check when the served release is unchanged", async () => {
+  it("publishes a new successful check when the served BACI Release is unchanged", async () => {
     const objectStore = new InMemoryReleaseObjectStore();
     const statuses = new SourceStatusPublisher(objectStore);
     await statuses.publish({

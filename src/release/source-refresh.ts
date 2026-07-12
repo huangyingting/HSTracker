@@ -99,7 +99,7 @@ export class SourceRefreshOrchestrator {
       initialStatus.servedBaciRelease === input.baciRelease
     ) {
       throw invalidRefreshState(
-        "Refresh target does not match the active detected release.",
+        "Refresh target does not match the active detected BACI Release.",
       );
     }
 
@@ -162,7 +162,7 @@ export class SourceRefreshOrchestrator {
         });
         throw new SourceRefreshError(
           "REFRESH_STATUS_FAILED",
-          "BACI refresh and delayed-status publication failed.",
+          "BACI Release refresh and delayed-status publication failed.",
           { cause: new AggregateError([error, statusError]) },
         );
       }
@@ -328,7 +328,7 @@ export class SourceRefreshOrchestrator {
       status.servedBaciRelease !== deployment.baciRelease
     ) {
       throw invalidRefreshState(
-        "Active release state changed during refresh.",
+        "Active BACI Release state changed during refresh.",
       );
     }
     return { deployment, status };
@@ -351,7 +351,7 @@ export class SourceRefreshOrchestrator {
       const reconciled = await this.reconcileDeploymentStatus(
         currentDeployment,
         currentStatus,
-        "BACI rollback is active but its Source Freshness Status reconciliation failed.",
+        "BACI Release rollback is active but its Source Freshness Status reconciliation failed.",
       );
       this.input.observe?.({
         type: "rollback-activated",
@@ -379,7 +379,7 @@ export class SourceRefreshOrchestrator {
     const result = await this.reconcileDeploymentStatus(
       deployment,
       currentStatus,
-      "BACI rollback was activated but its Source Freshness Status was not published.",
+      "BACI Release rollback was activated but its Source Freshness Status was not published.",
     );
     this.input.observe?.({
       type: "rollback-activated",

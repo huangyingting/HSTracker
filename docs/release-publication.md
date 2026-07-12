@@ -80,6 +80,9 @@ npm run release:promote -- \
 The timestamp must be UTC without fractional seconds. The command prints the
 activated deployment identity as JSON. A failed upload, read-back, pairing
 check, or conditional pointer write leaves the active deployment unchanged.
+Low-level promotion never treats activation as a source check: it preserves the
+current check time or, before the first status exists, uses the accepted
+artifact build time.
 
 After at least two pairings have been activated, swap current and previous
 atomically:
@@ -95,7 +98,7 @@ artifacts while embedding the rollback's `REFRESH_DELAYED` fallback. The
 operational rollback command publishes the identical status through the status
 pointer. The deployment pointer and manifest therefore agree before a process
 starts, and retrying status reconciliation cannot toggle back to the displaced
-release.
+deployment pairing.
 
 ## Source monitoring and refresh
 
@@ -109,22 +112,24 @@ npm run source:monitor
 
 Every successful check publishes an immutable status snapshot before replacing
 `source-status-pointers/current.json`. A failed check leaves the accepted
-snapshot and deployment untouched. Checks update the latest-known release and
-check time without clearing an active refresh failure or rollback; only a
-completed refresh clears that operational state. If the status pointer still
-describes another served release, the active deployment's embedded fallback
-supplies the operational state. The monitor derives each publication from the
-status and deployment read inside the same compare-and-swap attempt, so a
-concurrent status change wins instead of being overwritten; typed pointer
-conflicts retry against that winning status. Successful checks are timestamped
-when the CEPII request completes rather than when it starts. The workflow's
-`source-monitor` environment must provide the write-scoped S3 variables listed
-above. The pointer retains references to prior immutable snapshots across
-served releases so supported export identities remain reproducible after
-restart or rollback.
+snapshot and deployment untouched. Checks update the latest-known BACI Release
+and check time without clearing an active refresh failure or rollback; only a
+completed BACI Release refresh clears that operational state. If the status
+pointer still describes another served BACI Release, the active deployment's
+embedded fallback supplies the operational state. The monitor derives each
+publication from the status and deployment read inside the same compare-and-swap
+attempt, so a concurrent status change wins instead of being overwritten; typed
+pointer conflicts retry against that winning status. Successful checks are
+timestamped when the CEPII request completes rather than when it starts. The
+workflow's `source-monitor` environment must provide the write-scoped S3
+variables listed above. Leave the optional endpoint and path-style secrets
+undefined for standard S3; the workflow exports them only when nonempty. The
+pointer retains references to prior immutable snapshots across served BACI
+Releases so supported export identities remain reproducible after restart or
+rollback.
 
-When a newer release is detected, use `npm run release:refresh` rather than the
-low-level promotion command:
+When a newer BACI Release is detected, use `npm run release:refresh` rather than
+the low-level promotion command:
 
 ```bash
 npm run release:refresh -- \

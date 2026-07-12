@@ -19,7 +19,7 @@ import {
 import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
 
 describe("source refresh orchestration", () => {
-  it("builds and atomically promotes a detected release before clearing its warning", async () => {
+  it("builds and atomically promotes a detected BACI Release before clearing its warning", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
     const initialCandidate = await writeAcceptedReleaseCandidate(
       join(root, "initial"),
@@ -302,7 +302,7 @@ describe("source refresh orchestration", () => {
     });
   });
 
-  it("reconciles status after deployment activation without rebuilding the release", async () => {
+  it("reconciles status after deployment activation without rebuilding the BACI Release", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
     const initialCandidate = await writeAcceptedReleaseCandidate(
       join(root, "initial"),

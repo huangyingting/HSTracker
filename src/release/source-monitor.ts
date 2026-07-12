@@ -56,7 +56,7 @@ export class CepiiBaciReleaseSource implements BaciReleaseSource {
     ].map((match) => match[1]!);
     if (releases.length === 0) {
       throw new Error(
-        "CEPII BACI documentation names no HS12 release archive.",
+        "CEPII BACI documentation names no HS12 BACI Release archive.",
       );
     }
     releases.sort((left, right) => compareBaciReleases(right, left));
@@ -147,7 +147,7 @@ export class SourceMonitor {
           );
           if (comparison < 0) {
             throw new Error(
-              "CEPII reported a BACI Release older than the served release.",
+              "CEPII reported a BACI Release older than the served BACI Release.",
             );
           }
           if (

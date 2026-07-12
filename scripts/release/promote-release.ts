@@ -15,6 +15,7 @@ import {
 import {
   record,
   string,
+  utcTimestamp,
 } from "../../src/release/release-validation";
 import {
   requiredOption,
@@ -46,11 +47,11 @@ async function main(): Promise<void> {
     values["activated-at"],
     "activated-at",
   );
-  const [currentDeployment, currentStatus, baciRelease] =
+  const [currentDeployment, currentStatus, candidateSource] =
     await Promise.all([
       publisher.current(),
       statuses.current(),
-      candidateBaciRelease(analysisDirectoryPath),
+      candidateSourceIdentity(analysisDirectoryPath),
     ]);
   if (
     currentDeployment !== null &&
@@ -64,7 +65,8 @@ async function main(): Promise<void> {
   }
   const statusInput = promotedSourceFreshnessStatus(
     currentStatus,
-    baciRelease,
+    candidateSource.baciRelease,
+    candidateSource.builtAt,
     activatedAt,
   );
   const published = await publisher.promote({
@@ -84,9 +86,9 @@ async function main(): Promise<void> {
   process.stdout.write(`${JSON.stringify(published)}\n`);
 }
 
-async function candidateBaciRelease(
+async function candidateSourceIdentity(
   analysisDirectoryPath: string,
-): Promise<string> {
+): Promise<{ baciRelease: string; builtAt: string }> {
   const bytes = await readFile(
     join(analysisDirectoryPath, "artifact-manifest.json"),
   );
@@ -97,7 +99,13 @@ async function candidateBaciRelease(
     JSON.parse(bytes.toString("utf8")),
     "analysis artifact manifest",
   );
-  return string(manifest.baciRelease, "analysis BACI Release");
+  return {
+    baciRelease: string(
+      manifest.baciRelease,
+      "analysis BACI Release",
+    ),
+    builtAt: utcTimestamp(manifest.builtAt, "analysis build time"),
+  };
 }
 
 void main().catch((error: unknown) => {
@@ -107,11 +115,12 @@ void main().catch((error: unknown) => {
 function promotedSourceFreshnessStatus(
   current: PublishedSourceStatusSnapshot | null,
   baciRelease: string,
+  candidateBuiltAt: string,
   activatedAt: string,
 ) {
   if (current === null) {
     return {
-      checkedAt: activatedAt,
+      checkedAt: candidateBuiltAt,
       servedBaciRelease: baciRelease,
       latestKnownBaciRelease: baciRelease,
       newerReleaseDetectedAt: null,
@@ -132,9 +141,7 @@ function promotedSourceFreshnessStatus(
   const promotedReleaseIsLatest =
     baciRelease === latestKnownBaciRelease;
   return {
-    checkedAt: promotedReleaseIsNewer
-      ? activatedAt
-      : current.checkedAt,
+    checkedAt: current.checkedAt,
     servedBaciRelease: baciRelease,
     latestKnownBaciRelease,
     newerReleaseDetectedAt: promotedReleaseIsLatest
