@@ -15,13 +15,11 @@ const REQUIRED_REPORT_IDENTITY_FIELDS = [
   "analysisBuildId",
   "productSearchBuildId",
   "artifactSha256",
+  "deploymentPairingId",
+  "sourceStatusSnapshotId",
   "machineId",
   "machineClass",
   "region",
-] as const satisfies readonly (keyof PromotionIdentity)[];
-const OPTIONAL_REPORT_IDENTITY_FIELDS = [
-  "deploymentPairingId",
-  "sourceStatusSnapshotId",
 ] as const satisfies readonly (keyof PromotionIdentity)[];
 export const PROMOTION_GATE_REQUIRED_CHECKS: Readonly<
   Record<PromotionEvidence["gate"], readonly string[]>
@@ -204,16 +202,6 @@ function verifyRetainedReport(
   const reportIdentity = report.identity as Record<string, unknown>;
   for (const field of REQUIRED_REPORT_IDENTITY_FIELDS) {
     if (reportIdentity[field] !== evidence.identity[field]) {
-      throw new PromotionEvidenceFileError(
-        `${evidence.gate} retained report ${field} does not match its declared evidence.`,
-      );
-    }
-  }
-  for (const field of OPTIONAL_REPORT_IDENTITY_FIELDS) {
-    if (
-      reportIdentity[field] !== undefined &&
-      reportIdentity[field] !== evidence.identity[field]
-    ) {
       throw new PromotionEvidenceFileError(
         `${evidence.gate} retained report ${field} does not match its declared evidence.`,
       );
