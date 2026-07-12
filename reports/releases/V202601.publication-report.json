@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "release-publication-report-v1",
+  "status": "accepted",
+  "baciRelease": "V202601",
+  "deployment": {
+    "deploymentPairingId": "deployment-pairing-v1-4a9935ac2499d871",
+    "analysisBuildId": "analysis-build-v1-31aec2ee9ae357a3",
+    "analysisReleaseCatalogSha256": "bd38d3047770e1c11ae8165bd17aceccffd54d51fb6ea1399d26f32a7a182bf2",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "activatedAt": "2026-07-12T03:34:14Z",
+    "previousDeploymentPairingId": null
+  },
+  "inputs": {
+    "analysis": {
+      "artifact": {
+        "bytes": 1002975232,
+        "sha256": "d025d4114299ed99c90350298ce854a20355d5fb082b969c148a16ec8353a90b"
+      },
+      "manifest": {
+        "bytes": 7190,
+        "sha256": "fb6dedb323266fd86b8b1ce384a2e493aba6ad2302c247dbfcbc31c0cffa8ffa"
+      },
+      "buildReportSha256": "8aad55931017d95aedb674b0aa241dafcf3762cbff40eec9a34598523e3bb474"
+    },
+    "productSearch": {
+      "catalog": {
+        "bytes": 5331843,
+        "sha256": "fc765075a361650e74d6513114035dc004f8ec0b032434a09fa3b059a901475d"
+      },
+      "manifest": {
+        "bytes": 2236,
+        "sha256": "db51f8e130f1291b392a4d23cffdd4bdb89f3b56930c69c91d442cd9a726457b"
+      },
+      "buildReportSha256": "9bce817d4a26ab34635982df5222884f894c5296991b6a0e23eb1a3adfadb263"
+    }
+  },
+  "objectStore": {
+    "implementation": "MinIO",
+    "image": "minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e",
+    "objects": 7,
+    "bytes": 1008320310
+  },
+  "validation": {
+    "candidateCompatibility": "accepted",
+    "uploadChecksums": "accepted",
+    "independentReadBack": "accepted",
+    "idempotentReplay": "accepted",
+    "readOnlyHydration": "accepted",
+    "hydratedAnalysisSha256": "d025d4114299ed99c90350298ce854a20355d5fb082b969c148a16ec8353a90b",
+    "hydratedProductCatalogSha256": "fc765075a361650e74d6513114035dc004f8ec0b032434a09fa3b059a901475d"
+  },
+  "timingsSeconds": {
+    "promotion": 21.37,
+    "hydration": 12.04
+  },
+  "pipelineGitSha": "d55301370a63b2f0ce79c7b1292a0c112ef251ae",
+  "publishedAt": "2026-07-12T03:34:14Z"
+}
