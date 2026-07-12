@@ -122,9 +122,9 @@ attempt, so a concurrent status change wins instead of being overwritten; typed
 pointer conflicts retry against that winning status. Successful checks are
 timestamped when the CEPII request completes rather than when it starts. The
 workflow's `source-monitor` environment must provide the write-scoped S3
-variables listed above. Leave the optional endpoint and path-style secrets
-undefined for standard S3; the workflow exports them only when nonempty. The
-pointer retains references to prior immutable snapshots across served BACI
+variables listed above. Leave optional endpoint, path-style, and session-token
+secrets undefined when unused; the workflow exports them only when nonempty.
+The pointer retains references to prior immutable snapshots across served BACI
 Releases so supported export identities remain reproducible after restart or
 rollback.
 
