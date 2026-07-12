@@ -9,6 +9,7 @@ import {
 } from "../domain/candidate-market/analyze-candidate-markets";
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
+import { resolveReleaseRevisionComparisonIdentity } from "../domain/release/release-revision";
 import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import { DuckDbEconomyDirectory } from "../economy/duckdb-economy-directory";
 import type { EconomyDirectory } from "../economy/economy-directory";
@@ -412,54 +413,26 @@ function currentAnalysisDeployment(
         sha256: manifest.artifact.sha256,
       },
     },
-    revisionComparison: releaseRevisionIdentity(
-      manifest,
-      previousManifest,
-    ),
+    revisionComparison: resolveReleaseRevisionComparisonIdentity({
+      currentRelease: {
+        baciRelease: manifest.baciRelease,
+        hsRevision: manifest.hsRevision,
+        scoreVersion: "cms-v1",
+        scoreWindow: manifest.scoreWindow,
+      },
+      previousArtifact:
+        previousManifest === null
+          ? null
+          : {
+              baciRelease: previousManifest.baciRelease,
+              artifactSha256: previousManifest.artifact.sha256,
+              hsRevision: previousManifest.hsRevision,
+              scoreVersion: "cms-v1",
+              availableYears: previousManifest.ingestedYears,
+              scoreWindowUsed: manifest.scoreWindow,
+            },
+    }),
   };
-}
-
-function releaseRevisionIdentity(
-  current: AnalysisArtifactManifest,
-  previous: AnalysisArtifactManifest | null,
-): CurrentAnalysisDeployment["revisionComparison"] {
-  if (previous === null) {
-    return {
-      comparisonRelease: null,
-      previousArtifactSha256: null,
-      notComparedReason: "NO_PREVIOUS_ARTIFACT",
-    };
-  }
-  if (
-    previous.baciRelease === current.baciRelease ||
-    previous.hsRevision !== current.hsRevision
-  ) {
-    return {
-      comparisonRelease: null,
-      previousArtifactSha256: null,
-      notComparedReason: "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
-    };
-  }
-  const requiredYears = yearsBetween(
-    current.scoreWindow.start,
-    current.scoreWindow.end,
-  );
-  return {
-    comparisonRelease: previous.baciRelease,
-    previousArtifactSha256: previous.artifact.sha256,
-    notComparedReason: requiredYears.every((year) =>
-      previous.ingestedYears.includes(year),
-    )
-      ? null
-      : "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
-  };
-}
-
-function yearsBetween(start: number, end: number): number[] {
-  return Array.from(
-    { length: end - start + 1 },
-    (_, index) => start + index,
-  );
 }
 
 function fallbackSourceStatus(

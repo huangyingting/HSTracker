@@ -186,7 +186,7 @@ describe("verified release runtime", () => {
     });
   }, 20_000);
 
-  it("changes bootstrap status identity when a pairing is reactivated", async () => {
+  it("changes bootstrap Source Freshness Status identity when a pairing is reactivated", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
     const firstCandidate = await writeRuntimeReleaseCandidate(
@@ -236,7 +236,7 @@ describe("verified release runtime", () => {
     expect(reactivatedStatusId).not.toBe(initialStatusId);
   }, 20_000);
 
-  it("does not reset bootstrap source-check age on activation", async () => {
+  it("does not reset bootstrap Source Freshness Status check age on activation", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
     const candidate = await writeRuntimeReleaseCandidate(

@@ -57,12 +57,24 @@ export type ReleaseRevisionComparison = ReleaseRevisionComparisonIdentity & {
   candidates: Readonly<Record<string, CandidateReleaseRevision>>;
 };
 
-export function compareReleaseRevisions({
+export function resolveReleaseRevisionComparisonIdentity({
   currentRelease,
   previousArtifact,
-}: ReleaseRevisionComparisonInput): ReleaseRevisionComparison {
+}: {
+  currentRelease: Omit<
+    ReleaseRevisionComparisonInput["currentRelease"],
+    "candidates"
+  >;
+  previousArtifact:
+    | Omit<ReleaseRevisionPreviousArtifact, "recomputedCandidates">
+    | null;
+}): ReleaseRevisionComparisonIdentity {
   if (previousArtifact === null) {
-    return notCompared(currentRelease.candidates, "NO_PREVIOUS_ARTIFACT");
+    return {
+      comparisonRelease: null,
+      previousArtifactSha256: null,
+      notComparedReason: "NO_PREVIOUS_ARTIFACT",
+    };
   }
   if (
     previousArtifact.baciRelease === currentRelease.baciRelease ||
@@ -72,26 +84,41 @@ export function compareReleaseRevisions({
       currentRelease.scoreWindow.start ||
     previousArtifact.scoreWindowUsed.end !== currentRelease.scoreWindow.end
   ) {
-    return notCompared(
-      currentRelease.candidates,
-      "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
-    );
+    return {
+      comparisonRelease: null,
+      previousArtifactSha256: null,
+      notComparedReason: "NO_COMPATIBLE_PREVIOUS_ARTIFACT",
+    };
   }
 
   const requiredYears = yearsBetween(
     currentRelease.scoreWindow.start,
     currentRelease.scoreWindow.end,
   );
-  if (
-    requiredYears.some(
-      (year) => !previousArtifact.availableYears.includes(year),
+  return {
+    comparisonRelease: previousArtifact.baciRelease,
+    previousArtifactSha256: previousArtifact.artifactSha256,
+    notComparedReason: requiredYears.every((year) =>
+      previousArtifact.availableYears.includes(year),
     )
+      ? null
+      : "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
+  };
+}
+
+export function compareReleaseRevisions({
+  currentRelease,
+  previousArtifact,
+}: ReleaseRevisionComparisonInput): ReleaseRevisionComparison {
+  const identity = resolveReleaseRevisionComparisonIdentity({
+    currentRelease,
+    previousArtifact,
+  });
+  if (
+    previousArtifact === null ||
+    identity.notComparedReason !== null
   ) {
-    return notCompared(
-      currentRelease.candidates,
-      "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
-      previousArtifact,
-    );
+    return notCompared(currentRelease.candidates, identity);
   }
 
   const previousByCode = new Map(
@@ -143,15 +170,10 @@ export function compareReleaseRevisions({
 
 function notCompared(
   currentCandidates: readonly ReleaseCandidateSnapshot[],
-  reason: ReleaseRevisionNotComparedReason,
-  assessedArtifact?: NonNullable<
-    ReleaseRevisionComparisonInput["previousArtifact"]
-  >,
+  identity: ReleaseRevisionComparisonIdentity,
 ): ReleaseRevisionComparison {
   return {
-    comparisonRelease: assessedArtifact?.baciRelease ?? null,
-    previousArtifactSha256: assessedArtifact?.artifactSha256 ?? null,
-    notComparedReason: reason,
+    ...identity,
     noLongerEligibleCount: null,
     candidates: Object.fromEntries(
       currentCandidates.map(({ code }) => [

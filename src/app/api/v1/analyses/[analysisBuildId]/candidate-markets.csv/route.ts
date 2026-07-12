@@ -38,7 +38,7 @@ type CandidateMarketExportRouteContext = {
 
 class CandidateMarketExportRouteError extends Error {
   constructor(
-    readonly status: 400 | 404 | 409 | 503,
+    readonly status: 400 | 404 | 409 | 410 | 503,
     readonly code: string,
     readonly publicMessage: string,
     message: string,
@@ -81,9 +81,9 @@ async function handleCandidateMarketCsvRequest(
     const manifest = runtime.currentAnalysis();
     if (identity.productSearchBuildId !== manifest.productSearchBuildId) {
       throw new CandidateMarketExportRouteError(
-        404,
-        "PRODUCT_SEARCH_BUILD_NOT_FOUND",
-        "The requested product-search build is not available.",
+        410,
+        "PRODUCT_SEARCH_BUILD_RETIRED",
+        "The requested product-search build is no longer served.",
         `Product-search build ${identity.productSearchBuildId} is not served.`,
       );
     }
@@ -166,12 +166,11 @@ async function handleCandidateMarketCsvRequest(
       );
     }
     if (isProductCatalogError(error)) {
-      const status = error.status === 410 ? 404 : error.status;
-      const code =
-        error.status === 410
-          ? "PRODUCT_SEARCH_BUILD_NOT_FOUND"
-          : error.code;
-      return errorResponse(status, code, error.publicMessage);
+      return errorResponse(
+        error.status,
+        error.code,
+        error.publicMessage,
+      );
     }
     if (error instanceof CandidateMarketCsvRepresentationError) {
       return errorResponse(

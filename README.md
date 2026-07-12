@@ -46,7 +46,7 @@ read-only adapters and never depend on object storage.
 
 `/api/v1/analyses/current` reports the active analysis and search identities.
 `/healthz` additionally reports the deployment pairing, artifact identities,
-readiness, and source-freshness status without exposing credentials or volume
+readiness, and Source Freshness Status without exposing credentials or volume
 paths. See [release publication](docs/release-publication.md) for the complete
 storage and hydration contract.
 

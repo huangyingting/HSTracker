@@ -128,11 +128,13 @@ receive `410`.
 
 The current route reports the exact active analysis/search identities and
 source windows. Health additionally reports the deployment pairing, current
-and previous artifact SHA-256 identities, readiness, and freshness state; it
-never reports credentials, bucket URLs, or local paths. Until the source monitor publishes status snapshots, the bootstrap status is
+and previous artifact SHA-256 identities, readiness, and Source Freshness
+Status; it never reports credentials, bucket URLs, or local paths. Until the
+source monitor publishes status snapshots, the bootstrap Source Freshness Status is
 content-addressed from the accepted artifact and activation identities. Its
-check age is anchored to the artifact build instant, so a redeploy or rollback
-cannot reset it and it deterministically becomes `CHECK_OVERDUE` after 14 days.
+source-check age is anchored to the artifact build instant, so a redeploy or
+rollback cannot reset it and it deterministically becomes `CHECK_OVERDUE`
+after 14 days.
 
 ## Local S3-compatible integration
 

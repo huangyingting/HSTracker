@@ -138,14 +138,14 @@ describe("versioned Candidate Market CSV route", () => {
       code: "UNKNOWN_PRODUCT",
     },
     {
-      name: "unknown product catalog",
+      name: "retired product-search build",
       mutate: (url: URL) =>
         url.searchParams.set(
           "productSearchBuildId",
-          "unknown-product-search-v1",
+          "retired-product-search-v1",
         ),
-      status: 404,
-      code: "PRODUCT_SEARCH_BUILD_NOT_FOUND",
+      status: 410,
+      code: "PRODUCT_SEARCH_BUILD_RETIRED",
     },
     {
       name: "unknown freshness status",

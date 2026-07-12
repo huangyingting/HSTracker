@@ -50,7 +50,16 @@ test("the running application honors validators and HEAD semantics", async ({
 test("standalone routes preserve typed retired-build responses", async ({
   request,
 }) => {
-  const [analysis, products, economies] = await Promise.all([
+  const currentResponse = await request.get("/api/v1/analyses/current");
+  const current = await currentResponse.json();
+  const csvParameters = new URLSearchParams({
+    exporter: "156",
+    product: "010121",
+    productSearchBuildId: "retired-products",
+    freshnessStatusId: current.freshness.freshnessStatusId,
+    schema: "candidate-markets-csv-v1",
+  });
+  const [analysis, products, economies, csv] = await Promise.all([
     request.get(
       "/api/v1/analyses/retired-analysis/candidate-markets?exporter=156&product=010121",
     ),
@@ -58,6 +67,9 @@ test("standalone routes preserve typed retired-build responses", async ({
       "/api/v1/product-catalogs/retired-products/products?q=horse&locale=en&limit=5",
     ),
     request.get("/api/v1/analyses/retired-analysis/economies?q=China"),
+    request.get(
+      `/api/v1/analyses/${current.analysisBuildId}/candidate-markets.csv?${csvParameters}`,
+    ),
   ]);
 
   expect(analysis.status()).toBe(410);
@@ -71,5 +83,9 @@ test("standalone routes preserve typed retired-build responses", async ({
   expect(economies.status()).toBe(410);
   expect(await economies.json()).toMatchObject({
     error: { code: "ANALYSIS_BUILD_RETIRED" },
+  });
+  expect(csv.status()).toBe(410);
+  expect(await csv.json()).toMatchObject({
+    error: { code: "PRODUCT_SEARCH_BUILD_RETIRED" },
   });
 });
