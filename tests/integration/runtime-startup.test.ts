@@ -109,7 +109,98 @@ describe("Next.js runtime startup", () => {
     );
     expect(getApplicationRuntime()).toBe(runtimeBeforeStartup);
   }, 20_000);
+
+  it.each([
+    {
+      name: "BACI Release identity",
+      mutate: (deployment: MutableDeploymentDocument) => {
+        deployment.baciRelease = "V202501";
+      },
+      recomputePairingId: false,
+      error: "Deployment pairing identities are incompatible.",
+    },
+    {
+      name: "analysis build identity",
+      mutate: (deployment: MutableDeploymentDocument) => {
+        deployment.analysisBuildId =
+          "analysis-build-v1-ffffffffffffffff";
+      },
+      recomputePairingId: false,
+      error: "Deployment analysis build identity is inconsistent.",
+    },
+    {
+      name: "deployment pairing identity",
+      mutate: (deployment: MutableDeploymentDocument) => {
+        deployment.deploymentPairingId =
+          "deployment-pairing-v1-ffffffffffffffff";
+      },
+      recomputePairingId: false,
+      error: "Deployment pairing identity is inconsistent.",
+    },
+    {
+      name: "analysis release-catalog reference",
+      mutate: (deployment: MutableDeploymentDocument) => {
+        deployment.analysis.artifact.artifactBuildId =
+          "candidate-market-artifact-v1-ffffffffffffffff";
+      },
+      recomputePairingId: true,
+      error:
+        "Deployment analysis artifact does not match its release catalog.",
+    },
+  ])(
+    "leaves the process unready when the deployment has a tampered $name",
+    async ({ mutate, recomputePairingId, error }) => {
+      const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
+      temporaryDirectories.push(root);
+      const candidate = await writeRuntimeReleaseCandidate(
+        join(root, "candidate"),
+      );
+      const objectStore = new InMemoryReleaseObjectStore();
+      await new ReleasePublisher(objectStore).promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      });
+      await activateTamperedDeployment(
+        objectStore,
+        mutate,
+        recomputePairingId,
+      );
+      const runtimeBeforeStartup = getApplicationRuntime();
+
+      await expect(
+        startApplicationRuntime({
+          environment: {
+            NODE_ENV: "production",
+            HS_TRACKER_RUNTIME_MODE: "release",
+            HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
+          },
+          objectStore,
+          now: () => "2026-07-12T02:00:00Z",
+        }),
+      ).rejects.toThrow(error);
+      expect(getApplicationRuntime()).toBe(runtimeBeforeStartup);
+    },
+    20_000,
+  );
 });
+
+type MutableDeploymentDocument = {
+  deploymentPairingId: string;
+  baciRelease: string;
+  analysisBuildId: string;
+  analysis: {
+    artifact: {
+      artifactBuildId: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+  productSearch: {
+    manifest: { key: string; bytes: number; sha256: string };
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
 
 async function activateIncompatibleCatalogManifest(
   objectStore: InMemoryReleaseObjectStore,
@@ -180,6 +271,62 @@ async function activateIncompatibleCatalogManifest(
   const deploymentIdentity = releaseObjectIdentity(deploymentBytes);
   const deploymentKey =
     `deployment-pairings/${deployment.deploymentPairingId}.json`;
+  await objectStore.putImmutable(
+    deploymentKey,
+    singleChunk(deploymentBytes),
+    deploymentIdentity,
+  );
+  const pointerBytes = releaseJsonBytes({
+    ...pointer,
+    current: { key: deploymentKey, ...deploymentIdentity },
+  });
+  await objectStore.compareAndSwap(
+    ACTIVE_DEPLOYMENT_POINTER_KEY,
+    storedPointer.version,
+    pointerBytes,
+  );
+}
+
+async function activateTamperedDeployment(
+  objectStore: InMemoryReleaseObjectStore,
+  mutate: (deployment: MutableDeploymentDocument) => void,
+  recomputePairingId: boolean,
+): Promise<void> {
+  const storedPointer = await requiredObject(
+    objectStore.getObject(ACTIVE_DEPLOYMENT_POINTER_KEY),
+  );
+  const pointer = JSON.parse(
+    (await collect(storedPointer)).toString("utf8"),
+  ) as {
+    current: { key: string; bytes: number; sha256: string };
+    [key: string]: unknown;
+  };
+  const deployment = JSON.parse(
+    (
+      await collect(
+        await requiredObject(
+          objectStore.getObject(pointer.current.key),
+        ),
+      )
+    ).toString("utf8"),
+  ) as MutableDeploymentDocument;
+  mutate(deployment);
+  if (recomputePairingId) {
+    const pairingIdentity = Object.fromEntries(
+      Object.entries(deployment).filter(
+        ([key]) => key !== "deploymentPairingId",
+      ),
+    );
+    deployment.deploymentPairingId = contentAddressedId(
+      "deployment-pairing-v1",
+      pairingIdentity,
+    );
+  }
+  const deploymentBytes = releaseJsonBytes(deployment);
+  const deploymentIdentity = releaseObjectIdentity(deploymentBytes);
+  const deploymentKey =
+    `test/tampered-deployment/` +
+    `${deploymentIdentity.sha256}.json`;
   await objectStore.putImmutable(
     deploymentKey,
     singleChunk(deploymentBytes),

@@ -429,6 +429,8 @@ function currentAnalysisDeployment(
               hsRevision: previousManifest.hsRevision,
               scoreVersion: "cms-v1",
               availableYears: previousManifest.ingestedYears,
+              // Release Revision recomputes prior bytes over the current
+              // same-period score window.
               scoreWindowUsed: manifest.scoreWindow,
             },
     }),
