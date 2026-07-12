@@ -1,3 +1,8 @@
+import {
+  positiveSafeInteger,
+  record,
+} from "./value-validation";
+
 export type RecurringCostForecastLineItem = {
   id: string;
   monthlyUsd: number;
@@ -28,10 +33,14 @@ export class CostForecastValidationError extends Error {
   }
 }
 
+function costForecastError(message: string): CostForecastValidationError {
+  return new CostForecastValidationError(message);
+}
+
 export function parseRecurringCostForecast(
   value: unknown,
 ): RecurringCostForecast {
-  const forecast = record(value, "cost forecast");
+  const forecast = record(value, "cost forecast", costForecastError);
   if (forecast.schemaVersion !== "recurring-cost-forecast-v1") {
     throw new CostForecastValidationError(
       "Cost forecast schema is incompatible.",
@@ -92,13 +101,15 @@ export function parseRecurringCostForecast(
       forecast.machineClass,
       "cost forecast Machine class",
     ),
-    memoryGiB: positiveInteger(
+    memoryGiB: positiveSafeInteger(
       forecast.memoryGiB,
       "cost forecast memory GiB",
+      costForecastError,
     ),
-    volumeGiB: positiveInteger(
+    volumeGiB: positiveSafeInteger(
       forecast.volumeGiB,
       "cost forecast volume GiB",
+      costForecastError,
     ),
     lineItems,
     forecastMonthlyUsd,
@@ -111,7 +122,11 @@ function lineItem(
   value: unknown,
   index: number,
 ): RecurringCostForecastLineItem {
-  const item = record(value, `cost forecast line item ${index}`);
+  const item = record(
+    value,
+    `cost forecast line item ${index}`,
+    costForecastError,
+  );
   const sourceUrl = nonemptyString(
     item.sourceUrl,
     `cost forecast line item ${index} source URL`,
@@ -146,16 +161,6 @@ function lineItem(
   };
 }
 
-function record(
-  value: unknown,
-  label: string,
-): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new CostForecastValidationError(`${label} must be an object.`);
-  }
-  return value as Record<string, unknown>;
-}
-
 function nonemptyString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new CostForecastValidationError(
@@ -163,15 +168,6 @@ function nonemptyString(value: unknown, label: string): string {
     );
   }
   return value;
-}
-
-function positiveInteger(value: unknown, label: string): number {
-  if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-    throw new CostForecastValidationError(
-      `${label} must be a positive safe integer.`,
-    );
-  }
-  return value as number;
 }
 
 function money(value: unknown, label: string): number {

@@ -7,6 +7,11 @@ import { createGzip } from "node:zlib";
 
 import { parseRecurringCostForecast } from "../../src/deployment/cost-forecast";
 import { evaluateDeploymentGates } from "../../src/deployment/deployment-gates";
+import {
+  nonnegativeSafeInteger,
+  positiveSafeInteger,
+  record,
+} from "../../src/deployment/value-validation";
 
 const execFileAsync = promisify(execFile);
 const GIB = 1024 ** 3;
@@ -277,7 +282,11 @@ async function docker(arguments_: readonly string[]): Promise<string> {
 }
 
 function acceptedArtifactBytes(value: unknown): number {
-  const report = record(value, "artifact report");
+  const report = record(
+    value,
+    "artifact report",
+    deploymentEvidenceError,
+  );
   if (
     report.schemaVersion !==
       "candidate-market-artifact-build-report-v1" ||
@@ -289,13 +298,22 @@ function acceptedArtifactBytes(value: unknown): number {
     );
   }
   return positiveSafeInteger(
-    record(report.artifact, "artifact report artifact").bytes,
+    record(
+      report.artifact,
+      "artifact report artifact",
+      deploymentEvidenceError,
+    ).bytes,
     "artifact bytes",
+    deploymentEvidenceError,
   );
 }
 
 function acceptedCatalogResidentBytes(value: unknown): number {
-  const report = record(value, "catalog report");
+  const report = record(
+    value,
+    "catalog report",
+    deploymentEvidenceError,
+  );
   if (
     report.schemaVersion !== "product-catalog-build-report-v1" ||
     report.status !== "accepted"
@@ -305,10 +323,15 @@ function acceptedCatalogResidentBytes(value: unknown): number {
       "Catalog report is not accepted or has an incompatible schema.",
     );
   }
-  const validation = record(report.validation, "catalog report validation");
+  const validation = record(
+    report.validation,
+    "catalog report validation",
+    deploymentEvidenceError,
+  );
   const sizeGate = record(
     validation.residentSizeGate,
     "catalog resident-size gate",
+    deploymentEvidenceError,
   );
   if (sizeGate.status !== "accepted") {
     throw new DeploymentCheckError(
@@ -319,6 +342,7 @@ function acceptedCatalogResidentBytes(value: unknown): number {
   return positiveSafeInteger(
     sizeGate.measuredBytes,
     "catalog resident bytes",
+    deploymentEvidenceError,
   );
 }
 
@@ -344,14 +368,11 @@ function required(value: string | undefined, name: string): string {
 }
 
 function byteOption(value: string | undefined, name: string): number {
-  const parsed = Number(required(value, name));
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new DeploymentCheckError(
-      "CLI_ARGUMENT_INVALID",
-      `--${name} must be a nonnegative safe integer.`,
-    );
-  }
-  return parsed;
+  return nonnegativeSafeInteger(
+    Number(required(value, name)),
+    `--${name}`,
+    cliArgumentError,
+  );
 }
 
 function volumeObservationClass(
@@ -379,27 +400,15 @@ function utcTimestamp(value: string, name: string): string {
   return value;
 }
 
-function positiveSafeInteger(value: unknown, label: string): number {
-  if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-    throw new DeploymentCheckError(
-      "DEPLOYMENT_EVIDENCE_INVALID",
-      `${label} must be a positive safe integer.`,
-    );
-  }
-  return value as number;
+function deploymentEvidenceError(message: string): DeploymentCheckError {
+  return new DeploymentCheckError(
+    "DEPLOYMENT_EVIDENCE_INVALID",
+    message,
+  );
 }
 
-function record(
-  value: unknown,
-  label: string,
-): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new DeploymentCheckError(
-      "DEPLOYMENT_EVIDENCE_INVALID",
-      `${label} must be an object.`,
-    );
-  }
-  return value as Record<string, unknown>;
+function cliArgumentError(message: string): DeploymentCheckError {
+  return new DeploymentCheckError("CLI_ARGUMENT_INVALID", message);
 }
 
 function sha256(bytes_: Buffer): string {

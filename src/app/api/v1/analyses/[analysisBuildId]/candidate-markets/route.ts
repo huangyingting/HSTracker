@@ -107,9 +107,7 @@ const candidateMarketRoute =
       writeStructuredErrorLog(
         "candidate-market-analysis-request-failed",
         error,
-        {
-        correlationId,
-        },
+        { correlationId },
       );
       return jsonErrorResponse(
         500,

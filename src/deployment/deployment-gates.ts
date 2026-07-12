@@ -1,3 +1,5 @@
+import { nonnegativeSafeInteger } from "./value-validation";
+
 const MIB = 1024 ** 2;
 const GIB = 1024 ** 3;
 
@@ -199,15 +201,11 @@ function combinedStatus(
 }
 
 function bytes(value: number, label: string): number {
-  if (
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw new DeploymentGateInputError(
-      `${label} must be a nonnegative safe integer.`,
-    );
-  }
-  return value;
+  return nonnegativeSafeInteger(
+    value,
+    label,
+    deploymentGateInputError,
+  );
 }
 
 function positiveBytes(value: number, label: string): number {
@@ -251,4 +249,10 @@ function optionalDecision(value: string | undefined): string | null {
     );
   }
   return value;
+}
+
+function deploymentGateInputError(
+  message: string,
+): DeploymentGateInputError {
+  return new DeploymentGateInputError(message);
 }

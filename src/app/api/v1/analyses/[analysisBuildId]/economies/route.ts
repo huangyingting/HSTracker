@@ -87,9 +87,7 @@ const economyRoute = createMeasuredRuntimeRoute<EconomyRouteContext>({
     writeStructuredErrorLog(
       "economy-directory-request-failed",
       error,
-      {
-      correlationId,
-      },
+      { correlationId },
     );
     return jsonErrorResponse(
       500,

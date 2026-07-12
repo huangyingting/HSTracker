@@ -96,9 +96,7 @@ const productCatalogRoute =
       writeStructuredErrorLog(
         "product-catalog-request-failed",
         error,
-        {
-        correlationId,
-        },
+        { correlationId },
       );
       return jsonErrorResponse(
         500,

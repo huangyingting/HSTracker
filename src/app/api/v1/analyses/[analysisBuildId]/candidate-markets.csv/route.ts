@@ -220,9 +220,7 @@ const candidateMarketCsvRoute =
       writeStructuredErrorLog(
         "candidate-market-csv-export-request-failed",
         error,
-        {
-        correlationId,
-        },
+        { correlationId },
       );
       return jsonErrorResponse(
         500,
