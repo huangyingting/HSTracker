@@ -75,8 +75,19 @@ export type SourceMonitorResult = {
 type SourceMonitorInput = {
   source: BaciReleaseSource;
   statuses: SourceStatusPublisher;
+  deployments: SourceMonitorDeploymentReader;
   observe?: (event: SourceMonitorEvent) => void;
 };
+
+export type SourceMonitorDeployment = {
+  deploymentPairingId: string;
+  baciRelease: string;
+  sourceStatusFallback: SourceStatusSnapshot;
+};
+
+export interface SourceMonitorDeploymentReader {
+  current(): Promise<SourceMonitorDeployment | null>;
+}
 
 export type SourceMonitorEvent = {
   type: "source-check-failed";
@@ -97,46 +108,77 @@ export class SourceMonitor {
   constructor(private readonly input: SourceMonitorInput) {}
 
   async check(input: {
-    servedBaciRelease: string;
-    sourceStatusFallback: SourceStatusSnapshot;
     checkedAt: string;
     signal?: AbortSignal;
   }): Promise<SourceMonitorResult> {
-    if (
-      input.sourceStatusFallback.servedBaciRelease !==
-      input.servedBaciRelease
-    ) {
-      throw new Error(
-        "Deployment Source Freshness Status fallback does not match the served BACI Release.",
-      );
-    }
-    const current = await this.input.statuses.current();
-    let observed: BaciReleaseObservation;
-    let comparison: number;
     try {
-      observed = await this.input.source.latestHs12Release({
+      const observed = await this.input.source.latestHs12Release({
         signal: input.signal,
       });
-      comparison = compareBaciReleases(
-        observed.baciRelease,
-        input.servedBaciRelease,
+      let outcome: SourceMonitorResult["outcome"] = "unchanged";
+      const status = await this.input.statuses.publishTransition(
+        async (current) => {
+          const deployment = await this.input.deployments.current();
+          if (deployment === null) {
+            throw new Error(
+              "CEPII source monitoring requires an active deployment.",
+            );
+          }
+          if (
+            deployment.sourceStatusFallback.servedBaciRelease !==
+            deployment.baciRelease
+          ) {
+            throw new Error(
+              "Deployment Source Freshness Status fallback does not match the served BACI Release.",
+            );
+          }
+          const comparison = compareBaciReleases(
+            observed.baciRelease,
+            deployment.baciRelease,
+          );
+          if (comparison < 0) {
+            throw new Error(
+              "CEPII reported a BACI Release older than the served release.",
+            );
+          }
+          if (
+            current !== null &&
+            compareBaciReleases(
+              observed.baciRelease,
+              current.latestKnownBaciRelease,
+            ) < 0
+          ) {
+            throw new Error(
+              "CEPII reported a BACI Release older than the latest accepted check.",
+            );
+          }
+          const releaseDetected = comparison > 0;
+          const statusBaseline =
+            current?.servedBaciRelease === deployment.baciRelease
+              ? current
+              : deployment.sourceStatusFallback;
+          const priorDetectionAt =
+            releaseDetected &&
+            statusBaseline.newerReleaseDetectedAt !== null
+              ? statusBaseline.newerReleaseDetectedAt
+              : null;
+          outcome = releaseDetected
+            ? "release-detected"
+            : "unchanged";
+          return {
+            checkedAt: input.checkedAt,
+            servedBaciRelease: deployment.baciRelease,
+            latestKnownBaciRelease: observed.baciRelease,
+            newerReleaseDetectedAt: releaseDetected
+              ? priorDetectionAt ?? input.checkedAt
+              : null,
+            refreshFailed: statusBaseline.refreshFailed,
+            rollbackActive: statusBaseline.rollbackActive,
+            publishedAt: input.checkedAt,
+          };
+        },
       );
-      if (comparison < 0) {
-        throw new Error(
-          "CEPII reported a BACI Release older than the served release.",
-        );
-      }
-      if (
-        current !== null &&
-        compareBaciReleases(
-          observed.baciRelease,
-          current.latestKnownBaciRelease,
-        ) < 0
-      ) {
-        throw new Error(
-          "CEPII reported a BACI Release older than the latest accepted check.",
-        );
-      }
+      return { outcome, status };
     } catch (error) {
       this.input.observe?.({
         type: "source-check-failed",
@@ -145,32 +187,6 @@ export class SourceMonitor {
       });
       throw new SourceMonitorError({ cause: error });
     }
-
-    const releaseDetected = comparison > 0;
-    const statusBaseline =
-      current?.servedBaciRelease === input.servedBaciRelease
-        ? current
-        : input.sourceStatusFallback;
-    const priorDetectionAt =
-      releaseDetected &&
-      statusBaseline.newerReleaseDetectedAt !== null
-        ? statusBaseline.newerReleaseDetectedAt
-        : null;
-    const status = await this.input.statuses.publish({
-      checkedAt: input.checkedAt,
-      servedBaciRelease: input.servedBaciRelease,
-      latestKnownBaciRelease: observed.baciRelease,
-      newerReleaseDetectedAt: releaseDetected
-        ? priorDetectionAt ?? input.checkedAt
-        : null,
-      refreshFailed: statusBaseline.refreshFailed,
-      rollbackActive: statusBaseline.rollbackActive,
-      publishedAt: input.checkedAt,
-    });
-    return {
-      outcome: releaseDetected ? "release-detected" : "unchanged",
-      status,
-    };
   }
 }
 

@@ -34,6 +34,12 @@ export type SourceStatusPublicationInput = Omit<
   "schemaVersion" | "sourceStatusSnapshotId"
 >;
 
+export type SourceStatusTransition = (
+  current: PublishedSourceStatusSnapshot | null,
+) =>
+  | SourceStatusPublicationInput
+  | Promise<SourceStatusPublicationInput>;
+
 export type PublishedSourceStatusSnapshot = SourceStatusPublicationInput & {
   schemaVersion: "source-status-snapshot-v1";
   sourceStatusSnapshotId: string;
@@ -184,6 +190,22 @@ export class SourceStatusPublisher extends SourceStatusReader {
   async publish(
     input: SourceStatusPublicationInput,
   ): Promise<PublishedSourceStatusSnapshot> {
+    const current = await this.loadCurrent();
+    return this.publishAgainstCurrent(input, current);
+  }
+
+  async publishTransition(
+    transition: SourceStatusTransition,
+  ): Promise<PublishedSourceStatusSnapshot> {
+    const current = await this.loadCurrent();
+    const input = await transition(current?.status ?? null);
+    return this.publishAgainstCurrent(input, current);
+  }
+
+  private async publishAgainstCurrent(
+    input: SourceStatusPublicationInput,
+    current: CurrentSourceStatus | null,
+  ): Promise<PublishedSourceStatusSnapshot> {
     const status = createPublishedSourceStatusSnapshot(input);
     const bytes = releaseJsonBytes(status);
     const identity = releaseObjectIdentity(bytes);
@@ -191,7 +213,6 @@ export class SourceStatusPublisher extends SourceStatusReader {
       key: `source-status/${status.sourceStatusSnapshotId}.json`,
       ...identity,
     };
-    const current = await this.loadCurrent();
     if (
       current !== null &&
       (Date.parse(status.publishedAt) <
@@ -201,7 +222,7 @@ export class SourceStatusPublisher extends SourceStatusReader {
     ) {
       throw new SourceStatusPublicationError(
         "STATUS_REGRESSION",
-        "Source-status publication time cannot move backward.",
+        "Source Freshness Status publication time cannot move backward.",
       );
     }
     if (
@@ -235,7 +256,7 @@ export class SourceStatusPublisher extends SourceStatusReader {
     if (pointerBytes.byteLength > MAX_RELEASE_METADATA_BYTES) {
       throw new SourceStatusPublicationError(
         "STATUS_ACTIVATION_FAILED",
-        "Source-status pointer exceeds its metadata size limit.",
+        "Source Freshness Status pointer exceeds its metadata size limit.",
       );
     }
     try {
@@ -247,7 +268,7 @@ export class SourceStatusPublisher extends SourceStatusReader {
     } catch (error) {
       throw new SourceStatusPublicationError(
         "STATUS_ACTIVATION_FAILED",
-        "Source-status pointer activation failed.",
+        "Source Freshness Status pointer activation failed.",
         { cause: error },
       );
     }

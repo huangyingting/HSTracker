@@ -6,6 +6,7 @@ import {
   CepiiBaciReleaseSource,
   SourceMonitor,
   type BaciReleaseSource,
+  type SourceMonitorDeployment,
 } from "../../src/release/source-monitor";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
 
@@ -35,13 +36,12 @@ describe("CEPII source monitor", () => {
       publishedAt: "2026-03-01T00:00:00Z",
     });
     const monitor = new SourceMonitor({
+      deployments: fixedDeployment(),
       source: fixedSource("V202601"),
       statuses,
     });
 
     const result = await monitor.check({
-      servedBaciRelease: "V202601",
-      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2026-03-02T00:00:00Z",
     });
 
@@ -69,18 +69,15 @@ describe("CEPII source monitor", () => {
     const objectStore = new InMemoryReleaseObjectStore();
     const statuses = new SourceStatusPublisher(objectStore);
     const monitor = new SourceMonitor({
+      deployments: fixedDeployment(),
       source: fixedSource("V202701"),
       statuses,
     });
 
     const detected = await monitor.check({
-      servedBaciRelease: "V202601",
-      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2027-03-02T12:00:00Z",
     });
     const checkedAgain = await monitor.check({
-      servedBaciRelease: "V202601",
-      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2027-03-03T12:00:00Z",
     });
 
@@ -114,13 +111,12 @@ describe("CEPII source monitor", () => {
       publishedAt: "2026-03-01T00:00:00Z",
     });
     const monitor = new SourceMonitor({
+      deployments: fixedDeployment(),
       source: fixedSource("V202601"),
       statuses,
     });
 
     const result = await monitor.check({
-      servedBaciRelease: "V202601",
-      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2026-03-02T00:00:00Z",
     });
 
@@ -146,13 +142,12 @@ describe("CEPII source monitor", () => {
       publishedAt: "2027-03-01T00:00:00Z",
     });
     const monitor = new SourceMonitor({
+      deployments: fixedDeployment(),
       source: fixedSource("V202801"),
       statuses,
     });
 
     const result = await monitor.check({
-      servedBaciRelease: "V202601",
-      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2027-03-02T00:00:00Z",
     });
 
@@ -178,25 +173,25 @@ describe("CEPII source monitor", () => {
       rollbackActive: false,
       publishedAt: "2027-03-03T01:00:00Z",
     });
+    const rollbackFallback = {
+      schemaVersion: "source-status-v1",
+      sourceStatusSnapshotId:
+        "source-status-v1-rollback-fallback",
+      checkedAt: "2027-03-03T01:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2027-03-03T02:00:00Z",
+      refreshFailed: false,
+      rollbackActive: true,
+      publishedAt: "2027-03-03T02:00:00Z",
+    } satisfies SourceStatusSnapshot;
     const monitor = new SourceMonitor({
+      deployments: fixedDeployment(rollbackFallback),
       source: fixedSource("V202701"),
       statuses,
     });
 
     const result = await monitor.check({
-      servedBaciRelease: "V202601",
-      sourceStatusFallback: {
-        schemaVersion: "source-status-v1",
-        sourceStatusSnapshotId:
-          "source-status-v1-rollback-fallback",
-        checkedAt: "2027-03-03T01:00:00Z",
-        servedBaciRelease: "V202601",
-        latestKnownBaciRelease: "V202701",
-        newerReleaseDetectedAt: "2027-03-03T02:00:00Z",
-        refreshFailed: false,
-        rollbackActive: true,
-        publishedAt: "2027-03-03T02:00:00Z",
-      },
       checkedAt: "2027-03-03T03:00:00Z",
     });
 
@@ -206,6 +201,128 @@ describe("CEPII source monitor", () => {
       newerReleaseDetectedAt: "2027-03-03T02:00:00Z",
       rollbackActive: true,
       state: "REFRESH_DELAYED",
+    });
+  });
+
+  it("publishes for the deployment and status active after the source request", async () => {
+    const objectStore = new InMemoryReleaseObjectStore();
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-03T01:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202601",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-03T01:00:00Z",
+    });
+    let activeDeployment: SourceMonitorDeployment = {
+      deploymentPairingId: "deployment-pairing-v1-old",
+      baciRelease: "V202601",
+      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
+    };
+    const promotedFallback = {
+      ...SOURCE_STATUS_FALLBACK,
+      sourceStatusSnapshotId: "source-status-v1-promoted-fallback",
+      checkedAt: "2027-03-03T02:00:00Z",
+      servedBaciRelease: "V202701",
+      latestKnownBaciRelease: "V202701",
+      publishedAt: "2027-03-03T02:00:00Z",
+    } satisfies SourceStatusSnapshot;
+    const monitor = new SourceMonitor({
+      deployments: {
+        async current() {
+          return activeDeployment;
+        },
+      },
+      source: {
+        async latestHs12Release() {
+          activeDeployment = {
+            deploymentPairingId: "deployment-pairing-v1-new",
+            baciRelease: "V202701",
+            sourceStatusFallback: promotedFallback,
+          };
+          await statuses.publish({
+            checkedAt: "2027-03-03T02:00:00Z",
+            servedBaciRelease: "V202701",
+            latestKnownBaciRelease: "V202701",
+            newerReleaseDetectedAt: null,
+            refreshFailed: false,
+            rollbackActive: false,
+            publishedAt: "2027-03-03T02:00:00Z",
+          });
+          return {
+            baciRelease: "V202701",
+            sourceUrl:
+              "https://www.cepii.fr/DATA_DOWNLOAD/baci/data/" +
+              "BACI_HS12_V202701.zip",
+          };
+        },
+      },
+      statuses,
+    });
+
+    const result = await monitor.check({
+      checkedAt: "2027-03-03T03:00:00Z",
+    });
+
+    expect(result).toMatchObject({
+      outcome: "unchanged",
+      status: {
+        servedBaciRelease: "V202701",
+        latestKnownBaciRelease: "V202701",
+        newerReleaseDetectedAt: null,
+        state: "LATEST_KNOWN",
+      },
+    });
+  });
+
+  it("does not overwrite a status committed while deployment state is read", async () => {
+    const objectStore = new InMemoryReleaseObjectStore();
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-03T01:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202601",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-03T01:00:00Z",
+    });
+    const monitor = new SourceMonitor({
+      deployments: {
+        async current() {
+          await statuses.publish({
+            checkedAt: "2027-03-03T02:00:00Z",
+            servedBaciRelease: "V202601",
+            latestKnownBaciRelease: "V202601",
+            newerReleaseDetectedAt: null,
+            refreshFailed: true,
+            rollbackActive: false,
+            publishedAt: "2027-03-03T02:00:00Z",
+          });
+          return {
+            deploymentPairingId: "deployment-pairing-v1-current",
+            baciRelease: "V202601",
+            sourceStatusFallback: SOURCE_STATUS_FALLBACK,
+          };
+        },
+      },
+      source: fixedSource("V202601"),
+      statuses,
+    });
+
+    await expect(
+      monitor.check({
+        checkedAt: "2027-03-03T03:00:00Z",
+      }),
+    ).rejects.toMatchObject({
+      name: "SourceMonitorError",
+      code: "SOURCE_CHECK_FAILED",
+    });
+    await expect(statuses.current()).resolves.toMatchObject({
+      refreshFailed: true,
+      publishedAt: "2027-03-03T02:00:00Z",
     });
   });
 
@@ -226,6 +343,7 @@ describe("CEPII source monitor", () => {
     );
     const diagnostics: unknown[] = [];
     const monitor = new SourceMonitor({
+      deployments: fixedDeployment(),
       source: {
         async latestHs12Release() {
           throw privateFailure;
@@ -237,8 +355,6 @@ describe("CEPII source monitor", () => {
 
     await expect(
       monitor.check({
-        servedBaciRelease: "V202601",
-        sourceStatusFallback: SOURCE_STATUS_FALLBACK,
         checkedAt: "2026-03-02T00:00:00Z",
       }),
     ).rejects.toMatchObject({
@@ -286,6 +402,21 @@ function fixedSource(baciRelease: string): BaciReleaseSource {
         sourceUrl:
           `https://www.cepii.fr/DATA_DOWNLOAD/baci/data/` +
           `BACI_HS12_${baciRelease}.zip`,
+      };
+    },
+  };
+}
+
+function fixedDeployment(
+  sourceStatusFallback: SourceStatusSnapshot =
+    SOURCE_STATUS_FALLBACK,
+) {
+  return {
+    async current() {
+      return {
+        deploymentPairingId: "deployment-pairing-v1-current",
+        baciRelease: sourceStatusFallback.servedBaciRelease,
+        sourceStatusFallback,
       };
     },
   };

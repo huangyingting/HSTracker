@@ -135,7 +135,7 @@ function observeSourceStatusPolling(
     event.type === "status-poll-failed" &&
     event.consecutiveFailures === 3
   ) {
-    console.warn("Source-status pointer polling is degraded", {
+    console.warn("Source Freshness Status pointer polling is degraded", {
       consecutiveFailures: event.consecutiveFailures,
       error: privateErrorDiagnostic(event.error),
     });

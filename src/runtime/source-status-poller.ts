@@ -157,7 +157,9 @@ export class SourceStatusPoller {
   nextDelayMs(): number {
     const random = this.random();
     if (!Number.isFinite(random) || random < 0 || random >= 1) {
-      throw new Error("Source-status poll jitter must be in [0, 1).");
+      throw new Error(
+        "Source Freshness Status poll jitter must be in [0, 1).",
+      );
     }
     return 60_000 - Math.floor(random * 5_001);
   }

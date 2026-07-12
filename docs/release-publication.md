@@ -113,10 +113,13 @@ snapshot and deployment untouched. Checks update the latest-known release and
 check time without clearing an active refresh failure or rollback; only a
 completed refresh clears that operational state. If the status pointer still
 describes another served release, the active deployment's embedded fallback
-supplies the operational state. The workflow's `source-monitor` environment
-must provide the write-scoped S3 variables listed above. The pointer retains
-references to prior immutable snapshots across served releases so supported
-export identities remain reproducible after restart or rollback.
+supplies the operational state. The monitor derives each publication from the
+status and deployment read inside the same compare-and-swap attempt, so a
+concurrent status change wins instead of being overwritten. The workflow's
+`source-monitor` environment must provide the write-scoped S3 variables listed
+above. The pointer retains references to prior immutable snapshots across
+served releases so supported export identities remain reproducible after
+restart or rollback.
 
 When a newer release is detected, use `npm run release:refresh` rather than the
 low-level promotion command:

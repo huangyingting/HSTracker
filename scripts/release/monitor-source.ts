@@ -23,15 +23,15 @@ async function main(): Promise<void> {
   });
   const checkedAt = values["checked-at"] ?? currentUtcSecond();
   const objectStore = createPromotionReleaseObjectStore();
-  const deployment = await new ReleasePublisher(
-    objectStore,
-  ).current();
+  const publisher = new ReleasePublisher(objectStore);
+  const deployment = await publisher.current();
   if (deployment === null) {
     throw new Error(
       "CEPII source monitoring requires an active deployment.",
     );
   }
   const monitor = new SourceMonitor({
+    deployments: publisher,
     source: new CepiiBaciReleaseSource(),
     statuses: new SourceStatusPublisher(objectStore),
     observe(event) {
@@ -45,8 +45,6 @@ async function main(): Promise<void> {
     },
   });
   const result = await monitor.check({
-    servedBaciRelease: deployment.baciRelease,
-    sourceStatusFallback: deployment.sourceStatusFallback,
     checkedAt,
     signal: AbortSignal.timeout(SOURCE_CHECK_TIMEOUT_MS),
   });
