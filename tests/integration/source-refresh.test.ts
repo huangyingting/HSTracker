@@ -513,6 +513,15 @@ describe("source refresh orchestration", () => {
       previousDeploymentPairingId: second.deploymentPairingId,
       sourceStatusFallback: { rollbackActive: true },
     });
+    await statuses.publish({
+      checkedAt: "2027-03-03T03:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2027-03-03T02:00:00Z",
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-03T03:00:00Z",
+    });
 
     await expect(
       orchestrator.rollback({

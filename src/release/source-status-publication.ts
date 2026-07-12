@@ -13,6 +13,7 @@ import {
 import {
   releaseObjectIdentity,
   singleChunk,
+  type ReleaseObjectReadOptions,
   type ReleaseObjectReader,
   type ReleaseObjectStore,
 } from "./release-object-store";
@@ -82,18 +83,22 @@ export class SourceStatusReader {
 
   constructor(protected readonly objectStore: ReleaseObjectReader) {}
 
-  async current(): Promise<PublishedSourceStatusSnapshot | null> {
-    return (await this.loadCurrent())?.status ?? null;
+  async current(
+    options: ReleaseObjectReadOptions = {},
+  ): Promise<PublishedSourceStatusSnapshot | null> {
+    return (await this.loadCurrent(options))?.status ?? null;
   }
 
-  async currentAndRetained(): Promise<RetainedSourceStatuses | null> {
-    const current = await this.loadCurrent();
+  async currentAndRetained(
+    options: ReleaseObjectReadOptions = {},
+  ): Promise<RetainedSourceStatuses | null> {
+    const current = await this.loadCurrent(options);
     if (current === null) {
       return null;
     }
     const retained = await Promise.all(
       current.pointer.retained.map((reference) =>
-        this.readStatus(reference),
+        this.readStatus(reference, options),
       ),
     );
     for (const status of retained) {
@@ -121,9 +126,12 @@ export class SourceStatusReader {
     return { current: current.status, retained };
   }
 
-  protected async loadCurrent(): Promise<CurrentSourceStatus | null> {
+  protected async loadCurrent(
+    options: ReleaseObjectReadOptions = {},
+  ): Promise<CurrentSourceStatus | null> {
     const storedPointer = await this.objectStore.getObject(
       ACTIVE_SOURCE_STATUS_POINTER_KEY,
+      options,
     );
     if (storedPointer === null) {
       return null;
@@ -133,7 +141,7 @@ export class SourceStatusReader {
         (await readReleaseMetadata(storedPointer.body)).toString("utf8"),
       ),
     );
-    const status = await this.readStatus(pointer.current);
+    const status = await this.readStatus(pointer.current, options);
     if (status.publishedAt !== pointer.publishedAt) {
       throw new Error(
         "The active Source Freshness Status pointer does not match its snapshot.",
@@ -148,6 +156,7 @@ export class SourceStatusReader {
 
   private async readStatus(
     reference: ReleaseObjectReference,
+    options: ReleaseObjectReadOptions,
   ): Promise<PublishedSourceStatusSnapshot> {
     const cacheKey = statusReferenceCacheKey(reference);
     const cached = this.statusCache.get(cacheKey);
@@ -157,6 +166,7 @@ export class SourceStatusReader {
     const statusBytes = await readVerifiedStatusObject(
       this.objectStore,
       reference,
+      options,
     );
     const status = parsePublishedSourceStatusSnapshot(
       JSON.parse(statusBytes.toString("utf8")),
@@ -473,8 +483,9 @@ function objectReference(value: unknown): ReleaseObjectReference {
 async function readVerifiedStatusObject(
   objectStore: ReleaseObjectReader,
   reference: ReleaseObjectReference,
+  options: ReleaseObjectReadOptions = {},
 ): Promise<Buffer> {
-  const stored = await objectStore.getObject(reference.key);
+  const stored = await objectStore.getObject(reference.key, options);
   if (stored === null) {
     throw new Error(
       "The active Source Freshness Status snapshot is unavailable.",

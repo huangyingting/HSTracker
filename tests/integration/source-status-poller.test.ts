@@ -126,6 +126,59 @@ describe("runtime Source Freshness Status poller", () => {
     poller.stop();
   });
 
+  it("times out a hung read without extending the 55-60 second cadence", async () => {
+    const scheduled: {
+      callback: () => void;
+      delayMs: number;
+    }[] = [];
+    let aborted = false;
+    const poller = new SourceStatusPoller({
+      objectStore: {
+        getObject(_key, options) {
+          return new Promise((resolve, reject) => {
+            const handle = setTimeout(() => resolve(null), 100);
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+                clearTimeout(handle);
+                reject(options.signal?.reason);
+              },
+              { once: true },
+            );
+          });
+        },
+      },
+      servedBaciRelease: "V202601",
+      fallback: FALLBACK,
+      accept: () => undefined,
+      monotonicNow: Date.now,
+      random: () => 0.5,
+      pollTimeoutMs: 5,
+      timer: {
+        schedule(callback, delayMs) {
+          scheduled.push({ callback, delayMs });
+          return callback;
+        },
+        cancel() {},
+      },
+    });
+
+    poller.start();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const diagnostics = poller.diagnostics();
+    poller.stop();
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.delayMs).toBeGreaterThanOrEqual(57_400);
+    expect(scheduled[0]?.delayMs).toBeLessThanOrEqual(57_500);
+    expect(aborted).toBe(true);
+    expect(diagnostics).toMatchObject({
+      consecutiveFailures: 1,
+      totalFailures: 1,
+    });
+  });
+
   it("warns after three pointer failures and resolves after a successful poll", async () => {
     const objectStore = new InMemoryReleaseObjectStore();
     const events: unknown[] = [];

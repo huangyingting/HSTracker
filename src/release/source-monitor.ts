@@ -1,3 +1,4 @@
+import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import type {
   PublishedSourceStatusSnapshot,
   SourceStatusPublisher,
@@ -97,9 +98,18 @@ export class SourceMonitor {
 
   async check(input: {
     servedBaciRelease: string;
+    sourceStatusFallback: SourceStatusSnapshot;
     checkedAt: string;
     signal?: AbortSignal;
   }): Promise<SourceMonitorResult> {
+    if (
+      input.sourceStatusFallback.servedBaciRelease !==
+      input.servedBaciRelease
+    ) {
+      throw new Error(
+        "Deployment Source Freshness Status fallback does not match the served BACI Release.",
+      );
+    }
     const current = await this.input.statuses.current();
     let observed: BaciReleaseObservation;
     let comparison: number;
@@ -137,13 +147,14 @@ export class SourceMonitor {
     }
 
     const releaseDetected = comparison > 0;
-    const sameServedRelease =
-      current?.servedBaciRelease === input.servedBaciRelease;
+    const statusBaseline =
+      current?.servedBaciRelease === input.servedBaciRelease
+        ? current
+        : input.sourceStatusFallback;
     const priorDetectionAt =
       releaseDetected &&
-      sameServedRelease &&
-      current?.newerReleaseDetectedAt !== null
-        ? current?.newerReleaseDetectedAt
+      statusBaseline.newerReleaseDetectedAt !== null
+        ? statusBaseline.newerReleaseDetectedAt
         : null;
     const status = await this.input.statuses.publish({
       checkedAt: input.checkedAt,
@@ -152,12 +163,8 @@ export class SourceMonitor {
       newerReleaseDetectedAt: releaseDetected
         ? priorDetectionAt ?? input.checkedAt
         : null,
-      refreshFailed: sameServedRelease
-        ? current.refreshFailed
-        : false,
-      rollbackActive: sameServedRelease
-        ? current.rollbackActive
-        : false,
+      refreshFailed: statusBaseline.refreshFailed,
+      rollbackActive: statusBaseline.rollbackActive,
       publishedAt: input.checkedAt,
     });
     return {

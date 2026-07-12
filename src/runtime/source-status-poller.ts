@@ -68,9 +68,12 @@ type SourceStatusPollerInput = {
   now?: () => string;
   monotonicNow?: () => number;
   random?: () => number;
+  pollTimeoutMs?: number;
   observe?: (event: SourceStatusPollerEvent) => void;
   timer?: Timer;
 };
+
+const MAX_POLL_TIMEOUT_MS = 30_000;
 
 const DEFAULT_TIMER: Timer = {
   schedule(callback, delayMs) {
@@ -86,6 +89,7 @@ export class SourceStatusPoller {
   private readonly now: () => string;
   private readonly random: () => number;
   private readonly monotonicNow: () => number;
+  private readonly pollTimeoutMs: number;
   private readonly timer: Timer;
   private current: SourceStatusSnapshot;
   private state: SourceStatusPollerDiagnostics;
@@ -104,6 +108,16 @@ export class SourceStatusPoller {
     this.monotonicNow = input.monotonicNow ?? Date.now;
     this.random = input.random ?? Math.random;
     this.timer = input.timer ?? DEFAULT_TIMER;
+    this.pollTimeoutMs = input.pollTimeoutMs ?? MAX_POLL_TIMEOUT_MS;
+    if (
+      !Number.isSafeInteger(this.pollTimeoutMs) ||
+      this.pollTimeoutMs <= 0 ||
+      this.pollTimeoutMs > MAX_POLL_TIMEOUT_MS
+    ) {
+      throw new Error(
+        "Source Freshness Status poll timeout must be between 1 and 30000 milliseconds.",
+      );
+    }
     this.current = input.fallback;
     this.state = {
       currentSourceStatusSnapshotId:
@@ -173,7 +187,14 @@ export class SourceStatusPoller {
     const polledAt = this.now();
     this.state = { ...this.state, lastAttemptAt: polledAt };
     try {
-      const statuses = await this.reader.currentAndRetained();
+      const abortController = new AbortController();
+      const statuses = await withPollTimeout(
+        this.reader.currentAndRetained({
+          signal: abortController.signal,
+        }),
+        this.pollTimeoutMs,
+        abortController,
+      );
       if (statuses === null) {
         throw new Error(
           "No active Source Freshness Status snapshot is available.",
@@ -278,6 +299,30 @@ export class SourceStatusPoller {
         previous,
         current,
       });
+    }
+  }
+}
+
+async function withPollTimeout<Result>(
+  operation: Promise<Result>,
+  timeoutMs: number,
+  abortController: AbortController,
+): Promise<Result> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      const error = new Error(
+        "Source Freshness Status pointer poll timed out.",
+      );
+      abortController.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle);
     }
   }
 }

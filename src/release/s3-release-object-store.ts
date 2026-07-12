@@ -12,6 +12,7 @@ import {
   streamReleaseObjectIdentity,
   type ReleaseObject,
   type ReleaseObjectIdentity,
+  type ReleaseObjectReadOptions,
   type ReleaseObjectReader,
   type ReleaseObjectStore,
 } from "./release-object-store";
@@ -26,13 +27,17 @@ export class S3ReleaseObjectReader implements ReleaseObjectReader {
     protected readonly location: S3ReleaseObjectLocation,
   ) {}
 
-  async getObject(key: string): Promise<ReleaseObject | null> {
+  async getObject(
+    key: string,
+    options: ReleaseObjectReadOptions = {},
+  ): Promise<ReleaseObject | null> {
     try {
       const response = await this.client.send(
         new GetObjectCommand({
           Bucket: this.location.bucket,
           Key: key,
         }),
+        { abortSignal: options.signal },
       );
       if (!(response.Body instanceof Readable)) {
         throw new Error(`S3 release object ${key} has no readable body.`);

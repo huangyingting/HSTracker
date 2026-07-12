@@ -111,11 +111,12 @@ Every successful check publishes an immutable status snapshot before replacing
 `source-status-pointers/current.json`. A failed check leaves the accepted
 snapshot and deployment untouched. Checks update the latest-known release and
 check time without clearing an active refresh failure or rollback; only a
-completed refresh clears that operational state. The workflow's
-`source-monitor` environment must provide the write-scoped S3 variables listed
-above. The pointer retains references to prior immutable snapshots across
-served releases so supported export identities remain reproducible after
-restart or rollback.
+completed refresh clears that operational state. If the status pointer still
+describes another served release, the active deployment's embedded fallback
+supplies the operational state. The workflow's `source-monitor` environment
+must provide the write-scoped S3 variables listed above. The pointer retains
+references to prior immutable snapshots across served releases so supported
+export identities remain reproducible after restart or rollback.
 
 When a newer release is detected, use `npm run release:refresh` rather than the
 low-level promotion command:
@@ -195,7 +196,8 @@ After readiness, route handlers use the installed in-process adapters. No
 analysis, product-search, economy, export, current, or health request reads
 object storage. Requests naming a non-active analysis or product-search build
 receive `410`. A separate background poll reads and validates the status pointer
-and immutable snapshot every 55-60 seconds. Poll failures retain the last
+and immutable snapshot every 55-60 seconds. Each read has a 30-second deadline
+so a hung request cannot extend that cadence. Poll failures retain the last
 validated snapshot, which continues to age through the exact 7- and 14-day UTC
 deadlines.
 

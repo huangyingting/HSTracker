@@ -10,8 +10,15 @@ export type ReleaseObject = {
   version: string;
 };
 
+export type ReleaseObjectReadOptions = {
+  signal?: AbortSignal;
+};
+
 export interface ReleaseObjectReader {
-  getObject(key: string): Promise<ReleaseObject | null>;
+  getObject(
+    key: string,
+    options?: ReleaseObjectReadOptions,
+  ): Promise<ReleaseObject | null>;
 }
 
 export interface ReleaseObjectStore extends ReleaseObjectReader {

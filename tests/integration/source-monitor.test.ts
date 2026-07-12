@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { SourceStatusSnapshot } from "../../src/domain/release/source-freshness";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import {
   CepiiBaciReleaseSource,
@@ -7,6 +8,18 @@ import {
   type BaciReleaseSource,
 } from "../../src/release/source-monitor";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
+
+const SOURCE_STATUS_FALLBACK = {
+  schemaVersion: "source-status-v1",
+  sourceStatusSnapshotId: "source-status-v1-monitor-fallback",
+  checkedAt: "2026-03-01T00:00:00Z",
+  servedBaciRelease: "V202601",
+  latestKnownBaciRelease: "V202601",
+  newerReleaseDetectedAt: null,
+  refreshFailed: false,
+  rollbackActive: false,
+  publishedAt: "2026-03-01T00:00:00Z",
+} satisfies SourceStatusSnapshot;
 
 describe("CEPII source monitor", () => {
   it("publishes a new successful check when the served release is unchanged", async () => {
@@ -28,6 +41,7 @@ describe("CEPII source monitor", () => {
 
     const result = await monitor.check({
       servedBaciRelease: "V202601",
+      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2026-03-02T00:00:00Z",
     });
 
@@ -61,10 +75,12 @@ describe("CEPII source monitor", () => {
 
     const detected = await monitor.check({
       servedBaciRelease: "V202601",
+      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2027-03-02T12:00:00Z",
     });
     const checkedAgain = await monitor.check({
       servedBaciRelease: "V202601",
+      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2027-03-03T12:00:00Z",
     });
 
@@ -104,6 +120,7 @@ describe("CEPII source monitor", () => {
 
     const result = await monitor.check({
       servedBaciRelease: "V202601",
+      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2026-03-02T00:00:00Z",
     });
 
@@ -135,6 +152,7 @@ describe("CEPII source monitor", () => {
 
     const result = await monitor.check({
       servedBaciRelease: "V202601",
+      sourceStatusFallback: SOURCE_STATUS_FALLBACK,
       checkedAt: "2027-03-02T00:00:00Z",
     });
 
@@ -144,6 +162,49 @@ describe("CEPII source monitor", () => {
       refreshDueAt: "2027-03-08T00:00:00Z",
       refreshFailed: true,
       rollbackActive: false,
+      state: "REFRESH_DELAYED",
+    });
+  });
+
+  it("uses the deployment fallback when the status pointer predates rollback", async () => {
+    const objectStore = new InMemoryReleaseObjectStore();
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-03T01:00:00Z",
+      servedBaciRelease: "V202701",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-03T01:00:00Z",
+    });
+    const monitor = new SourceMonitor({
+      source: fixedSource("V202701"),
+      statuses,
+    });
+
+    const result = await monitor.check({
+      servedBaciRelease: "V202601",
+      sourceStatusFallback: {
+        schemaVersion: "source-status-v1",
+        sourceStatusSnapshotId:
+          "source-status-v1-rollback-fallback",
+        checkedAt: "2027-03-03T01:00:00Z",
+        servedBaciRelease: "V202601",
+        latestKnownBaciRelease: "V202701",
+        newerReleaseDetectedAt: "2027-03-03T02:00:00Z",
+        refreshFailed: false,
+        rollbackActive: true,
+        publishedAt: "2027-03-03T02:00:00Z",
+      },
+      checkedAt: "2027-03-03T03:00:00Z",
+    });
+
+    expect(result.status).toMatchObject({
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2027-03-03T02:00:00Z",
+      rollbackActive: true,
       state: "REFRESH_DELAYED",
     });
   });
@@ -177,6 +238,7 @@ describe("CEPII source monitor", () => {
     await expect(
       monitor.check({
         servedBaciRelease: "V202601",
+        sourceStatusFallback: SOURCE_STATUS_FALLBACK,
         checkedAt: "2026-03-02T00:00:00Z",
       }),
     ).rejects.toMatchObject({

@@ -46,6 +46,7 @@ async function main(): Promise<void> {
   });
   const result = await monitor.check({
     servedBaciRelease: deployment.baciRelease,
+    sourceStatusFallback: deployment.sourceStatusFallback,
     checkedAt,
     signal: AbortSignal.timeout(SOURCE_CHECK_TIMEOUT_MS),
   });

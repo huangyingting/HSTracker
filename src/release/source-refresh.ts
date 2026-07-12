@@ -244,24 +244,56 @@ export class SourceRefreshOrchestrator {
     status: PublishedSourceStatusSnapshot;
   }> {
     const fallback = deployment.sourceStatusFallback;
-    if (
+    const currentIsNewEnough =
       currentStatus !== null &&
-      currentStatus.servedBaciRelease === deployment.baciRelease &&
       Date.parse(currentStatus.publishedAt) >=
-        Date.parse(fallback.publishedAt)
+        Date.parse(fallback.publishedAt) &&
+      Date.parse(currentStatus.checkedAt) >= Date.parse(fallback.checkedAt);
+    const currentDescribesDeployment =
+      currentIsNewEnough &&
+      currentStatus.servedBaciRelease === deployment.baciRelease;
+    if (
+      currentDescribesDeployment &&
+      (!fallback.refreshFailed || currentStatus.refreshFailed) &&
+      (!fallback.rollbackActive || currentStatus.rollbackActive)
     ) {
       return { deployment, status: currentStatus };
     }
+    const statusInput = currentIsNewEnough
+      ? {
+          checkedAt: currentStatus.checkedAt,
+          servedBaciRelease: deployment.baciRelease,
+          latestKnownBaciRelease:
+            currentStatus.latestKnownBaciRelease,
+          newerReleaseDetectedAt:
+            currentStatus.latestKnownBaciRelease ===
+            deployment.baciRelease
+              ? null
+              : earliestUtcTimestamp(
+                  currentStatus.newerReleaseDetectedAt,
+                  fallback.newerReleaseDetectedAt,
+                ) ?? fallback.publishedAt,
+          refreshFailed:
+            fallback.refreshFailed ||
+            (currentDescribesDeployment &&
+              currentStatus.refreshFailed),
+          rollbackActive:
+            fallback.rollbackActive ||
+            (currentDescribesDeployment &&
+              currentStatus.rollbackActive),
+          publishedAt: currentStatus.publishedAt,
+        }
+      : {
+          checkedAt: fallback.checkedAt,
+          servedBaciRelease: fallback.servedBaciRelease,
+          latestKnownBaciRelease: fallback.latestKnownBaciRelease,
+          newerReleaseDetectedAt: fallback.newerReleaseDetectedAt,
+          refreshFailed: fallback.refreshFailed,
+          rollbackActive: fallback.rollbackActive,
+          publishedAt: fallback.publishedAt,
+        };
     try {
-      const status = await this.input.statuses.publish({
-        checkedAt: fallback.checkedAt,
-        servedBaciRelease: fallback.servedBaciRelease,
-        latestKnownBaciRelease: fallback.latestKnownBaciRelease,
-        newerReleaseDetectedAt: fallback.newerReleaseDetectedAt,
-        refreshFailed: fallback.refreshFailed,
-        rollbackActive: fallback.rollbackActive,
-        publishedAt: fallback.publishedAt,
-      });
+      const status = await this.input.statuses.publish(statusInput);
       return { deployment, status };
     } catch (error) {
       this.input.observe?.({
@@ -400,4 +432,17 @@ function failedRefreshStatus(
     rollbackActive: false,
     publishedAt,
   } as const;
+}
+
+function earliestUtcTimestamp(
+  left: string | null,
+  right: string | null,
+): string | null {
+  if (left === null) {
+    return right;
+  }
+  if (right === null) {
+    return left;
+  }
+  return Date.parse(left) <= Date.parse(right) ? left : right;
 }
