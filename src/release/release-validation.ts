@@ -40,3 +40,26 @@ export function hs12(value: unknown, label: string): "HS12" {
   }
   return value;
 }
+
+export function prefixedId(
+  value: unknown,
+  label: string,
+  prefix: string,
+): string {
+  const candidate = string(value, label);
+  if (!new RegExp(`^${prefix}-[a-f0-9]{16}$`, "u").test(candidate)) {
+    throw new Error(`${label} is malformed.`);
+  }
+  return candidate;
+}
+
+export function utcTimestamp(value: unknown, label: string): string {
+  const candidate = string(value, label);
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(candidate) ||
+    Number.isNaN(Date.parse(candidate))
+  ) {
+    throw new Error(`${label} must be a UTC timestamp without fractions.`);
+  }
+  return candidate;
+}

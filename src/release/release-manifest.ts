@@ -4,9 +4,11 @@ import type { ReleaseObjectIdentity } from "./release-object-store";
 import {
   count,
   hs12,
+  prefixedId,
   record,
   sha256String,
   string,
+  utcTimestamp,
 } from "./release-validation";
 
 export const ACTIVE_DEPLOYMENT_POINTER_KEY =
@@ -204,6 +206,10 @@ export function releaseObjectIdentity(
   };
 }
 
+export function releaseJsonBytes(value: unknown): Buffer {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
 function analysisArtifactReference(
   value: unknown,
   label: string,
@@ -265,27 +271,4 @@ function objectReference(
     bytes: count(reference.bytes, `${label} bytes`),
     sha256: sha256String(reference.sha256, `${label} SHA-256`),
   };
-}
-
-function prefixedId(
-  value: unknown,
-  label: string,
-  prefix: string,
-): string {
-  const candidate = string(value, label);
-  if (!new RegExp(`^${prefix}-[a-f0-9]{16}$`, "u").test(candidate)) {
-    throw new Error(`${label} is malformed.`);
-  }
-  return candidate;
-}
-
-function utcTimestamp(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(candidate) ||
-    Number.isNaN(Date.parse(candidate))
-  ) {
-    throw new Error(`${label} must be a UTC timestamp without fractions.`);
-  }
-  return candidate;
 }

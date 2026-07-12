@@ -336,13 +336,31 @@ describe("S3 release object store", () => {
       pointer.current.key,
     );
     const deployment = JSON.parse(deploymentText) as {
-      analysis: { releaseCatalog: { key: string } };
+      analysis: {
+        artifact: { manifest: { key: string } };
+        releaseCatalog: { key: string };
+      };
+      productSearch: { manifest: { key: string } };
     };
-    const releaseCatalogText = await objectText(
-      objectStore,
-      deployment.analysis.releaseCatalog.key,
-    );
-    return [pointerText, deploymentText, releaseCatalogText];
+    const [releaseCatalogText, artifactManifestText, catalogManifestText] =
+      await Promise.all([
+        objectText(
+          objectStore,
+          deployment.analysis.releaseCatalog.key,
+        ),
+        objectText(
+          objectStore,
+          deployment.analysis.artifact.manifest.key,
+        ),
+        objectText(objectStore, deployment.productSearch.manifest.key),
+      ]);
+    return [
+      pointerText,
+      deploymentText,
+      releaseCatalogText,
+      artifactManifestText,
+      catalogManifestText,
+    ];
   }
 });
 

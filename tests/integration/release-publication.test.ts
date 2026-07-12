@@ -16,14 +16,12 @@ import type {
 } from "../../src/release/release-object-store";
 import { ReleaseHydrator } from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
-import {
-  writeAcceptedReleaseCandidate as writeAcceptedCandidate,
-} from "../fixtures/release-candidate";
+import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
 
 describe("immutable release publication", () => {
   it("publishes and activates one exact compatible pairing", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const candidate = await writeAcceptedCandidate(root);
+    const candidate = await writeAcceptedReleaseCandidate(root);
     const publisher = new ReleasePublisher(
       new InMemoryReleaseObjectStore(),
     );
@@ -52,7 +50,7 @@ describe("immutable release publication", () => {
 
   it("keeps the active identity when the accepted inputs repeat", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const candidate = await writeAcceptedCandidate(root);
+    const candidate = await writeAcceptedReleaseCandidate(root);
     const publisher = new ReleasePublisher(
       new InMemoryReleaseObjectStore(),
     );
@@ -72,8 +70,10 @@ describe("immutable release publication", () => {
 
   it("keeps the analysis identity when only product-search content changes", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedCandidate(join(root, "first"));
-    const translatedCandidate = await writeAcceptedCandidate(
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const translatedCandidate = await writeAcceptedReleaseCandidate(
       join(root, "translated"),
       {
         productCatalogVersion: "v2",
@@ -110,8 +110,10 @@ describe("immutable release publication", () => {
 
   it("keeps the product-search identity when only analysis content changes", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedCandidate(join(root, "first"));
-    const refreshedCandidate = await writeAcceptedCandidate(
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const refreshedCandidate = await writeAcceptedReleaseCandidate(
       join(root, "refreshed"),
       {
         analysisArtifactVersion: "v2",
@@ -147,11 +149,16 @@ describe("immutable release publication", () => {
 
   it("rolls back atomically to the retained previous pairing", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedCandidate(join(root, "first"));
-    const secondCandidate = await writeAcceptedCandidate(join(root, "second"), {
-      productCatalogVersion: "v2",
-      productSearchBuildId: "product-search-v1-3333333333333333",
-    });
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        productCatalogVersion: "v2",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
     const publisher = new ReleasePublisher(
       new InMemoryReleaseObjectStore(),
     );
@@ -178,11 +185,16 @@ describe("immutable release publication", () => {
 
   it("keeps the active pairing when uploaded bytes fail read-back verification", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedCandidate(join(root, "first"));
-    const secondCandidate = await writeAcceptedCandidate(join(root, "second"), {
-      productCatalogVersion: "v2",
-      productSearchBuildId: "product-search-v1-3333333333333333",
-    });
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        productCatalogVersion: "v2",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
     const objectStore = new InMemoryReleaseObjectStore();
     const publisher = new ReleasePublisher(objectStore);
     const first = await publisher.promote({
@@ -210,8 +222,10 @@ describe("immutable release publication", () => {
 
   it("rejects incompatible analysis and product-search candidates before activation", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedCandidate(join(root, "first"));
-    const incompatibleCandidate = await writeAcceptedCandidate(
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const incompatibleCandidate = await writeAcceptedReleaseCandidate(
       join(root, "incompatible"),
       {
         productCatalogVersion: "v2",
@@ -241,11 +255,16 @@ describe("immutable release publication", () => {
 
   it("keeps the active pairing when atomic activation fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const firstCandidate = await writeAcceptedCandidate(join(root, "first"));
-    const secondCandidate = await writeAcceptedCandidate(join(root, "second"), {
-      productCatalogVersion: "v2",
-      productSearchBuildId: "product-search-v1-3333333333333333",
-    });
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        productCatalogVersion: "v2",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
     const objectStore = new InMemoryReleaseObjectStore();
     const publisher = new ReleasePublisher(objectStore);
     const first = await publisher.promote({
@@ -284,7 +303,9 @@ describe("immutable release publication", () => {
 
   it("hydrates the active pairing through verified partial files and atomic rename", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const candidate = await writeAcceptedCandidate(join(root, "candidate"));
+    const candidate = await writeAcceptedReleaseCandidate(
+      join(root, "candidate"),
+    );
     const objectStore = new InMemoryReleaseObjectStore();
     const publisher = new ReleasePublisher(objectStore);
     const published = await publisher.promote({
@@ -310,7 +331,9 @@ describe("immutable release publication", () => {
 
   it("removes partial hydration when downloaded bytes fail verification", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
-    const candidate = await writeAcceptedCandidate(join(root, "candidate"));
+    const candidate = await writeAcceptedReleaseCandidate(
+      join(root, "candidate"),
+    );
     const objectStore = new InMemoryReleaseObjectStore();
     const publisher = new ReleasePublisher(objectStore);
     await publisher.promote({

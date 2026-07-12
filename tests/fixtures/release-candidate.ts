@@ -1,9 +1,13 @@
-import { createHash } from "node:crypto";
 import {
   mkdir,
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+
+import {
+  releaseJsonBytes,
+  releaseObjectIdentity,
+} from "../../src/release/release-manifest";
 
 export type AcceptedReleaseCandidateOptions = {
   analysisArtifactBuildId?: string;
@@ -31,7 +35,7 @@ export async function writeAcceptedReleaseCandidate(
     `fixture DuckDB artifact ${options.analysisArtifactVersion ?? "v1"}`,
     "utf8",
   );
-  const analysisArtifactIdentity = identity(analysisArtifact);
+  const analysisArtifactIdentity = releaseObjectIdentity(analysisArtifact);
   const analysisManifest = {
     schemaVersion: "candidate-market-artifact-manifest-v1",
     baciRelease: "VTEST001",
@@ -49,11 +53,12 @@ export async function writeAcceptedReleaseCandidate(
     },
     builtAt: "2026-07-12T01:00:00Z",
   };
-  const analysisManifestBytes = jsonBytes(analysisManifest);
+  const analysisManifestBytes = releaseJsonBytes(analysisManifest);
   const analysisReport = {
     schemaVersion: "candidate-market-artifact-build-report-v1",
     status: "accepted",
-    artifactManifestSha256: sha256(analysisManifestBytes),
+    artifactManifestSha256:
+      releaseObjectIdentity(analysisManifestBytes).sha256,
     artifactManifest: analysisManifest,
     artifact: analysisManifest.artifact,
   };
@@ -62,7 +67,7 @@ export async function writeAcceptedReleaseCandidate(
     `fixture product catalog ${options.productCatalogVersion ?? "v1"}`,
     "utf8",
   );
-  const productCatalogIdentity = identity(productCatalog);
+  const productCatalogIdentity = releaseObjectIdentity(productCatalog);
   const catalogManifest = {
     schemaVersion: "product-catalog-manifest-v1",
     baciRelease: "VTEST001",
@@ -78,11 +83,12 @@ export async function writeAcceptedReleaseCandidate(
     },
     builtAt: "2026-07-12T01:00:00Z",
   };
-  const catalogManifestBytes = jsonBytes(catalogManifest);
+  const catalogManifestBytes = releaseJsonBytes(catalogManifest);
   const catalogReport = {
     schemaVersion: "product-catalog-build-report-v1",
     status: "accepted",
-    catalogManifestSha256: sha256(catalogManifestBytes),
+    catalogManifestSha256:
+      releaseObjectIdentity(catalogManifestBytes).sha256,
     catalogManifest,
   };
 
@@ -97,7 +103,7 @@ export async function writeAcceptedReleaseCandidate(
     ),
     writeFile(
       join(analysisDirectoryPath, "artifact-build-report.json"),
-      jsonBytes(analysisReport),
+      releaseJsonBytes(analysisReport),
     ),
     writeFile(
       join(productCatalogDirectoryPath, "product-catalog.json"),
@@ -109,21 +115,9 @@ export async function writeAcceptedReleaseCandidate(
     ),
     writeFile(
       join(productCatalogDirectoryPath, "catalog-build-report.json"),
-      jsonBytes(catalogReport),
+      releaseJsonBytes(catalogReport),
     ),
   ]);
 
   return { analysisDirectoryPath, productCatalogDirectoryPath };
-}
-
-function identity(bytes: Buffer): { bytes: number; sha256: string } {
-  return { bytes: bytes.length, sha256: sha256(bytes) };
-}
-
-function sha256(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
-function jsonBytes(value: unknown): Buffer {
-  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
 }

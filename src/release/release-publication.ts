@@ -9,6 +9,7 @@ import {
   parseDeploymentPairingManifest,
   publishedDeployment,
   readReleaseMetadata,
+  releaseJsonBytes,
   releaseObjectIdentity,
   singleChunk,
   type ActiveDeploymentPointer,
@@ -25,9 +26,11 @@ import type {
 import {
   count,
   hs12,
+  prefixedId,
   record,
   sha256String,
   string,
+  utcTimestamp,
 } from "./release-validation";
 
 const RESULT_SCHEMA_VERSION = "candidate-market-result-v1";
@@ -94,7 +97,7 @@ export class ReleasePublisher {
   constructor(private readonly objectStore: ReleaseObjectStore) {}
 
   async promote(input: PromoteReleaseInput): Promise<PublishedDeployment> {
-    validateUtcTimestamp(input.activatedAt, "activatedAt");
+    utcTimestamp(input.activatedAt, "activatedAt");
     const [analysis, productCatalog, current] = await Promise.all([
       validateAnalysisCandidate(resolve(input.analysisDirectoryPath)),
       validateProductCandidate(resolve(input.productCatalogDirectoryPath)),
@@ -142,7 +145,7 @@ export class ReleasePublisher {
       ...pairingBase,
       deploymentPairingId,
     };
-    const deploymentBytes = jsonBytes(deployment);
+    const deploymentBytes = releaseJsonBytes(deployment);
     const deploymentReference = await this.publishBytes(
       `deployment-pairings/${deploymentPairingId}.json`,
       deploymentBytes,
@@ -162,7 +165,7 @@ export class ReleasePublisher {
   }
 
   async rollback(input: RollbackReleaseInput): Promise<PublishedDeployment> {
-    validateUtcTimestamp(input.activatedAt, "activatedAt");
+    utcTimestamp(input.activatedAt, "activatedAt");
     const current = await this.loadCurrentState();
     if (current === null || current.pointer.previous === null) {
       throw new ReleasePublicationError(
@@ -204,7 +207,7 @@ export class ReleasePublisher {
     analysisBuildId: string;
   }> {
     const artifact = await this.publishAnalysis(candidate);
-    const releaseCatalogBytes = jsonBytes({
+    const releaseCatalogBytes = releaseJsonBytes({
       schemaVersion: "analysis-release-catalog-v1",
       current: artifact,
       previous: current?.deployment.analysis.artifact ?? null,
@@ -342,7 +345,7 @@ export class ReleasePublisher {
       await this.objectStore.compareAndSwap(
         ACTIVE_DEPLOYMENT_POINTER_KEY,
         expectedVersion,
-        jsonBytes(pointer),
+        releaseJsonBytes(pointer),
       );
     } catch (error) {
       throw new ReleasePublicationError(
@@ -378,7 +381,7 @@ async function validateAnalysisCandidate(
   if (
     sha256String(report.artifactManifestSha256, "artifact manifest SHA-256") !==
       manifestIdentity.sha256 ||
-    !jsonBytes(report.artifactManifest).equals(manifestBytes)
+    !releaseJsonBytes(report.artifactManifest).equals(manifestBytes)
   ) {
     throw new Error("Analysis build report does not match its artifact manifest.");
   }
@@ -439,7 +442,7 @@ async function validateProductCandidate(
   if (
     sha256String(report.catalogManifestSha256, "catalog manifest SHA-256") !==
       manifestIdentity.sha256 ||
-    !jsonBytes(report.catalogManifest).equals(manifestBytes)
+    !releaseJsonBytes(report.catalogManifest).equals(manifestBytes)
   ) {
     throw new Error("Catalog build report does not match its manifest.");
   }
@@ -460,7 +463,11 @@ async function validateProductCandidate(
       "catalog source archive SHA-256",
     ),
     hsRevision: hs12(manifest.hsRevision, "catalog HS revision"),
-    productSearchBuildId: productSearchBuildId(manifest.productSearchBuildId),
+    productSearchBuildId: prefixedId(
+      manifest.productSearchBuildId,
+      "product-search build ID",
+      "product-search-v1",
+    ),
     catalogSchemaVersion: string(
       catalog.schemaVersion,
       "product catalog schema version",
@@ -611,15 +618,8 @@ async function streamIdentity(
 }
 
 function contentId(prefix: string, value: unknown): string {
-  return `${prefix}-${sha256(jsonBytes(value)).slice(0, 16)}`;
-}
-
-function sha256(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
-function jsonBytes(value: unknown): Buffer {
-  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const sha256 = releaseObjectIdentity(releaseJsonBytes(value)).sha256;
+  return `${prefix}-${sha256.slice(0, 16)}`;
 }
 
 function stringArray(value: unknown, label: string): string[] {
@@ -627,21 +627,4 @@ function stringArray(value: unknown, label: string): string[] {
     throw new Error(`${label} must be an array.`);
   }
   return value.map((entry) => string(entry, `${label} entry`));
-}
-
-function productSearchBuildId(value: unknown): string {
-  const candidate = string(value, "product-search build ID");
-  if (!/^product-search-v1-[a-f0-9]{16}$/u.test(candidate)) {
-    throw new Error("Product-search build ID is malformed.");
-  }
-  return candidate;
-}
-
-function validateUtcTimestamp(value: string, label: string): void {
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value) ||
-    Number.isNaN(Date.parse(value))
-  ) {
-    throw new Error(`${label} must be a UTC timestamp without fractions.`);
-  }
 }
