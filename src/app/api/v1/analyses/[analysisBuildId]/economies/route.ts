@@ -1,15 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { createFixtureEconomyDirectory } from "../../../../../../economy/fixture-economy-directory";
 import {
-  EconomyDirectoryError,
   invalidEconomyQuery,
+  isEconomyDirectoryError,
 } from "../../../../../../economy/economy-directory-errors";
+import { getApplicationRuntime } from "../../../../../../runtime/application-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const directory = createFixtureEconomyDirectory();
 const IMMUTABLE_CACHE_CONTROL =
   "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 
@@ -42,7 +41,7 @@ async function respond(
     const url = new URL(request.url);
     const query = parseSearchParameters(url.searchParams);
     const { analysisBuildId } = await context.params;
-    const result = await directory.search({
+    const result = await getApplicationRuntime().searchEconomies({
       analysisBuildId,
       query,
       limit: 50,
@@ -65,7 +64,7 @@ async function respond(
       headers,
     });
   } catch (error) {
-    if (error instanceof EconomyDirectoryError) {
+    if (isEconomyDirectoryError(error)) {
       return errorResponse(
         error.status,
         error.code,

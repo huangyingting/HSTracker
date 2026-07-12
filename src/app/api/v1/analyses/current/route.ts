@@ -3,10 +3,7 @@ import { createHash } from "node:crypto";
 import {
   currentManifestCacheControl,
 } from "../../../../../domain/release/current-analysis";
-import {
-  FIXTURE_CURRENT_AS_OF,
-  resolveFixtureCurrentAnalysisManifest,
-} from "../../../../../release/fixture-current-analysis";
+import { getApplicationRuntime } from "../../../../../runtime/application-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,13 +17,14 @@ export async function HEAD(request: Request): Promise<Response> {
 }
 
 function respond(request: Request, headOnly: boolean): Response {
-  const manifest = resolveFixtureCurrentAnalysisManifest();
+  const { manifest, asOf } =
+    getApplicationRuntime().currentAnalysisSnapshot();
   const body = JSON.stringify(manifest);
   const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
   const headers = {
     "Cache-Control": currentManifestCacheControl(
       manifest.freshness,
-      FIXTURE_CURRENT_AS_OF,
+      asOf,
     ),
     "Content-Type": "application/json; charset=utf-8",
     ETag: etag,

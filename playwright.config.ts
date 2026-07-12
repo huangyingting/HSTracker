@@ -27,6 +27,7 @@ export default defineConfig({
     env: {
       ...process.env,
       APP_BUILD_ID: "playwright-fixture",
+      HS_TRACKER_RUNTIME_MODE: "fixture",
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
     },

@@ -10,33 +10,20 @@ import type {
   EconomySearchResult,
 } from "./economy-directory";
 import {
-  invalidEconomyQuery,
   retiredEconomyDirectory,
   unavailableEconomyDirectory,
 } from "./economy-directory-errors";
 import {
   normalizeEconomyQuery,
   searchEconomies,
+  validateEconomySearchQuery,
 } from "./economy-search";
 
 class FixtureEconomyDirectory implements EconomyDirectory {
   async search(
     query: Parameters<EconomyDirectory["search"]>[0],
   ): Promise<EconomySearchResult> {
-    if ([...query.query].length > 100) {
-      throw invalidEconomyQuery(
-        "Economy search query exceeds 100 Unicode code points.",
-      );
-    }
-    if (
-      !Number.isInteger(query.limit) ||
-      query.limit < 1 ||
-      query.limit > 50
-    ) {
-      throw invalidEconomyQuery(
-        "Economy search limit must be an integer from 1 through 50.",
-      );
-    }
+    validateEconomySearchQuery(query);
     if (query.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.failing) {
       throw new Error("fixture economy directory failure");
     }

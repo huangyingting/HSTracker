@@ -90,11 +90,48 @@ Rollback is reversible because it retains the displaced pairing as previous.
 
 ## Runtime hydration
 
-`ReleaseHydrator.hydrateCurrent()` uses the read-only object reader. It streams
-the current pairing into a process-specific `.partial` directory, verifies byte
-counts and SHA-256 identities, fsyncs files and directories, and atomically
-renames the complete pairing into the serving volume. Existing resident
-pairings are fully reverified before reuse.
+Run the production Next.js process with:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `HS_TRACKER_RUNTIME_MODE=release` | Yes | Select verified release adapters |
+| `HS_TRACKER_RELEASE_VOLUME_PATH` | Yes | Persistent local serving volume |
+| S3 variables above | Yes | Read the active immutable pairing |
+
+Use an absolute volume path. The baseline deployment provisions a 50-GiB
+volume so current, previous, temporary, and query-spill files fit while
+retaining operational headroom.
+
+The Node instrumentation hook invokes the verified runtime loader before the
+process becomes ready. Startup:
+
+1. reads and validates the active deployment pointer and pairing;
+2. hydrates the pairing's analysis release catalog, current and compatible
+   previous DuckDB artifacts, and production product catalog;
+3. verifies every local byte count, SHA-256, schema, and cross-artifact
+   identity;
+4. opens both DuckDB artifacts read-only and loads the economy and product
+   search adapters; and
+5. runs the manifest-selected maximum-row analysis, product, and economy smoke
+   query before installing the runtime.
+
+`ReleaseHydrator.hydrateCurrent()` streams a missing pairing into a
+process-specific `.partial` directory, fsyncs files and directories, and
+atomically renames the complete directory into the serving volume. A resident
+pairing is fully reverified before reuse. Failed hydration removes partial
+state and never installs a runtime.
+
+After readiness, route handlers use the installed in-process adapters. No
+analysis, product-search, economy, export, current, or health request reads
+object storage. Requests naming a non-active analysis or product-search build
+receive `410`.
+
+The current route reports the exact active analysis/search identities and
+source windows. Health additionally reports the deployment pairing, current
+and previous artifact SHA-256 identities, readiness, and freshness state; it
+never reports credentials, bucket URLs, or local paths. Until the source
+monitor publishes status snapshots, freshness is derived deterministically
+from the deployment activation identity.
 
 ## Local S3-compatible integration
 

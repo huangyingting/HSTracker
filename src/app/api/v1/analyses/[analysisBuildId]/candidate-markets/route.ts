@@ -1,15 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { createFixtureCandidateMarketAnalysis } from "../../../../../../evidence/fixture-trade-evidence-source";
 import {
-  CandidateMarketAnalysisError,
   invalidAnalysisQuery,
+  isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
+import { getApplicationRuntime } from "../../../../../../runtime/application-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const analysis = createFixtureCandidateMarketAnalysis();
 const IMMUTABLE_CACHE_CONTROL =
   "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 
@@ -42,7 +41,7 @@ async function respond(
     const url = new URL(request.url);
     validateSearchParameters(url.searchParams);
     const { analysisBuildId } = await context.params;
-    const result = await analysis.analyze({
+    const result = await getApplicationRuntime().analyze({
       analysisBuildId,
       exporterCode: url.searchParams.get("exporter") ?? "",
       productCode: url.searchParams.get("product") ?? "",
@@ -65,7 +64,7 @@ async function respond(
       headers,
     });
   } catch (error) {
-    if (error instanceof CandidateMarketAnalysisError) {
+    if (isCandidateMarketAnalysisError(error)) {
       return errorResponse(
         error.status,
         error.code,

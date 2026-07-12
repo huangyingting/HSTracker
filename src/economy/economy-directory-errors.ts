@@ -1,3 +1,10 @@
+import {
+  brandCrossBundleError,
+  hasCrossBundleErrorBrand,
+} from "../errors/cross-bundle-error";
+
+const ERROR_BRAND = "EconomyDirectoryError";
+
 export type EconomyDirectoryErrorCode =
   | "INVALID_ECONOMY_QUERY"
   | "ANALYSIS_BUILD_RETIRED"
@@ -12,7 +19,14 @@ export class EconomyDirectoryError extends Error {
   ) {
     super(message);
     this.name = "EconomyDirectoryError";
+    brandCrossBundleError(this, ERROR_BRAND);
   }
+}
+
+export function isEconomyDirectoryError(
+  value: unknown,
+): value is EconomyDirectoryError {
+  return hasCrossBundleErrorBrand(value, ERROR_BRAND);
 }
 
 export function invalidEconomyQuery(message: string) {

@@ -1,0 +1,221 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
+import {
+  ACTIVE_DEPLOYMENT_POINTER_KEY,
+  contentAddressedId,
+  releaseJsonBytes,
+} from "../../src/release/release-manifest";
+import {
+  releaseObjectIdentity,
+  singleChunk,
+  type ReleaseObject,
+} from "../../src/release/release-object-store";
+import { ReleasePublisher } from "../../src/release/release-publication";
+import { getApplicationRuntime } from "../../src/runtime/application-runtime";
+import { startApplicationRuntime } from "../../src/runtime/runtime-startup";
+import { writeRuntimeReleaseCandidate } from "../fixtures/runtime-release";
+
+const temporaryDirectories: string[] = [];
+const stops: (() => void)[] = [];
+
+afterEach(async () => {
+  for (const stop of stops.splice(0).reverse()) {
+    stop();
+  }
+  await Promise.all(
+    temporaryDirectories.splice(0).map((path) =>
+      rm(path, { force: true, recursive: true }),
+    ),
+  );
+});
+
+describe("Next.js runtime startup", () => {
+  it("installs the release runtime only after hydration and smoke validation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const started = await startApplicationRuntime({
+      environment: {
+        NODE_ENV: "production",
+        HS_TRACKER_RUNTIME_MODE: "release",
+        HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
+      },
+      objectStore,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    stops.push(started.stop);
+
+    expect(getApplicationRuntime().currentAnalysis()).toMatchObject({
+      analysisBuildId: published.analysisBuildId,
+      productSearchBuildId: published.productSearchBuildId,
+      source: { baciRelease: published.baciRelease },
+    });
+  }, 20_000);
+
+  it("fails closed when release mode has no serving volume", async () => {
+    await expect(
+      startApplicationRuntime({
+        environment: {
+          NODE_ENV: "production",
+          HS_TRACKER_RUNTIME_MODE: "release",
+        },
+        objectStore: new InMemoryReleaseObjectStore(),
+      }),
+    ).rejects.toMatchObject({
+      name: "RuntimeStartupConfigurationError",
+      code: "ENVIRONMENT_INVALID",
+    });
+  });
+
+  it("leaves the process unready when a paired catalog manifest is incompatible", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    await activateIncompatibleCatalogManifest(objectStore);
+    const runtimeBeforeStartup = getApplicationRuntime();
+
+    await expect(
+      startApplicationRuntime({
+        environment: {
+          NODE_ENV: "production",
+          HS_TRACKER_RUNTIME_MODE: "release",
+          HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
+        },
+        objectStore,
+        now: () => "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toThrow(
+      "Hydrated product catalog does not match its deployment pairing.",
+    );
+    expect(getApplicationRuntime()).toBe(runtimeBeforeStartup);
+  }, 20_000);
+});
+
+async function activateIncompatibleCatalogManifest(
+  objectStore: InMemoryReleaseObjectStore,
+): Promise<void> {
+  const storedPointer = await requiredObject(
+    objectStore.getObject(ACTIVE_DEPLOYMENT_POINTER_KEY),
+  );
+  const pointer = JSON.parse(
+    (await collect(storedPointer)).toString("utf8"),
+  ) as {
+    current: { key: string; bytes: number; sha256: string };
+  };
+  const deployment = JSON.parse(
+    (
+      await collect(
+        await requiredObject(
+          objectStore.getObject(pointer.current.key),
+        ),
+      )
+    ).toString("utf8"),
+  ) as {
+    deploymentPairingId: string;
+    productSearch: {
+      manifest: { key: string; bytes: number; sha256: string };
+    };
+    [key: string]: unknown;
+  };
+  const catalogManifest = JSON.parse(
+    (
+      await collect(
+        await requiredObject(
+          objectStore.getObject(
+            deployment.productSearch.manifest.key,
+          ),
+        ),
+      )
+    ).toString("utf8"),
+  ) as Record<string, unknown>;
+  const incompatibleManifestBytes = releaseJsonBytes({
+    ...catalogManifest,
+    baciRelease: "V202501",
+  });
+  const incompatibleManifestIdentity = releaseObjectIdentity(
+    incompatibleManifestBytes,
+  );
+  const incompatibleManifestKey =
+    `test/incompatible-catalog-manifest/` +
+    `${incompatibleManifestIdentity.sha256}.json`;
+  await objectStore.putImmutable(
+    incompatibleManifestKey,
+    singleChunk(incompatibleManifestBytes),
+    incompatibleManifestIdentity,
+  );
+  deployment.productSearch.manifest = {
+    key: incompatibleManifestKey,
+    ...incompatibleManifestIdentity,
+  };
+  const pairingIdentity = Object.fromEntries(
+    Object.entries(deployment).filter(
+      ([key]) => key !== "deploymentPairingId",
+    ),
+  );
+  deployment.deploymentPairingId = contentAddressedId(
+    "deployment-pairing-v1",
+    pairingIdentity,
+  );
+  const deploymentBytes = releaseJsonBytes(deployment);
+  const deploymentIdentity = releaseObjectIdentity(deploymentBytes);
+  const deploymentKey =
+    `deployment-pairings/${deployment.deploymentPairingId}.json`;
+  await objectStore.putImmutable(
+    deploymentKey,
+    singleChunk(deploymentBytes),
+    deploymentIdentity,
+  );
+  const pointerBytes = releaseJsonBytes({
+    ...pointer,
+    current: { key: deploymentKey, ...deploymentIdentity },
+  });
+  await objectStore.compareAndSwap(
+    ACTIVE_DEPLOYMENT_POINTER_KEY,
+    storedPointer.version,
+    pointerBytes,
+  );
+}
+
+async function requiredObject(
+  value: Promise<ReleaseObject | null>,
+): Promise<ReleaseObject>;
+async function requiredObject(
+  value: ReleaseObject | null,
+): Promise<ReleaseObject>;
+async function requiredObject(
+  value: Promise<ReleaseObject | null> | ReleaseObject | null,
+): Promise<ReleaseObject> {
+  const resolved = await value;
+  if (resolved === null) {
+    throw new Error("Expected a stored release object.");
+  }
+  return resolved;
+}
+
+async function collect(stored: ReleaseObject): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stored.body) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}

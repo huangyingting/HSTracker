@@ -1,13 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { createFixtureProductCatalog } from "../../../../../../catalog/fixture-product-catalog";
-import { ProductCatalogError } from "../../../../../../catalog/product-catalog-errors";
+import { isProductCatalogError } from "../../../../../../catalog/product-catalog-errors";
 import type { ProductSearchProduct } from "../../../../../../catalog/product-catalog";
 import {
-  CandidateMarketAnalysisError,
   invalidAnalysisQuery,
+  isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
-import { createFixtureCandidateMarketAnalysis } from "../../../../../../evidence/fixture-trade-evidence-source";
 import {
   CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
   CandidateMarketCsvRepresentationError,
@@ -15,15 +13,13 @@ import {
 } from "../../../../../../export/candidate-market-csv";
 import type { CandidateMarketCsvIdentity } from "../../../../../../export/candidate-market-csv-contract";
 import {
-  resolveFixtureCurrentAnalysisManifest,
-  resolveFixtureExportFreshnessStatus,
-} from "../../../../../../release/fixture-current-analysis";
+  getApplicationRuntime,
+  type ApplicationRuntime,
+} from "../../../../../../runtime/application-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const analysis = createFixtureCandidateMarketAnalysis();
-const productCatalog = createFixtureProductCatalog();
 const IMMUTABLE_CACHE_CONTROL =
   "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 const REQUIRED_SEARCH_PARAMETERS = [
@@ -81,7 +77,8 @@ async function handleCandidateMarketCsvRequest(
       ...parsedIdentity,
     };
 
-    const manifest = resolveFixtureCurrentAnalysisManifest();
+    const runtime = getApplicationRuntime();
+    const manifest = runtime.currentAnalysis();
     if (identity.productSearchBuildId !== manifest.productSearchBuildId) {
       throw new CandidateMarketExportRouteError(
         404,
@@ -90,7 +87,7 @@ async function handleCandidateMarketCsvRequest(
         `Product-search build ${identity.productSearchBuildId} is not served.`,
       );
     }
-    const freshness = resolveFixtureExportFreshnessStatus(
+    const freshness = runtime.resolveFreshnessStatus(
       identity.freshnessStatusId,
     );
     if (freshness === null) {
@@ -102,7 +99,7 @@ async function handleCandidateMarketCsvRequest(
       );
     }
 
-    const result = await analysis.analyze({
+    const result = await runtime.analyze({
       analysisBuildId: identity.analysisBuildId,
       exporterCode: identity.exporterCode,
       productCode: identity.productCode,
@@ -127,6 +124,7 @@ async function handleCandidateMarketCsvRequest(
     }
 
     const product = await findExactProduct(
+      runtime,
       identity.productSearchBuildId,
       identity.productCode,
     );
@@ -160,14 +158,14 @@ async function handleCandidateMarketCsvRequest(
         error.publicMessage,
       );
     }
-    if (error instanceof CandidateMarketAnalysisError) {
+    if (isCandidateMarketAnalysisError(error)) {
       return errorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
-    if (error instanceof ProductCatalogError) {
+    if (isProductCatalogError(error)) {
       const status = error.status === 410 ? 404 : error.status;
       const code =
         error.status === 410
@@ -256,10 +254,11 @@ function validateIdentifier(value: string, name: string): void {
 }
 
 async function findExactProduct(
+  runtime: ApplicationRuntime,
   productSearchBuildId: string,
   productCode: string,
 ): Promise<ProductSearchProduct> {
-  const search = await productCatalog.search({
+  const search = await runtime.searchProducts({
     productSearchBuildId,
     query: productCode,
     locale: "en",

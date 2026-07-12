@@ -1,3 +1,10 @@
+import {
+  brandCrossBundleError,
+  hasCrossBundleErrorBrand,
+} from "../errors/cross-bundle-error";
+
+const ERROR_BRAND = "ProductCatalogError";
+
 export type ProductCatalogErrorCode =
   | "INVALID_PRODUCT_SEARCH_QUERY"
   | "PRODUCT_SEARCH_BUILD_RETIRED"
@@ -12,7 +19,14 @@ export class ProductCatalogError extends Error {
   ) {
     super(message);
     this.name = "ProductCatalogError";
+    brandCrossBundleError(this, ERROR_BRAND);
   }
+}
+
+export function isProductCatalogError(
+  value: unknown,
+): value is ProductCatalogError {
+  return hasCrossBundleErrorBrand(value, ERROR_BRAND);
 }
 
 export function invalidProductSearchQuery(message: string) {

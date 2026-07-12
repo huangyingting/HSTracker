@@ -36,10 +36,12 @@ export type EconomySearchResult = {
   }[];
 };
 
+export type EconomySearchQuery = {
+  analysisBuildId: string;
+  query: string;
+  limit: number;
+};
+
 export interface EconomyDirectory {
-  search(query: {
-    analysisBuildId: string;
-    query: string;
-    limit: number;
-  }): Promise<EconomySearchResult>;
+  search(query: EconomySearchQuery): Promise<EconomySearchResult>;
 }

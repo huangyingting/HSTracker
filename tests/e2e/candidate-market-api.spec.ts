@@ -46,3 +46,30 @@ test("the running application honors validators and HEAD semantics", async ({
   expect(head.headers()["etag"]).toBe(etag);
   expect(await head.body()).toHaveLength(0);
 });
+
+test("standalone routes preserve typed retired-build responses", async ({
+  request,
+}) => {
+  const [analysis, products, economies] = await Promise.all([
+    request.get(
+      "/api/v1/analyses/retired-analysis/candidate-markets?exporter=156&product=010121",
+    ),
+    request.get(
+      "/api/v1/product-catalogs/retired-products/products?q=horse&locale=en&limit=5",
+    ),
+    request.get("/api/v1/analyses/retired-analysis/economies?q=China"),
+  ]);
+
+  expect(analysis.status()).toBe(410);
+  expect(await analysis.json()).toMatchObject({
+    error: { code: "ANALYSIS_BUILD_RETIRED" },
+  });
+  expect(products.status()).toBe(410);
+  expect(await products.json()).toMatchObject({
+    error: { code: "PRODUCT_SEARCH_BUILD_RETIRED" },
+  });
+  expect(economies.status()).toBe(410);
+  expect(await economies.json()).toMatchObject({
+    error: { code: "ANALYSIS_BUILD_RETIRED" },
+  });
+});

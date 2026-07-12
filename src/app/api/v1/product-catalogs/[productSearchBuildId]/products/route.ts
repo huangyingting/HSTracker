@@ -1,16 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import {
-  ProductCatalogError,
   invalidProductSearchQuery,
+  isProductCatalogError,
 } from "../../../../../../catalog/product-catalog-errors";
-import { createFixtureProductCatalog } from "../../../../../../catalog/fixture-product-catalog";
 import type { ProductSearchLocale } from "../../../../../../catalog/product-catalog";
+import { getApplicationRuntime } from "../../../../../../runtime/application-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const catalog = createFixtureProductCatalog();
 const IMMUTABLE_CACHE_CONTROL =
   "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 
@@ -43,7 +42,7 @@ async function respond(
     const url = new URL(request.url);
     const searchQuery = parseSearchParameters(url.searchParams);
     const { productSearchBuildId } = await context.params;
-    const result = await catalog.search({
+    const result = await getApplicationRuntime().searchProducts({
       productSearchBuildId,
       ...searchQuery,
     });
@@ -65,7 +64,7 @@ async function respond(
       headers,
     });
   } catch (error) {
-    if (error instanceof ProductCatalogError) {
+    if (isProductCatalogError(error)) {
       return errorResponse(
         error.status,
         error.code,

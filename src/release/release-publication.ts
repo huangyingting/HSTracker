@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
+  contentAddressedId,
   parseActiveDeploymentPointer,
   parseDeploymentPairingManifest,
   publishedDeployment,
@@ -137,7 +138,7 @@ export class ReleasePublisher {
       },
       productSearch: productCatalogReference,
     } as const;
-    const deploymentPairingId = contentId(
+    const deploymentPairingId = contentAddressedId(
       "deployment-pairing-v1",
       pairingBase,
     );
@@ -225,7 +226,7 @@ export class ReleasePublisher {
       artifact,
       releaseCatalog,
       releaseCatalogSha256: releaseCatalogIdentity.sha256,
-      analysisBuildId: contentId("analysis-build-v1", {
+      analysisBuildId: contentAddressedId("analysis-build-v1", {
         analysisReleaseCatalogSha256: releaseCatalogIdentity.sha256,
         scoreVersion: SCORE_VERSION,
         resultSchemaVersion: RESULT_SCHEMA_VERSION,
@@ -603,11 +604,6 @@ async function fileIdentity(
     throw new Error(`File size changed while reading ${path}.`);
   }
   return streamed;
-}
-
-function contentId(prefix: string, value: unknown): string {
-  const sha256 = releaseObjectIdentity(releaseJsonBytes(value)).sha256;
-  return `${prefix}-${sha256.slice(0, 16)}`;
 }
 
 function stringArray(value: unknown, label: string): string[] {

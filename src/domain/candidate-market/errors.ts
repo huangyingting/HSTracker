@@ -1,3 +1,10 @@
+import {
+  brandCrossBundleError,
+  hasCrossBundleErrorBrand,
+} from "../../errors/cross-bundle-error";
+
+const ERROR_BRAND = "CandidateMarketAnalysisError";
+
 export type CandidateMarketAnalysisErrorCode =
   | "INVALID_ANALYSIS_QUERY"
   | "UNKNOWN_EXPORTER"
@@ -14,7 +21,14 @@ export class CandidateMarketAnalysisError extends Error {
   ) {
     super(message);
     this.name = "CandidateMarketAnalysisError";
+    brandCrossBundleError(this, ERROR_BRAND);
   }
+}
+
+export function isCandidateMarketAnalysisError(
+  value: unknown,
+): value is CandidateMarketAnalysisError {
+  return hasCrossBundleErrorBrand(value, ERROR_BRAND);
 }
 
 export function invalidAnalysisQuery(message: string) {

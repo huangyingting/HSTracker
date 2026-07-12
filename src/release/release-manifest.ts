@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { ReleaseObjectIdentity } from "./release-object-store";
 import {
   count,
@@ -49,6 +51,14 @@ export type DeploymentPairingManifest = {
     releaseCatalog: ReleaseObjectReference;
   };
   productSearch: ProductCatalogReference;
+};
+
+export type AnalysisReleaseCatalog = {
+  schemaVersion: "analysis-release-catalog-v1";
+  current: AnalysisArtifactReference;
+  previous: AnalysisArtifactReference | null;
+  scoreVersion: "cms-v1";
+  resultSchemaVersion: "candidate-market-result-v1";
 };
 
 export type ActiveDeploymentPointer = {
@@ -110,7 +120,7 @@ export function parseDeploymentPairingManifest(
   if (releaseCatalog.sha256 !== analysisReleaseCatalogSha256) {
     throw new Error("Analysis release catalog identity is inconsistent.");
   }
-  return {
+  const parsed: DeploymentPairingManifest = {
     schemaVersion: "deployment-pairing-manifest-v1",
     deploymentPairingId: prefixedId(
       deployment.deploymentPairingId,
@@ -141,6 +151,53 @@ export function parseDeploymentPairingManifest(
       "deployment product search",
     ),
   };
+  validateDeploymentPairingManifest(parsed);
+  return parsed;
+}
+
+export function parseAnalysisReleaseCatalog(
+  value: unknown,
+): AnalysisReleaseCatalog {
+  const catalog = record(value, "analysis release catalog");
+  if (
+    catalog.schemaVersion !== "analysis-release-catalog-v1" ||
+    catalog.scoreVersion !== "cms-v1" ||
+    catalog.resultSchemaVersion !== "candidate-market-result-v1"
+  ) {
+    throw new Error("Analysis release catalog schema is incompatible.");
+  }
+  return {
+    schemaVersion: "analysis-release-catalog-v1",
+    current: analysisArtifactReference(
+      catalog.current,
+      "current analysis artifact",
+    ),
+    previous:
+      catalog.previous === null
+        ? null
+        : analysisArtifactReference(
+            catalog.previous,
+            "previous analysis artifact",
+          ),
+    scoreVersion: "cms-v1",
+    resultSchemaVersion: "candidate-market-result-v1",
+  };
+}
+
+export function assertDeploymentReleaseCatalog(
+  deployment: DeploymentPairingManifest,
+  catalog: AnalysisReleaseCatalog,
+): void {
+  if (
+    !sameAnalysisArtifactReference(
+      deployment.analysis.artifact,
+      catalog.current,
+    )
+  ) {
+    throw new Error(
+      "Deployment analysis artifact does not match its release catalog.",
+    );
+  }
 }
 
 export function deploymentPairingIdFromKey(key: string): string {
@@ -191,6 +248,11 @@ export async function readReleaseMetadata(
 
 export function releaseJsonBytes(value: unknown): Buffer {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+export function contentAddressedId(prefix: string, value: unknown): string {
+  const sha256 = releaseObjectSha256(releaseJsonBytes(value));
+  return `${prefix}-${sha256.slice(0, 16)}`;
 }
 
 function analysisArtifactReference(
@@ -254,4 +316,76 @@ function objectReference(
     bytes: count(reference.bytes, `${label} bytes`),
     sha256: sha256String(reference.sha256, `${label} SHA-256`),
   };
+}
+
+function validateDeploymentPairingManifest(
+  deployment: DeploymentPairingManifest,
+): void {
+  const analysis = deployment.analysis.artifact;
+  const productSearch = deployment.productSearch;
+  if (
+    analysis.baciRelease !== deployment.baciRelease ||
+    productSearch.baciRelease !== deployment.baciRelease ||
+    analysis.sourceSha256 !== productSearch.sourceArchiveSha256 ||
+    analysis.hsRevision !== productSearch.hsRevision ||
+    productSearch.productSearchBuildId !== deployment.productSearchBuildId
+  ) {
+    throw new Error("Deployment pairing identities are incompatible.");
+  }
+  if (
+    analysis.artifactSchemaVersion !== "candidate-market-artifact-v1" ||
+    productSearch.catalogSchemaVersion !== "product-catalog-artifact-v1"
+  ) {
+    throw new Error("Deployment pairing artifact schema is incompatible.");
+  }
+  const expectedAnalysisBuildId = contentAddressedId("analysis-build-v1", {
+    analysisReleaseCatalogSha256:
+      deployment.analysisReleaseCatalogSha256,
+    scoreVersion: "cms-v1",
+    resultSchemaVersion: "candidate-market-result-v1",
+  });
+  if (deployment.analysisBuildId !== expectedAnalysisBuildId) {
+    throw new Error("Deployment analysis build identity is inconsistent.");
+  }
+  const pairingIdentity = Object.fromEntries(
+    Object.entries(deployment).filter(
+      ([key]) => key !== "deploymentPairingId",
+    ),
+  );
+  if (
+    deployment.deploymentPairingId !==
+    contentAddressedId("deployment-pairing-v1", pairingIdentity)
+  ) {
+    throw new Error("Deployment pairing identity is inconsistent.");
+  }
+}
+
+function sameAnalysisArtifactReference(
+  left: AnalysisArtifactReference,
+  right: AnalysisArtifactReference,
+): boolean {
+  return (
+    left.baciRelease === right.baciRelease &&
+    left.sourceSha256 === right.sourceSha256 &&
+    left.hsRevision === right.hsRevision &&
+    left.artifactBuildId === right.artifactBuildId &&
+    left.artifactSchemaVersion === right.artifactSchemaVersion &&
+    sameObjectReference(left.artifact, right.artifact) &&
+    sameObjectReference(left.manifest, right.manifest)
+  );
+}
+
+function sameObjectReference(
+  left: ReleaseObjectReference,
+  right: ReleaseObjectReference,
+): boolean {
+  return (
+    left.key === right.key &&
+    left.bytes === right.bytes &&
+    left.sha256 === right.sha256
+  );
+}
+
+function releaseObjectSha256(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }

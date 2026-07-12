@@ -2,8 +2,10 @@ import type {
   EconomyMatchClass,
   EconomyMatchedField,
   EconomyRecord,
+  EconomySearchQuery,
   EconomySearchResult,
 } from "./economy-directory";
+import { invalidEconomyQuery } from "./economy-directory-errors";
 
 const MATCH_CLASS_ORDER: Record<EconomyMatchClass, number> = {
   EXACT_CODE: 0,
@@ -48,6 +50,25 @@ export function normalizeEconomyQuery(query: string): string {
     .toLocaleLowerCase("und")
     .trim()
     .replace(/\s+/gu, " ");
+}
+
+export function validateEconomySearchQuery(
+  query: EconomySearchQuery,
+): void {
+  if ([...query.query].length > 100) {
+    throw invalidEconomyQuery(
+      "Economy search query exceeds 100 Unicode code points.",
+    );
+  }
+  if (
+    !Number.isInteger(query.limit) ||
+    query.limit < 1 ||
+    query.limit > 50
+  ) {
+    throw invalidEconomyQuery(
+      "Economy search limit must be an integer from 1 through 50.",
+    );
+  }
 }
 
 function matchEconomy(

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -19,6 +19,10 @@ import type {
   MarketYearEvidence,
   TradeEvidenceSource,
 } from "./trade-evidence-source";
+import {
+  readAnalysisArtifactManifest,
+  type AnalysisArtifactManifest,
+} from "./analysis-artifact-manifest";
 
 type DuckDbTradeEvidenceSourceOptions = {
   artifactPath: string;
@@ -27,28 +31,13 @@ type DuckDbTradeEvidenceSourceOptions = {
   analysisReleaseCatalogSha256: string;
 };
 
-type ArtifactManifest = {
-  baciRelease: string;
-  sourceUpdateDate: string;
-  hsRevision: "HS12";
-  ingestedYears: number[];
-  finalizedCutoffYear: number;
-  provisionalYears: number[];
-  artifact: {
-    schemaVersion: string;
-    buildId: string;
-    bytes: number;
-    sha256: string;
-  };
-};
-
 export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   private closed = false;
 
   private constructor(
     private readonly instance: DuckDBInstance,
     private readonly connection: DuckDBConnection,
-    private readonly manifest: ArtifactManifest,
+    private readonly manifest: AnalysisArtifactManifest,
     private readonly analysisBuildId: string,
     private readonly analysisReleaseCatalogSha256: string,
   ) {}
@@ -58,8 +47,8 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   ): Promise<DuckDbTradeEvidenceSource> {
     validateRuntimeIdentity(options);
     const artifactPath = resolve(options.artifactPath);
-    const manifest = parseArtifactManifest(
-      JSON.parse(await readFile(resolve(options.artifactManifestPath), "utf8")),
+    const manifest = await readAnalysisArtifactManifest(
+      options.artifactManifestPath,
     );
     await verifyArtifactIdentity(artifactPath, manifest.artifact);
 
@@ -313,7 +302,7 @@ async function queryOptional(
 
 async function verifyArtifactMetadata(
   connection: DuckDBConnection,
-  manifest: ArtifactManifest,
+  manifest: AnalysisArtifactManifest,
 ): Promise<void> {
   const rows = await queryRows(
     connection,
@@ -341,7 +330,7 @@ async function verifyArtifactMetadata(
 
 async function verifyArtifactIdentity(
   artifactPath: string,
-  expected: ArtifactManifest["artifact"],
+  expected: AnalysisArtifactManifest["artifact"],
 ): Promise<void> {
   if ((await stat(artifactPath)).size !== expected.bytes) {
     throw new Error("DuckDB artifact size does not match its manifest.");
@@ -353,46 +342,6 @@ async function verifyArtifactIdentity(
   if (digest.digest("hex") !== expected.sha256) {
     throw new Error("DuckDB artifact SHA-256 does not match its manifest.");
   }
-}
-
-function parseArtifactManifest(value: unknown): ArtifactManifest {
-  const root = requireObject(value, "artifact manifest");
-  const artifact = requireObject(root.artifact, "artifact identity");
-  const ingestedYears = requireNumberArray(
-    root.ingestedYears,
-    "ingestedYears",
-  );
-  const provisionalYears = requireNumberArray(
-    root.provisionalYears,
-    "provisionalYears",
-  );
-  if (ingestedYears.length === 0) {
-    throw new Error("Artifact manifest ingestedYears cannot be empty.");
-  }
-  const hsRevision = requireString(root.hsRevision, "hsRevision");
-  if (hsRevision !== "HS12") {
-    throw new Error("Artifact manifest hsRevision must be HS12.");
-  }
-  return {
-    baciRelease: requireString(root.baciRelease, "baciRelease"),
-    sourceUpdateDate: requireString(root.sourceUpdateDate, "sourceUpdateDate"),
-    hsRevision,
-    ingestedYears,
-    finalizedCutoffYear: requireNumber(
-      root.finalizedCutoffYear,
-      "finalizedCutoffYear",
-    ),
-    provisionalYears,
-    artifact: {
-      schemaVersion: requireString(
-        artifact.schemaVersion,
-        "artifact schemaVersion",
-      ),
-      buildId: requireString(artifact.buildId, "artifact buildId"),
-      bytes: requireNumber(artifact.bytes, "artifact bytes"),
-      sha256: requireSha256(artifact.sha256, "artifact sha256"),
-    },
-  };
 }
 
 function validateRuntimeIdentity(
@@ -407,21 +356,13 @@ function validateRuntimeIdentity(
   );
 }
 
-function requireSingleProvisionalYear(manifest: ArtifactManifest): number {
+function requireSingleProvisionalYear(
+  manifest: AnalysisArtifactManifest,
+): number {
   if (manifest.provisionalYears.length !== 1) {
     throw new Error("Artifact manifest must identify one provisional year.");
   }
   return manifest.provisionalYears[0]!;
-}
-
-function requireObject(
-  value: unknown,
-  label: string,
-): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${label} must be an object.`);
-  }
-  return value as Record<string, unknown>;
 }
 
 function requireString(value: unknown, label: string): string {
@@ -452,13 +393,6 @@ function requireNumber(value: unknown, label: string): number {
     throw new Error(`${label} must be a nonnegative safe integer.`);
   }
   return number;
-}
-
-function requireNumberArray(value: unknown, label: string): number[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`${label} must be an array.`);
-  }
-  return value.map((entry) => requireNumber(entry, `${label} entry`));
 }
 
 function requireSha256(value: unknown, label: string): string {

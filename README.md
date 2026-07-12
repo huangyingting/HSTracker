@@ -17,6 +17,38 @@ npm run dev
 The public application is available at `http://localhost:3000`; health is
 available at `/healthz`. Set `APP_BUILD_ID` to expose a deployment-safe build
 identity in the health response. Local builds report `development` by default.
+Development and end-to-end tests use the deterministic fixture runtime.
+
+## Production runtime
+
+Production startup loads one verified release pairing from private
+S3-compatible storage into a persistent local volume:
+
+```bash
+HS_TRACKER_RUNTIME_MODE=release
+HS_TRACKER_RELEASE_VOLUME_PATH=/var/lib/hs-tracker/releases
+HS_TRACKER_RELEASE_S3_BUCKET=hs-tracker-releases
+HS_TRACKER_RELEASE_S3_REGION=us-east-1
+HS_TRACKER_RELEASE_READ_ACCESS_KEY_ID=...
+HS_TRACKER_RELEASE_READ_SECRET_ACCESS_KEY=...
+```
+
+Use `HS_TRACKER_RELEASE_S3_ENDPOINT` and
+`HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE=true` for a path-style compatible
+endpoint. The AWS SDK default credential provider chain is used when the
+read-only key pair is omitted.
+
+The Node instrumentation hook blocks readiness until the active deployment,
+current and previous analysis artifacts, product catalog, and startup smoke
+queries have all been verified. Invalid configuration, incompatible manifests,
+or corrupt bytes fail startup. Once ready, public requests use only resident
+read-only adapters and never depend on object storage.
+
+`/api/v1/analyses/current` reports the active analysis and search identities.
+`/healthz` additionally reports the deployment pairing, artifact identities,
+readiness, and source-freshness status without exposing credentials or volume
+paths. See [release publication](docs/release-publication.md) for the complete
+storage and hydration contract.
 
 ## Required checks
 
@@ -53,4 +85,5 @@ coverage drift retains a report but publishes no staging.
 Accepted analysis and product-search candidates are uploaded to private,
 immutable S3-compatible storage and activated as one exact pairing. See
 [release publication](docs/release-publication.md) for candidate layout,
-credential scopes, promotion, rollback, and the local MinIO integration test.
+credential scopes, promotion, production startup, rollback, and the local
+MinIO integration test.

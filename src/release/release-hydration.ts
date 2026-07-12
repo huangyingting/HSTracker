@@ -4,6 +4,7 @@ import {
   access,
   mkdir,
   open,
+  readFile,
   rename,
   rm,
 } from "node:fs/promises";
@@ -11,11 +12,15 @@ import { join, resolve } from "node:path";
 
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
+  assertDeploymentReleaseCatalog,
   parseActiveDeploymentPointer,
+  parseAnalysisReleaseCatalog,
   parseDeploymentPairingManifest,
   publishedDeployment,
   readReleaseMetadata,
   type ActiveDeploymentPointer,
+  type AnalysisArtifactReference,
+  type AnalysisReleaseCatalog,
   type DeploymentPairingManifest,
   type PublishedDeployment,
   type ReleaseObjectReference,
@@ -33,6 +38,8 @@ export type HydrateCurrentReleaseInput = {
 
 export type HydratedRelease = {
   deployment: PublishedDeployment;
+  deploymentManifest: DeploymentPairingManifest;
+  analysisReleaseCatalog: AnalysisReleaseCatalog;
   rootPath: string;
   analysisArtifactPath: string;
   analysisArtifactManifestPath: string;
@@ -40,6 +47,11 @@ export type HydratedRelease = {
   productCatalogPath: string;
   productCatalogManifestPath: string;
   deploymentManifestPath: string;
+  previousAnalysis: {
+    reference: AnalysisArtifactReference;
+    artifactPath: string;
+    artifactManifestPath: string;
+  } | null;
 };
 
 export class ReleaseHydrationError extends Error {
@@ -67,10 +79,36 @@ export class ReleaseHydrator {
     const finalPath = join(volumePath, deployment.deploymentPairingId);
     await mkdir(volumePath, { recursive: true });
     if (await exists(finalPath)) {
-      await verifyResidentRelease(finalPath, deployment, deploymentBytes);
-      return hydratedRelease(finalPath, pointer, deployment);
+      await verifyResidentReleaseBase(
+        finalPath,
+        deployment,
+        deploymentBytes,
+      );
+      const releaseCatalog = parseAnalysisReleaseCatalog(
+        JSON.parse(
+          await readFile(
+            join(finalPath, "analysis-release-catalog.json"),
+            "utf8",
+          ),
+        ),
+      );
+      assertDeploymentReleaseCatalog(deployment, releaseCatalog);
+      await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
+      return hydratedRelease(
+        finalPath,
+        pointer,
+        deployment,
+        releaseCatalog,
+      );
     }
 
+    const releaseCatalogBytes = await this.readVerifiedObject(
+      deployment.analysis.releaseCatalog,
+    );
+    const releaseCatalog = parseAnalysisReleaseCatalog(
+      JSON.parse(releaseCatalogBytes.toString("utf8")),
+    );
+    assertDeploymentReleaseCatalog(deployment, releaseCatalog);
     const partialPath = join(
       volumePath,
       `.${deployment.deploymentPairingId}-${process.pid}.partial`,
@@ -78,7 +116,7 @@ export class ReleaseHydrator {
     await rm(partialPath, { force: true, recursive: true });
     await mkdir(partialPath);
     try {
-      await Promise.all([
+      const downloads: Promise<void>[] = [
         this.downloadVerified(
           deployment.analysis.artifact.artifact,
           join(partialPath, "candidate-market.duckdb"),
@@ -87,9 +125,10 @@ export class ReleaseHydrator {
           deployment.analysis.artifact.manifest,
           join(partialPath, "artifact-manifest.json"),
         ),
-        this.downloadVerified(
-          deployment.analysis.releaseCatalog,
+        writeVerifiedFile(
           join(partialPath, "analysis-release-catalog.json"),
+          singleChunk(releaseCatalogBytes),
+          deployment.analysis.releaseCatalog,
         ),
         this.downloadVerified(
           deployment.productSearch.catalog,
@@ -104,7 +143,20 @@ export class ReleaseHydrator {
           singleChunk(deploymentBytes),
           pointer.current,
         ),
-      ]);
+      ];
+      if (releaseCatalog.previous !== null) {
+        downloads.push(
+          this.downloadVerified(
+            releaseCatalog.previous.artifact,
+            join(partialPath, "previous-candidate-market.duckdb"),
+          ),
+          this.downloadVerified(
+            releaseCatalog.previous.manifest,
+            join(partialPath, "previous-artifact-manifest.json"),
+          ),
+        );
+      }
+      await Promise.all(downloads);
       await syncDirectory(partialPath);
       try {
         await rename(partialPath, finalPath);
@@ -113,14 +165,24 @@ export class ReleaseHydrator {
           throw error;
         }
         await rm(partialPath, { force: true, recursive: true });
-        await verifyResidentRelease(finalPath, deployment, deploymentBytes);
+        await verifyResidentReleaseBase(
+          finalPath,
+          deployment,
+          deploymentBytes,
+        );
+        await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
       }
       await syncDirectory(volumePath);
     } catch (error) {
       await rm(partialPath, { force: true, recursive: true });
       throw error;
     }
-    return hydratedRelease(finalPath, pointer, deployment);
+    return hydratedRelease(
+      finalPath,
+      pointer,
+      deployment,
+      releaseCatalog,
+    );
   }
 
   private async readPointer(): Promise<ActiveDeploymentPointer> {
@@ -185,7 +247,7 @@ async function writeVerifiedFile(
   }
 }
 
-async function verifyResidentRelease(
+async function verifyResidentReleaseBase(
   rootPath: string,
   deployment: DeploymentPairingManifest,
   deploymentBytes: Buffer,
@@ -214,6 +276,25 @@ async function verifyResidentRelease(
     verifyFile(
       join(rootPath, "deployment-manifest.json"),
       releaseObjectIdentity(deploymentBytes),
+    ),
+  ]);
+}
+
+async function verifyResidentPreviousAnalysis(
+  rootPath: string,
+  releaseCatalog: AnalysisReleaseCatalog,
+): Promise<void> {
+  if (releaseCatalog.previous === null) {
+    return;
+  }
+  await Promise.all([
+    verifyFile(
+      join(rootPath, "previous-candidate-market.duckdb"),
+      releaseCatalog.previous.artifact,
+    ),
+    verifyFile(
+      join(rootPath, "previous-artifact-manifest.json"),
+      releaseCatalog.previous.manifest,
     ),
   ]);
 }
@@ -255,9 +336,12 @@ function hydratedRelease(
   rootPath: string,
   pointer: ActiveDeploymentPointer,
   deployment: DeploymentPairingManifest,
+  analysisReleaseCatalog: AnalysisReleaseCatalog,
 ): HydratedRelease {
   return {
     deployment: publishedDeployment(pointer, deployment),
+    deploymentManifest: deployment,
+    analysisReleaseCatalog,
     rootPath,
     analysisArtifactPath: join(rootPath, "candidate-market.duckdb"),
     analysisArtifactManifestPath: join(
@@ -271,6 +355,20 @@ function hydratedRelease(
     productCatalogPath: join(rootPath, "product-catalog.json"),
     productCatalogManifestPath: join(rootPath, "catalog-manifest.json"),
     deploymentManifestPath: join(rootPath, "deployment-manifest.json"),
+    previousAnalysis:
+      analysisReleaseCatalog.previous === null
+        ? null
+        : {
+            reference: analysisReleaseCatalog.previous,
+            artifactPath: join(
+              rootPath,
+              "previous-candidate-market.duckdb",
+            ),
+            artifactManifestPath: join(
+              rootPath,
+              "previous-artifact-manifest.json",
+            ),
+          },
   };
 }
 
