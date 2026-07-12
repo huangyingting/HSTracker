@@ -5,7 +5,7 @@ export function utf8ByteLength(value: string): number {
 }
 
 export function serializedBytes(value: unknown): number {
-  const serialized = JSON.stringify(value);
+  const serialized: string | undefined = JSON.stringify(value);
   return serialized === undefined ? 0 : utf8ByteLength(serialized);
 }
 

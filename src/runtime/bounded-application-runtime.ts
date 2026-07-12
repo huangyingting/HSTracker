@@ -55,6 +55,9 @@ type OperationTiming = {
   queryMs: number | null;
   resultBytes: number;
 };
+type SharedOperationOptions = {
+  measureQueryTiming?: boolean;
+};
 
 type SharedAnalysis = SharedOperation<AnalysisResult>;
 type SharedProductSearch = SharedOperation<ProductSearchResult>;
@@ -335,7 +338,7 @@ function startSharedOperation<Result>(
   admitResult: (result: Result, resultBytes: number) => void,
   remove: () => void,
   timing: OperationTiming,
-  options: { measureQueryTiming?: boolean } = {},
+  options: SharedOperationOptions = {},
 ): SharedOperation<Result> {
   const controller = new AbortController();
   let settled = false;
