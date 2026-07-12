@@ -217,48 +217,22 @@ describe("retained promotion evidence", () => {
   });
 
   it.each([
-    "deploymentPairingId",
-    "sourceStatusSnapshotId",
+    ["missing", "deploymentPairingId"],
+    ["missing", "sourceStatusSnapshotId"],
+    ["mismatched", "deploymentPairingId"],
+    ["mismatched", "sourceStatusSnapshotId"],
   ] as const)(
-    "rejects a retained report missing its %s",
-    async (field) => {
+    "rejects a retained report with a %s %s",
+    async (failure, field) => {
       const workspace = await promotionWorkspace();
       const input = evidence("0".repeat(64));
       const identity: Record<string, unknown> = { ...input.identity };
-      delete identity[field];
+      if (failure === "missing") {
+        delete identity[field];
+      } else {
+        identity[field] = `other-${field}`;
+      }
       const reportBytes = retainedReportBytes(input, { identity });
-      const reportSha256 = sha256(reportBytes);
-      input.reportSha256 = reportSha256;
-      input.attempts[0].logSha256 = reportSha256;
-      await writeFile(
-        join(workspace, "reports/promotion/origin.json"),
-        reportBytes,
-      );
-
-      await expect(
-        verifyRetainedPromotionEvidence([input], workspace),
-      ).rejects.toEqual(
-        new PromotionEvidenceFileError(
-          `origin-benchmarks retained report ${field} does not match its declared evidence.`,
-        ),
-      );
-    },
-  );
-
-  it.each([
-    "deploymentPairingId",
-    "sourceStatusSnapshotId",
-  ] as const)(
-    "rejects a retained report measured for another %s",
-    async (field) => {
-      const workspace = await promotionWorkspace();
-      const input = evidence("0".repeat(64));
-      const reportBytes = retainedReportBytes(input, {
-        identity: {
-          ...input.identity,
-          [field]: `other-${field}`,
-        },
-      });
       const reportSha256 = sha256(reportBytes);
       input.reportSha256 = reportSha256;
       input.attempts[0].logSha256 = reportSha256;
