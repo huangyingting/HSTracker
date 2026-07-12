@@ -278,12 +278,16 @@ export function createBoundedApplicationRuntime(
         cacheState = "miss";
         const generation = cacheGeneration;
         const timing = operationTiming();
-        shared = startSharedAnalysis(
-          inner,
-          query,
-          key,
-          analyses,
-          execution,
+        shared = startSharedOperation(
+          (controller) =>
+            execution.run(
+              controller,
+              () =>
+                inner.analyze(query, {
+                  signal: controller.signal,
+                }),
+              timing,
+            ),
           (result, resultBytes) => {
             if (cacheGeneration === generation) {
               analysisCache.set(
@@ -291,6 +295,11 @@ export function createBoundedApplicationRuntime(
                 result,
                 resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
               );
+            }
+          },
+          () => {
+            if (analyses.get(key) === shared) {
+              analyses.delete(key);
             }
           },
           timing,
@@ -301,36 +310,6 @@ export function createBoundedApplicationRuntime(
       return waitForSharedOperation(shared, options, cacheState);
     },
   };
-}
-
-function startSharedAnalysis(
-  inner: ApplicationRuntime,
-  query: AnalysisQuery,
-  key: string,
-  analyses: Map<string, SharedAnalysis>,
-  execution: AnalysisExecutionCoordinator,
-  admitResult: (
-    result: Awaited<AnalysisPromise>,
-    resultBytes: number,
-  ) => void,
-  timing: OperationTiming,
-): SharedAnalysis {
-  const shared = startSharedOperation(
-    (controller) =>
-      execution.run(
-        controller,
-        () => inner.analyze(query, { signal: controller.signal }),
-        timing,
-      ),
-    admitResult,
-    () => {
-      if (analyses.get(key) === shared) {
-        analyses.delete(key);
-      }
-    },
-    timing,
-  );
-  return shared;
 }
 
 function startSharedOperation<Result>(
@@ -488,7 +467,7 @@ function abortError(): DOMException {
 
 function operationTiming(): OperationTiming {
   return {
-    queueWaitMs: 0,
+    queueWaitMs: null,
     queryMs: null,
     resultBytes: 0,
   };

@@ -67,7 +67,7 @@ export async function measureRuntimeRequest(
     status = response.status;
     return response;
   } finally {
-    active.finish(status);
+    active.publishMetric(status);
   }
 }
 
@@ -83,7 +83,7 @@ export function measureRuntimeRequestSync(
     status = response.status;
     return response;
   } finally {
-    active.finish(status);
+    active.publishMetric(status);
   }
 }
 
@@ -92,7 +92,7 @@ function startRuntimeMeasurement(
   routeFamily: RuntimeRouteFamily,
 ): {
   measurement: RuntimeRequestMeasurement;
-  finish(status: number): void;
+  publishMetric(status: number): void;
 } {
   const startedAt = performance.now();
   const manifest = runtime.currentAnalysis();
@@ -116,7 +116,7 @@ function startRuntimeMeasurement(
 
   return {
     measurement,
-    finish(status) {
+    publishMetric(status) {
       publishRuntimeMetric({
         routeFamily,
         status,

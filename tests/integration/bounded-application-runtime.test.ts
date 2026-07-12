@@ -719,6 +719,41 @@ describe("bounded application runtime", () => {
     ]);
   });
 
+  it("does not report queue time for unqueued search work", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const observations: unknown[] = [];
+    const runtime = createBoundedApplicationRuntime(fixture);
+    const search = {
+      productSearchBuildId:
+        fixture.currentAnalysis().productSearchBuildId,
+      query: "horse",
+      locale: "en" as const,
+      limit: 10,
+    };
+
+    await runtime.searchProducts(search, {
+      observe: (observation) => observations.push(observation),
+    });
+    await runtime.searchProducts(search, {
+      observe: (observation) => observations.push(observation),
+    });
+
+    expect(observations).toEqual([
+      {
+        cacheState: "miss",
+        queueWaitMs: null,
+        queryMs: expect.any(Number),
+        resultBytes: expect.any(Number),
+      },
+      {
+        cacheState: "hit",
+        queueWaitMs: null,
+        queryMs: null,
+        resultBytes: expect.any(Number),
+      },
+    ]);
+  });
+
   it("admits the accepted twenty-session hot-key burst without rejection", async () => {
     const fixture = createFixtureApplicationRuntime();
     const expected = await fixture.analyze(query);

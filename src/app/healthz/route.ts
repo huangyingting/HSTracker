@@ -24,11 +24,6 @@ export function GET(): Response {
     "health",
     (measurement) => {
       const health = applicationRuntime.health(buildId);
-      if (deadline.hasElapsed()) {
-        return jsonErrorResponseFor(
-          new RequestDeadlineExceededError(),
-        );
-      }
       const body = measurement.measureSerialization(
         () => JSON.stringify(health),
         utf8ByteLength,

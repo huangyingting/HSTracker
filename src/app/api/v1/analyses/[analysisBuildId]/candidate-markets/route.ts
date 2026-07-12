@@ -6,7 +6,10 @@ import {
 } from "../../../../../../domain/candidate-market/errors";
 import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
-import { jsonErrorResponse } from "../../../../../../http/json-error-response";
+import {
+  jsonErrorResponse,
+  jsonErrorResponseFor,
+} from "../../../../../../http/json-error-response";
 import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
@@ -85,10 +88,8 @@ const candidateMarketRoute =
     },
     errorResponse(error, measurement) {
       if (isAnalysisCapacityExceededError(error)) {
-        return jsonErrorResponse(
-          error.status,
-          error.code,
-          error.publicMessage,
+        return jsonErrorResponseFor(
+          error,
           undefined,
           { "Retry-After": String(error.retryAfterSeconds) },
         );
