@@ -8,10 +8,10 @@ import type {
   RuntimeRequestOptions,
 } from "./application-runtime";
 import { AnalysisCapacityExceededError } from "./analysis-capacity-error";
+import { ByteWeightedLru } from "./byte-weighted-lru";
 import {
   CACHE_ENTRY_OVERHEAD_BYTES,
   serializedBytes,
-  serializedWeight,
 } from "./serialized-size";
 
 type AnalysisQuery = Parameters<ApplicationRuntime["analyze"]>[0];
@@ -62,6 +62,14 @@ type SharedEconomySearch = SharedOperation<EconomySearchResult>;
 type SearchCacheValue =
   | { readonly kind: "product"; readonly value: ProductSearchResult }
   | { readonly kind: "economy"; readonly value: EconomySearchResult };
+type CachedSearchInput<Result> = {
+  key: string;
+  inFlight: Map<string, SharedOperation<Result>>;
+  requestOptions: RuntimeRequestOptions | undefined;
+  execute(controller: AbortController): Promise<Result>;
+  readCached(value: SearchCacheValue): Result | undefined;
+  toCacheValue(value: Result): SearchCacheValue;
+};
 
 export function createBoundedApplicationRuntime(
   inner: ApplicationRuntime,
@@ -93,6 +101,62 @@ export function createBoundedApplicationRuntime(
     }
     return activeDeployment;
   };
+
+  function runCachedSearch<Result>({
+    key,
+    inFlight,
+    requestOptions,
+    execute,
+    readCached,
+    toCacheValue,
+  }: CachedSearchInput<Result>): Promise<Result> {
+    const cached = searchCache.lookup(key);
+    const cachedValue =
+      cached === undefined ? undefined : readCached(cached.value);
+    if (cached !== undefined && cachedValue !== undefined) {
+      requestOptions?.observe?.({
+        cacheState: "hit",
+        queueWaitMs: null,
+        queryMs: null,
+        resultBytes: cached.resultBytes,
+      });
+      return Promise.resolve(cachedValue);
+    }
+
+    let shared = inFlight.get(key);
+    let cacheState: "coalesced" | "miss" = "coalesced";
+    if (shared === undefined) {
+      cacheState = "miss";
+      const generation = cacheGeneration;
+      const timing = operationTiming();
+      shared = startSharedOperation(
+        execute,
+        (result, resultBytes) => {
+          if (cacheGeneration === generation) {
+            searchCache.set(
+              key,
+              toCacheValue(result),
+              resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
+            );
+          }
+        },
+        () => {
+          if (inFlight.get(key) === shared) {
+            inFlight.delete(key);
+          }
+        },
+        timing,
+        { measureQueryTiming: true },
+      );
+      inFlight.set(key, shared);
+    }
+
+    return waitForSharedOperation(
+      shared,
+      requestOptions,
+      cacheState,
+    );
+  }
 
   return {
     currentAnalysis: () => inner.currentAnalysis(),
@@ -136,53 +200,18 @@ export function createBoundedApplicationRuntime(
         query,
         inner.normalizeProductSearchQuery(query.query),
       );
-      const cached = searchCache.lookup(key);
-      if (cached?.value.kind === "product") {
-        requestOptions?.observe?.({
-          cacheState: "hit",
-          queueWaitMs: null,
-          queryMs: null,
-          resultBytes: cached.resultBytes,
-        });
-        return Promise.resolve(cached.value.value);
-      }
-
-      let shared = productSearches.get(key);
-      let cacheState: "coalesced" | "miss" = "coalesced";
-      if (!shared) {
-        cacheState = "miss";
-        const generation = cacheGeneration;
-        const timing = operationTiming();
-        shared = startSharedOperation(
-          (controller) =>
-            inner.searchProducts(query, {
-              signal: controller.signal,
-            }),
-          (result, resultBytes) => {
-            if (cacheGeneration === generation) {
-              searchCache.set(
-                key,
-                { kind: "product", value: result },
-                resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
-              );
-            }
-          },
-          () => {
-            if (productSearches.get(key) === shared) {
-              productSearches.delete(key);
-            }
-          },
-          timing,
-          { measureQueryTiming: true },
-        );
-        productSearches.set(key, shared);
-      }
-
-      return waitForSharedOperation(
-        shared,
+      return runCachedSearch({
+        key,
+        inFlight: productSearches,
         requestOptions,
-        cacheState,
-      );
+        execute: (controller) =>
+          inner.searchProducts(query, {
+            signal: controller.signal,
+          }),
+        readCached: (value) =>
+          value.kind === "product" ? value.value : undefined,
+        toCacheValue: (value) => ({ kind: "product", value }),
+      });
     },
     searchEconomies(query, requestOptions) {
       if (requestOptions?.signal?.aborted) {
@@ -200,53 +229,18 @@ export function createBoundedApplicationRuntime(
       }
 
       const key = economySearchKey(query);
-      const cached = searchCache.lookup(key);
-      if (cached?.value.kind === "economy") {
-        requestOptions?.observe?.({
-          cacheState: "hit",
-          queueWaitMs: null,
-          queryMs: null,
-          resultBytes: cached.resultBytes,
-        });
-        return Promise.resolve(cached.value.value);
-      }
-
-      let shared = economySearches.get(key);
-      let cacheState: "coalesced" | "miss" = "coalesced";
-      if (!shared) {
-        cacheState = "miss";
-        const generation = cacheGeneration;
-        const timing = operationTiming();
-        shared = startSharedOperation(
-          (controller) =>
-            inner.searchEconomies(query, {
-              signal: controller.signal,
-            }),
-          (result, resultBytes) => {
-            if (cacheGeneration === generation) {
-              searchCache.set(
-                key,
-                { kind: "economy", value: result },
-                resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
-              );
-            }
-          },
-          () => {
-            if (economySearches.get(key) === shared) {
-              economySearches.delete(key);
-            }
-          },
-          timing,
-          { measureQueryTiming: true },
-        );
-        economySearches.set(key, shared);
-      }
-
-      return waitForSharedOperation(
-        shared,
+      return runCachedSearch({
+        key,
+        inFlight: economySearches,
         requestOptions,
-        cacheState,
-      );
+        execute: (controller) =>
+          inner.searchEconomies(query, {
+            signal: controller.signal,
+          }),
+        readCached: (value) =>
+          value.kind === "economy" ? value.value : undefined,
+        toCacheValue: (value) => ({ kind: "economy", value }),
+      });
     },
     analyze(query, options) {
       if (options?.signal?.aborted) {
@@ -495,81 +489,6 @@ function operationTiming(): OperationTiming {
     queryMs: null,
     resultBytes: 0,
   };
-}
-
-type WeightedCacheEntry<Value> = {
-  readonly value: Value;
-  readonly weight: number;
-};
-
-class ByteWeightedLru<Value> {
-  private readonly entries = new Map<
-    string,
-    WeightedCacheEntry<Value>
-  >();
-  private bytes = 0;
-
-  constructor(private readonly maxBytes: number) {}
-
-  lookup(
-    key: string,
-  ): { readonly value: Value; readonly resultBytes: number } | undefined {
-    const entry = this.entries.get(key);
-    if (entry === undefined) {
-      return undefined;
-    }
-    this.entries.delete(key);
-    this.entries.set(key, entry);
-    return {
-      value: entry.value,
-      resultBytes: entry.weight - CACHE_ENTRY_OVERHEAD_BYTES,
-    };
-  }
-
-  set(
-    key: string,
-    value: Value,
-    weight = serializedWeight(value),
-  ): void {
-    const existing = this.entries.get(key);
-    if (existing !== undefined) {
-      this.entries.delete(key);
-      this.bytes -= existing.weight;
-    }
-
-    if (weight > this.maxBytes) {
-      return;
-    }
-
-    while (
-      this.bytes + weight > this.maxBytes &&
-      this.entries.size > 0
-    ) {
-      const oldestKey = this.entries.keys().next().value;
-      if (oldestKey === undefined) {
-        break;
-      }
-      const oldest = this.entries.get(oldestKey)!;
-      this.entries.delete(oldestKey);
-      this.bytes -= oldest.weight;
-    }
-
-    this.entries.set(key, { value, weight });
-    this.bytes += weight;
-  }
-
-  clear(): void {
-    this.entries.clear();
-    this.bytes = 0;
-  }
-
-  resources(): { entries: number; bytes: number; maxBytes: number } {
-    return {
-      entries: this.entries.size,
-      bytes: this.bytes,
-      maxBytes: this.maxBytes,
-    };
-  }
 }
 
 type QueuedAnalysis = {
