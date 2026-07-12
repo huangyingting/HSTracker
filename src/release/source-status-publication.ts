@@ -11,6 +11,7 @@ import {
   type ReleaseObjectReference,
 } from "./release-manifest";
 import {
+  ReleasePointerConflictError,
   releaseObjectIdentity,
   singleChunk,
   type ReleaseObjectReadOptions,
@@ -28,6 +29,7 @@ import {
 
 export const ACTIVE_SOURCE_STATUS_POINTER_KEY =
   "source-status-pointers/current.json";
+const MAX_STATUS_TRANSITION_ATTEMPTS = 3;
 
 export type SourceStatusPublicationInput = Omit<
   SourceStatusSnapshot,
@@ -72,6 +74,7 @@ export class SourceStatusPublicationError extends Error {
   constructor(
     readonly code:
       | "STATUS_ACTIVATION_FAILED"
+      | "STATUS_ACTIVATION_CONFLICT"
       | "STATUS_REGRESSION",
     message: string,
     options?: ErrorOptions,
@@ -197,9 +200,30 @@ export class SourceStatusPublisher extends SourceStatusReader {
   async publishTransition(
     transition: SourceStatusTransition,
   ): Promise<PublishedSourceStatusSnapshot> {
-    const current = await this.loadCurrent();
-    const input = await transition(current?.status ?? null);
-    return this.publishAgainstCurrent(input, current);
+    for (
+      let attempt = 1;
+      attempt <= MAX_STATUS_TRANSITION_ATTEMPTS;
+      attempt += 1
+    ) {
+      const current = await this.loadCurrent();
+      const input = await transition(current?.status ?? null);
+      try {
+        return await this.publishAgainstCurrent(input, current);
+      } catch (error) {
+        if (
+          !(
+            error instanceof SourceStatusPublicationError &&
+            error.code === "STATUS_ACTIVATION_CONFLICT" &&
+            attempt < MAX_STATUS_TRANSITION_ATTEMPTS
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
+    throw new Error(
+      "Source Freshness Status transition exhausted its retry budget.",
+    );
   }
 
   private async publishAgainstCurrent(
@@ -267,8 +291,12 @@ export class SourceStatusPublisher extends SourceStatusReader {
       );
     } catch (error) {
       throw new SourceStatusPublicationError(
-        "STATUS_ACTIVATION_FAILED",
-        "Source Freshness Status pointer activation failed.",
+        error instanceof ReleasePointerConflictError
+          ? "STATUS_ACTIVATION_CONFLICT"
+          : "STATUS_ACTIVATION_FAILED",
+        error instanceof ReleasePointerConflictError
+          ? "Source Freshness Status pointer changed concurrently."
+          : "Source Freshness Status pointer activation failed.",
         { cause: error },
       );
     }

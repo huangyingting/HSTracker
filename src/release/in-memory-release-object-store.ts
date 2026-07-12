@@ -1,4 +1,5 @@
 import {
+  ReleasePointerConflictError,
   releaseObjectIdentity,
   singleChunk,
   type ReleaseObject,
@@ -54,7 +55,7 @@ export class InMemoryReleaseObjectStore implements ReleaseObjectStore {
   ): Promise<string> {
     const existing = this.objects.get(key);
     if ((existing?.version ?? null) !== expectedVersion) {
-      throw new Error(`Release pointer ${key} changed concurrently.`);
+      throw new ReleasePointerConflictError(key);
     }
     const version = this.nextVersion();
     this.objects.set(key, {

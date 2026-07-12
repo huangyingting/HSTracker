@@ -1,7 +1,6 @@
 import { parseArgs } from "node:util";
 
 import { privateErrorDiagnostic } from "../../src/operations/private-error-diagnostic";
-import { currentUtcSecond } from "../../src/operations/utc-clock";
 import {
   CepiiBaciReleaseSource,
   SourceMonitor,
@@ -21,7 +20,7 @@ async function main(): Promise<void> {
     allowPositionals: false,
     strict: true,
   });
-  const checkedAt = values["checked-at"] ?? currentUtcSecond();
+  const checkedAt = values["checked-at"];
   const objectStore = createPromotionReleaseObjectStore();
   const publisher = new ReleasePublisher(objectStore);
   const deployment = await publisher.current();
@@ -45,7 +44,7 @@ async function main(): Promise<void> {
     },
   });
   const result = await monitor.check({
-    checkedAt,
+    ...(checkedAt === undefined ? {} : { checkedAt }),
     signal: AbortSignal.timeout(SOURCE_CHECK_TIMEOUT_MS),
   });
   process.stdout.write(`${JSON.stringify(result)}\n`);

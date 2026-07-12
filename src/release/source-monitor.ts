@@ -1,4 +1,5 @@
 import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
+import { currentUtcSecond } from "../operations/utc-clock";
 import type {
   PublishedSourceStatusSnapshot,
   SourceStatusPublisher,
@@ -76,6 +77,7 @@ type SourceMonitorInput = {
   source: BaciReleaseSource;
   statuses: SourceStatusPublisher;
   deployments: SourceMonitorDeploymentReader;
+  now?: () => string;
   observe?: (event: SourceMonitorEvent) => void;
 };
 
@@ -105,16 +107,23 @@ export class SourceMonitorError extends Error {
 }
 
 export class SourceMonitor {
-  constructor(private readonly input: SourceMonitorInput) {}
+  private readonly now: () => string;
+
+  constructor(private readonly input: SourceMonitorInput) {
+    this.now = input.now ?? currentUtcSecond;
+  }
 
   async check(input: {
-    checkedAt: string;
+    checkedAt?: string;
     signal?: AbortSignal;
   }): Promise<SourceMonitorResult> {
+    let checkedAt = input.checkedAt;
     try {
       const observed = await this.input.source.latestHs12Release({
         signal: input.signal,
       });
+      const successfulCheckedAt = checkedAt ?? this.now();
+      checkedAt = successfulCheckedAt;
       let outcome: SourceMonitorResult["outcome"] = "unchanged";
       const status = await this.input.statuses.publishTransition(
         async (current) => {
@@ -166,23 +175,24 @@ export class SourceMonitor {
             ? "release-detected"
             : "unchanged";
           return {
-            checkedAt: input.checkedAt,
+            checkedAt: successfulCheckedAt,
             servedBaciRelease: deployment.baciRelease,
             latestKnownBaciRelease: observed.baciRelease,
             newerReleaseDetectedAt: releaseDetected
-              ? priorDetectionAt ?? input.checkedAt
+              ? priorDetectionAt ?? successfulCheckedAt
               : null,
             refreshFailed: statusBaseline.refreshFailed,
             rollbackActive: statusBaseline.rollbackActive,
-            publishedAt: input.checkedAt,
+            publishedAt: successfulCheckedAt,
           };
         },
       );
       return { outcome, status };
     } catch (error) {
+      checkedAt ??= this.now();
       this.input.observe?.({
         type: "source-check-failed",
-        checkedAt: input.checkedAt,
+        checkedAt,
         error,
       });
       throw new SourceMonitorError({ cause: error });

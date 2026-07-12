@@ -277,7 +277,58 @@ describe("CEPII source monitor", () => {
     });
   });
 
-  it("does not overwrite a status committed while deployment state is read", async () => {
+  it("timestamps an observation when the source request completes", async () => {
+    const objectStore = new InMemoryReleaseObjectStore();
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-03T01:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202601",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2027-03-03T01:00:00Z",
+    });
+    const monitor = new SourceMonitor({
+      deployments: fixedDeployment(),
+      now: () => "2027-03-03T03:00:00Z",
+      source: {
+        async latestHs12Release() {
+          await statuses.publish({
+            checkedAt: "2027-03-03T02:00:00Z",
+            servedBaciRelease: "V202601",
+            latestKnownBaciRelease: "V202601",
+            newerReleaseDetectedAt: null,
+            refreshFailed: true,
+            rollbackActive: false,
+            publishedAt: "2027-03-03T02:00:00Z",
+          });
+          return {
+            baciRelease: "V202701",
+            sourceUrl:
+              "https://www.cepii.fr/DATA_DOWNLOAD/baci/data/" +
+              "BACI_HS12_V202701.zip",
+          };
+        },
+      },
+      statuses,
+    });
+
+    const result = await monitor.check({});
+
+    expect(result).toMatchObject({
+      outcome: "release-detected",
+      status: {
+        checkedAt: "2027-03-03T03:00:00Z",
+        publishedAt: "2027-03-03T03:00:00Z",
+        latestKnownBaciRelease: "V202701",
+        newerReleaseDetectedAt: "2027-03-03T03:00:00Z",
+        refreshFailed: true,
+      },
+    });
+  });
+
+  it("merges a status committed while deployment state is read", async () => {
     const objectStore = new InMemoryReleaseObjectStore();
     const statuses = new SourceStatusPublisher(objectStore);
     await statuses.publish({
@@ -316,13 +367,15 @@ describe("CEPII source monitor", () => {
       monitor.check({
         checkedAt: "2027-03-03T03:00:00Z",
       }),
-    ).rejects.toMatchObject({
-      name: "SourceMonitorError",
-      code: "SOURCE_CHECK_FAILED",
+    ).resolves.toMatchObject({
+      status: {
+        refreshFailed: true,
+        publishedAt: "2027-03-03T03:00:00Z",
+      },
     });
     await expect(statuses.current()).resolves.toMatchObject({
       refreshFailed: true,
-      publishedAt: "2027-03-03T02:00:00Z",
+      publishedAt: "2027-03-03T03:00:00Z",
     });
   });
 

@@ -9,6 +9,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import {
+  ReleasePointerConflictError,
   streamReleaseObjectIdentity,
   type ReleaseObject,
   type ReleaseObjectIdentity,
@@ -163,9 +164,7 @@ export class S3ReleaseObjectStore
       return response.ETag;
     } catch (error) {
       if (isConditionalWriteConflict(error)) {
-        throw new Error(`Release pointer ${key} changed concurrently.`, {
-          cause: error,
-        });
+        throw new ReleasePointerConflictError(key, { cause: error });
       }
       throw error;
     }

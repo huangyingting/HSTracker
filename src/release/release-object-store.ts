@@ -14,6 +14,13 @@ export type ReleaseObjectReadOptions = {
   signal?: AbortSignal;
 };
 
+export class ReleasePointerConflictError extends Error {
+  constructor(key: string, options?: ErrorOptions) {
+    super(`Release pointer ${key} changed concurrently.`, options);
+    this.name = "ReleasePointerConflictError";
+  }
+}
+
 export interface ReleaseObjectReader {
   getObject(
     key: string,

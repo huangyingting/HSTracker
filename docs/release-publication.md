@@ -115,7 +115,9 @@ completed refresh clears that operational state. If the status pointer still
 describes another served release, the active deployment's embedded fallback
 supplies the operational state. The monitor derives each publication from the
 status and deployment read inside the same compare-and-swap attempt, so a
-concurrent status change wins instead of being overwritten. The workflow's
+concurrent status change wins instead of being overwritten; typed pointer
+conflicts retry against that winning status. Successful checks are timestamped
+when the CEPII request completes rather than when it starts. The workflow's
 `source-monitor` environment must provide the write-scoped S3 variables listed
 above. The pointer retains references to prior immutable snapshots across
 served releases so supported export identities remain reproducible after
