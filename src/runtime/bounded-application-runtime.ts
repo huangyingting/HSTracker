@@ -97,6 +97,18 @@ export function createBoundedApplicationRuntime(
     normalizeProductSearchQuery: (query) =>
       inner.normalizeProductSearchQuery(query),
     health: (buildId) => inner.health(buildId),
+    resources() {
+      const resources = inner.resources();
+      return {
+        ...resources,
+        analysisExecution: execution.resources(),
+        caches: {
+          ...resources.caches,
+          analysis: analysisCache.resources(),
+          search: searchCache.resources(),
+        },
+      };
+    },
     searchProducts(query, requestOptions) {
       if (requestOptions?.signal?.aborted) {
         return Promise.reject(abortError());
@@ -542,6 +554,14 @@ class ByteWeightedLru<Value> {
     this.entries.clear();
     this.bytes = 0;
   }
+
+  resources(): { entries: number; bytes: number; maxBytes: number } {
+    return {
+      entries: this.entries.size,
+      bytes: this.bytes,
+      maxBytes: this.maxBytes,
+    };
+  }
 }
 
 function serializedWeight(value: unknown): number {
@@ -584,6 +604,20 @@ class AnalysisExecutionCoordinator {
     this.analysisTimeoutMs =
       options.analysisTimeoutMs ??
       RUNTIME_RESOURCE_POLICY.analysisTimeoutMs;
+  }
+
+  resources(): {
+    active: number;
+    queued: number;
+    maxConcurrent: number;
+    maxQueued: number;
+  } {
+    return {
+      active: this.active,
+      queued: this.queue.length,
+      maxConcurrent: this.maxConcurrent,
+      maxQueued: this.maxQueued,
+    };
   }
 
   run(

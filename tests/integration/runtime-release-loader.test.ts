@@ -80,6 +80,29 @@ describe("verified release runtime", () => {
         state: "LATEST_KNOWN",
       },
     });
+    expect(runtime.resources()).toMatchObject({
+      analysisExecution: {
+        active: 0,
+        queued: 0,
+        maxConcurrent: 2,
+        maxQueued: 16,
+      },
+      caches: {
+        statusMicroCache: {
+          bytes: expect.any(Number),
+          maxBytes: 1024 * 1024,
+        },
+        safetyReserveBytes: 15 * 1024 * 1024,
+      },
+      duckDb: {
+        connections: 2,
+        activeConnections: 0,
+        queued: 0,
+        threads: 2,
+        memoryLimit: "1GiB",
+        maxTempDirectorySize: "4GiB",
+      },
+    });
   }, 20_000);
 
   it("reuses a verified resident release without downloading its artifacts", async () => {

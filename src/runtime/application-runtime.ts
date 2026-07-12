@@ -11,6 +11,7 @@ import {
   resolveFixtureCurrentAnalysisManifest,
   resolveFixtureExportFreshnessStatus,
 } from "../release/fixture-current-analysis";
+import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
 
 export type RuntimeRequestOptions = Readonly<{
   signal?: AbortSignal;
@@ -22,6 +23,29 @@ export type RuntimeOperationObservation = Readonly<{
   queueWaitMs: number | null;
   queryMs: number | null;
   resultBytes: number;
+}>;
+
+export type ApplicationRuntimeResources = Readonly<{
+  analysisExecution: {
+    active: number;
+    queued: number;
+    maxConcurrent: number;
+    maxQueued: number;
+  };
+  caches: {
+    analysis: { entries: number; bytes: number; maxBytes: number };
+    search: { entries: number; bytes: number; maxBytes: number };
+    statusMicroCache: { bytes: number; maxBytes: number };
+    safetyReserveBytes: number;
+  };
+  duckDb: null | {
+    connections: number;
+    activeConnections: number;
+    queued: number;
+    threads: number;
+    memoryLimit: string;
+    maxTempDirectorySize: string;
+  };
 }>;
 
 export interface ApplicationRuntime {
@@ -46,6 +70,7 @@ export interface ApplicationRuntime {
     query: Parameters<EconomyDirectory["search"]>[0],
     options?: RuntimeRequestOptions,
   ): ReturnType<EconomyDirectory["search"]>;
+  resources(): ApplicationRuntimeResources;
   health(buildId: string): object;
 }
 
@@ -109,8 +134,38 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
     analyze: analysis.analyze.bind(analysis),
     searchProducts: productCatalog.search.bind(productCatalog),
     searchEconomies: economyDirectory.search.bind(economyDirectory),
+    resources() {
+      return {
+        analysisExecution: {
+          active: 0,
+          queued: 0,
+          maxConcurrent: 0,
+          maxQueued: 0,
+        },
+        caches: {
+          analysis: { entries: 0, bytes: 0, maxBytes: 0 },
+          search: { entries: 0, bytes: 0, maxBytes: 0 },
+          statusMicroCache: {
+            bytes: serializedWeight(
+              resolveFixtureCurrentAnalysisManifest(),
+            ),
+            maxBytes:
+              RUNTIME_RESOURCE_POLICY.statusMicroCacheMaxBytes,
+          },
+          safetyReserveBytes:
+            RUNTIME_RESOURCE_POLICY.cacheSafetyReserveBytes,
+        },
+        duckDb: null,
+      };
+    },
     health(buildId: string) {
       return { status: "ok", buildId };
     },
   };
+}
+
+function serializedWeight(value: unknown): number {
+  return (
+    new TextEncoder().encode(JSON.stringify(value)).byteLength + 1_024
+  );
 }

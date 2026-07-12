@@ -65,9 +65,26 @@ describe("DuckDB analysis database", () => {
           return result.getRowObjectsJson()[0];
         }),
       );
+      const queuedProbe = database.withConnection(
+        undefined,
+        async (connection) =>
+          (
+            await connection.runAndReadAll(
+              "SELECT value FROM previous.main.probe",
+            )
+          ).getRowObjectsJson(),
+      );
 
       await bothStarted.promise;
       expect(maximumActive).toBe(2);
+      expect(database.resources()).toEqual({
+        connections: 2,
+        activeConnections: 2,
+        queued: 1,
+        threads: 2,
+        memoryLimit: "1GiB",
+        maxTempDirectorySize: "4GiB",
+      });
       release.resolve();
       await expect(Promise.all(probes)).resolves.toEqual([
         {
@@ -87,6 +104,11 @@ describe("DuckDB analysis database", () => {
           max_temp_directory_size: "4.0 GiB",
         },
       ]);
+      await expect(queuedProbe).resolves.toEqual([{ value: 2 }]);
+      expect(database.resources()).toMatchObject({
+        activeConnections: 0,
+        queued: 0,
+      });
       await expect(
         database.withConnection(undefined, (connection) =>
           connection.run("CREATE TABLE main.forbidden(value INTEGER)"),

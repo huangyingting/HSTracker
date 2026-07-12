@@ -5,6 +5,7 @@ import {
   isEconomyDirectoryError,
 } from "../../../../../../economy/economy-directory-errors";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
+import { jsonErrorResponse } from "../../../../../../http/json-error-response";
 import { withoutResponseBody } from "../../../../../../http/response";
 import {
   getApplicationRuntime,
@@ -116,14 +117,14 @@ async function respondMeasured(
     });
   } catch (error) {
     if (isRequestDeadlineExceededError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
     if (isEconomyDirectoryError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
@@ -135,7 +136,7 @@ async function respondMeasured(
       correlationId,
       error,
     });
-    return errorResponse(
+    return jsonErrorResponse(
       500,
       "INTERNAL_ERROR",
       "Economy search could not be completed.",
@@ -160,28 +161,4 @@ function parseSearchParameters(searchParameters: URLSearchParams): string {
     );
   }
   return query;
-}
-
-function errorResponse(
-  status: number,
-  code: string,
-  message: string,
-  correlationId?: string,
-): Response {
-  return new Response(
-    JSON.stringify({
-      error: {
-        code,
-        message,
-        ...(correlationId === undefined ? {} : { correlationId }),
-      },
-    }),
-    {
-      status,
-      headers: {
-        "Cache-Control": "no-store",
-        "Content-Type": "application/json; charset=utf-8",
-      },
-    },
-  );
 }

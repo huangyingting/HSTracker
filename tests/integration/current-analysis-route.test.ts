@@ -1,11 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   GET,
   HEAD,
 } from "../../src/app/api/v1/analyses/current/route";
+import {
+  createFixtureApplicationRuntime,
+  installApplicationRuntime,
+} from "../../src/runtime/application-runtime";
 
 const currentUrl = "http://localhost/api/v1/analyses/current";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("current analysis manifest route", () => {
   it("binds current immutable builds to one effective freshness snapshot", async () => {
@@ -79,5 +87,33 @@ describe("current analysis manifest route", () => {
     expect(head.headers.get("cache-control")).toBe(
       initial.headers.get("cache-control"),
     );
+  });
+
+  it("fails closed when current-manifest work exceeds two seconds", async () => {
+    vi.useFakeTimers();
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      currentAnalysisSnapshot() {
+        vi.advanceTimersByTime(2_001);
+        return fixture.currentAnalysisSnapshot();
+      },
+    });
+
+    try {
+      const response = await GET(new Request(currentUrl));
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "REQUEST_DEADLINE_EXCEEDED" },
+      });
+
+      const head = await HEAD(new Request(currentUrl));
+      expect(head.status).toBe(503);
+      expect(await head.text()).toBe("");
+    } finally {
+      restore();
+    }
   });
 });

@@ -5,6 +5,7 @@ import {
   isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
+import { jsonErrorResponse } from "../../../../../../http/json-error-response";
 import { withoutResponseBody } from "../../../../../../http/response";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import {
@@ -117,14 +118,14 @@ async function respondMeasured(
     });
   } catch (error) {
     if (isRequestDeadlineExceededError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
     if (isAnalysisCapacityExceededError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
@@ -133,7 +134,7 @@ async function respondMeasured(
       );
     }
     if (isCandidateMarketAnalysisError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
@@ -145,7 +146,7 @@ async function respondMeasured(
       correlationId,
       error,
     });
-    return errorResponse(
+    return jsonErrorResponse(
       500,
       "INTERNAL_ERROR",
       "Candidate Market analysis could not be completed.",
@@ -168,30 +169,4 @@ function validateSearchParameters(searchParameters: URLSearchParams) {
       "The route accepts exactly one exporter and one product parameter.",
     );
   }
-}
-
-function errorResponse(
-  status: number,
-  code: string,
-  message: string,
-  correlationId?: string,
-  additionalHeaders: Record<string, string> = {},
-): Response {
-  return new Response(
-    JSON.stringify({
-      error: {
-        code,
-        message,
-        ...(correlationId === undefined ? {} : { correlationId }),
-      },
-    }),
-    {
-      status,
-      headers: {
-        "Cache-Control": "no-store",
-        "Content-Type": "application/json; charset=utf-8",
-        ...additionalHeaders,
-      },
-    },
-  );
 }

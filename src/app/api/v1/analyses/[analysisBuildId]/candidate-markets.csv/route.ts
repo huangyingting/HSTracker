@@ -11,6 +11,7 @@ import {
 } from "../../../../../../export/candidate-market-csv";
 import type { CandidateMarketCsvIdentity } from "../../../../../../export/candidate-market-csv-contract";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
+import { jsonErrorResponse } from "../../../../../../http/json-error-response";
 import { withoutResponseBody } from "../../../../../../http/response";
 import {
   getApplicationRuntime,
@@ -200,14 +201,14 @@ async function handleMeasuredCandidateMarketCsvRequest(
     });
   } catch (error) {
     if (isRequestDeadlineExceededError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
     if (isAnalysisCapacityExceededError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
@@ -216,28 +217,28 @@ async function handleMeasuredCandidateMarketCsvRequest(
       );
     }
     if (error instanceof CandidateMarketExportRouteError) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
     if (isCandidateMarketAnalysisError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
     if (isProductCatalogError(error)) {
-      return errorResponse(
+      return jsonErrorResponse(
         error.status,
         error.code,
         error.publicMessage,
       );
     }
     if (error instanceof CandidateMarketCsvRepresentationError) {
-      return errorResponse(
+      return jsonErrorResponse(
         503,
         error.code,
         "The complete Candidate Market export is temporarily unavailable.",
@@ -249,7 +250,7 @@ async function handleMeasuredCandidateMarketCsvRequest(
       correlationId,
       error,
     });
-    return errorResponse(
+    return jsonErrorResponse(
       500,
       "INTERNAL_ERROR",
       "Candidate Market export could not be completed.",
@@ -345,30 +346,4 @@ async function findExactProduct(
     );
   }
   return product;
-}
-
-function errorResponse(
-  status: number,
-  code: string,
-  message: string,
-  correlationId?: string,
-  additionalHeaders: Record<string, string> = {},
-): Response {
-  return new Response(
-    JSON.stringify({
-      error: {
-        code,
-        message,
-        ...(correlationId === undefined ? {} : { correlationId }),
-      },
-    }),
-    {
-      status,
-      headers: {
-        "Cache-Control": "no-store",
-        "Content-Type": "application/json; charset=utf-8",
-        ...additionalHeaders,
-      },
-    },
-  );
 }

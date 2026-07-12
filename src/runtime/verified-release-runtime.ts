@@ -28,7 +28,10 @@ import {
 import type { ReleaseObjectReader } from "../release/release-object-store";
 import { readRuntimeFile } from "../runtime-file-access";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
-import type { RuntimeRequestOptions } from "./application-runtime";
+import type {
+  ApplicationRuntimeResources,
+  RuntimeRequestOptions,
+} from "./application-runtime";
 
 type VerifiedReleaseRuntimeInput = {
   objectStore: ReleaseObjectReader;
@@ -237,6 +240,32 @@ export class VerifiedReleaseRuntime {
     return this.economyDirectory.search(query);
   }
 
+  resources(): ApplicationRuntimeResources {
+    const duckDb = this.analysisDatabase.resources();
+    return {
+      analysisExecution: {
+        active: duckDb.activeConnections,
+        queued: duckDb.queued,
+        maxConcurrent: duckDb.connections,
+        maxQueued: RUNTIME_RESOURCE_POLICY.maxQueuedAnalyses,
+      },
+      caches: {
+        analysis: { entries: 0, bytes: 0, maxBytes: 0 },
+        search: { entries: 0, bytes: 0, maxBytes: 0 },
+        statusMicroCache: {
+          bytes: statusMicroCacheWeight(
+            this.deployment,
+            this.sourceStatus,
+          ),
+          maxBytes: RUNTIME_RESOURCE_POLICY.statusMicroCacheMaxBytes,
+        },
+        safetyReserveBytes:
+          RUNTIME_RESOURCE_POLICY.cacheSafetyReserveBytes,
+      },
+      duckDb,
+    };
+  }
+
   close(): void {
     this.analysisDatabase.close();
   }
@@ -246,15 +275,23 @@ function assertStatusMicroCacheBudget(
   deployment: CurrentAnalysisDeployment,
   sourceStatus: SourceStatusSnapshot,
 ): void {
-  const bytes =
-    new TextEncoder().encode(
-      JSON.stringify({ deployment, sourceStatus }),
-    ).byteLength + 1_024;
+  const bytes = statusMicroCacheWeight(deployment, sourceStatus);
   if (bytes > RUNTIME_RESOURCE_POLICY.statusMicroCacheMaxBytes) {
     throw new Error(
       "The effective manifest/status micro-cache exceeds its byte cap.",
     );
   }
+}
+
+function statusMicroCacheWeight(
+  deployment: CurrentAnalysisDeployment,
+  sourceStatus: SourceStatusSnapshot,
+): number {
+  return (
+    new TextEncoder().encode(
+      JSON.stringify({ deployment, sourceStatus }),
+    ).byteLength + 1_024
+  );
 }
 
 function validateHydratedPairing(

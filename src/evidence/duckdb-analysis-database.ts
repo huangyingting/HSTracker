@@ -120,6 +120,26 @@ export class DuckDbAnalysisDatabase {
     }
   }
 
+  resources(): {
+    connections: number;
+    activeConnections: number;
+    queued: number;
+    threads: number;
+    memoryLimit: string;
+    maxTempDirectorySize: string;
+  } {
+    return {
+      connections: this.connections.length,
+      activeConnections:
+        this.connections.length - this.available.length,
+      queued: this.waiters.length,
+      threads: RUNTIME_RESOURCE_POLICY.duckDbThreads,
+      memoryLimit: RUNTIME_RESOURCE_POLICY.duckDbMemoryLimit,
+      maxTempDirectorySize:
+        RUNTIME_RESOURCE_POLICY.duckDbMaxTempDirectorySize,
+    };
+  }
+
   close(): void {
     if (this.closed) {
       return;

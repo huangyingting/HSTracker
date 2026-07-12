@@ -65,3 +65,16 @@ export function createRequestDeadline(
     },
   };
 }
+
+export function createSynchronousRequestDeadline(
+  timeoutMs: number,
+): {
+  hasElapsed(): boolean;
+} {
+  const startedAt = performance.now();
+  return {
+    hasElapsed() {
+      return performance.now() - startedAt >= timeoutMs;
+    },
+  };
+}

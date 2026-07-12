@@ -3,6 +3,7 @@ import { channel } from "node:diagnostics_channel";
 
 import type {
   ApplicationRuntime,
+  ApplicationRuntimeResources,
   RuntimeOperationObservation,
 } from "./application-runtime";
 
@@ -26,6 +27,13 @@ export type RuntimeRequestMetric = Readonly<{
   queryMs: number | null;
   serializationMs: number;
   resultBytes: number;
+  resources: ApplicationRuntimeResources;
+  process: {
+    rssBytes: number;
+    heapUsedBytes: number;
+    constrainedMemoryBytes: number;
+    availableMemoryBytes: number;
+  };
 }>;
 
 export type RuntimeRequestMeasurement = {
@@ -122,6 +130,13 @@ function startRuntimeMeasurement(
         serializationMs,
         resultBytes:
           resultBytes === 0 ? (operation?.resultBytes ?? 0) : resultBytes,
+        resources: runtime.resources(),
+        process: {
+          rssBytes: process.memoryUsage.rss(),
+          heapUsedBytes: process.memoryUsage().heapUsed,
+          constrainedMemoryBytes: process.constrainedMemory(),
+          availableMemoryBytes: process.availableMemory(),
+        },
       });
     },
   };

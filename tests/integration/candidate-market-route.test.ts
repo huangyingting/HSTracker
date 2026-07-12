@@ -245,6 +245,26 @@ describe("versioned Candidate Market route", () => {
           queryMs: expect.any(Number),
           serializationMs: expect.any(Number),
           resultBytes: new TextEncoder().encode(firstBody).byteLength,
+          resources: expect.objectContaining({
+            analysisExecution: {
+              active: 0,
+              queued: 0,
+              maxConcurrent: 2,
+              maxQueued: 16,
+            },
+            caches: expect.objectContaining({
+              analysis: expect.objectContaining({
+                entries: 1,
+                maxBytes: 96 * 1024 * 1024,
+              }),
+            }),
+          }),
+          process: {
+            rssBytes: expect.any(Number),
+            heapUsedBytes: expect.any(Number),
+            constrainedMemoryBytes: expect.any(Number),
+            availableMemoryBytes: expect.any(Number),
+          },
         },
         {
           routeFamily: "candidate-market",
@@ -260,6 +280,26 @@ describe("versioned Candidate Market route", () => {
           queryMs: null,
           serializationMs: expect.any(Number),
           resultBytes: new TextEncoder().encode(firstBody).byteLength,
+          resources: expect.objectContaining({
+            analysisExecution: {
+              active: 0,
+              queued: 0,
+              maxConcurrent: 2,
+              maxQueued: 16,
+            },
+            caches: expect.objectContaining({
+              analysis: expect.objectContaining({
+                entries: 1,
+                maxBytes: 96 * 1024 * 1024,
+              }),
+            }),
+          }),
+          process: {
+            rssBytes: expect.any(Number),
+            heapUsedBytes: expect.any(Number),
+            constrainedMemoryBytes: expect.any(Number),
+            availableMemoryBytes: expect.any(Number),
+          },
         },
       ]);
       expect(JSON.stringify(metrics)).not.toContain("010121");
