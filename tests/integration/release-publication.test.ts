@@ -48,6 +48,36 @@ describe("immutable release publication", () => {
     expect(await publisher.current()).toEqual(published);
   });
 
+  it("rejects a Source Freshness Status for another BACI Release before activation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const candidate = await writeAcceptedReleaseCandidate(root);
+    const publisher = new ReleasePublisher(
+      new InMemoryReleaseObjectStore(),
+    );
+
+    await expect(
+      publisher.promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+        sourceStatusFallback: {
+          schemaVersion: "source-status-v1",
+          sourceStatusSnapshotId:
+            "source-status-v1-0000000000000000",
+          checkedAt: "2026-07-12T01:00:00Z",
+          servedBaciRelease: "VTEST999",
+          latestKnownBaciRelease: "VTEST999",
+          newerReleaseDetectedAt: null,
+          refreshFailed: false,
+          rollbackActive: false,
+          publishedAt: "2026-07-12T02:00:00Z",
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "PAIRING_INCOMPATIBLE",
+    });
+    await expect(publisher.current()).resolves.toBeNull();
+  });
+
   it("keeps the active identity when the accepted inputs repeat", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
     const candidate = await writeAcceptedReleaseCandidate(root);

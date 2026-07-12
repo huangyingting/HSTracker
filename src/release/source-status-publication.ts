@@ -104,7 +104,7 @@ export class SourceStatusReader {
           Date.parse(current.status.checkedAt)
       ) {
         throw new Error(
-          "A retained source-status snapshot is incompatible with the active snapshot.",
+          "A retained Source Freshness Status snapshot is incompatible with the active snapshot.",
         );
       }
     }
@@ -136,7 +136,7 @@ export class SourceStatusReader {
     const status = await this.readStatus(pointer.current);
     if (status.publishedAt !== pointer.publishedAt) {
       throw new Error(
-        "The active source-status pointer does not match its snapshot.",
+        "The active Source Freshness Status pointer does not match its snapshot.",
       );
     }
     return {
@@ -211,7 +211,9 @@ export class SourceStatusPublisher extends SourceStatusReader {
       reference,
     );
     if (!readBack.equals(bytes)) {
-      throw new Error("Source-status snapshot read-back differs.");
+      throw new Error(
+        "Source Freshness Status snapshot read-back differs.",
+      );
     }
     const pointer: ActiveSourceStatusPointer = {
       schemaVersion: "active-source-status-pointer-v1",
@@ -280,9 +282,11 @@ export function createPublishedSourceStatusSnapshot(
 export function parsePublishedSourceStatusSnapshot(
   value: unknown,
 ): PublishedSourceStatusSnapshot {
-  const snapshot = record(value, "source-status snapshot");
+  const snapshot = record(value, "Source Freshness Status snapshot");
   if (snapshot.schemaVersion !== "source-status-snapshot-v1") {
-    throw new Error("Source-status snapshot schema is incompatible.");
+    throw new Error(
+      "Source Freshness Status snapshot schema is incompatible.",
+    );
   }
   const parsed = {
     checkedAt: utcTimestamp(snapshot.checkedAt, "source check time"),
@@ -307,7 +311,7 @@ export function parsePublishedSourceStatusSnapshot(
     schemaVersion: "source-status-snapshot-v1",
     sourceStatusSnapshotId: prefixedId(
       snapshot.sourceStatusSnapshotId,
-      "source-status snapshot ID",
+      "Source Freshness Status snapshot ID",
       "source-status-v1",
     ),
     freshnessStatusId: string(
@@ -336,7 +340,9 @@ export function parsePublishedSourceStatusSnapshot(
     publishedAt: parsed.publishedAt,
   };
   if (releaseJsonBytes(actual).equals(releaseJsonBytes(expected)) === false) {
-    throw new Error("Source-status snapshot identities are inconsistent.");
+    throw new Error(
+      "Source Freshness Status snapshot identities are inconsistent.",
+    );
   }
   return actual;
 }
@@ -400,9 +406,14 @@ function validatedSourceFields(
 function parseActiveSourceStatusPointer(
   value: unknown,
 ): ActiveSourceStatusPointer {
-  const pointer = record(value, "active source-status pointer");
+  const pointer = record(
+    value,
+    "active Source Freshness Status pointer",
+  );
   if (pointer.schemaVersion !== "active-source-status-pointer-v1") {
-    throw new Error("Active source-status pointer schema is incompatible.");
+    throw new Error(
+      "Active Source Freshness Status pointer schema is incompatible.",
+    );
   }
   return {
     schemaVersion: "active-source-status-pointer-v1",
@@ -410,7 +421,7 @@ function parseActiveSourceStatusPointer(
     retained: referenceArray(pointer.retained),
     publishedAt: utcTimestamp(
       pointer.publishedAt,
-      "source-status pointer publication time",
+      "Source Freshness Status pointer publication time",
     ),
   };
 }
@@ -465,7 +476,9 @@ async function readVerifiedStatusObject(
 ): Promise<Buffer> {
   const stored = await objectStore.getObject(reference.key);
   if (stored === null) {
-    throw new Error("The active source-status snapshot is unavailable.");
+    throw new Error(
+      "The active Source Freshness Status snapshot is unavailable.",
+    );
   }
   const bytes = await readReleaseMetadata(stored.body);
   const identity = releaseObjectIdentity(bytes);
@@ -473,7 +486,9 @@ async function readVerifiedStatusObject(
     identity.bytes !== reference.bytes ||
     identity.sha256 !== reference.sha256
   ) {
-    throw new Error("Source-status snapshot identity does not match.");
+    throw new Error(
+      "Source Freshness Status snapshot identity does not match.",
+    );
   }
   return bytes;
 }

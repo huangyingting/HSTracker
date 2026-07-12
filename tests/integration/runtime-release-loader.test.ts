@@ -207,6 +207,52 @@ describe("verified release runtime", () => {
     });
   }, 20_000);
 
+  it("uses the smoke-tested resident release when storage fails after pointer lookup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    initial.close();
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore: {
+        getObject(key) {
+          if (key === "deployment-pointers/current.json") {
+            return objectStore.getObject(key);
+          }
+          return Promise.reject(
+            new Error("object storage unavailable"),
+          );
+        },
+      },
+      volumePath,
+      now: () => "2026-08-01T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.currentAnalysis()).toMatchObject({
+      analysisBuildId: published.analysisBuildId,
+      productSearchBuildId: published.productSearchBuildId,
+      source: { baciRelease: "V202601" },
+      freshness: {
+        servedBaciRelease: "V202601",
+        state: "CHECK_OVERDUE",
+      },
+    });
+  }, 20_000);
+
   it("fails closed during a cold object-store outage", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);

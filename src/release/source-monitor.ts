@@ -137,24 +137,25 @@ export class SourceMonitor {
     }
 
     const releaseDetected = comparison > 0;
-    const sameOpenRefresh =
+    const sameServedRelease =
+      current?.servedBaciRelease === input.servedBaciRelease;
+    const priorDetectionAt =
       releaseDetected &&
-      current?.servedBaciRelease === input.servedBaciRelease &&
-      current.latestKnownBaciRelease === observed.baciRelease &&
-      current.newerReleaseDetectedAt !== null;
+      sameServedRelease &&
+      current?.newerReleaseDetectedAt !== null
+        ? current?.newerReleaseDetectedAt
+        : null;
     const status = await this.input.statuses.publish({
       checkedAt: input.checkedAt,
       servedBaciRelease: input.servedBaciRelease,
       latestKnownBaciRelease: observed.baciRelease,
       newerReleaseDetectedAt: releaseDetected
-        ? sameOpenRefresh
-          ? current.newerReleaseDetectedAt
-          : input.checkedAt
+        ? priorDetectionAt ?? input.checkedAt
         : null,
-      refreshFailed: sameOpenRefresh
+      refreshFailed: sameServedRelease
         ? current.refreshFailed
         : false,
-      rollbackActive: sameOpenRefresh
+      rollbackActive: sameServedRelease
         ? current.rollbackActive
         : false,
       publishedAt: input.checkedAt,

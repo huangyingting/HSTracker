@@ -199,7 +199,7 @@ describe("Release Revision comparison", () => {
     },
   );
 
-  it("reports a skipped annual release as not compared instead of shortening the current window", () => {
+  it("reports a skipped BACI Release as not compared instead of shortening the current window", () => {
     const comparison = compareReleaseRevisions({
       currentRelease: {
         ...currentRelease,

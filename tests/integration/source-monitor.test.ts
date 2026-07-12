@@ -85,6 +85,69 @@ describe("CEPII source monitor", () => {
     });
   });
 
+  it("preserves rollback status when the checked BACI Release is unchanged", async () => {
+    const objectStore = new InMemoryReleaseObjectStore();
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2026-03-01T00:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202601",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: true,
+      publishedAt: "2026-03-01T00:00:00Z",
+    });
+    const monitor = new SourceMonitor({
+      source: fixedSource("V202601"),
+      statuses,
+    });
+
+    const result = await monitor.check({
+      servedBaciRelease: "V202601",
+      checkedAt: "2026-03-02T00:00:00Z",
+    });
+
+    expect(result.status).toMatchObject({
+      latestKnownBaciRelease: "V202601",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: true,
+      state: "REFRESH_DELAYED",
+    });
+  });
+
+  it("preserves failure timing when a later BACI Release is detected", async () => {
+    const objectStore = new InMemoryReleaseObjectStore();
+    const statuses = new SourceStatusPublisher(objectStore);
+    await statuses.publish({
+      checkedAt: "2027-03-01T00:00:00Z",
+      servedBaciRelease: "V202601",
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2027-03-01T00:00:00Z",
+      refreshFailed: true,
+      rollbackActive: false,
+      publishedAt: "2027-03-01T00:00:00Z",
+    });
+    const monitor = new SourceMonitor({
+      source: fixedSource("V202801"),
+      statuses,
+    });
+
+    const result = await monitor.check({
+      servedBaciRelease: "V202601",
+      checkedAt: "2027-03-02T00:00:00Z",
+    });
+
+    expect(result.status).toMatchObject({
+      latestKnownBaciRelease: "V202801",
+      newerReleaseDetectedAt: "2027-03-01T00:00:00Z",
+      refreshDueAt: "2027-03-08T00:00:00Z",
+      refreshFailed: true,
+      rollbackActive: false,
+      state: "REFRESH_DELAYED",
+    });
+  });
+
   it("keeps the last accepted status and reports private diagnostics when a check fails", async () => {
     const objectStore = new InMemoryReleaseObjectStore();
     const statuses = new SourceStatusPublisher(objectStore);

@@ -249,14 +249,16 @@ export class VerifiedReleaseRuntime {
       this.deployment.source.baciRelease
     ) {
       throw new Error(
-        "The source-status snapshot does not describe the deployed BACI Release.",
+        "The Source Freshness Status snapshot does not describe the deployed BACI Release.",
       );
     }
     if (
       Date.parse(snapshot.publishedAt) <
       Date.parse(this.sourceStatus.publishedAt)
     ) {
-      throw new Error("The source-status snapshot publication regressed.");
+      throw new Error(
+        "The Source Freshness Status snapshot publication regressed.",
+      );
     }
     const retained = new Map(this.retainedSourceStatuses);
     retained.set(snapshot.sourceStatusSnapshotId, snapshot);

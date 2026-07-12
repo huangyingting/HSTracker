@@ -96,7 +96,7 @@ export class SourceStatusPoller {
   constructor(private readonly input: SourceStatusPollerInput) {
     if (input.fallback.servedBaciRelease !== input.servedBaciRelease) {
       throw new Error(
-        "The source-status fallback does not match the served BACI Release.",
+        "The Source Freshness Status fallback does not match the served BACI Release.",
       );
     }
     this.reader = new SourceStatusReader(input.objectStore);
@@ -175,19 +175,21 @@ export class SourceStatusPoller {
     try {
       const statuses = await this.reader.currentAndRetained();
       if (statuses === null) {
-        throw new Error("No active source-status snapshot is available.");
+        throw new Error(
+          "No active Source Freshness Status snapshot is available.",
+        );
       }
       const published = statuses.current;
       if (
         published.servedBaciRelease !== this.input.servedBaciRelease
       ) {
         throw new Error(
-          "The active source-status snapshot does not match the served BACI Release.",
+          "The active Source Freshness Status snapshot does not match the served BACI Release.",
         );
       }
       if (Date.parse(published.publishedAt) > Date.parse(polledAt)) {
         throw new Error(
-          "The active source-status snapshot is dated in the future.",
+          "The active Source Freshness Status snapshot is dated in the future.",
         );
       }
       if (
@@ -197,7 +199,7 @@ export class SourceStatusPoller {
           Date.parse(this.current.checkedAt)
       ) {
         throw new Error(
-          "The active source-status snapshot regressed in publication time.",
+          "The active Source Freshness Status snapshot regressed in publication time.",
         );
       }
       const changed =

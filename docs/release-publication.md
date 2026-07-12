@@ -16,7 +16,7 @@ reading and hashing it before atomically replacing the current pointer.
 
 Both reports must be accepted, each manifest must match its report byte for
 byte, and every artifact must match its manifest. The analysis and product
-catalog must name the same BACI release, source archive SHA-256, and HS12
+catalog must name the same BACI Release, source archive SHA-256, and HS12
 revision.
 
 ## Object storage
@@ -62,7 +62,8 @@ source-status-pointers/current.json
 
 Only the deployment and source-status `current.json` pointers are mutable. S3
 conditional writes make each pointer activation compare-and-swap. Release
-objects and source-status snapshots are immutable and content-addressed. All
+objects and Source Freshness Status snapshots are immutable and
+content-addressed. All
 immutable writes require the key not to exist and permit only
 identity-equivalent retries. Public deployment metadata contains object keys
 and content identities, never bucket URLs or credentials.
@@ -108,10 +109,13 @@ npm run source:monitor
 
 Every successful check publishes an immutable status snapshot before replacing
 `source-status-pointers/current.json`. A failed check leaves the accepted
-snapshot and deployment untouched. The workflow's `source-monitor` environment
-must provide the write-scoped S3 variables listed above. The pointer retains
-references to prior immutable snapshots across served releases so supported
-export identities remain reproducible after restart or rollback.
+snapshot and deployment untouched. Checks update the latest-known release and
+check time without clearing an active refresh failure or rollback; only a
+completed refresh clears that operational state. The workflow's
+`source-monitor` environment must provide the write-scoped S3 variables listed
+above. The pointer retains references to prior immutable snapshots across
+served releases so supported export identities remain reproducible after
+restart or rollback.
 
 When a newer release is detected, use `npm run release:refresh` rather than the
 low-level promotion command:
@@ -137,7 +141,7 @@ npm run release:refresh -- \
 ```
 
 Pass `--archive` to use an already downloaded BACI ZIP. The command runs source
-staging, builds both accepted candidates, verifies the requested BACI release
+staging, builds both accepted candidates, verifies the requested BACI Release
 before any activation, promotes one exact pairing, and then publishes the
 completed status. Any build or promotion failure keeps the prior pairing active
 and immediately publishes `REFRESH_DELAYED`; private diagnostics go only to the
@@ -171,7 +175,8 @@ process becomes ready. Startup:
    identity;
 4. opens both DuckDB artifacts read-only and loads the economy and product
    search adapters; and
-5. loads the deployment manifest's validated source-status fallback; and
+5. loads the deployment manifest's validated Source Freshness Status fallback;
+   and
 6. runs the manifest-selected maximum-row analysis, product, and economy smoke
    query before installing the runtime.
 
@@ -181,9 +186,10 @@ atomically renames the complete directory into the serving volume. A resident
 pairing is fully reverified before reuse. Failed hydration removes partial
 state and never installs a runtime. Only after all startup smoke checks pass
 does the runtime atomically replace `active-deployment.json` in the volume and
-prune inactive pairing directories. If the deployment pointer cannot be read
-later, this record selects and fully reverifies the last smoke-tested resident
-pairing; an empty or corrupt volume still fails closed.
+prune inactive pairing directories. If object storage becomes unavailable
+while resolving the current deployment later, this record selects and fully
+reverifies the last smoke-tested resident pairing; an empty or corrupt volume
+still fails closed.
 
 After readiness, route handlers use the installed in-process adapters. No
 analysis, product-search, economy, export, current, or health request reads

@@ -138,6 +138,18 @@ export class ReleasePublisher {
         "Accepted candidates do not match the requested BACI Release.",
       );
     }
+    const sourceStatusFallback = parseSourceStatusSnapshot(
+      input.sourceStatusFallback ??
+        bootstrapSourceStatus(analysis, input.activatedAt),
+    );
+    if (
+      sourceStatusFallback.servedBaciRelease !== analysis.baciRelease
+    ) {
+      throw new ReleasePublicationError(
+        "PAIRING_INCOMPATIBLE",
+        "Source Freshness Status does not match the deployment BACI Release.",
+      );
+    }
     if (
       current !== null &&
       candidateMatchesDeployment(analysis, productCatalog, current.deployment)
@@ -165,13 +177,7 @@ export class ReleasePublisher {
       analysisReleaseCatalogSha256:
         analysisPublication.releaseCatalogSha256,
       productSearchBuildId: productCatalog.productSearchBuildId,
-      sourceStatusFallback: parseSourceStatusSnapshot(
-        input.sourceStatusFallback ??
-          bootstrapSourceStatus(
-            analysis,
-            input.activatedAt,
-          ),
-      ),
+      sourceStatusFallback,
       analysis: {
         artifact: analysisPublication.artifact,
         releaseCatalog: analysisPublication.releaseCatalog,
@@ -429,7 +435,7 @@ export class ReleasePublisher {
       )
     ) {
       throw new Error(
-        "Active deployment source-status fallback is incompatible.",
+        "Active deployment Source Freshness Status fallback is incompatible.",
       );
     }
     return {

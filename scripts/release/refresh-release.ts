@@ -140,7 +140,7 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  writeReleaseCommandError("BACI release refresh", error);
+  writeReleaseCommandError("BACI Release refresh", error);
 });
 
 function writePrivateRefreshDiagnostic(

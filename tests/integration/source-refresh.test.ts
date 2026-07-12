@@ -143,7 +143,7 @@ describe("source refresh orchestration", () => {
     ).rejects.toMatchObject({
       name: "SourceRefreshError",
       code: "REFRESH_FAILED",
-      message: "BACI release refresh failed.",
+      message: "BACI Release refresh failed.",
     });
 
     await expect(deployments.current()).resolves.toEqual(initial);
@@ -167,7 +167,7 @@ describe("source refresh orchestration", () => {
     ]);
   });
 
-  it("rejects a build for the wrong BACI release before activation", async () => {
+  it("rejects a build for the wrong BACI Release before activation", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
     const initialCandidate = await writeAcceptedReleaseCandidate(
       join(root, "initial"),

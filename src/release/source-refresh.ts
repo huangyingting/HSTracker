@@ -168,7 +168,7 @@ export class SourceRefreshOrchestrator {
       }
       throw new SourceRefreshError(
         "REFRESH_FAILED",
-        "BACI release refresh failed.",
+        "BACI Release refresh failed.",
         { cause: error },
       );
     }
@@ -203,7 +203,7 @@ export class SourceRefreshOrchestrator {
       });
       throw new SourceRefreshError(
         "REFRESH_STATUS_FAILED",
-        "BACI release was promoted but its Source Freshness Status was not published.",
+        "BACI Release was promoted but its Source Freshness Status was not published.",
         { cause: error },
       );
     }
@@ -231,7 +231,7 @@ export class SourceRefreshOrchestrator {
     return this.reconcileDeploymentStatus(
       deployment,
       currentStatus,
-      "BACI release is active but its Source Freshness Status reconciliation failed.",
+      "BACI Release is active but its Source Freshness Status reconciliation failed.",
     );
   }
 

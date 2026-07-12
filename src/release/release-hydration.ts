@@ -37,6 +37,7 @@ import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import {
   releaseObjectIdentity,
   singleChunk,
+  type ReleaseObject,
   type ReleaseObjectIdentity,
   type ReleaseObjectReader,
 } from "./release-object-store";
@@ -88,150 +89,80 @@ export class ReleaseHydrator {
       /* turbopackIgnore: true */ input.volumePath,
     );
     await makeRuntimeDirectory(volumePath, { recursive: true });
-    let pointer: ActiveDeploymentPointer;
     try {
-      pointer = await this.readPointer();
-    } catch (error) {
-      if (!(error instanceof ActiveDeploymentUnavailableError)) {
-        throw error;
-      }
-      return this.hydrateResidentActivation(volumePath, error);
-    }
-    const deploymentBytes = await this.readVerifiedObject(pointer.current);
-    const deployment = parseDeploymentPairingManifest(
-      JSON.parse(deploymentBytes.toString("utf8")),
-    );
-    if (
-      !sameSourceStatusSnapshot(
-        pointer.sourceStatusFallback,
-        deployment.sourceStatusFallback,
-      )
-    ) {
-      throw new Error(
-        "Active deployment source-status fallback is incompatible.",
+      const pointer = await this.readPointer();
+      const deploymentBytes = await this.readVerifiedObject(pointer.current);
+      const deployment = parseDeploymentPairingManifest(
+        JSON.parse(deploymentBytes.toString("utf8")),
       );
-    }
-    const finalPath = join(
-      /* turbopackIgnore: true */ volumePath,
-      deployment.deploymentPairingId,
-    );
-    if (await exists(finalPath)) {
-      await verifyResidentReleaseBase(
-        finalPath,
-        deployment,
-        deploymentBytes,
+      if (
+        !sameSourceStatusSnapshot(
+          pointer.sourceStatusFallback,
+          deployment.sourceStatusFallback,
+        )
+      ) {
+        throw new Error(
+          "Active deployment Source Freshness Status fallback is incompatible.",
+        );
+      }
+      const finalPath = join(
+        /* turbopackIgnore: true */ volumePath,
+        deployment.deploymentPairingId,
+      );
+      if (await exists(finalPath)) {
+        await verifyResidentReleaseBase(
+          finalPath,
+          deployment,
+          deploymentBytes,
+        );
+        const releaseCatalog = parseAnalysisReleaseCatalog(
+          JSON.parse(
+            await readRuntimeFile(
+              join(
+                /* turbopackIgnore: true */ finalPath,
+                "analysis-release-catalog.json",
+              ),
+              "utf8",
+            ),
+          ),
+        );
+        assertDeploymentReleaseCatalog(deployment, releaseCatalog);
+        await this.ensureResidentPreviousAnalysis(
+          finalPath,
+          releaseCatalog,
+        );
+        return hydratedRelease(
+          finalPath,
+          pointer,
+          deployment,
+          releaseCatalog,
+        );
+      }
+
+      const releaseCatalogBytes = await this.readVerifiedObject(
+        deployment.analysis.releaseCatalog,
       );
       const releaseCatalog = parseAnalysisReleaseCatalog(
-        JSON.parse(
-          await readRuntimeFile(
-            join(
-              /* turbopackIgnore: true */ finalPath,
-              "analysis-release-catalog.json",
-            ),
-            "utf8",
-          ),
-        ),
+        JSON.parse(releaseCatalogBytes.toString("utf8")),
       );
       assertDeploymentReleaseCatalog(deployment, releaseCatalog);
-      await this.ensureResidentPreviousAnalysis(
-        finalPath,
-        releaseCatalog,
+      const partialPath = join(
+        /* turbopackIgnore: true */ volumePath,
+        `.${deployment.deploymentPairingId}-${process.pid}.partial`,
       );
-      return hydratedRelease(
-        finalPath,
-        pointer,
-        deployment,
-        releaseCatalog,
-      );
-    }
-
-    const releaseCatalogBytes = await this.readVerifiedObject(
-      deployment.analysis.releaseCatalog,
-    );
-    const releaseCatalog = parseAnalysisReleaseCatalog(
-      JSON.parse(releaseCatalogBytes.toString("utf8")),
-    );
-    assertDeploymentReleaseCatalog(deployment, releaseCatalog);
-    const partialPath = join(
-      /* turbopackIgnore: true */ volumePath,
-      `.${deployment.deploymentPairingId}-${process.pid}.partial`,
-    );
-    await removeRuntimePath(partialPath, {
-      force: true,
-      recursive: true,
-    });
-    await makeRuntimeDirectory(partialPath);
-    try {
-      const downloads: Promise<void>[] = [
-        this.materializeVerified(
-          volumePath,
-          deployment.analysis.artifact.artifact,
-          join(
-            /* turbopackIgnore: true */ partialPath,
-            "candidate-market.duckdb",
-          ),
-          [
-            "candidate-market.duckdb",
-            "previous-candidate-market.duckdb",
-          ],
-        ),
-        this.materializeVerified(
-          volumePath,
-          deployment.analysis.artifact.manifest,
-          join(
-            /* turbopackIgnore: true */ partialPath,
-            "artifact-manifest.json",
-          ),
-          [
-            "artifact-manifest.json",
-            "previous-artifact-manifest.json",
-          ],
-        ),
-        this.materializeVerified(
-          volumePath,
-          deployment.analysis.releaseCatalog,
-          join(
-            /* turbopackIgnore: true */ partialPath,
-            "analysis-release-catalog.json",
-          ),
-          ["analysis-release-catalog.json"],
-          releaseCatalogBytes,
-        ),
-        this.materializeVerified(
-          volumePath,
-          deployment.productSearch.catalog,
-          join(
-            /* turbopackIgnore: true */ partialPath,
-            "product-catalog.json",
-          ),
-          ["product-catalog.json"],
-        ),
-        this.materializeVerified(
-          volumePath,
-          deployment.productSearch.manifest,
-          join(
-            /* turbopackIgnore: true */ partialPath,
-            "catalog-manifest.json",
-          ),
-          ["catalog-manifest.json"],
-        ),
-        writeVerifiedFile(
-          join(
-            /* turbopackIgnore: true */ partialPath,
-            "deployment-manifest.json",
-          ),
-          singleChunk(deploymentBytes),
-          pointer.current,
-        ),
-      ];
-      if (releaseCatalog.previous !== null) {
-        downloads.push(
+      await removeRuntimePath(partialPath, {
+        force: true,
+        recursive: true,
+      });
+      await makeRuntimeDirectory(partialPath);
+      try {
+        const downloads: Promise<void>[] = [
           this.materializeVerified(
             volumePath,
-            releaseCatalog.previous.artifact,
+            deployment.analysis.artifact.artifact,
             join(
               /* turbopackIgnore: true */ partialPath,
-              "previous-candidate-market.duckdb",
+              "candidate-market.duckdb",
             ),
             [
               "candidate-market.duckdb",
@@ -240,51 +171,120 @@ export class ReleaseHydrator {
           ),
           this.materializeVerified(
             volumePath,
-            releaseCatalog.previous.manifest,
+            deployment.analysis.artifact.manifest,
             join(
               /* turbopackIgnore: true */ partialPath,
-              "previous-artifact-manifest.json",
+              "artifact-manifest.json",
             ),
             [
               "artifact-manifest.json",
               "previous-artifact-manifest.json",
             ],
           ),
-        );
-      }
-      await Promise.all(downloads);
-      await syncDirectory(partialPath);
-      try {
-        await renameRuntimePath(partialPath, finalPath);
-      } catch (error) {
-        if (!(await exists(finalPath))) {
-          throw error;
+          this.materializeVerified(
+            volumePath,
+            deployment.analysis.releaseCatalog,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "analysis-release-catalog.json",
+            ),
+            ["analysis-release-catalog.json"],
+            releaseCatalogBytes,
+          ),
+          this.materializeVerified(
+            volumePath,
+            deployment.productSearch.catalog,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "product-catalog.json",
+            ),
+            ["product-catalog.json"],
+          ),
+          this.materializeVerified(
+            volumePath,
+            deployment.productSearch.manifest,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "catalog-manifest.json",
+            ),
+            ["catalog-manifest.json"],
+          ),
+          writeVerifiedFile(
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "deployment-manifest.json",
+            ),
+            singleChunk(deploymentBytes),
+            pointer.current,
+          ),
+        ];
+        if (releaseCatalog.previous !== null) {
+          downloads.push(
+            this.materializeVerified(
+              volumePath,
+              releaseCatalog.previous.artifact,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "previous-candidate-market.duckdb",
+              ),
+              [
+                "candidate-market.duckdb",
+                "previous-candidate-market.duckdb",
+              ],
+            ),
+            this.materializeVerified(
+              volumePath,
+              releaseCatalog.previous.manifest,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "previous-artifact-manifest.json",
+              ),
+              [
+                "artifact-manifest.json",
+                "previous-artifact-manifest.json",
+              ],
+            ),
+          );
         }
+        await Promise.all(downloads);
+        await syncDirectory(partialPath);
+        try {
+          await renameRuntimePath(partialPath, finalPath);
+        } catch (error) {
+          if (!(await exists(finalPath))) {
+            throw error;
+          }
+          await removeRuntimePath(partialPath, {
+            force: true,
+            recursive: true,
+          });
+          await verifyResidentReleaseBase(
+            finalPath,
+            deployment,
+            deploymentBytes,
+          );
+          await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
+        }
+        await syncDirectory(volumePath);
+      } catch (error) {
         await removeRuntimePath(partialPath, {
           force: true,
           recursive: true,
         });
-        await verifyResidentReleaseBase(
-          finalPath,
-          deployment,
-          deploymentBytes,
-        );
-        await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
+        throw error;
       }
-      await syncDirectory(volumePath);
+      return hydratedRelease(
+        finalPath,
+        pointer,
+        deployment,
+        releaseCatalog,
+      );
     } catch (error) {
-      await removeRuntimePath(partialPath, {
-        force: true,
-        recursive: true,
-      });
-      throw error;
+      if (!(error instanceof ActiveDeploymentUnavailableError)) {
+        throw error;
+      }
+      return this.hydrateResidentActivation(volumePath, error);
     }
-    return hydratedRelease(
-      finalPath,
-      pointer,
-      deployment,
-      releaseCatalog,
-    );
   }
 
   async commitResidentActivation(
@@ -327,22 +327,19 @@ export class ReleaseHydrator {
   }
 
   private async readPointer(): Promise<ActiveDeploymentPointer> {
-    let stored: Awaited<
-      ReturnType<ReleaseObjectReader["getObject"]>
-    >;
-    try {
-      stored = await this.objectStore.getObject(
-        ACTIVE_DEPLOYMENT_POINTER_KEY,
-      );
-    } catch (error) {
-      throw new ActiveDeploymentUnavailableError({ cause: error });
-    }
+    const stored = await this.readRemoteObject(
+      ACTIVE_DEPLOYMENT_POINTER_KEY,
+    );
     if (stored === null) {
       throw new ActiveDeploymentUnavailableError();
     }
     return parseActiveDeploymentPointer(
       JSON.parse(
-        (await readReleaseMetadata(stored.body)).toString("utf8"),
+        (
+          await readReleaseMetadata(
+            deploymentAvailabilityStream(stored.body),
+          )
+        ).toString("utf8"),
       ),
     );
   }
@@ -431,11 +428,13 @@ export class ReleaseHydrator {
   private async readVerifiedObject(
     reference: ReleaseObjectReference,
   ): Promise<Buffer> {
-    const stored = await this.objectStore.getObject(reference.key);
+    const stored = await this.readRemoteObject(reference.key);
     if (stored === null) {
       throw new Error("A deployment object is unavailable.");
     }
-    const bytes = await readReleaseMetadata(stored.body);
+    const bytes = await readReleaseMetadata(
+      deploymentAvailabilityStream(stored.body),
+    );
     verifyIdentity(releaseObjectIdentity(bytes), reference);
     return bytes;
   }
@@ -444,11 +443,25 @@ export class ReleaseHydrator {
     reference: ReleaseObjectReference,
     path: string,
   ): Promise<void> {
-    const stored = await this.objectStore.getObject(reference.key);
+    const stored = await this.readRemoteObject(reference.key);
     if (stored === null) {
       throw new Error("A deployment object is unavailable.");
     }
-    await writeVerifiedFile(path, stored.body, reference);
+    await writeVerifiedFile(
+      path,
+      deploymentAvailabilityStream(stored.body),
+      reference,
+    );
+  }
+
+  private async readRemoteObject(
+    key: string,
+  ): Promise<ReleaseObject | null> {
+    try {
+      return await this.objectStore.getObject(key);
+    } catch (error) {
+      throw new ActiveDeploymentUnavailableError({ cause: error });
+    }
   }
 
   private async materializeVerified(
@@ -817,6 +830,18 @@ function parseResidentActivation(
     );
   }
   return pointer;
+}
+
+async function* deploymentAvailabilityStream(
+  body: AsyncIterable<Uint8Array>,
+): AsyncIterable<Uint8Array> {
+  try {
+    for await (const chunk of body) {
+      yield chunk;
+    }
+  } catch (error) {
+    throw new ActiveDeploymentUnavailableError({ cause: error });
+  }
 }
 
 class ActiveDeploymentUnavailableError extends Error {

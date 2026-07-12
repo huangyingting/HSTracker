@@ -100,7 +100,7 @@ export function parseActiveDeploymentPointer(
         : objectReference(pointer.previous, "previous deployment"),
     sourceStatusFallback: parseSourceStatusSnapshot(
       pointer.sourceStatusFallback,
-      "active deployment source-status fallback",
+      "active deployment Source Freshness Status fallback",
     ),
     activatedAt: utcTimestamp(pointer.activatedAt, "pointer activatedAt"),
   };
@@ -150,7 +150,7 @@ export function parseDeploymentPairingManifest(
     ),
     sourceStatusFallback: parseSourceStatusSnapshot(
       deployment.sourceStatusFallback,
-      "deployment source-status fallback",
+      "deployment Source Freshness Status fallback",
     ),
     analysis: {
       artifact: analysisArtifactReference(
@@ -170,7 +170,7 @@ export function parseDeploymentPairingManifest(
 
 export function parseSourceStatusSnapshot(
   value: unknown,
-  label = "source-status snapshot",
+  label = "Source Freshness Status snapshot",
 ): SourceStatusSnapshot {
   const snapshot = record(value, label);
   if (snapshot.schemaVersion !== "source-status-v1") {
