@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "production-deployment-check-v1",
+  "evaluatedAt": "2026-07-12T15:01:01Z",
+  "status": "accepted",
+  "evidence": {
+    "image": {
+      "reference": "hs-tracker:bf193ce",
+      "imageId": "sha256:18ac4b50cb44da05dd4154d950f103e51d52786bc789344f2ab285232bb5d295",
+      "compressedBytes": 115084849,
+      "compressedSizeMeasurement": "docker-image-save-gzip-v1",
+      "nodeVersion": "24.17.0",
+      "nativeDuckDb": "loaded",
+      "nativeBindingPath": "/app/node_modules/@duckdb/node-bindings-linux-x64/duckdb.node",
+      "codeOnly": true
+    },
+    "artifact": {
+      "reportSha256": "8aad55931017d95aedb674b0aa241dafcf3762cbff40eec9a34598523e3bb474",
+      "bytes": 1002975232
+    },
+    "catalog": {
+      "reportSha256": "9bce817d4a26ab34635982df5222884f894c5296991b6a0e23eb1a3adfadb263",
+      "residentBytes": 5153712
+    },
+    "volume": {
+      "observationClass": "projected",
+      "capacityBytes": 53687091200,
+      "freeBytesAtPeak": 46383198208,
+      "freeBytesAfterActivation": 51675987024
+    },
+    "cost": {
+      "forecastSha256": "17fc6c20d023f6fb4ebd1455d6dfc7406036e7ca257b14374e515af9f3546cdd",
+      "checkedAt": "2026-07-12T00:00:00Z",
+      "forecastMonthlyUsd": 25.14
+    }
+  },
+  "gates": {
+    "image": {
+      "measuredBytes": 115084849,
+      "limitBytes": 524288000,
+      "status": "accepted"
+    },
+    "artifact": {
+      "measuredBytes": 1002975232,
+      "targetBytes": 8589934592,
+      "limitBytes": 10737418240,
+      "status": "accepted"
+    },
+    "catalog": {
+      "measuredResidentBytes": 5153712,
+      "limitBytes": 33554432,
+      "status": "accepted"
+    },
+    "volume": {
+      "capacityBytes": 53687091200,
+      "minimumCapacityBytes": 53687091200,
+      "requiredCapacityBytes": 9738523990,
+      "freeBytesAtPeak": 46383198208,
+      "freeFractionAtPeak": 0.8639543914794922,
+      "freeBytesAfterActivation": 51675987024,
+      "freeFractionAfterActivation": 0.9625402656197548,
+      "warningFreeFraction": 0.3,
+      "minimumFreeFraction": 0.25,
+      "status": "accepted"
+    },
+    "cost": {
+      "forecastUsd": 25.14,
+      "targetUsd": 40,
+      "reviewThresholdUsd": 50,
+      "architectureDecision": null,
+      "status": "accepted"
+    }
+  }
+}

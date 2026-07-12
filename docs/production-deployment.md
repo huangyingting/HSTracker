@@ -79,6 +79,11 @@ npm run deployment:check -- \
   --evaluated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
+The reviewed implementation commit `bf193ce4d2280182bff49b8f2b7a7effd6a69c9e`
+has retained [local package-gate evidence](../reports/deployment/bf193ce.local-package-gates.json).
+Its volume observations are projected and do not substitute for candidate Fly
+deployment evidence.
+
 `deployment/cost-forecast.json` was checked against live provider pricing on
 2026-07-12. Its Singapore baseline is USD 25.14/month, below the USD 40 target.
 Refresh every provider price and assumption before initial deployment and each
