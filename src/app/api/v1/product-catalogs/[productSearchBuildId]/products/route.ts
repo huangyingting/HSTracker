@@ -1,11 +1,25 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import {
   invalidProductSearchQuery,
   isProductCatalogError,
 } from "../../../../../../catalog/product-catalog-errors";
 import type { ProductSearchLocale } from "../../../../../../catalog/product-catalog";
-import { getApplicationRuntime } from "../../../../../../runtime/application-runtime";
+import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
+import { withoutResponseBody } from "../../../../../../http/response";
+import {
+  getApplicationRuntime,
+  type ApplicationRuntime,
+} from "../../../../../../runtime/application-runtime";
+import {
+  createRequestDeadline,
+  isRequestDeadlineExceededError,
+  ROUTE_DEADLINE_MS,
+} from "../../../../../../runtime/request-deadline";
+import {
+  measureRuntimeRequest,
+  type RuntimeRequestMeasurement,
+} from "../../../../../../runtime/runtime-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,15 +52,52 @@ async function respond(
   context: ProductCatalogRouteContext,
   headOnly: boolean,
 ): Promise<Response> {
+  const applicationRuntime = getApplicationRuntime();
+  return measureRuntimeRequest(
+    applicationRuntime,
+    "product-search",
+    async (measurement) => {
+      const response = await respondMeasured(
+        request,
+        context,
+        headOnly,
+        applicationRuntime,
+        measurement,
+      );
+      return headOnly ? withoutResponseBody(response) : response;
+    },
+  );
+}
+
+async function respondMeasured(
+  request: Request,
+  context: ProductCatalogRouteContext,
+  headOnly: boolean,
+  applicationRuntime: ApplicationRuntime,
+  measurement: RuntimeRequestMeasurement,
+): Promise<Response> {
+  const deadline = createRequestDeadline(
+    request.signal,
+    ROUTE_DEADLINE_MS.search,
+  );
   try {
     const url = new URL(request.url);
     const searchQuery = parseSearchParameters(url.searchParams);
     const { productSearchBuildId } = await context.params;
-    const result = await getApplicationRuntime().searchProducts({
-      productSearchBuildId,
-      ...searchQuery,
-    });
-    const body = JSON.stringify(result);
+    const result = await applicationRuntime.searchProducts(
+      {
+        productSearchBuildId,
+        ...searchQuery,
+      },
+      {
+        signal: deadline.signal,
+        observe: measurement.observeOperation,
+      },
+    );
+    const body = measurement.measureSerialization(
+      () => JSON.stringify(result),
+      (serialized) => new TextEncoder().encode(serialized).byteLength,
+    );
     const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
     const headers = {
       "Cache-Control": IMMUTABLE_CACHE_CONTROL,
@@ -64,6 +115,13 @@ async function respond(
       headers,
     });
   } catch (error) {
+    if (isRequestDeadlineExceededError(error)) {
+      return errorResponse(
+        error.status,
+        error.code,
+        error.publicMessage,
+      );
+    }
     if (isProductCatalogError(error)) {
       return errorResponse(
         error.status,
@@ -72,7 +130,7 @@ async function respond(
       );
     }
 
-    const correlationId = randomUUID();
+    const correlationId = measurement.correlationId;
     console.error("Product Catalog request failed", {
       correlationId,
       error,
@@ -83,27 +141,9 @@ async function respond(
       "Product search could not be completed.",
       correlationId,
     );
+  } finally {
+    deadline.dispose();
   }
-}
-
-function matchesIfNoneMatch(
-  ifNoneMatch: string | null,
-  representationEtag: string,
-): boolean {
-  if (ifNoneMatch === null) {
-    return false;
-  }
-  if (ifNoneMatch.trim() === "*") {
-    return true;
-  }
-
-  const target = /^(?:W\/)?"([^"]*)"$/u.exec(representationEtag)?.[1];
-  if (target === undefined) {
-    return false;
-  }
-
-  return [...ifNoneMatch.matchAll(/(?:^|,)\s*(?:W\/)?"([^"]*)"\s*(?=,|$)/gu)]
-    .some((match) => match[1] === target);
 }
 
 function parseSearchParameters(searchParameters: URLSearchParams): {

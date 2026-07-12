@@ -9,12 +9,17 @@ import {
   ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
   PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS,
 } from "../../test/fixtures/acceptance/v1/metadata";
+import {
+  createFixtureApplicationRuntime,
+  installApplicationRuntime,
+} from "../../src/runtime/application-runtime";
 
 const routeContext = (productSearchBuildId: string) => ({
   params: Promise.resolve({ productSearchBuildId }),
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -105,6 +110,46 @@ describe("versioned Product Catalog route", () => {
 
     expect(response.status).toBe(304);
     expect(await response.text()).toBe("");
+  });
+
+  it("cancels product search at the two-second route deadline", async () => {
+    vi.useFakeTimers();
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      searchProducts(_query, options) {
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () => reject(options.signal?.reason),
+            { once: true },
+          );
+        });
+      },
+    });
+    const build = ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core;
+
+    try {
+      let response: Response | undefined;
+      const pending = GET(
+        new Request(
+          `http://localhost/api/v1/product-catalogs/${build}/products?q=horse&locale=en&limit=20`,
+        ),
+        routeContext(build),
+      ).then((value) => {
+        response = value;
+      });
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      expect(response).toBeDefined();
+      await pending;
+      expect(response?.status).toBe(503);
+      await expect(response?.json()).resolves.toMatchObject({
+        error: { code: "REQUEST_DEADLINE_EXCEEDED" },
+      });
+    } finally {
+      restore();
+    }
   });
 
   it.each(PRODUCT_CATALOG_ROUTE_ERROR_CASES)(

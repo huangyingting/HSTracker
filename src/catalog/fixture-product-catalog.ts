@@ -19,6 +19,7 @@ import {
   indexProductSearchCatalog,
   searchProductIndex,
 } from "./product-search";
+import { normalizeProductSearchQuery } from "./product-search-normalization";
 import { validateProductSearchQuery } from "./validate-product-search-query";
 
 const products: readonly ProductSearchProduct[] =
@@ -43,6 +44,13 @@ const searchIndex = indexProductSearchCatalog(
 );
 
 class FixtureProductCatalog implements ProductCatalog {
+  normalizeQuery(query: string): string {
+    return normalizeProductSearchQuery(
+      query,
+      ACCEPTANCE_TRADITIONAL_TO_SIMPLIFIED,
+    );
+  }
+
   async search(
     query: Parameters<ProductCatalog["search"]>[0],
   ): Promise<ProductSearchResult> {

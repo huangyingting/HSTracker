@@ -1,10 +1,25 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import {
   invalidAnalysisQuery,
   isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
-import { getApplicationRuntime } from "../../../../../../runtime/application-runtime";
+import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
+import { withoutResponseBody } from "../../../../../../http/response";
+import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
+import {
+  getApplicationRuntime,
+  type ApplicationRuntime,
+} from "../../../../../../runtime/application-runtime";
+import {
+  createRequestDeadline,
+  isRequestDeadlineExceededError,
+  ROUTE_DEADLINE_MS,
+} from "../../../../../../runtime/request-deadline";
+import {
+  measureRuntimeRequest,
+  type RuntimeRequestMeasurement,
+} from "../../../../../../runtime/runtime-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,16 +52,53 @@ async function respond(
   context: CandidateMarketRouteContext,
   headOnly: boolean,
 ): Promise<Response> {
+  const applicationRuntime = getApplicationRuntime();
+  return measureRuntimeRequest(
+    applicationRuntime,
+    "candidate-market",
+    async (measurement) => {
+      const response = await respondMeasured(
+        request,
+        context,
+        headOnly,
+        applicationRuntime,
+        measurement,
+      );
+      return headOnly ? withoutResponseBody(response) : response;
+    },
+  );
+}
+
+async function respondMeasured(
+  request: Request,
+  context: CandidateMarketRouteContext,
+  headOnly: boolean,
+  applicationRuntime: ApplicationRuntime,
+  measurement: RuntimeRequestMeasurement,
+): Promise<Response> {
+  const deadline = createRequestDeadline(
+    request.signal,
+    ROUTE_DEADLINE_MS.candidateMarket,
+  );
   try {
     const url = new URL(request.url);
     validateSearchParameters(url.searchParams);
     const { analysisBuildId } = await context.params;
-    const result = await getApplicationRuntime().analyze({
-      analysisBuildId,
-      exporterCode: url.searchParams.get("exporter") ?? "",
-      productCode: url.searchParams.get("product") ?? "",
-    });
-    const body = JSON.stringify(result);
+    const result = await applicationRuntime.analyze(
+      {
+        analysisBuildId,
+        exporterCode: url.searchParams.get("exporter") ?? "",
+        productCode: url.searchParams.get("product") ?? "",
+      },
+      {
+        signal: deadline.signal,
+        observe: measurement.observeOperation,
+      },
+    );
+    const body = measurement.measureSerialization(
+      () => JSON.stringify(result),
+      (serialized) => new TextEncoder().encode(serialized).byteLength,
+    );
     const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
     const headers = {
       "Cache-Control": IMMUTABLE_CACHE_CONTROL,
@@ -55,7 +107,7 @@ async function respond(
       Vary: "Accept-Encoding",
     };
 
-    if (request.headers.get("if-none-match") === etag) {
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
       return new Response(null, { status: 304, headers });
     }
 
@@ -64,6 +116,22 @@ async function respond(
       headers,
     });
   } catch (error) {
+    if (isRequestDeadlineExceededError(error)) {
+      return errorResponse(
+        error.status,
+        error.code,
+        error.publicMessage,
+      );
+    }
+    if (isAnalysisCapacityExceededError(error)) {
+      return errorResponse(
+        error.status,
+        error.code,
+        error.publicMessage,
+        undefined,
+        { "Retry-After": String(error.retryAfterSeconds) },
+      );
+    }
     if (isCandidateMarketAnalysisError(error)) {
       return errorResponse(
         error.status,
@@ -72,7 +140,7 @@ async function respond(
       );
     }
 
-    const correlationId = randomUUID();
+    const correlationId = measurement.correlationId;
     console.error("Candidate Market analysis request failed", {
       correlationId,
       error,
@@ -83,6 +151,8 @@ async function respond(
       "Candidate Market analysis could not be completed.",
       correlationId,
     );
+  } finally {
+    deadline.dispose();
   }
 }
 
@@ -105,6 +175,7 @@ function errorResponse(
   code: string,
   message: string,
   correlationId?: string,
+  additionalHeaders: Record<string, string> = {},
 ): Response {
   return new Response(
     JSON.stringify({
@@ -119,6 +190,7 @@ function errorResponse(
       headers: {
         "Cache-Control": "no-store",
         "Content-Type": "application/json; charset=utf-8",
+        ...additionalHeaders,
       },
     },
   );

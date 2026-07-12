@@ -57,8 +57,13 @@ export type CmsV1Inputs = {
   }[];
 };
 
+export type TradeEvidenceLoadOptions = Readonly<{
+  signal?: AbortSignal;
+}>;
+
 export interface TradeEvidenceSource {
   loadCmsV1Inputs(
     query: CandidateMarketAnalysisQuery,
+    options?: TradeEvidenceLoadOptions,
   ): Promise<CmsV1Inputs>;
 }

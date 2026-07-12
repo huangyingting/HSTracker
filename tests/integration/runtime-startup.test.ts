@@ -35,6 +35,26 @@ afterEach(async () => {
 });
 
 describe("Next.js runtime startup", () => {
+  it("installs bounded execution in fixture mode", async () => {
+    const started = await startApplicationRuntime({
+      environment: {
+        NODE_ENV: "test",
+        HS_TRACKER_RUNTIME_MODE: "fixture",
+      },
+    });
+    stops.push(started.stop);
+    const query = {
+      analysisBuildId: "acceptance-fixtures-v1",
+      exporterCode: "156",
+      productCode: "010121",
+    };
+
+    const first = await started.runtime.analyze(query);
+    const second = await started.runtime.analyze(query);
+
+    expect(second).toBe(first);
+  });
+
   it("installs the release runtime only after hydration and smoke validation", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
     temporaryDirectories.push(root);

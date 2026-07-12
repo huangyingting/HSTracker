@@ -12,6 +12,18 @@ import {
   resolveFixtureExportFreshnessStatus,
 } from "../release/fixture-current-analysis";
 
+export type RuntimeRequestOptions = Readonly<{
+  signal?: AbortSignal;
+  observe?: (observation: RuntimeOperationObservation) => void;
+}>;
+
+export type RuntimeOperationObservation = Readonly<{
+  cacheState: "hit" | "coalesced" | "miss";
+  queueWaitMs: number | null;
+  queryMs: number | null;
+  resultBytes: number;
+}>;
+
 export interface ApplicationRuntime {
   currentAnalysis(): CurrentAnalysisManifest;
   currentAnalysisSnapshot(): {
@@ -21,14 +33,18 @@ export interface ApplicationRuntime {
   resolveFreshnessStatus(
     freshnessStatusId: string,
   ): EffectiveSourceFreshness | null;
+  normalizeProductSearchQuery(query: string): string;
   analyze(
     query: Parameters<CandidateMarketAnalysis["analyze"]>[0],
+    options?: RuntimeRequestOptions,
   ): ReturnType<CandidateMarketAnalysis["analyze"]>;
   searchProducts(
     query: Parameters<ProductCatalog["search"]>[0],
+    options?: RuntimeRequestOptions,
   ): ReturnType<ProductCatalog["search"]>;
   searchEconomies(
     query: Parameters<EconomyDirectory["search"]>[0],
+    options?: RuntimeRequestOptions,
   ): ReturnType<EconomyDirectory["search"]>;
   health(buildId: string): object;
 }
@@ -87,6 +103,9 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
       };
     },
     resolveFreshnessStatus: resolveFixtureExportFreshnessStatus,
+    normalizeProductSearchQuery: productCatalog.normalizeQuery.bind(
+      productCatalog,
+    ),
     analyze: analysis.analyze.bind(analysis),
     searchProducts: productCatalog.search.bind(productCatalog),
     searchEconomies: economyDirectory.search.bind(economyDirectory),

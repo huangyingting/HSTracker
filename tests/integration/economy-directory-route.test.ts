@@ -9,12 +9,17 @@ import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   FIXTURE_ADAPTER_TEST_BUILD_IDS,
 } from "../../test/fixtures/acceptance/v1/metadata";
+import {
+  createFixtureApplicationRuntime,
+  installApplicationRuntime,
+} from "../../src/runtime/application-runtime";
 
 const routeContext = (analysisBuildId: string) => ({
   params: Promise.resolve({ analysisBuildId }),
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -84,6 +89,46 @@ describe("versioned Economy Directory route", () => {
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
     expect(head.headers.get("etag")).toBe(first.headers.get("etag"));
+  });
+
+  it("cancels economy search at the two-second route deadline", async () => {
+    vi.useFakeTimers();
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      searchEconomies(_query, options) {
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () => reject(options.signal?.reason),
+            { once: true },
+          );
+        });
+      },
+    });
+    const build = ACCEPTANCE_FIXTURE_BUILD_IDS.core;
+
+    try {
+      let response: Response | undefined;
+      const pending = GET(
+        new Request(
+          `http://localhost/api/v1/analyses/${build}/economies?q=china`,
+        ),
+        routeContext(build),
+      ).then((value) => {
+        response = value;
+      });
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      expect(response).toBeDefined();
+      await pending;
+      expect(response?.status).toBe(503);
+      await expect(response?.json()).resolves.toMatchObject({
+        error: { code: "REQUEST_DEADLINE_EXCEEDED" },
+      });
+    } finally {
+      restore();
+    }
   });
 
   it.each([

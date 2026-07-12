@@ -4,6 +4,7 @@ import {
   GET,
   HEAD,
 } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets.csv/route";
+import { GET as getCandidateMarkets } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
 import { resolveCurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
 import {
   FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
@@ -11,6 +12,12 @@ import {
   FIXTURE_RELEASE_INCOMPATIBLE_FRESHNESS_STATUS,
   FIXTURE_SOURCE_STATUS_SNAPSHOT,
 } from "../../src/release/fixture-current-analysis";
+import {
+  createFixtureApplicationRuntime,
+  installApplicationRuntime,
+} from "../../src/runtime/application-runtime";
+import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
+import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 
 const manifest = resolveCurrentAnalysisManifest(
   FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
@@ -85,6 +92,105 @@ describe("versioned Candidate Market CSV route", () => {
     expect(body).toContain('"EMPTY_ANALYSIS"');
     expect(body).toContain('"NO_ELIGIBLE_CANDIDATES_IN_SCORE_WINDOW"');
     expect(body).toContain('"蜂窝网络或其他无线网络用电话机"');
+  });
+
+  it("reuses the JSON Candidate Market computation for CSV serialization", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime({
+      ...fixture,
+      async analyze(query, options) {
+        computations += 1;
+        return fixture.analyze(query, options);
+      },
+    });
+    const restore = installApplicationRuntime(runtime);
+
+    try {
+      const json = await getCandidateMarkets(
+        new Request(
+          `http://localhost/api/v1/analyses/${manifest.analysisBuildId}/candidate-markets?exporter=156&product=010121`,
+        ),
+        routeContext(manifest.analysisBuildId),
+      );
+      const csv = await GET(
+        new Request(exportUrl()),
+        routeContext(manifest.analysisBuildId),
+      );
+
+      expect(json.status).toBe(200);
+      expect(csv.status).toBe(200);
+      expect(computations).toBe(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("returns the exact retryable response when export analysis capacity is exhausted", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      async analyze() {
+        throw new AnalysisCapacityExceededError("queue-timeout");
+      },
+    });
+
+    try {
+      const response = await GET(
+        new Request(exportUrl()),
+        routeContext(manifest.analysisBuildId),
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("retry-after")).toBe("2");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "ANALYSIS_CAPACITY_EXCEEDED",
+          message: "Candidate Market analysis is temporarily at capacity.",
+        },
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("cancels export work at the fifteen-second route deadline", async () => {
+    vi.useFakeTimers();
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      analyze(_query, options) {
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () => reject(options.signal?.reason),
+            { once: true },
+          );
+        });
+      },
+    });
+
+    try {
+      let response: Response | undefined;
+      const pending = GET(
+        new Request(exportUrl()),
+        routeContext(manifest.analysisBuildId),
+      ).then((value) => {
+        response = value;
+      });
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      expect(response).toBeDefined();
+      await pending;
+      expect(response?.status).toBe(503);
+      await expect(response?.json()).resolves.toMatchObject({
+        error: { code: "REQUEST_DEADLINE_EXCEEDED" },
+      });
+    } finally {
+      restore();
+      vi.useRealTimers();
+    }
   });
 
   it.each([

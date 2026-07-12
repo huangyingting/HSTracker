@@ -15,6 +15,7 @@ import {
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
+import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
 import {
   contentAddressedId,
@@ -26,6 +27,8 @@ import {
 } from "../release/release-hydration";
 import type { ReleaseObjectReader } from "../release/release-object-store";
 import { readRuntimeFile } from "../runtime-file-access";
+import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
+import type { RuntimeRequestOptions } from "./application-runtime";
 
 type VerifiedReleaseRuntimeInput = {
   objectStore: ReleaseObjectReader;
@@ -40,7 +43,7 @@ export class VerifiedReleaseRuntime {
     private readonly previousManifest: AnalysisArtifactManifest | null,
     private readonly deployment: CurrentAnalysisDeployment,
     private readonly sourceStatus: SourceStatusSnapshot,
-    private readonly analysisSources: readonly DuckDbTradeEvidenceSource[],
+    private readonly analysisDatabase: DuckDbAnalysisDatabase,
     private readonly analysis: CandidateMarketAnalysis,
     private readonly productCatalog: ProductCatalog,
     private readonly economyDirectory: EconomyDirectory,
@@ -73,28 +76,35 @@ export class VerifiedReleaseRuntime {
       catalogManifest,
     );
 
-    const analysisSources: DuckDbTradeEvidenceSource[] = [];
+    let analysisDatabase: DuckDbAnalysisDatabase | undefined;
     try {
-      const analysisSource = await DuckDbTradeEvidenceSource.open({
+      analysisDatabase = await DuckDbAnalysisDatabase.open({
+        currentArtifactPath: hydrated.analysisArtifactPath,
+        previousArtifactPath:
+          hydrated.previousAnalysis?.artifactPath ?? null,
+        servingVolumePath: input.volumePath,
+      });
+      const analysisSource = await DuckDbTradeEvidenceSource.openShared({
+        database: analysisDatabase,
+        databaseName: "current",
         artifactPath: hydrated.analysisArtifactPath,
         artifactManifestPath: hydrated.analysisArtifactManifestPath,
         analysisBuildId: hydrated.deployment.analysisBuildId,
         analysisReleaseCatalogSha256:
           hydrated.deployment.analysisReleaseCatalogSha256,
       });
-      analysisSources.push(analysisSource);
       const previousRelease = await openPreviousRelease(
         hydrated,
         previousManifest,
-        analysisSources,
+        analysisDatabase,
       );
       const [productCatalog, economyDirectory] = await Promise.all([
         ImmutableProductCatalog.open({
           catalogPath: hydrated.productCatalogPath,
           catalogManifestPath: hydrated.productCatalogManifestPath,
         }),
-        DuckDbEconomyDirectory.load({
-          artifactPath: hydrated.analysisArtifactPath,
+        DuckDbEconomyDirectory.loadShared({
+          database: analysisDatabase,
           analysisBuildId: hydrated.deployment.analysisBuildId,
         }),
       ]);
@@ -118,22 +128,21 @@ export class VerifiedReleaseRuntime {
         hydrated,
         manifest,
       );
+      assertStatusMicroCacheBudget(deployment, sourceStatus);
       return new VerifiedReleaseRuntime(
         hydrated,
         manifest,
         previousManifest,
         deployment,
         sourceStatus,
-        analysisSources,
+        analysisDatabase,
         analysis,
         productCatalog,
         economyDirectory,
         input.now ?? currentUtcSecond,
       );
     } catch (error) {
-      for (const source of analysisSources) {
-        source.close();
-      }
+      analysisDatabase?.close();
       throw error;
     }
   }
@@ -201,24 +210,50 @@ export class VerifiedReleaseRuntime {
       : null;
   }
 
-  analyze(
-    query: Parameters<CandidateMarketAnalysis["analyze"]>[0],
-  ) {
-    return this.analysis.analyze(query);
+  normalizeProductSearchQuery(query: string): string {
+    return this.productCatalog.normalizeQuery(query);
   }
 
-  searchProducts(query: Parameters<ProductCatalog["search"]>[0]) {
+  analyze(
+    query: Parameters<CandidateMarketAnalysis["analyze"]>[0],
+    options?: RuntimeRequestOptions,
+  ) {
+    return this.analysis.analyze(query, options);
+  }
+
+  searchProducts(
+    query: Parameters<ProductCatalog["search"]>[0],
+    options?: RuntimeRequestOptions,
+  ) {
+    options?.signal?.throwIfAborted();
     return this.productCatalog.search(query);
   }
 
-  searchEconomies(query: Parameters<EconomyDirectory["search"]>[0]) {
+  searchEconomies(
+    query: Parameters<EconomyDirectory["search"]>[0],
+    options?: RuntimeRequestOptions,
+  ) {
+    options?.signal?.throwIfAborted();
     return this.economyDirectory.search(query);
   }
 
   close(): void {
-    for (const source of this.analysisSources) {
-      source.close();
-    }
+    this.analysisDatabase.close();
+  }
+}
+
+function assertStatusMicroCacheBudget(
+  deployment: CurrentAnalysisDeployment,
+  sourceStatus: SourceStatusSnapshot,
+): void {
+  const bytes =
+    new TextEncoder().encode(
+      JSON.stringify({ deployment, sourceStatus }),
+    ).byteLength + 1_024;
+  if (bytes > RUNTIME_RESOURCE_POLICY.statusMicroCacheMaxBytes) {
+    throw new Error(
+      "The effective manifest/status micro-cache exceeds its byte cap.",
+    );
   }
 }
 
@@ -305,12 +340,14 @@ if (
 async function openPreviousRelease(
 hydrated: HydratedRelease,
 manifest: AnalysisArtifactManifest | null,
-openedSources: DuckDbTradeEvidenceSource[],
+database: DuckDbAnalysisDatabase,
 ): Promise<PreviousReleaseEvidence | null> {
 if (hydrated.previousAnalysis === null || manifest === null) {
   return null;
 }
-const source = await DuckDbTradeEvidenceSource.open({
+const source = await DuckDbTradeEvidenceSource.openShared({
+  database,
+  databaseName: "previous",
   artifactPath: hydrated.previousAnalysis.artifactPath,
   artifactManifestPath:
     hydrated.previousAnalysis.artifactManifestPath,
@@ -318,7 +355,6 @@ const source = await DuckDbTradeEvidenceSource.open({
   analysisReleaseCatalogSha256:
     hydrated.deployment.analysisReleaseCatalogSha256,
 });
-openedSources.push(source);
 return {
   source,
   baciRelease: manifest.baciRelease,

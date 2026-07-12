@@ -11,8 +11,15 @@ import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
 import type { ReleaseRevisionPreviousArtifact } from "../release/release-revision";
 
 export interface CandidateMarketAnalysis {
-  analyze(query: CandidateMarketAnalysisQuery): Promise<CandidateMarketResult>;
+  analyze(
+    query: CandidateMarketAnalysisQuery,
+    options?: CandidateMarketAnalysisOptions,
+  ): Promise<CandidateMarketResult>;
 }
+
+export type CandidateMarketAnalysisOptions = Readonly<{
+  signal?: AbortSignal;
+}>;
 
 export type PreviousReleaseEvidence = {
   source: TradeEvidenceSource;
@@ -30,9 +37,12 @@ export class CmsV1CandidateMarketAnalysis implements CandidateMarketAnalysis {
 
   async analyze(
     query: CandidateMarketAnalysisQuery,
+    options?: CandidateMarketAnalysisOptions,
   ): Promise<CandidateMarketResult> {
-    validateQuery(query);
-    const inputs = await this.evidenceSource.loadCmsV1Inputs(query);
+    validateCandidateMarketAnalysisQuery(query);
+    options?.signal?.throwIfAborted();
+    const inputs = await this.evidenceSource.loadCmsV1Inputs(query, options);
+    options?.signal?.throwIfAborted();
     const previousArtifact =
       this.previousRelease === null
         ? null
@@ -46,7 +56,9 @@ export class CmsV1CandidateMarketAnalysis implements CandidateMarketAnalysis {
               query,
               inputs.release.finalizedCutoffYear,
               this.previousRelease,
+              options,
             );
+    options?.signal?.throwIfAborted();
     return computeCmsV1(inputs, previousArtifact);
   }
 }
@@ -73,6 +85,7 @@ async function loadPreviousArtifact(
   query: CandidateMarketAnalysisQuery,
   currentFinalizedCutoffYear: number,
   previous: PreviousReleaseEvidence,
+  options?: CandidateMarketAnalysisOptions,
 ): Promise<ReleaseRevisionPreviousArtifact> {
   const scoreWindow = {
     start: currentFinalizedCutoffYear - 4,
@@ -81,7 +94,7 @@ async function loadPreviousArtifact(
   let recomputedCandidates: ReleaseRevisionPreviousArtifact["recomputedCandidates"] =
     [];
   try {
-    const inputs = await previous.source.loadCmsV1Inputs(query);
+    const inputs = await previous.source.loadCmsV1Inputs(query, options);
     if (
       inputs.release.baciRelease !== previous.baciRelease ||
       inputs.release.hsRevision !== previous.hsRevision ||
@@ -129,7 +142,9 @@ async function loadPreviousArtifact(
   };
 }
 
-function validateQuery(query: CandidateMarketAnalysisQuery) {
+export function validateCandidateMarketAnalysisQuery(
+  query: CandidateMarketAnalysisQuery,
+): void {
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/i.test(query.analysisBuildId)) {
     throw invalidAnalysisQuery("analysisBuildId is malformed.");
   }

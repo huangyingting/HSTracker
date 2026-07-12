@@ -5,6 +5,7 @@ import {
   installApplicationRuntime,
   type ApplicationRuntime,
 } from "./application-runtime";
+import { createBoundedApplicationRuntime } from "./bounded-application-runtime";
 import { VerifiedReleaseRuntime } from "./verified-release-runtime";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -37,7 +38,9 @@ export async function startApplicationRuntime(
   const environment = input.environment ?? process.env;
   const mode = runtimeMode(environment);
   if (mode === "fixture") {
-    const runtime = createFixtureApplicationRuntime();
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+    );
     const restore = installApplicationRuntime(runtime);
     return {
       runtime,
@@ -49,13 +52,14 @@ export async function startApplicationRuntime(
     environment.HS_TRACKER_RELEASE_VOLUME_PATH,
     "HS_TRACKER_RELEASE_VOLUME_PATH",
   );
-  const runtime = await VerifiedReleaseRuntime.load({
+  const verifiedRuntime = await VerifiedReleaseRuntime.load({
     objectStore:
       input.objectStore ??
       createRuntimeReleaseObjectReader(environment),
     volumePath,
     now: input.now,
   });
+  const runtime = createBoundedApplicationRuntime(verifiedRuntime);
   const restore = installApplicationRuntime(runtime);
   let stopped = false;
   return {
@@ -66,7 +70,7 @@ export async function startApplicationRuntime(
       }
       stopped = true;
       restore();
-      runtime.close();
+      verifiedRuntime.close();
     },
   };
 }

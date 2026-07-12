@@ -21,6 +21,7 @@ import {
   type ProductSearchIndexedProduct,
 } from "./product-search";
 import {
+  normalizeProductSearchQuery,
   normalizeProductSearchText,
   PRODUCT_SEARCH_ALGORITHM_VERSION,
 } from "./product-search-normalization";
@@ -93,6 +94,13 @@ export class ImmutableProductCatalog implements ProductCatalog {
       );
     }
     return new ImmutableProductCatalog(artifact);
+  }
+
+  normalizeQuery(query: string): string {
+    return normalizeProductSearchQuery(
+      query,
+      this.artifact.traditionalToSimplified,
+    );
   }
 
   async search(

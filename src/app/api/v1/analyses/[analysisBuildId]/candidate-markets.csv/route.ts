@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { isProductCatalogError } from "../../../../../../catalog/product-catalog-errors";
 import type { ProductSearchProduct } from "../../../../../../catalog/product-catalog";
 import {
@@ -12,10 +10,22 @@ import {
   serializeCandidateMarketCsv,
 } from "../../../../../../export/candidate-market-csv";
 import type { CandidateMarketCsvIdentity } from "../../../../../../export/candidate-market-csv-contract";
+import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
+import { withoutResponseBody } from "../../../../../../http/response";
 import {
   getApplicationRuntime,
   type ApplicationRuntime,
 } from "../../../../../../runtime/application-runtime";
+import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
+import {
+  createRequestDeadline,
+  isRequestDeadlineExceededError,
+  ROUTE_DEADLINE_MS,
+} from "../../../../../../runtime/request-deadline";
+import {
+  measureRuntimeRequest,
+  type RuntimeRequestMeasurement,
+} from "../../../../../../runtime/runtime-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +77,34 @@ async function handleCandidateMarketCsvRequest(
   context: CandidateMarketExportRouteContext,
   headOnly: boolean,
 ): Promise<Response> {
+  const applicationRuntime = getApplicationRuntime();
+  return measureRuntimeRequest(
+    applicationRuntime,
+    "candidate-market-csv",
+    async (measurement) => {
+      const response = await handleMeasuredCandidateMarketCsvRequest(
+        request,
+        context,
+        headOnly,
+        applicationRuntime,
+        measurement,
+      );
+      return headOnly ? withoutResponseBody(response) : response;
+    },
+  );
+}
+
+async function handleMeasuredCandidateMarketCsvRequest(
+  request: Request,
+  context: CandidateMarketExportRouteContext,
+  headOnly: boolean,
+  runtime: ApplicationRuntime,
+  measurement: RuntimeRequestMeasurement,
+): Promise<Response> {
+  const deadline = createRequestDeadline(
+    request.signal,
+    ROUTE_DEADLINE_MS.candidateMarketCsv,
+  );
   try {
     const url = new URL(request.url);
     const parsedIdentity = validateSearchParameters(url.searchParams);
@@ -77,7 +115,6 @@ async function handleCandidateMarketCsvRequest(
       ...parsedIdentity,
     };
 
-    const runtime = getApplicationRuntime();
     const manifest = runtime.currentAnalysis();
     if (identity.productSearchBuildId !== manifest.productSearchBuildId) {
       throw new CandidateMarketExportRouteError(
@@ -99,11 +136,17 @@ async function handleCandidateMarketCsvRequest(
       );
     }
 
-    const result = await runtime.analyze({
-      analysisBuildId: identity.analysisBuildId,
-      exporterCode: identity.exporterCode,
-      productCode: identity.productCode,
-    });
+    const result = await runtime.analyze(
+      {
+        analysisBuildId: identity.analysisBuildId,
+        exporterCode: identity.exporterCode,
+        productCode: identity.productCode,
+      },
+      {
+        signal: deadline.signal,
+        observe: measurement.observeOperation,
+      },
+    );
     if (result.analysisBuildId !== manifest.analysisBuildId) {
       throw new CandidateMarketExportRouteError(
         409,
@@ -127,12 +170,17 @@ async function handleCandidateMarketCsvRequest(
       runtime,
       identity.productSearchBuildId,
       identity.productCode,
+      deadline.signal,
     );
-    const exported = serializeCandidateMarketCsv({
-      result,
-      product,
-      manifest: { ...manifest, freshness },
-    });
+    const exported = measurement.measureSerialization(
+      () =>
+        serializeCandidateMarketCsv({
+          result,
+          product,
+          manifest: { ...manifest, freshness },
+        }),
+      (serialized) => serialized.bytes.byteLength,
+    );
     const etag = `W/"sha256-${exported.sha256}"`;
     const headers = {
       "Cache-Control": IMMUTABLE_CACHE_CONTROL,
@@ -143,7 +191,7 @@ async function handleCandidateMarketCsvRequest(
       Vary: "Accept-Encoding",
     };
 
-    if (request.headers.get("if-none-match") === etag) {
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
       return new Response(null, { status: 304, headers });
     }
     return new Response(headOnly ? null : exported.bytes, {
@@ -151,6 +199,22 @@ async function handleCandidateMarketCsvRequest(
       headers,
     });
   } catch (error) {
+    if (isRequestDeadlineExceededError(error)) {
+      return errorResponse(
+        error.status,
+        error.code,
+        error.publicMessage,
+      );
+    }
+    if (isAnalysisCapacityExceededError(error)) {
+      return errorResponse(
+        error.status,
+        error.code,
+        error.publicMessage,
+        undefined,
+        { "Retry-After": String(error.retryAfterSeconds) },
+      );
+    }
     if (error instanceof CandidateMarketExportRouteError) {
       return errorResponse(
         error.status,
@@ -180,7 +244,7 @@ async function handleCandidateMarketCsvRequest(
       );
     }
 
-    const correlationId = randomUUID();
+    const correlationId = measurement.correlationId;
     console.error("Candidate Market CSV export request failed", {
       correlationId,
       error,
@@ -191,6 +255,8 @@ async function handleCandidateMarketCsvRequest(
       "Candidate Market export could not be completed.",
       correlationId,
     );
+  } finally {
+    deadline.dispose();
   }
 }
 
@@ -256,13 +322,17 @@ async function findExactProduct(
   runtime: ApplicationRuntime,
   productSearchBuildId: string,
   productCode: string,
+  signal: AbortSignal,
 ): Promise<ProductSearchProduct> {
-  const search = await runtime.searchProducts({
-    productSearchBuildId,
-    query: productCode,
-    locale: "en",
-    limit: 1,
-  });
+  const search = await runtime.searchProducts(
+    {
+      productSearchBuildId,
+      query: productCode,
+      locale: "en",
+      limit: 1,
+    },
+    { signal },
+  );
   const product = search.matches.find(
     (match) => match.product.code === productCode,
   )?.product;
@@ -282,6 +352,7 @@ function errorResponse(
   code: string,
   message: string,
   correlationId?: string,
+  additionalHeaders: Record<string, string> = {},
 ): Response {
   return new Response(
     JSON.stringify({
@@ -296,6 +367,7 @@ function errorResponse(
       headers: {
         "Cache-Control": "no-store",
         "Content-Type": "application/json; charset=utf-8",
+        ...additionalHeaders,
       },
     },
   );

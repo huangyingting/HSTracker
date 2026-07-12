@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
-import {
-  DuckDBInstance,
-  type DuckDBConnection,
-} from "@duckdb/node-api";
+import type { DuckDBConnection } from "@duckdb/node-api";
 
 import {
   retiredAnalysisBuild,
@@ -15,6 +12,7 @@ import type { CandidateMarketAnalysisQuery } from "../domain/candidate-market/re
 import type {
   CmsV1Inputs,
   MarketYearEvidence,
+  TradeEvidenceLoadOptions,
   TradeEvidenceSource,
 } from "./trade-evidence-source";
 import {
@@ -25,6 +23,7 @@ import {
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
 } from "./analysis-artifact-manifest";
+import { DuckDbAnalysisDatabase } from "./duckdb-analysis-database";
 
 type DuckDbTradeEvidenceSourceOptions = {
   artifactPath: string;
@@ -33,12 +32,19 @@ type DuckDbTradeEvidenceSourceOptions = {
   analysisReleaseCatalogSha256: string;
 };
 
+type SharedDuckDbTradeEvidenceSourceOptions =
+  DuckDbTradeEvidenceSourceOptions & {
+    database: DuckDbAnalysisDatabase;
+    databaseName: "current" | "previous";
+  };
+
 export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   private closed = false;
 
   private constructor(
-    private readonly instance: DuckDBInstance,
-    private readonly connection: DuckDBConnection,
+    private readonly database: DuckDbAnalysisDatabase,
+    private readonly ownsDatabase: boolean,
+    private readonly tablePrefix: "main." | "previous.main.",
     private readonly manifest: AnalysisArtifactManifest,
     private readonly analysisBuildId: string,
     private readonly analysisReleaseCatalogSha256: string,
@@ -47,41 +53,56 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   static async open(
     options: DuckDbTradeEvidenceSourceOptions,
   ): Promise<DuckDbTradeEvidenceSource> {
-    validateRuntimeIdentity(options);
-    const artifactPath = resolve(
-      /* turbopackIgnore: true */ options.artifactPath,
-    );
-    const manifest = await readAnalysisArtifactManifest(
-      options.artifactManifestPath,
-    );
-    await verifyArtifactIdentity(artifactPath, manifest.artifact);
-
-    const instance = await DuckDBInstance.create(artifactPath, {
-      access_mode: "READ_ONLY",
+    const verified = await verifySourceOptions(options);
+    const database = await DuckDbAnalysisDatabase.open({
+      currentArtifactPath: verified.artifactPath,
+      previousArtifactPath: null,
+      servingVolumePath: dirname(
+        /* turbopackIgnore: true */ verified.artifactPath,
+      ),
     });
     try {
-      const connection = await instance.connect();
-      try {
-        await verifyArtifactMetadata(connection, manifest);
-        return new DuckDbTradeEvidenceSource(
-          instance,
-          connection,
-          manifest,
-          options.analysisBuildId,
-          options.analysisReleaseCatalogSha256,
-        );
-      } catch (error) {
-        connection.closeSync();
-        throw error;
-      }
+      await verifyArtifactMetadata(database, "main.", verified.manifest);
+      return new DuckDbTradeEvidenceSource(
+        database,
+        true,
+        "main.",
+        verified.manifest,
+        options.analysisBuildId,
+        options.analysisReleaseCatalogSha256,
+      );
     } catch (error) {
-      instance.closeSync();
+      database.close();
       throw error;
     }
   }
 
+  static async openShared(
+    options: SharedDuckDbTradeEvidenceSourceOptions,
+  ): Promise<DuckDbTradeEvidenceSource> {
+    const verified = await verifySourceOptions(options);
+    const tablePrefix =
+      options.databaseName === "current"
+        ? ("main." as const)
+        : ("previous.main." as const);
+    await verifyArtifactMetadata(
+      options.database,
+      tablePrefix,
+      verified.manifest,
+    );
+    return new DuckDbTradeEvidenceSource(
+      options.database,
+      false,
+      tablePrefix,
+      verified.manifest,
+      options.analysisBuildId,
+      options.analysisReleaseCatalogSha256,
+    );
+  }
+
   async loadCmsV1Inputs(
     query: CandidateMarketAnalysisQuery,
+    options?: TradeEvidenceLoadOptions,
   ): Promise<CmsV1Inputs> {
     if (this.closed) {
       throw new Error("The DuckDB evidence source is closed.");
@@ -89,15 +110,27 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     if (query.analysisBuildId !== this.analysisBuildId) {
       throw retiredAnalysisBuild(query.analysisBuildId);
     }
+    return this.database.withConnection(
+      options?.signal,
+      (connection) =>
+        this.loadWithConnection(connection, query, options?.signal),
+    );
+  }
 
+  private async loadWithConnection(
+    connection: DuckDBConnection,
+    query: CandidateMarketAnalysisQuery,
+    signal: AbortSignal | undefined,
+  ): Promise<CmsV1Inputs> {
+    signal?.throwIfAborted();
     const exporterCode = Number(query.exporterCode);
-    const exporter = await queryOptional(this.connection, `
+    const exporter = await queryOptional(connection, `
       SELECT
         code,
         display_name,
         iso3,
         identity_note
-      FROM economy
+      FROM ${this.tablePrefix}economy
       WHERE code = $exporter_code
         AND kind = 'ECONOMY'
     `, { exporter_code: exporterCode });
@@ -105,12 +138,13 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       throw unknownExporter(query.exporterCode);
     }
 
-    const product = await queryOptional(this.connection, `
+    signal?.throwIfAborted();
+    const product = await queryOptional(connection, `
       SELECT
         product_id,
         hs12_code,
         source_description
-      FROM product
+      FROM ${this.tablePrefix}product
       WHERE hs12_code = $product_code
     `, { product_code: query.productCode });
     if (product === undefined) {
@@ -118,7 +152,8 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     }
     const productId = requireNumber(product.product_id, "product_id");
 
-    const marketRows = await queryRows(this.connection, `
+    signal?.throwIfAborted();
+    const marketRows = await queryRows(connection, `
       SELECT
         market.year,
         candidate.code,
@@ -144,10 +179,10 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
         ) AS alternative_supplier_value_square_sum,
         market.source_flow_count,
         market.quantity_present_count
-      FROM market_year AS market
-      JOIN economy AS candidate
+      FROM ${this.tablePrefix}market_year AS market
+      JOIN ${this.tablePrefix}economy AS candidate
         ON candidate.code = market.importer_code
-      LEFT JOIN bilateral_year AS bilateral
+      LEFT JOIN ${this.tablePrefix}bilateral_year AS bilateral
         ON bilateral.year = market.year
         AND bilateral.product_id = market.product_id
         AND bilateral.importer_code = market.importer_code
@@ -161,9 +196,10 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       product_id: productId,
     });
     const normalizedRows = marketRows.map(toMarketYearEvidence);
-    const productYearRows = await queryRows(this.connection, `
+    signal?.throwIfAborted();
+    const productYearRows = await queryRows(connection, `
       SELECT year, world_value_kusd
-      FROM product_year
+      FROM ${this.tablePrefix}product_year
       WHERE product_id = $product_id
         AND year <= $finalized_cutoff_year
       ORDER BY year
@@ -231,8 +267,9 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       return;
     }
     this.closed = true;
-    this.connection.closeSync();
-    this.instance.closeSync();
+    if (this.ownsDatabase) {
+      this.database.close();
+    }
   }
 }
 
@@ -305,12 +342,19 @@ async function queryOptional(
 }
 
 async function verifyArtifactMetadata(
-  connection: DuckDBConnection,
+  database: DuckDbAnalysisDatabase,
+  tablePrefix: "main." | "previous.main.",
   manifest: AnalysisArtifactManifest,
 ): Promise<void> {
-  const rows = await queryRows(
-    connection,
-    "SELECT key, value FROM artifact_metadata ORDER BY key",
+  const rows = await database.withConnection(
+    undefined,
+    (connection) =>
+      queryRows(
+        connection,
+        `SELECT key, value
+         FROM ${tablePrefix}artifact_metadata
+         ORDER BY key`,
+      ),
   );
   const metadata = new Map(
     rows.map((row) => [
@@ -330,6 +374,23 @@ async function verifyArtifactMetadata(
       throw new Error(`Artifact metadata ${key} does not match its manifest.`);
     }
   }
+}
+
+async function verifySourceOptions(
+  options: DuckDbTradeEvidenceSourceOptions,
+): Promise<{
+  artifactPath: string;
+  manifest: AnalysisArtifactManifest;
+}> {
+  validateRuntimeIdentity(options);
+  const artifactPath = resolve(
+    /* turbopackIgnore: true */ options.artifactPath,
+  );
+  const manifest = await readAnalysisArtifactManifest(
+    options.artifactManifestPath,
+  );
+  await verifyArtifactIdentity(artifactPath, manifest.artifact);
+  return { artifactPath, manifest };
 }
 
 async function verifyArtifactIdentity(

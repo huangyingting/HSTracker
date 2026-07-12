@@ -4,6 +4,16 @@ import {
   GET,
   HEAD,
 } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
+import {
+  createFixtureApplicationRuntime,
+  installApplicationRuntime,
+} from "../../src/runtime/application-runtime";
+import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
+import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
+import {
+  subscribeRuntimeMetrics,
+  type RuntimeRequestMetric,
+} from "../../src/runtime/runtime-metrics";
 import { ANALYSIS_ROUTE_ERROR_CASES } from "../../test/fixtures/acceptance/v1/expected/error-cases";
 import { FIXTURE_ADAPTER_TEST_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
 
@@ -12,6 +22,7 @@ const routeContext = (analysisBuildId: string) => ({
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -72,6 +83,39 @@ describe("versioned Candidate Market route", () => {
     );
   });
 
+  it.each([
+    {
+      name: "equivalent strong validator",
+      header: (etag: string) => etag.replace(/^W\//u, ""),
+    },
+    {
+      name: "matching validator in a list",
+      header: (etag: string) => `"unrelated", ${etag}`,
+    },
+    {
+      name: "wildcard validator",
+      header: () => "*",
+    },
+  ])("uses weak comparison for $name", async ({ header }) => {
+    const url =
+      "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121";
+    const initial = await GET(
+      new Request(url),
+      routeContext("acceptance-fixtures-v1"),
+    );
+    const etag = initial.headers.get("etag")!;
+
+    const response = await GET(
+      new Request(url, {
+        headers: { "If-None-Match": header(etag) },
+      }),
+      routeContext("acceptance-fixtures-v1"),
+    );
+
+    expect(response.status).toBe(304);
+    expect(await response.text()).toBe("");
+  });
+
   it("returns a cacheable empty representation for a valid empty query", async () => {
     const response = await GET(
       new Request(
@@ -87,6 +131,142 @@ describe("versioned Candidate Market route", () => {
       emptyReason: "NO_ELIGIBLE_CANDIDATES_IN_SCORE_WINDOW",
       candidates: [],
     });
+  });
+
+  it("returns the exact retryable response when analysis capacity is exhausted", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      async analyze() {
+        throw new AnalysisCapacityExceededError("queue-full");
+      },
+    });
+
+    try {
+      const response = await GET(
+        new Request(
+          "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+        ),
+        routeContext("acceptance-fixtures-v1"),
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("retry-after")).toBe("2");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "ANALYSIS_CAPACITY_EXCEEDED",
+          message: "Candidate Market analysis is temporarily at capacity.",
+        },
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("cancels Candidate Market work at the twelve-second route deadline", async () => {
+    vi.useFakeTimers();
+    const fixture = createFixtureApplicationRuntime();
+    const restore = installApplicationRuntime({
+      ...fixture,
+      analyze(_query, options) {
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () => reject(options.signal?.reason),
+            { once: true },
+          );
+        });
+      },
+    });
+
+    try {
+      let response: Response | undefined;
+      const pending = GET(
+        new Request(
+          "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+        ),
+        routeContext("acceptance-fixtures-v1"),
+      ).then((value) => {
+        response = value;
+      });
+      await vi.advanceTimersByTimeAsync(12_000);
+
+      expect(response).toBeDefined();
+      await pending;
+      expect(response?.status).toBe(503);
+      expect(response?.headers.get("cache-control")).toBe("no-store");
+      await expect(response?.json()).resolves.toEqual({
+        error: {
+          code: "REQUEST_DEADLINE_EXCEEDED",
+          message: "The request exceeded its processing deadline.",
+        },
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("records route, cache, queue, query, serialization, and byte metrics", async () => {
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+    );
+    const restore = installApplicationRuntime(runtime);
+    const metrics: RuntimeRequestMetric[] = [];
+    const unsubscribe = subscribeRuntimeMetrics((metric) => {
+      metrics.push(metric);
+    });
+    const url =
+      "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121";
+
+    try {
+      const first = await GET(
+        new Request(url),
+        routeContext("acceptance-fixtures-v1"),
+      );
+      const firstBody = await first.text();
+      await GET(
+        new Request(url),
+        routeContext("acceptance-fixtures-v1"),
+      );
+
+      expect(metrics).toEqual([
+        {
+          routeFamily: "candidate-market",
+          status: 200,
+          cacheState: "miss",
+          activeAnalysisBuildId: "acceptance-fixtures-v1",
+          baciRelease: "V202601",
+          correlationId: expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+          ),
+          routeMs: expect.any(Number),
+          queueWaitMs: expect.any(Number),
+          queryMs: expect.any(Number),
+          serializationMs: expect.any(Number),
+          resultBytes: new TextEncoder().encode(firstBody).byteLength,
+        },
+        {
+          routeFamily: "candidate-market",
+          status: 200,
+          cacheState: "hit",
+          activeAnalysisBuildId: "acceptance-fixtures-v1",
+          baciRelease: "V202601",
+          correlationId: expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+          ),
+          routeMs: expect.any(Number),
+          queueWaitMs: null,
+          queryMs: null,
+          serializationMs: expect.any(Number),
+          resultBytes: new TextEncoder().encode(firstBody).byteLength,
+        },
+      ]);
+      expect(JSON.stringify(metrics)).not.toContain("010121");
+    } finally {
+      unsubscribe();
+      restore();
+    }
   });
 
   it.each(ANALYSIS_ROUTE_ERROR_CASES)(
@@ -109,6 +289,20 @@ describe("versioned Candidate Market route", () => {
       });
     },
   );
+
+  it("returns no body for a typed HEAD error", async () => {
+    const response = await HEAD(
+      new Request(
+        "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=malformed",
+        { method: "HEAD" },
+      ),
+      routeContext("acceptance-fixtures-v1"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.text()).toBe("");
+  });
 
   it("keeps unexpected adapter failures opaque and correlated", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});

@@ -78,6 +78,7 @@ export type ProductSearchResult = {
 };
 
 export interface ProductCatalog {
+  normalizeQuery(query: string): string;
   search(query: {
     productSearchBuildId: string;
     query: string;

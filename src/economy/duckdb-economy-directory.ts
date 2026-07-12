@@ -1,7 +1,7 @@
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
-import { DuckDBInstance } from "@duckdb/node-api";
-
+import type { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
+import { DuckDbAnalysisDatabase as AnalysisDatabase } from "../evidence/duckdb-analysis-database";
 import type {
   EconomyDirectory,
   EconomyRecord,
@@ -30,32 +30,48 @@ export class DuckDbEconomyDirectory implements EconomyDirectory {
   static async load(
     options: DuckDbEconomyDirectoryOptions,
   ): Promise<DuckDbEconomyDirectory> {
-    const instance = await DuckDBInstance.create(
-      resolve(options.artifactPath),
-      { access_mode: "READ_ONLY" },
+    const artifactPath = resolve(
+      /* turbopackIgnore: true */ options.artifactPath,
     );
+    const database = await AnalysisDatabase.open({
+      currentArtifactPath: artifactPath,
+      previousArtifactPath: null,
+      servingVolumePath: dirname(
+        /* turbopackIgnore: true */ artifactPath,
+      ),
+    });
     try {
-      const connection = await instance.connect();
-      try {
+      return await DuckDbEconomyDirectory.loadShared({
+        database,
+        analysisBuildId: options.analysisBuildId,
+      });
+    } finally {
+      database.close();
+    }
+  }
+
+  static async loadShared(options: {
+    database: DuckDbAnalysisDatabase;
+    analysisBuildId: string;
+  }): Promise<DuckDbEconomyDirectory> {
+    const economies = await options.database.withConnection(
+      undefined,
+      async (connection) => {
         const result = await connection.runAndReadAll(`
           SELECT code, iso2, iso3, display_name, identity_note
-          FROM economy
+          FROM main.economy
           WHERE kind = 'ECONOMY'
           ORDER BY code
         `);
-        const economies = result
+        return result
           .getRowObjectsJson()
           .map(toEconomyRecord);
-        return new DuckDbEconomyDirectory(
-          options.analysisBuildId,
-          economies,
-        );
-      } finally {
-        connection.closeSync();
-      }
-    } finally {
-      instance.closeSync();
-    }
+      },
+    );
+    return new DuckDbEconomyDirectory(
+      options.analysisBuildId,
+      economies,
+    );
   }
 
   async search(

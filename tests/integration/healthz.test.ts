@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { GET } from "../../src/app/healthz/route";
+import { GET, HEAD } from "../../src/app/healthz/route";
 
 const originalBuildId = process.env.APP_BUILD_ID;
 
@@ -24,5 +24,10 @@ describe("GET /healthz", () => {
       status: "ok",
       buildId: "acceptance-fixtures-v1",
     });
+
+    const head = HEAD();
+    expect(head.status).toBe(200);
+    expect(head.headers.get("cache-control")).toBe("no-store");
+    expect(await head.text()).toBe("");
   });
 });
