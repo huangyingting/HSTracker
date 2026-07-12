@@ -18,7 +18,6 @@ import {
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
 import {
-  contentAddressedId,
   type AnalysisArtifactReference,
 } from "../release/release-manifest";
 import {
@@ -33,6 +32,7 @@ import type {
   RuntimeRequestOptions,
 } from "./application-runtime";
 import { serializedWeight } from "./serialized-size";
+import type { SourceStatusPollerDiagnostics } from "./source-status-poller";
 
 type VerifiedReleaseRuntimeInput = {
   objectStore: ReleaseObjectReader;
@@ -46,13 +46,17 @@ export class VerifiedReleaseRuntime {
     private readonly manifest: AnalysisArtifactManifest,
     private readonly previousManifest: AnalysisArtifactManifest | null,
     private readonly deployment: CurrentAnalysisDeployment,
-    private readonly sourceStatus: SourceStatusSnapshot,
+    private sourceStatus: SourceStatusSnapshot,
     private readonly analysisDatabase: DuckDbAnalysisDatabase,
     private readonly analysis: CandidateMarketAnalysis,
     private readonly productCatalog: ProductCatalog,
     private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
   ) {}
+
+  private sourceStatusDiagnostics:
+    | (() => SourceStatusPollerDiagnostics)
+    | null = null;
 
   static async load(
     input: VerifiedReleaseRuntimeInput,
@@ -128,10 +132,7 @@ export class VerifiedReleaseRuntime {
         manifest,
         previousManifest,
       );
-      const sourceStatus = fallbackSourceStatus(
-        hydrated,
-        manifest,
-      );
+      const sourceStatus = hydrated.sourceStatusFallback;
       assertStatusMicroCacheBudget(deployment, sourceStatus);
       return new VerifiedReleaseRuntime(
         hydrated,
@@ -153,6 +154,7 @@ export class VerifiedReleaseRuntime {
 
   health(buildId: string) {
     const freshness = this.currentAnalysis().freshness;
+    const polling = this.sourceStatusDiagnostics?.() ?? null;
     return {
       status: "ok" as const,
       readiness: "ready" as const,
@@ -187,6 +189,10 @@ export class VerifiedReleaseRuntime {
         sourceStatusSnapshotId: freshness.sourceStatusSnapshotId,
         freshnessStatusId: freshness.freshnessStatusId,
         state: freshness.state,
+        degraded:
+          freshness.state !== "LATEST_KNOWN" ||
+          (polling?.consecutiveFailures ?? 0) > 0,
+        polling,
       },
     };
   }
@@ -212,6 +218,35 @@ export class VerifiedReleaseRuntime {
     return freshness.freshnessStatusId === freshnessStatusId
       ? freshness
       : null;
+  }
+
+  sourceStatusFallback(): SourceStatusSnapshot {
+    return this.sourceStatus;
+  }
+
+  acceptSourceStatus(snapshot: SourceStatusSnapshot): void {
+    if (
+      snapshot.servedBaciRelease !==
+      this.deployment.source.baciRelease
+    ) {
+      throw new Error(
+        "The source-status snapshot does not describe the deployed BACI Release.",
+      );
+    }
+    if (
+      Date.parse(snapshot.publishedAt) <
+      Date.parse(this.sourceStatus.publishedAt)
+    ) {
+      throw new Error("The source-status snapshot publication regressed.");
+    }
+    assertStatusMicroCacheBudget(this.deployment, snapshot);
+    this.sourceStatus = snapshot;
+  }
+
+  observeSourceStatusPolling(
+    diagnostics: () => SourceStatusPollerDiagnostics,
+  ): void {
+    this.sourceStatusDiagnostics = diagnostics;
   }
 
   normalizeProductSearchQuery(query: string): string {
@@ -503,33 +538,6 @@ function currentAnalysisDeployment(
               scoreWindowUsed: manifest.scoreWindow,
             },
     }),
-  };
-}
-
-function fallbackSourceStatus(
-  hydrated: HydratedRelease,
-  manifest: AnalysisArtifactManifest,
-): SourceStatusSnapshot {
-  return {
-    schemaVersion: "source-status-v1",
-    sourceStatusSnapshotId: contentAddressedId(
-      "source-status-bootstrap-v1",
-      {
-        deploymentPairingId:
-          hydrated.deployment.deploymentPairingId,
-        activatedAt: hydrated.deployment.activatedAt,
-        baciRelease: hydrated.deployment.baciRelease,
-        checkedAt: manifest.builtAt,
-        artifactSha256: manifest.artifact.sha256,
-      },
-    ),
-    checkedAt: manifest.builtAt,
-    servedBaciRelease: hydrated.deployment.baciRelease,
-    latestKnownBaciRelease: hydrated.deployment.baciRelease,
-    newerReleaseDetectedAt: null,
-    refreshFailed: false,
-    rollbackActive: false,
-    publishedAt: hydrated.deployment.activatedAt,
   };
 }
 

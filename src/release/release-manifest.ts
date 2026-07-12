@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import type { ReleaseObjectIdentity } from "./release-object-store";
 import {
   count,
@@ -46,6 +47,7 @@ export type DeploymentPairingManifest = {
   analysisBuildId: string;
   analysisReleaseCatalogSha256: string;
   productSearchBuildId: string;
+  sourceStatusFallback: SourceStatusSnapshot;
   analysis: {
     artifact: AnalysisArtifactReference;
     releaseCatalog: ReleaseObjectReference;
@@ -65,6 +67,7 @@ export type ActiveDeploymentPointer = {
   schemaVersion: "active-deployment-pointer-v1";
   current: ReleaseObjectReference;
   previous: ReleaseObjectReference | null;
+  sourceStatusFallback: SourceStatusSnapshot;
   activatedAt: string;
 };
 
@@ -93,6 +96,10 @@ export function parseActiveDeploymentPointer(
       pointer.previous === null
         ? null
         : objectReference(pointer.previous, "previous deployment"),
+    sourceStatusFallback: parseSourceStatusSnapshot(
+      pointer.sourceStatusFallback,
+      "active deployment source-status fallback",
+    ),
     activatedAt: utcTimestamp(pointer.activatedAt, "pointer activatedAt"),
   };
 }
@@ -139,6 +146,10 @@ export function parseDeploymentPairingManifest(
       "product-search build ID",
       "product-search-v1",
     ),
+    sourceStatusFallback: parseSourceStatusSnapshot(
+      deployment.sourceStatusFallback,
+      "deployment source-status fallback",
+    ),
     analysis: {
       artifact: analysisArtifactReference(
         analysis.artifact,
@@ -153,6 +164,61 @@ export function parseDeploymentPairingManifest(
   };
   validateDeploymentPairingManifest(parsed);
   return parsed;
+}
+
+export function parseSourceStatusSnapshot(
+  value: unknown,
+  label = "source-status snapshot",
+): SourceStatusSnapshot {
+  const snapshot = record(value, label);
+  if (snapshot.schemaVersion !== "source-status-v1") {
+    throw new Error(`${label} schema is incompatible.`);
+  }
+  const checkedAt = utcTimestamp(snapshot.checkedAt, `${label} checkedAt`);
+  const newerReleaseDetectedAt =
+    snapshot.newerReleaseDetectedAt === null
+      ? null
+      : utcTimestamp(
+          snapshot.newerReleaseDetectedAt,
+          `${label} newerReleaseDetectedAt`,
+        );
+  const publishedAt = utcTimestamp(
+    snapshot.publishedAt,
+    `${label} publishedAt`,
+  );
+  if (
+    Date.parse(checkedAt) > Date.parse(publishedAt) ||
+    (newerReleaseDetectedAt !== null &&
+      Date.parse(newerReleaseDetectedAt) > Date.parse(publishedAt))
+  ) {
+    throw new Error(`${label} chronology is invalid.`);
+  }
+  return {
+    schemaVersion: "source-status-v1",
+    sourceStatusSnapshotId: string(
+      snapshot.sourceStatusSnapshotId,
+      `${label} ID`,
+    ),
+    checkedAt,
+    servedBaciRelease: string(
+      snapshot.servedBaciRelease,
+      `${label} served BACI Release`,
+    ),
+    latestKnownBaciRelease: string(
+      snapshot.latestKnownBaciRelease,
+      `${label} latest known BACI Release`,
+    ),
+    newerReleaseDetectedAt,
+    refreshFailed: boolean(
+      snapshot.refreshFailed,
+      `${label} refreshFailed`,
+    ),
+    rollbackActive: boolean(
+      snapshot.rollbackActive,
+      `${label} rollbackActive`,
+    ),
+    publishedAt,
+  };
 }
 
 export function parseAnalysisReleaseCatalog(
@@ -328,7 +394,10 @@ function validateDeploymentPairingManifest(
     productSearch.baciRelease !== deployment.baciRelease ||
     analysis.sourceSha256 !== productSearch.sourceArchiveSha256 ||
     analysis.hsRevision !== productSearch.hsRevision ||
-    productSearch.productSearchBuildId !== deployment.productSearchBuildId
+    productSearch.productSearchBuildId !==
+      deployment.productSearchBuildId ||
+    deployment.sourceStatusFallback.servedBaciRelease !==
+      deployment.baciRelease
   ) {
     throw new Error("Deployment pairing identities are incompatible.");
   }
@@ -358,6 +427,13 @@ function validateDeploymentPairingManifest(
   ) {
     throw new Error("Deployment pairing identity is inconsistent.");
   }
+}
+
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean.`);
+  }
+  return value;
 }
 
 function sameAnalysisArtifactReference(

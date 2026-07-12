@@ -56,14 +56,16 @@ product-search-catalogs/{productSearchBuildId}/{catalogSha256}/...
 analysis-release-catalogs/{catalogSha256}.json
 deployment-pairings/{deploymentPairingId}.json
 deployment-pointers/current.json
+source-status/{sourceStatusSnapshotId}.json
+source-status-pointers/current.json
 ```
 
-Only `deployment-pointers/current.json` is mutable. S3 conditional writes make
-pointer activation compare-and-swap. Artifact and catalog manifests use their
-own SHA-256-addressed keys beneath those prefixes, so metadata-only rebuilds
-cannot collide. All immutable writes require the key not to exist and permit
-only identity-equivalent retries. Public deployment metadata contains object
-keys and content identities, never bucket URLs or credentials.
+Only the deployment and source-status `current.json` pointers are mutable. S3
+conditional writes make each pointer activation compare-and-swap. Release
+objects and source-status snapshots are immutable and content-addressed. All
+immutable writes require the key not to exist and permit only
+identity-equivalent retries. Public deployment metadata contains object keys
+and content identities, never bucket URLs or credentials.
 
 ## Promote and roll back
 
@@ -87,6 +89,55 @@ npm run release:rollback -- \
 ```
 
 Rollback is reversible because it retains the displaced pairing as previous.
+The operational rollback command also publishes `REFRESH_DELAYED` with an
+explicit rollback marker. The deployment pointer embeds the same safe fallback,
+so a process starting before its first status poll cannot claim
+`LATEST_KNOWN`.
+
+## Source monitoring and refresh
+
+`.github/workflows/source-freshness.yml` checks CEPII daily in January and
+February and every Monday from March through December. A manual check uses the
+same entry point:
+
+```bash
+npm run source:monitor
+```
+
+Every successful check publishes an immutable status snapshot before replacing
+`source-status-pointers/current.json`. A failed check leaves the accepted
+snapshot and deployment untouched. The workflow's `source-monitor` environment
+must provide the write-scoped S3 variables listed above.
+
+When a newer release is detected, use `npm run release:refresh` rather than the
+low-level promotion command:
+
+```bash
+npm run release:refresh -- \
+  --baci-release V202701 \
+  --descriptor data/releases/V202701.source.json \
+  --approval data/releases/V202701.coverage-approval.json \
+  --staging-workspace /tmp/hs-tracker/V202701/staging \
+  --staging-report reports/releases/V202701.source-report.json \
+  --analysis-workspace /tmp/hs-tracker/V202701/analysis \
+  --analysis-report reports/releases/V202701.analysis-report.json \
+  --catalog-workspace /tmp/hs-tracker/V202701/catalog \
+  --catalog-report reports/releases/V202701.catalog-report.json \
+  --translations /path/to/accepted-translations.json \
+  --aliases /path/to/accepted-aliases.json \
+  --traditional-to-simplified /path/to/conversion-data.json \
+  --review-manifest /path/to/catalog-review.json \
+  --pipeline-git-sha "$(git rev-parse HEAD)" \
+  --built-at 2027-03-03T00:00:00Z \
+  --activated-at 2027-03-03T01:00:00Z
+```
+
+Pass `--archive` to use an already downloaded BACI ZIP. The command runs source
+staging, builds both accepted candidates, verifies the requested BACI release
+before any activation, promotes one exact pairing, and then publishes the
+completed status. Any build or promotion failure keeps the prior pairing active
+and immediately publishes `REFRESH_DELAYED`; private diagnostics go only to the
+operator stream.
 
 ## Runtime hydration
 
@@ -112,7 +163,8 @@ process becomes ready. Startup:
    identity;
 4. opens both DuckDB artifacts read-only and loads the economy and product
    search adapters; and
-5. runs the manifest-selected maximum-row analysis, product, and economy smoke
+5. loads the deployment pointer's validated source-status fallback; and
+6. runs the manifest-selected maximum-row analysis, product, and economy smoke
    query before installing the runtime.
 
 `ReleaseHydrator.hydrateCurrent()` streams a missing pairing into a
@@ -124,17 +176,21 @@ state and never installs a runtime.
 After readiness, route handlers use the installed in-process adapters. No
 analysis, product-search, economy, export, current, or health request reads
 object storage. Requests naming a non-active analysis or product-search build
-receive `410`.
+receive `410`. A separate background poll reads and validates the status pointer
+and immutable snapshot every 55-60 seconds. Poll failures retain the last
+validated snapshot, which continues to age through the exact 7- and 14-day UTC
+deadlines.
 
 The current route reports the exact active analysis/search identities and
 source windows. Health additionally reports the deployment pairing, current
 and previous artifact SHA-256 identities, readiness, and Source Freshness
 Status; it never reports credentials, bucket URLs, or local paths. Until the
-source monitor publishes status snapshots, the bootstrap Source Freshness Status is
-content-addressed from the accepted artifact and activation identities. Its
-source-check age is anchored to the artifact build instant, so a redeploy or
-rollback cannot reset it and it deterministically becomes `CHECK_OVERDUE`
-after 14 days.
+source monitor publishes status snapshots, the deployment pairing's embedded
+bootstrap status is content-addressed from the accepted build and activation
+fields. Its source-check age is anchored to the artifact build instant, so a
+redeploy cannot reset it. Rollback embeds an explicit delayed fallback. Health
+reports poll failures and warn/page state while readiness remains healthy as
+long as the accepted artifact is available.
 
 ## Local S3-compatible integration
 

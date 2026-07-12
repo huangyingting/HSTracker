@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
 import { ReleasePublisher } from "../../src/release/release-publication";
+import { SourceStatusPublisher } from "../../src/release/source-status-publication";
 import {
   requiredOption,
   writeReleaseCommandError,
@@ -17,8 +18,13 @@ async function main(): Promise<void> {
     allowPositionals: false,
     strict: true,
   });
-  const publisher = new ReleasePublisher(
-    createPromotionReleaseObjectStore(),
+  const objectStore = createPromotionReleaseObjectStore();
+  const publisher = new ReleasePublisher(objectStore);
+  const statuses = new SourceStatusPublisher(objectStore);
+  const currentStatus = await statuses.current();
+  const activatedAt = requiredOption(
+    values["activated-at"],
+    "activated-at",
   );
   const published = await publisher.promote({
     analysisDirectoryPath: requiredOption(
@@ -29,8 +35,19 @@ async function main(): Promise<void> {
       values["product-catalog-directory"],
       "product-catalog-directory",
     ),
-    activatedAt: requiredOption(values["activated-at"], "activated-at"),
+    activatedAt,
   });
+  if (currentStatus === null) {
+    await statuses.publish({
+      checkedAt: activatedAt,
+      servedBaciRelease: published.baciRelease,
+      latestKnownBaciRelease: published.baciRelease,
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: activatedAt,
+    });
+  }
   process.stdout.write(`${JSON.stringify(published)}\n`);
 }
 

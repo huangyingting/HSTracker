@@ -332,6 +332,19 @@ describe("immutable release publication", () => {
     const hydrated = await hydrator.hydrateCurrent({ volumePath });
 
     expect(hydrated.deployment).toEqual(published);
+    expect(hydrated.deploymentManifest.sourceStatusFallback).toMatchObject({
+      schemaVersion: "source-status-v1",
+      sourceStatusSnapshotId: expect.stringMatching(
+        /^source-status-bootstrap-v1-[a-f0-9]{16}$/u,
+      ),
+      checkedAt: "2026-07-12T01:00:00Z",
+      servedBaciRelease: "VTEST001",
+      latestKnownBaciRelease: "VTEST001",
+      newerReleaseDetectedAt: null,
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2026-07-12T02:00:00Z",
+    });
     await expect(readFile(hydrated.analysisArtifactPath, "utf8")).resolves.toBe(
       "fixture DuckDB artifact v1",
     );

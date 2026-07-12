@@ -2,11 +2,13 @@ import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
   contentAddressedId,
   parseActiveDeploymentPointer,
   parseDeploymentPairingManifest,
+  parseSourceStatusSnapshot,
   publishedDeployment,
   readReleaseMetadata,
   releaseJsonBytes,
@@ -43,6 +45,9 @@ export type PromoteReleaseInput = {
   analysisDirectoryPath: string;
   productCatalogDirectoryPath: string;
   activatedAt: string;
+  sourceStatusFallback?: SourceStatusSnapshot;
+  expectedBaciRelease?: string;
+  expectedCurrentDeploymentPairingId?: string | null;
 };
 
 export type RollbackReleaseInput = {
@@ -53,6 +58,7 @@ export class ReleasePublicationError extends Error {
   constructor(
     readonly code:
       | "ACTIVATION_FAILED"
+      | "ACTIVATION_PRECONDITION_FAILED"
       | "NO_PREVIOUS_DEPLOYMENT"
       | "OBJECT_READBACK_MISMATCH"
       | "PAIRING_INCOMPATIBLE",
@@ -76,6 +82,7 @@ type ValidatedAnalysisCandidate = {
   hsRevision: "HS12";
   artifactBuildId: string;
   artifactSchemaVersion: string;
+  builtAt: string;
   artifactPath: string;
   artifactIdentity: ReleaseObjectIdentity;
   manifestBytes: Buffer;
@@ -106,6 +113,25 @@ export class ReleasePublisher {
     ]);
     validatePairing(analysis, productCatalog);
     if (
+      input.expectedCurrentDeploymentPairingId !== undefined &&
+      input.expectedCurrentDeploymentPairingId !==
+        (current?.deployment.deploymentPairingId ?? null)
+    ) {
+      throw new ReleasePublicationError(
+        "ACTIVATION_PRECONDITION_FAILED",
+        "Active deployment changed before promotion.",
+      );
+    }
+    if (
+      input.expectedBaciRelease !== undefined &&
+      analysis.baciRelease !== input.expectedBaciRelease
+    ) {
+      throw new ReleasePublicationError(
+        "PAIRING_INCOMPATIBLE",
+        "Accepted candidates do not match the requested BACI Release.",
+      );
+    }
+    if (
       current !== null &&
       candidateMatchesDeployment(analysis, productCatalog, current.deployment)
     ) {
@@ -132,6 +158,13 @@ export class ReleasePublisher {
       analysisReleaseCatalogSha256:
         analysisPublication.releaseCatalogSha256,
       productSearchBuildId: productCatalog.productSearchBuildId,
+      sourceStatusFallback: parseSourceStatusSnapshot(
+        input.sourceStatusFallback ??
+          bootstrapSourceStatus(
+            analysis,
+            input.activatedAt,
+          ),
+      ),
       analysis: {
         artifact: analysisPublication.artifact,
         releaseCatalog: analysisPublication.releaseCatalog,
@@ -155,6 +188,7 @@ export class ReleasePublisher {
       schemaVersion: "active-deployment-pointer-v1",
       current: deploymentReference,
       previous: current?.pointer.current ?? null,
+      sourceStatusFallback: deployment.sourceStatusFallback,
       activatedAt: input.activatedAt,
     };
     await this.activatePointer(
@@ -185,6 +219,11 @@ export class ReleasePublisher {
       schemaVersion: "active-deployment-pointer-v1",
       current: current.pointer.previous,
       previous: current.pointer.current,
+      sourceStatusFallback: rollbackSourceStatus(
+        current.pointer.sourceStatusFallback,
+        previous.baciRelease,
+        input.activatedAt,
+      ),
       activatedAt: input.activatedAt,
     };
     await this.activatePointer(current.pointerVersion, pointer);
@@ -329,12 +368,21 @@ export class ReleasePublisher {
       this.objectStore,
       pointer.current,
     );
+    const deployment = parseDeploymentPairingManifest(
+      JSON.parse(deploymentBytes.toString("utf8")),
+    );
+    if (
+      pointer.sourceStatusFallback.servedBaciRelease !==
+      deployment.baciRelease
+    ) {
+      throw new Error(
+        "Active deployment source-status fallback is incompatible.",
+      );
+    }
     return {
       pointer,
       pointerVersion: storedPointer.version,
-      deployment: parseDeploymentPairingManifest(
-        JSON.parse(deploymentBytes.toString("utf8")),
-      ),
+      deployment,
     };
   }
 
@@ -412,10 +460,62 @@ async function validateAnalysisCandidate(
       artifact.schemaVersion,
       "analysis artifact schema version",
     ),
+    builtAt: utcTimestamp(manifest.builtAt, "analysis build time"),
     artifactPath,
     artifactIdentity,
     manifestBytes,
     manifestIdentity,
+  };
+}
+
+function bootstrapSourceStatus(
+  analysis: ValidatedAnalysisCandidate,
+  activatedAt: string,
+): SourceStatusSnapshot {
+  const fields = {
+    checkedAt: analysis.builtAt,
+    servedBaciRelease: analysis.baciRelease,
+    latestKnownBaciRelease: analysis.baciRelease,
+    newerReleaseDetectedAt: null,
+    refreshFailed: false,
+    rollbackActive: false,
+    publishedAt: activatedAt,
+  } as const;
+  return {
+    schemaVersion: "source-status-v1",
+    sourceStatusSnapshotId: contentAddressedId(
+      "source-status-bootstrap-v1",
+      fields,
+    ),
+    ...fields,
+  };
+}
+
+function rollbackSourceStatus(
+  latest: SourceStatusSnapshot,
+  servedBaciRelease: string,
+  activatedAt: string,
+): SourceStatusSnapshot {
+  const latestKnownBaciRelease = latest.latestKnownBaciRelease;
+  const fields = {
+    checkedAt: latest.checkedAt,
+    servedBaciRelease,
+    latestKnownBaciRelease,
+    newerReleaseDetectedAt:
+      servedBaciRelease === latestKnownBaciRelease
+        ? null
+        : latest.newerReleaseDetectedAt ?? activatedAt,
+    refreshFailed: false,
+    rollbackActive: true,
+    publishedAt: activatedAt,
+  } as const;
+  return {
+    schemaVersion: "source-status-v1",
+    sourceStatusSnapshotId: contentAddressedId(
+      "source-status-rollback-v1",
+      fields,
+    ),
+    ...fields,
   };
 }
 

@@ -1,0 +1,316 @@
+import type {
+  PromoteReleaseInput,
+  PublishedDeployment,
+  ReleasePublisher,
+} from "./release-publication";
+import {
+  createPublishedSourceStatusSnapshot,
+  sourceStatusSnapshot,
+  type PublishedSourceStatusSnapshot,
+  type SourceStatusPublisher,
+} from "./source-status-publication";
+
+export type SourceRefreshBuild = (input: {
+  baciRelease: string;
+  signal?: AbortSignal;
+}) => Promise<
+  Pick<
+    PromoteReleaseInput,
+    "analysisDirectoryPath" | "productCatalogDirectoryPath"
+  >
+>;
+
+export type SourceRefreshEvent =
+  | {
+      type: "refresh-failed";
+      baciRelease: string;
+      failedAt: string;
+      error: unknown;
+    }
+  | {
+      type: "refresh-status-publication-failed";
+      baciRelease: string;
+      failedAt: string;
+      error: unknown;
+    }
+  | {
+      type: "rollback-activated";
+      baciRelease: string;
+      activatedAt: string;
+    };
+
+type SourceRefreshOrchestratorInput = {
+  deployments: ReleasePublisher;
+  statuses: SourceStatusPublisher;
+  build: SourceRefreshBuild;
+  observe?: (event: SourceRefreshEvent) => void;
+};
+
+export class SourceRefreshError extends Error {
+  constructor(
+    readonly code:
+      | "REFRESH_FAILED"
+      | "REFRESH_STATE_INVALID"
+      | "REFRESH_STATUS_FAILED",
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "SourceRefreshError";
+  }
+}
+
+export class SourceRefreshOrchestrator {
+  constructor(private readonly input: SourceRefreshOrchestratorInput) {}
+
+  async refresh(input: {
+    baciRelease: string;
+    activatedAt: string;
+    signal?: AbortSignal;
+  }): Promise<{
+    deployment: PublishedDeployment;
+    status: PublishedSourceStatusSnapshot;
+  }> {
+    const [initialDeployment, initialStatus] = await Promise.all([
+      this.input.deployments.current(),
+      this.input.statuses.current(),
+    ]);
+    if (initialDeployment === null || initialStatus === null) {
+      throw invalidRefreshState(
+        "Refresh requires an active deployment and detected source status.",
+      );
+    }
+    if (
+      initialStatus.servedBaciRelease !==
+        initialDeployment.baciRelease ||
+      initialStatus.latestKnownBaciRelease !== input.baciRelease ||
+      initialStatus.newerReleaseDetectedAt === null ||
+      initialStatus.servedBaciRelease === input.baciRelease
+    ) {
+      throw invalidRefreshState(
+        "Refresh target does not match the active detected release.",
+      );
+    }
+
+    let deployment: PublishedDeployment;
+    try {
+      const candidate = await this.input.build({
+        baciRelease: input.baciRelease,
+        signal: input.signal,
+      });
+      input.signal?.throwIfAborted();
+      const stateBeforePromotion = await this.refreshState(
+        initialDeployment.deploymentPairingId,
+      );
+      const completedStatusInput = completedRefreshStatus(
+        stateBeforePromotion.status,
+        input.baciRelease,
+        input.activatedAt,
+      );
+      deployment = await this.input.deployments.promote({
+        ...candidate,
+        activatedAt: input.activatedAt,
+        expectedBaciRelease: input.baciRelease,
+        expectedCurrentDeploymentPairingId:
+          initialDeployment.deploymentPairingId,
+        sourceStatusFallback: sourceStatusSnapshot(
+          createPublishedSourceStatusSnapshot(
+            completedStatusInput,
+          ),
+        ),
+      });
+      if (deployment.baciRelease !== input.baciRelease) {
+        throw new Error(
+          "Promoted deployment does not match the refresh target.",
+        );
+      }
+    } catch (error) {
+      this.input.observe?.({
+        type: "refresh-failed",
+        baciRelease: input.baciRelease,
+        failedAt: input.activatedAt,
+        error,
+      });
+      try {
+        const failureState = await this.refreshState(
+          initialDeployment.deploymentPairingId,
+        );
+        await this.input.statuses.publish(
+          failedRefreshStatus(
+            failureState.status,
+            input.baciRelease,
+            input.activatedAt,
+          ),
+        );
+      } catch (statusError) {
+        this.input.observe?.({
+          type: "refresh-status-publication-failed",
+          baciRelease: input.baciRelease,
+          failedAt: input.activatedAt,
+          error: statusError,
+        });
+        throw new SourceRefreshError(
+          "REFRESH_STATUS_FAILED",
+          "BACI refresh and delayed-status publication failed.",
+          { cause: new AggregateError([error, statusError]) },
+        );
+      }
+      throw new SourceRefreshError(
+        "REFRESH_FAILED",
+        "BACI release refresh failed.",
+        { cause: error },
+      );
+    }
+
+    try {
+      const currentStatus = await this.input.statuses.current();
+      if (
+        currentStatus === null ||
+        (currentStatus.servedBaciRelease !==
+          initialDeployment.baciRelease &&
+          currentStatus.servedBaciRelease !== input.baciRelease)
+      ) {
+        throw new Error(
+          "Source status changed incompatibly during promotion.",
+        );
+      }
+      const completedStatusInput = completedRefreshStatus(
+        currentStatus,
+        input.baciRelease,
+        input.activatedAt,
+      );
+      const status = await this.input.statuses.publish(
+        completedStatusInput,
+      );
+      return { deployment, status };
+    } catch (error) {
+      this.input.observe?.({
+        type: "refresh-status-publication-failed",
+        baciRelease: input.baciRelease,
+        failedAt: input.activatedAt,
+        error,
+      });
+      throw new SourceRefreshError(
+        "REFRESH_STATUS_FAILED",
+        "BACI release was promoted but its source status was not published.",
+        { cause: error },
+      );
+    }
+  }
+
+  private async refreshState(
+    expectedDeploymentPairingId: string,
+  ): Promise<{
+    deployment: PublishedDeployment;
+    status: PublishedSourceStatusSnapshot;
+  }> {
+    const [deployment, status] = await Promise.all([
+      this.input.deployments.current(),
+      this.input.statuses.current(),
+    ]);
+    if (
+      deployment === null ||
+      status === null ||
+      deployment.deploymentPairingId !==
+        expectedDeploymentPairingId ||
+      status.servedBaciRelease !== deployment.baciRelease
+    ) {
+      throw invalidRefreshState(
+        "Active release state changed during refresh.",
+      );
+    }
+    return { deployment, status };
+  }
+
+  async rollback(input: { activatedAt: string }): Promise<{
+    deployment: PublishedDeployment;
+    status: PublishedSourceStatusSnapshot;
+  }> {
+    const currentStatus = await this.input.statuses.current();
+    if (currentStatus === null) {
+      throw invalidRefreshState(
+        "Rollback requires an active source status.",
+      );
+    }
+    const deployment = await this.input.deployments.rollback(input);
+    try {
+      const status = await this.input.statuses.publish({
+        checkedAt: currentStatus.checkedAt,
+        servedBaciRelease: deployment.baciRelease,
+        latestKnownBaciRelease:
+          currentStatus.latestKnownBaciRelease,
+        newerReleaseDetectedAt:
+          deployment.baciRelease ===
+          currentStatus.latestKnownBaciRelease
+            ? null
+            : (currentStatus.newerReleaseDetectedAt ??
+              input.activatedAt),
+        refreshFailed: false,
+        rollbackActive: true,
+        publishedAt: input.activatedAt,
+      });
+      this.input.observe?.({
+        type: "rollback-activated",
+        baciRelease: deployment.baciRelease,
+        activatedAt: input.activatedAt,
+      });
+      return { deployment, status };
+    } catch (error) {
+      this.input.observe?.({
+        type: "refresh-status-publication-failed",
+        baciRelease: deployment.baciRelease,
+        failedAt: input.activatedAt,
+        error,
+      });
+      throw new SourceRefreshError(
+        "REFRESH_STATUS_FAILED",
+        "BACI rollback was activated but its source status was not published.",
+        { cause: error },
+      );
+    }
+  }
+}
+
+function invalidRefreshState(message: string): SourceRefreshError {
+  return new SourceRefreshError("REFRESH_STATE_INVALID", message);
+}
+
+function completedRefreshStatus(
+  current: PublishedSourceStatusSnapshot,
+  servedBaciRelease: string,
+  publishedAt: string,
+) {
+  const targetIsLatest =
+    current.latestKnownBaciRelease === servedBaciRelease;
+  return {
+    checkedAt: current.checkedAt,
+    servedBaciRelease,
+    latestKnownBaciRelease: current.latestKnownBaciRelease,
+    newerReleaseDetectedAt: targetIsLatest
+      ? null
+      : (current.newerReleaseDetectedAt ?? publishedAt),
+    refreshFailed: false,
+    rollbackActive: false,
+    publishedAt,
+  } as const;
+}
+
+function failedRefreshStatus(
+  current: PublishedSourceStatusSnapshot,
+  attemptedBaciRelease: string,
+  publishedAt: string,
+) {
+  return {
+    checkedAt: current.checkedAt,
+    servedBaciRelease: current.servedBaciRelease,
+    latestKnownBaciRelease: current.latestKnownBaciRelease,
+    newerReleaseDetectedAt:
+      current.newerReleaseDetectedAt ??
+      (current.latestKnownBaciRelease === attemptedBaciRelease
+        ? publishedAt
+        : null),
+    refreshFailed: true,
+    rollbackActive: false,
+    publishedAt,
+  } as const;
+}

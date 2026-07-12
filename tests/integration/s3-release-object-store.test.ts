@@ -25,6 +25,7 @@ import {
 import { ReleaseHydrator } from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { S3ReleaseObjectStore } from "../../src/release/s3-release-object-store";
+import { SourceStatusReader } from "../../src/release/source-status-publication";
 import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
 
 const MINIO_IMAGE =
@@ -303,6 +304,13 @@ describe("S3 release object store", () => {
       HS_TRACKER_RELEASE_S3_REGION: "us-east-1",
       HS_TRACKER_RELEASE_READ_ACCESS_KEY_ID: MINIO_USERNAME,
       HS_TRACKER_RELEASE_READ_SECRET_ACCESS_KEY: MINIO_PASSWORD,
+    });
+    await expect(
+      new SourceStatusReader(reader).current(),
+    ).resolves.toMatchObject({
+      servedBaciRelease: rolledBack.baciRelease,
+      rollbackActive: true,
+      state: "REFRESH_DELAYED",
     });
     const hydrated = await new ReleaseHydrator(reader).hydrateCurrent({
       volumePath: join(root, "volume"),

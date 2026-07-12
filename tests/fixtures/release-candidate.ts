@@ -8,6 +8,10 @@ import { releaseJsonBytes } from "../../src/release/release-manifest";
 import { releaseObjectIdentity } from "../../src/release/release-object-store";
 
 export type AcceptedReleaseCandidateOptions = {
+  baciRelease?: string;
+  sourceSha256?: string;
+  sourceUpdateDate?: string;
+  builtAt?: string;
   analysisArtifactBuildId?: string;
   analysisArtifactVersion?: string;
   productCatalogVersion?: string;
@@ -36,9 +40,9 @@ export async function writeAcceptedReleaseCandidate(
   const analysisArtifactIdentity = releaseObjectIdentity(analysisArtifact);
   const analysisManifest = {
     schemaVersion: "candidate-market-artifact-manifest-v1",
-    baciRelease: "VTEST001",
-    sourceSha256: "a".repeat(64),
-    sourceUpdateDate: "2026-01-22",
+    baciRelease: options.baciRelease ?? "VTEST001",
+    sourceSha256: options.sourceSha256 ?? "a".repeat(64),
+    sourceUpdateDate: options.sourceUpdateDate ?? "2026-01-22",
     hsRevision: "HS12",
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
@@ -49,7 +53,7 @@ export async function writeAcceptedReleaseCandidate(
       relativePath: "candidate-market.duckdb",
       ...analysisArtifactIdentity,
     },
-    builtAt: "2026-07-12T01:00:00Z",
+    builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
   };
   const analysisManifestBytes = releaseJsonBytes(analysisManifest);
   const analysisReport = {
@@ -68,9 +72,11 @@ export async function writeAcceptedReleaseCandidate(
   const productCatalogIdentity = releaseObjectIdentity(productCatalog);
   const catalogManifest = {
     schemaVersion: "product-catalog-manifest-v1",
-    baciRelease: "VTEST001",
+    baciRelease: options.baciRelease ?? "VTEST001",
     sourceArchiveSha256:
-      options.productSourceArchiveSha256 ?? "a".repeat(64),
+      options.productSourceArchiveSha256 ??
+      options.sourceSha256 ??
+      "a".repeat(64),
     hsRevision: "HS12",
     productSearchBuildId:
       options.productSearchBuildId ?? "product-search-v1-1111111111111111",
@@ -79,7 +85,7 @@ export async function writeAcceptedReleaseCandidate(
       relativePath: "product-catalog.json",
       ...productCatalogIdentity,
     },
-    builtAt: "2026-07-12T01:00:00Z",
+    builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
   };
   const catalogManifestBytes = releaseJsonBytes(catalogManifest);
   const catalogReport = {

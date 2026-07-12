@@ -16,6 +16,7 @@ import {
   type ReleaseObject,
 } from "../../src/release/release-object-store";
 import { ReleasePublisher } from "../../src/release/release-publication";
+import { SourceStatusPublisher } from "../../src/release/source-status-publication";
 import { getApplicationRuntime } from "../../src/runtime/application-runtime";
 import { startApplicationRuntime } from "../../src/runtime/runtime-startup";
 import { writeRuntimeReleaseCandidate } from "../fixtures/runtime-release";
@@ -82,6 +83,86 @@ describe("Next.js runtime startup", () => {
       analysisBuildId: published.analysisBuildId,
       productSearchBuildId: published.productSearchBuildId,
       source: { baciRelease: published.baciRelease },
+    });
+    await expect
+      .poll(
+        () =>
+          (
+            started.runtime.health("runtime-test-build") as {
+              freshness: {
+                polling: { consecutiveFailures: number };
+              };
+            }
+          ).freshness.polling.consecutiveFailures,
+      )
+      .toBe(1);
+    expect(started.runtime.health("runtime-test-build")).toMatchObject({
+      status: "ok",
+      readiness: "ready",
+      freshness: {
+        degraded: true,
+        polling: { consecutiveFailures: 1 },
+      },
+    });
+  }, 20_000);
+
+  it("serves the embedded fallback before adopting a polled status snapshot", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const status = await new SourceStatusPublisher(objectStore).publish({
+      checkedAt: "2026-07-12T02:01:00Z",
+      servedBaciRelease: published.baciRelease,
+      latestKnownBaciRelease: "V202701",
+      newerReleaseDetectedAt: "2026-07-12T02:01:00Z",
+      refreshFailed: false,
+      rollbackActive: false,
+      publishedAt: "2026-07-12T02:01:00Z",
+    });
+
+    const started = await startApplicationRuntime({
+      environment: {
+        NODE_ENV: "production",
+        HS_TRACKER_RUNTIME_MODE: "release",
+        HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
+      },
+      objectStore,
+      now: () => "2026-07-12T02:02:00Z",
+    });
+    stops.push(started.stop);
+    const startupSnapshotId =
+      started.runtime.currentAnalysis().freshness.sourceStatusSnapshotId;
+
+    expect(startupSnapshotId).not.toBe(status.sourceStatusSnapshotId);
+    await expect
+      .poll(
+        () =>
+          started.runtime.currentAnalysis().freshness
+            .sourceStatusSnapshotId,
+      )
+      .toBe(status.sourceStatusSnapshotId);
+    expect(started.runtime.health("runtime-test-build")).toMatchObject({
+      status: "ok",
+      readiness: "ready",
+      freshness: {
+        sourceStatusSnapshotId: status.sourceStatusSnapshotId,
+        state: "UPDATE_IN_PROGRESS",
+        degraded: true,
+        polling: {
+          currentSourceStatusSnapshotId:
+            status.sourceStatusSnapshotId,
+          consecutiveFailures: 0,
+          totalFailures: 0,
+          lastSuccessfulPollAt: "2026-07-12T02:02:00Z",
+        },
+      },
     });
   }, 20_000);
 

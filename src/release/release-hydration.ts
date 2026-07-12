@@ -28,6 +28,7 @@ import {
   type PublishedDeployment,
   type ReleaseObjectReference,
 } from "./release-manifest";
+import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import {
   releaseObjectIdentity,
   singleChunk,
@@ -42,6 +43,7 @@ export type HydrateCurrentReleaseInput = {
 export type HydratedRelease = {
   deployment: PublishedDeployment;
   deploymentManifest: DeploymentPairingManifest;
+  sourceStatusFallback: SourceStatusSnapshot;
   analysisReleaseCatalog: AnalysisReleaseCatalog;
   rootPath: string;
   analysisArtifactPath: string;
@@ -78,6 +80,14 @@ export class ReleaseHydrator {
     const deployment = parseDeploymentPairingManifest(
       JSON.parse(deploymentBytes.toString("utf8")),
     );
+    if (
+      pointer.sourceStatusFallback.servedBaciRelease !==
+      deployment.baciRelease
+    ) {
+      throw new Error(
+        "Active deployment source-status fallback is incompatible.",
+      );
+    }
     const volumePath = resolve(
       /* turbopackIgnore: true */ input.volumePath,
     );
@@ -586,6 +596,7 @@ function hydratedRelease(
   return {
     deployment: publishedDeployment(pointer, deployment),
     deploymentManifest: deployment,
+    sourceStatusFallback: pointer.sourceStatusFallback,
     analysisReleaseCatalog,
     rootPath,
     analysisArtifactPath: join(

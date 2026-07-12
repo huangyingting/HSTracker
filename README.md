@@ -42,7 +42,9 @@ The Node instrumentation hook blocks readiness until the active deployment,
 current and previous analysis artifacts, product catalog, and startup smoke
 queries have all been verified. Invalid configuration, incompatible manifests,
 or corrupt bytes fail startup. Once ready, public requests use only resident
-read-only adapters and never depend on object storage.
+read-only adapters and never depend on object storage. A separate 55-60-second
+background poll validates immutable Source Freshness Status snapshots; startup
+uses the deployment's embedded fallback if that poll is unavailable.
 
 `/api/v1/analyses/current` reports the active analysis and search identities.
 `/healthz` additionally reports the deployment pairing, artifact identities,

@@ -78,6 +78,8 @@ describe("verified release runtime", () => {
         ),
         freshnessStatusId: expect.stringMatching(/^freshness:/u),
         state: "LATEST_KNOWN",
+        degraded: false,
+        polling: null,
       },
     });
     expect(runtime.resources()).toMatchObject({

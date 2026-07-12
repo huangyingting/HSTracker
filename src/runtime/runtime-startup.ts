@@ -6,6 +6,10 @@ import {
   type ApplicationRuntime,
 } from "./application-runtime";
 import { createBoundedApplicationRuntime } from "./bounded-application-runtime";
+import {
+  SourceStatusPoller,
+  type SourceStatusPollerEvent,
+} from "./source-status-poller";
 import { VerifiedReleaseRuntime } from "./verified-release-runtime";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -52,15 +56,30 @@ export async function startApplicationRuntime(
     environment.HS_TRACKER_RELEASE_VOLUME_PATH,
     "HS_TRACKER_RELEASE_VOLUME_PATH",
   );
+  const objectStore =
+    input.objectStore ??
+    createRuntimeReleaseObjectReader(environment);
   const verifiedRuntime = await VerifiedReleaseRuntime.load({
-    objectStore:
-      input.objectStore ??
-      createRuntimeReleaseObjectReader(environment),
+    objectStore,
     volumePath,
     now: input.now,
   });
+  const sourceStatusPoller = new SourceStatusPoller({
+    objectStore,
+    servedBaciRelease:
+      verifiedRuntime.currentAnalysis().source.baciRelease,
+    fallback: verifiedRuntime.sourceStatusFallback(),
+    accept: (snapshot) =>
+      verifiedRuntime.acceptSourceStatus(snapshot),
+    now: input.now,
+    observe: observeSourceStatusPolling,
+  });
+  verifiedRuntime.observeSourceStatusPolling(() =>
+    sourceStatusPoller.diagnostics(),
+  );
   const runtime = createBoundedApplicationRuntime(verifiedRuntime);
   const restore = installApplicationRuntime(runtime);
+  sourceStatusPoller.start();
   let stopped = false;
   return {
     runtime,
@@ -69,6 +88,7 @@ export async function startApplicationRuntime(
         return;
       }
       stopped = true;
+      sourceStatusPoller.stop();
       restore();
       verifiedRuntime.close();
     },
@@ -103,4 +123,43 @@ function required(value: string | undefined, name: string): string {
     throw new RuntimeStartupConfigurationError(`${name} is required.`);
   }
   return value;
+}
+
+function observeSourceStatusPolling(
+  event: SourceStatusPollerEvent,
+): void {
+  if (
+    event.type === "status-poll-failed" &&
+    event.consecutiveFailures === 3
+  ) {
+    console.warn("Source-status pointer polling is degraded", {
+      consecutiveFailures: event.consecutiveFailures,
+      error: privateDiagnostic(event.error),
+    });
+    return;
+  }
+  if (event.type !== "freshness-alert-changed") {
+    return;
+  }
+  const details = {
+    observedAt: event.observedAt,
+    previous: event.previous,
+    current: event.current,
+  };
+  if (event.current.level === "page") {
+    console.error("Source freshness requires operator action", details);
+  } else if (event.current.level === "warn") {
+    console.warn("Source freshness warning", details);
+  } else {
+    console.info("Source freshness alert resolved", details);
+  }
+}
+
+function privateDiagnostic(error: unknown): {
+  name: string;
+  message: string;
+} {
+  return error instanceof Error
+    ? { name: error.name, message: error.message }
+    : { name: "UnknownError", message: String(error) };
 }

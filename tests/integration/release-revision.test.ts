@@ -199,6 +199,33 @@ describe("Release Revision comparison", () => {
     },
   );
 
+  it("reports a skipped annual release as not compared instead of shortening the current window", () => {
+    const comparison = compareReleaseRevisions({
+      currentRelease: {
+        ...currentRelease,
+        baciRelease: "V202801",
+        scoreWindow: { start: 2021, end: 2025 },
+      },
+      previousArtifact: {
+        ...previousArtifact,
+        baciRelease: "V202601",
+        availableYears: [2021, 2022, 2023, 2024],
+        scoreWindowUsed: { start: 2021, end: 2025 },
+      },
+    });
+
+    expect(comparison).toMatchObject({
+      comparisonRelease: "V202601",
+      notComparedReason: "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
+      noLongerEligibleCount: null,
+    });
+    expect(
+      Object.values(comparison.candidates).every(
+        ({ state }) => state === "NOT_COMPARED",
+      ),
+    ).toBe(true);
+  });
+
   it("attaches same-window revisions without changing current score or provisional evidence", () => {
     const baseline = computeCmsV1(CORE_CURRENT_INPUT);
     const currentByCode = new Map(
