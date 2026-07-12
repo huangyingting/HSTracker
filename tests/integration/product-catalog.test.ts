@@ -53,6 +53,25 @@ describe("ProductCatalog", () => {
     });
   });
 
+  it("does not expose mutable indexed product records", async () => {
+    const catalog = createFixtureProductCatalog();
+    const query = {
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+      query: "010121",
+      locale: "en" as const,
+      limit: 20,
+    };
+    const first = await catalog.search(query);
+
+    first.matches[0]!.product.sourceDescriptionEn = "tampered";
+    const second = await catalog.search(query);
+
+    expect(first.matches[0]!.product.sourceDescriptionEn).toBe("tampered");
+    expect(second.matches[0]!.product.sourceDescriptionEn).toBe(
+      "Horses: live, pure-bred breeding animals",
+    );
+  });
+
   it("browses matching HS12 products in stable code order", async () => {
     const catalog = createFixtureProductCatalog();
 
@@ -138,7 +157,7 @@ describe("ProductCatalog", () => {
       locale: "zh-Hans" as const,
       field: "AUXILIARY_DESCRIPTION_ZH_HANS",
       matchedText: "纯种繁殖用活马",
-      expectedCodes: ["010121"],
+      expectedCodes: ["010121", "010129"],
     },
   ])("finds products by exact $name descriptions", async (fixture) => {
     const catalog = createFixtureProductCatalog();
@@ -161,6 +180,34 @@ describe("ProductCatalog", () => {
         matchedText: fixture.matchedText,
       },
     });
+  });
+
+  it("finds Chinese words within unsegmented descriptions", async () => {
+    const result = await createFixtureProductCatalog().search({
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+      query: "繁殖",
+      locale: "zh-Hans",
+      limit: 20,
+    });
+
+    expect(
+      result.matches.map(({ product, match }) => ({
+        code: product.code,
+        class: match.class,
+        field: match.field,
+      })),
+    ).toEqual([
+      {
+        code: "010121",
+        class: "DESCRIPTION_TOKENS",
+        field: "AUXILIARY_DESCRIPTION_ZH_HANS",
+      },
+      {
+        code: "010129",
+        class: "DESCRIPTION_TOKENS",
+        field: "AUXILIARY_DESCRIPTION_ZH_HANS",
+      },
+    ]);
   });
 
   it("orders description-prefix matches by stable code", async () => {
@@ -261,6 +308,26 @@ describe("ProductCatalog", () => {
     expect(result.query.normalized).toBe("纯种繁殖用活马");
     expect(result.matches[0]).toMatchObject({
       product: { code: "010121" },
+      match: {
+        class: "EXACT_DESCRIPTION",
+        field: "AUXILIARY_DESCRIPTION_ZH_HANS",
+      },
+    });
+  });
+
+  it("uses phrase-aware Traditional Chinese query conversion", async () => {
+    const catalog = createFixtureProductCatalog();
+
+    const result = await catalog.search({
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+      query: "蜂窩網路或其他無線網路用電話機",
+      locale: "zh-Hans",
+      limit: 20,
+    });
+
+    expect(result.query.normalized).toBe("蜂窝网络或其他无线网络用电话机");
+    expect(result.matches[0]).toMatchObject({
+      product: { code: "851712" },
       match: {
         class: "EXACT_DESCRIPTION",
         field: "AUXILIARY_DESCRIPTION_ZH_HANS",
@@ -450,6 +517,22 @@ describe("ProductCatalog", () => {
       messageCode: "QUERY_TOO_SHORT",
       totalMatches: 0,
       truncated: false,
+      matches: [],
+    });
+  });
+
+  it("suppresses an unreviewed one-character Han search", async () => {
+    const result = await createFixtureProductCatalog().search({
+      productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+      query: "纯",
+      locale: "zh-Hans",
+      limit: 20,
+    });
+
+    expect(result).toMatchObject({
+      state: "SUPPRESSED_SHORT_QUERY",
+      messageCode: "QUERY_TOO_SHORT",
+      totalMatches: 0,
       matches: [],
     });
   });

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "hs12-translation-build-report-v1",
+  "status": "accepted",
+  "baciRelease": "V202601",
+  "translationVersion": "hs12-zh-hans-v1-5ab4ce24827a953c",
+  "attribution": "HS Tracker project auxiliary Simplified-Chinese translation of CEPII BACI source descriptions; terminology adapted from Taiwan Customs HS2012 tariff nomenclature (2/4/5/6-digit rows) (Taiwan Open Government Data License 1.0).",
+  "inputs": {
+    "sourceProducts": {
+      "bytes": 114835,
+      "sha256": "17c1e3021b36de40840d4d1b74fabc7c4bd71fb3cb3c9067fdfaab4c420b11cf"
+    },
+    "terminology": {
+      "bytes": 928714,
+      "sha256": "de78487ae278f33bebb6241727bbabad92a5b35a308b2a9fcb93f5e2b766a0bd"
+    },
+    "corrections": [
+      {
+        "correctionVersion": "baci-hs12-aggregate-corrections-v1",
+        "bytes": 1226,
+        "sha256": "c4c1d2bb74335897b3e93f8c8fdd238cafbda783e204ad30d294888486e15ec6"
+      },
+      {
+        "correctionVersion": "baci-hs12-project-reviewed-corrections-v1",
+        "bytes": 141726,
+        "sha256": "df06b2898d31ab813648b9f21eca144da56f74e74df5dd6632746c804710b622"
+      }
+    ],
+    "traditionalToSimplified": {
+      "bytes": 550212,
+      "sha256": "84fc5fdf6c0e7d1e23580e9ff0ca67d8e408ab6a1bfd63d7f69ff349c41def91"
+    }
+  },
+  "validation": {
+    "sourceProducts": 5202,
+    "translations": 5202,
+    "reviewedCorrections": 276,
+    "terminologyRows": 7346,
+    "missingTranslations": 0,
+    "staleCorrections": 0,
+    "legacyGlyphs": 0
+  },
+  "outputs": {
+    "translations": {
+      "bytes": 1848723,
+      "sha256": "c6082b65fce2bcfdbe620fa9f4795e06879f06d72c84a7b14d9e99d251cd31f8"
+    }
+  }
+}

@@ -1,0 +1,2929 @@
+{
+  "schemaVersion": "hs12-zh-translation-corrections-v1",
+  "correctionVersion": "baci-hs12-project-reviewed-corrections-v1",
+  "generator": {
+    "method": "manual",
+    "name": "HS Tracker bilingual catalog review",
+    "version": "v1",
+    "evidenceSha256": "e4861e573fafa94fc8afb681f9d43608fcc122efa4a5d8e267a345d9249418fc"
+  },
+  "rows": [
+    {
+      "code": "010594",
+      "description": "家禽,系指鸡、鸭、鹅、火鸡及珍珠鸡：其他：重量超过185公克之鸡",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "57a5664a40ab71d1752e797fce6b0b51d7e54bc2a6f64a3a9142ff7b6120d122",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "010599",
+      "description": "家禽,系指鸡、鸭、鹅、火鸡及珍珠鸡：其他,重量超过185公克者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f4f55ac8122add6e126c99ab7c3bd4a0b2d0a93d1cdc497f5874ab4c361742bb",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "020421",
+      "description": "绵羊或山羊肉,生鲜、冷藏或冷冻：绵羊肉,生鲜或冷藏：屠体及半片屠体(羔羊之屠体及半片屠体除外)",
+      "reasons": [
+        "exclusion-wording"
+      ],
+      "sourceDescriptionSha256": "7ff02507140e990c6a1ac42c6200ebac642c93b263b8442229c5eaa4a4ba9552",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "020441",
+      "description": "绵羊或山羊肉,生鲜、冷藏或冷冻：冷冻绵羊肉：屠体及半片屠体(羔羊之屠体及半片屠体除外)",
+      "reasons": [
+        "exclusion-wording"
+      ],
+      "sourceDescriptionSha256": "d1a9dca4ab6e5736fa7bc4ecb0ac69adcd72c12a2c62846278a96ada7e4b25c3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "090220",
+      "description": "茶叶,不论是否添加香料：其他绿茶(未发酵),每件包装内容量超过3公斤者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ba6670431d0983c2167dd8f718c16477a450c27e86aacf60d274e94e093602bb",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "090240",
+      "description": "茶叶,不论是否添加香料：其他红茶(发酵)及部分发酵茶,每件包装内容量超过3公斤者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "95a171d588159b3cb5a86c6e3fd0b0c2b97def912b3a3d768dfeb1fac990c87f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "091091",
+      "description": "姜、番红花、姜黄(郁金)、麝香草、月桂叶、咖喱及其他香辛料：其他香辛料：本章注一(乙)所提及由2种或以上产品组成之混合物",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c36dca83fe9224cb2c0b9e95203bc87f4c29fbbc46b186d1c1c66dfbd9efda80",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "151491",
+      "description": "油菜子油、芥子油及其馏分物,不论是否精炼,但未经化学改质者：粗制油(低芥酸油菜子油或芥子油及其馏分物除外)",
+      "reasons": [
+        "scope-qualifier-preservation"
+      ],
+      "sourceDescriptionSha256": "1607aa1668dc23a242ce72efe9df51aba36849773cd06ea4a913b4fe24e0995d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "170219",
+      "description": "其他糖类,包括固态之化学级纯乳糖、麦芽糖、葡萄糖及果糖;不含有添加香料或色素之糖浆;不论是否搀有天然蜂蜜之人造蜂蜜;焦糖：乳糖及乳糖浆：其他,以无水乳糖计算按干量计含乳糖低于99%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "49767c2baa86ed18b2171757811ba8ec17691fd0e751ceefd3944cc25a43ee6b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "180631",
+      "description": "巧克力及其他含有可可之食品：其他,呈块状、板状或棒状者：有填塞物,每件重量在2公斤及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "05cdb6a1b057560277c0022e90165435342f8af3d3c46831530f25e47398b99d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "180632",
+      "description": "巧克力及其他含有可可之食品：其他,呈块状、板状或棒状者：无填塞物,每件重量在2公斤及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ee18f8abd4c6ef56eeca3ede74fdc013d975524c2c758a3fe806090fdc357ef9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "200919",
+      "description": "未发酵及未加酒精之果汁(包括葡萄汁在内)及蔬菜汁,不论是否加糖或含其他甜味料者：柑橘汁：其他,白利糖度超过20者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "dc90a87cafbc09c4a92130790850ed124eb74bcb50a96a9adad4ae02dcebc4dc",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "200929",
+      "description": "未发酵及未加酒精之果汁(包括葡萄汁在内)及蔬菜汁,不论是否加糖或含其他甜味料者：葡萄柚(包括柚)汁：其他,白利糖度超过20者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8aef04c8ab13368e7266254e7d0ecc06395354525c0b3dec16051daec45d1a4d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "200939",
+      "description": "未发酵及未加酒精之果汁(包括葡萄汁在内)及蔬菜汁,不论是否加糖或含其他甜味料者：其他任何单一柑橘类果汁：其他,白利糖度超过20者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f29ca0b9654d2e37cf3e780c37f1b9e7be765da225de28b2ce9124927a12854d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "200949",
+      "description": "未发酵及未加酒精之果汁(包括葡萄汁在内)及蔬菜汁,不论是否加糖或含其他甜味料者：凤梨汁：其他,白利糖度超过20者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "612770a9df84efab0afcb9433ab2bf2e4cbd4266d5bcc04bc32862175afdd059",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "200969",
+      "description": "未发酵及未加酒精之果汁(包括葡萄汁在内)及蔬菜汁,不论是否加糖或含其他甜味料者：葡萄汁(包括未发酵之葡萄醪)：其他,白利糖度超过30者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "2629d5502325c2603397f20cf3f2b16ad84e082068a4bbde33f8fc25fb9a49ae",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "200979",
+      "description": "未发酵及未加酒精之果汁(包括葡萄汁在内)及蔬菜汁,不论是否加糖或含其他甜味料者：苹果汁：其他,白利糖度超过20者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "54d843dd7e5450e6786aa2049ae0e1c6e8bddabc625a37202a6334bdd2562c6f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "220429",
+      "description": "鲜葡萄酒(包括加强酒);葡萄醪,第2009节所指之葡萄汁除外：其他酒;加酒精防止发酵或中断发酵之葡萄醪：其他,每容器容量超过2公升者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0023e8fa32dbf79f0daf345d86cd1d2d506bc7532d03ecda8d2da7e994883c73",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "220590",
+      "description": "威米酒(苦艾酒)及加香料之其他鲜葡萄酒：其他,每容器容量超过2公升者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8b1bc52279412dddb678a000323380eee2a4a8d7c04471d92e7f7cfe98d2802b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "270750",
+      "description": "高温蒸馏煤焦油所得之油类及其他产品;类似产品其芳香族成分之重量超过非芳香族成分之重量者：其他芳香烃混合物依ASTM D86方法蒸馏时,于250度C时所得蒸馏量以容积计达65%及以上(包括耗损)者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "5c434032f1254b1cd020746c8b87d5f1012d38ee60713bd049971baaedb109c9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "271290",
+      "description": "石油胶;石蜡、微结晶石油蜡、含油石蜡、地石蜡、褐煤蜡、泥煤蜡、其他矿物蜡,及以合成或其他方法所得之类似品,不论是否着色：其他,按重量计含油0.75%及以上者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7f0f396f68b915dad8c2813172904b240713a45c24455f2ae635068c6563dc8a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "280469",
+      "description": "氢,稀有气体及其他非金属元素：硅：其他,按重量计含硅低于99.99%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "71e576def0a5fc0336fc194b393f44c6067a98f81860f9356c449206a507d0aa",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "293220",
+      "description": "仅具有氧杂原子之杂环化合物：结构中含有未稠合呋喃环(不论是否氢化)者：内酯",
+      "reasons": [
+        "scope-qualifier-preservation"
+      ],
+      "sourceDescriptionSha256": "5d429d33f8c203a78d5b7b87e8a1ae28fb07b74bdd8fe75f7943602492267baa",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "293391",
+      "description": "仅具有氮杂原子之杂环化合物：第2933.1、2933.2、2933.3、2933.4、2933.5、2933.6及2933.7目未列名者",
+      "reasons": [
+        "placeholder-repair",
+        "scope-qualifier-preservation"
+      ],
+      "sourceDescriptionSha256": "3e61d5bb50e0b7e4b515cf65312a80ae7dd88a5560ac7662e08a0d4f3c687faf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "320619",
+      "description": "其他着色料;本章注三所述之调制品,但第3203、3204或3205节之物品除外;用作发光剂之无机产品,不论是否符合化学上定义者：以二氧化钛为基料之颜料及调制品：其他,按干重计含二氧化钛低于80%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c69d1ef25dbbc8ac4bf115c5991d94537752cf6fce11507a99289cccefef3ba1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "340311",
+      "description": "润滑剂(包括以润滑制剂为基料之切削油、螺栓或螺帽离型剂、防锈或防腐蚀及脱模剂),及供纺织品、皮革、毛皮或其他材料之油脂处理用调制品,但以石油或自地沥青所得之油为基本成分且其重量在70%或以上之调制品除外：含石油或得自地沥青之油类,其重量低于70%者：供纺织品、皮革、毛皮或其他材料处理用调制品",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "dcce0b35e4a1ba1c1abab7b886d5ec4c3f61d4d9cf06101dcd9478f66da47027",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "340319",
+      "description": "润滑剂(包括以润滑制剂为基料之切削油、螺栓或螺帽离型剂、防锈或防腐蚀及脱模剂),及供纺织品、皮革、毛皮或其他材料之油脂处理用调制品,但以石油或自地沥青所得之油为基本成分且其重量在70%或以上之调制品除外：含石油或得自地沥青之油类,其重量低于70%者：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3f4cbe16fa72570c8dcc0040c7ef39b852d123e2fed69058ce4972fefa41ea4b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370120",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之平面装、感光性、未曝光照相用版及软片;平面装、感光性、未曝光之立即冲印组合：立即冲印软片,不论是否成包",
+      "reasons": [
+        "scope-qualifier-preservation"
+      ],
+      "sourceDescriptionSha256": "620d7a18e5a42cd4e403919806067eed3a88c99dcd38b5b988a22d204fcd3732",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370130",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之平面装、感光性、未曝光照相用版及软片;平面装、感光性、未曝光之立即冲印组合：任何一边超过225公厘之其他版及软片",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "790c4fde231986767d16d8c9f37f84ab467017386f5e19718c38468b58cb7009",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370191",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之平面装、感光性、未曝光照相用版及软片;平面装、感光性、未曝光之立即冲印组合：其他：供彩色感光用(多色),无一边超过255公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "382f2588d5f8742c6e6474801cadc583195bfc91c2c934e85c6234f3715fec5a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370199",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之平面装、感光性、未曝光照相用版及软片;平面装、感光性、未曝光之立即冲印组合：其他,无一边超过255公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "2011697598a62a05ee5f3645084d92222a692d4793f26786d45da3e1f55ad6ad",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370252",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之感光性未曝光照相用胶卷;感光性未曝光之立即冲印胶卷：供彩色感光用之其他胶卷(多色)：宽度不超过16公厘",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "d8943730937c6a2a30577fe1795b3050c81195f6d8b56b77d1399540b15ff3eb",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370296",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之感光性未曝光照相用胶卷;感光性未曝光之立即冲印胶卷：其他：宽度不超过35公厘且长度不超过30米者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "74317e988e3292c08dde591c76cb677cfa329c5a7280fd657f104539e2c7cf73",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370297",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之感光性未曝光照相用胶卷;感光性未曝光之立即冲印胶卷：其他：宽度不超过35公厘且长度超过30米者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "2b62d7e628c6c124ab8b27a264925be30f06cf8f6952a1a39fd0e2f4dba2273b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370298",
+      "description": "除纸、纸板或纺织品以外,任何材料制成之感光性未曝光照相用胶卷;感光性未曝光之立即冲印胶卷：其他：宽度超过35公厘者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "57008943fa8f2b7917703f4eb0df15d2f263c155f1fb2f277c36eb4ed46e8366",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370320",
+      "description": "未曝光之感光性照相纸、纸板及纺织品：其他,供彩色感光用者(多色),但宽度超过610公厘之卷筒除外",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4d620dadc727a32f1320560298038d6d2095decaebbb67fefdc7e1029d673ebf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370390",
+      "description": "未曝光之感光性照相纸、纸板及纺织品：其他,但宽度超过610公厘之卷筒除外",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a702c21b312a831d5d9096268265a246f8212b243ba8537153ae1faded940e62",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370610",
+      "description": "已曝光及已显影之电影软片,不论是否并合声带或仅为声带者均在内：宽度35公分或以上者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "5c03184308f616f93f96dd1e150ef7741b4efa0a3cda81988ba4be8b032c51f1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "370690",
+      "description": "已曝光及已显影之电影软片,不论是否并合声带或仅为声带者均在内：其他,宽度低于35公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "437f94cd86d5e38a3c41fefd67d33d47a3c784395a9b7a29e7b4e6d7d7022cd5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "391990",
+      "description": "塑料制自粘性板、片、薄膜、箔、带、条及其他平面形状,不论是否成卷者：其他,但宽度不超过20公分之卷筒者除外",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "afa39c742f6443e471b857222ea0ff92d6ddb1907fb310a4728e863f0c818ce7",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "392049",
+      "description": "其他塑料板、片、薄膜、箔及扁条,非多孔性及未经以其他物质加强、积层、支持或与其他物质类似结合者：氯乙烯聚合物制：其他,含塑化剂低于6%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "2e696df9d52db91e0c1adaa93082550c578020859c95a33eff24777c70a39c80",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "441294",
+      "description": "合板、单板贴面板及类似积层材：其他：窄板条木心板、层积木心板及宽板条木心板(仅由每片厚度不超过6公厘之木片构成之合板除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "d44a2dbb0c14b73f4173bc31caea9ce285dbaa0172f72b6427e6961998911da9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "441299",
+      "description": "合板、单板贴面板及类似积层材：其他(木心板、层积木心板、宽板条木心板,及仅由每片厚度不超过6公厘之木片构成之合板除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "5287ef54f632ba829862001019947ac5f962ddc807a36c9a598286a62f739f26",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480100",
+      "description": "卷筒或平版之印报纸,系以化学机械法制得纤维制成,或每平方公尺重量超过57公克但不超过65公克者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4cff247ed851c3d86cfd43f709dfa77d0710facacf36df5ad31dcc2311cb5a93",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480254",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,不含用机械法或化学机械法制得纤维,或所含前述纤维重量占全部纤维含量之10%及以下者：每平方公尺重量低于40公克者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "642d02be52af5121d4a77297f04c939eb8747a31c2bf2410290559ea13eace9b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480255",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,不含用机械法或化学机械法制得纤维,或所含前述纤维重量占全部纤维含量之10%及以下者：每平方公尺重量自40公克至150公克/平方公尺之卷筒纸",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "43a6c487441d65cdcff418955a13a1121e17aa67ecd6329b783be8b23748734f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480256",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,不含用机械法或化学机械法制得纤维,或所含前述纤维重量占全部纤维含量之10%及以下者：每平方公尺重量自40公克至150公克/平方公尺,不折叠时其一边不超过435公厘,另一边不超过297公厘之平版纸",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f968d57d43c1787774df294f44adacfa7331c1e2e79117c81538b93dcbb6e9ee",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480257",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,不含用机械法或化学机械法制得纤维,或所含前述纤维重量占全部纤维含量之10%及以下者：其他,每平方公尺重量自40公克至150公克/平方公尺者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "84d655058f97f59f722257d6887b1268928ee06df7be3f4e31fa22b5c4c65893",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480261",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,其所含用机械法或化学机械法制得纤维重量占全部纤维含量之比例超过10%者：卷筒纸",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d1478019e98940aec774aec017c5a05b60c8a77a71ff068a184f2293293dce0f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480262",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,其所含用机械法或化学机械法制得纤维重量占全部纤维含量之比例超过10%者：不折叠时,其一边不超过435公厘,另一边不超过297公厘之平版纸",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "92402e8d1a88c73965026fcc4bf1c14fcd6c0b14d6353e7bb0a205b4f0ca1534",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480269",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之未涂布纸与纸板,用于书写、印刷或其他制图用,未打孔之打孔卡片纸和打孔纸带(第四八○一或四八○三节者除外);手工制纸及纸板：其他纸及纸板,其所含用机械法或化学机械法制得纤维重量占全部纤维含量之比例超过10%者：其他,但卷筒纸及不折叠时其一边不超过435公厘且另一边不超过297公厘之平版纸除外",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "96f9065b91c59b16a422daf4078f3fb8b1ff54045b56d3c1955b7893b6d74fb9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480300",
+      "description": "卫生纸或面纸之原纸、纸巾或纸餐巾之原纸及类似之供家用及卫生用纸之原纸、纤维素胎及纤维素纸,不论是否皱折、压纹、打孔、表面着色、表面装饰或印刷处理,卷筒或平版者均在内,系宽度超过36公分之卷筒,或摊平时一边超过36公分之长方形纸张",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "1609f6a5134fa5e36a4bda8d485f44dbc8a5dbd5694bd8d9fde7dd8f38840eff",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480431",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量在150公克(g/m2)及以下者：未漂白",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7cb60fcc81636a7b6df159c8f19e7c05374290b744e66f973e0d33c132b106d6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480439",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量在150公克(g/m2)及以下者：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "42770738ad909a2a899f22caff5f55909669700a5e270b4807738add4cd6c4b3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480441",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量超过150公克,但低于225公克/平方公尺者：未漂白",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "140fcfb8b7a95e6a2e68c0907f59b2af6512dfe7c1dce6ab045b7d0fc4941ded",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480442",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量超过150公克,但低于225公克/平方公尺者：整幅均匀漂白,且所含化学法木材纤维重量占全部纤维含量之比例超过95%",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "79c30814a7d2dea737a91da4e40cb74094179cfab40c50500d0855c4570a5a07",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480449",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量超过150公克,但低于225公克/平方公尺者：其他",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "2f26f8e30c3d3329c95624e29e90a353854de442f4f35d641c9419cee38d21da",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480451",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量在225公克(g/m2)及以上者：未漂白",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "95581bd80a7f387f3d61643efba572cb7d134c190f530275249daac14c78e312",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480452",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量在225公克(g/m2)及以上者：整幅均匀漂白,且所含化学法木材纤维重量占全部纤维含量之比例超过95%",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4ed09fb823df5b1b6ac7abda859e47e164eb0ca381fd089fecf16f7f35e14e01",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480459",
+      "description": "卷筒或平版之未涂布牛皮纸及纸板(第4802或4803节者除外)：其他牛皮纸及纸板,其每平方公尺重量在225公克(g/m2)及以上者：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4c179733d476a82097f0910a694edc67d380d04aab920fd6af943dcf8c2b4a89",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480591",
+      "description": "卷筒或平版之其他未涂布纸及纸板,其加工或处理程度不超过本章注三所述者：其他：每平方公尺重量150公克(g/m2)及以下者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "72298f29bead48d6e01b5c9a4628226b542e5ed03d0e61ce18b55cd18be7e3ab",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480592",
+      "description": "卷筒或平版之其他未涂布纸及纸板,其加工或处理程度不超过本章注三所述者：其他：每平方公尺重量超过150公克但低于225公克者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "779931b33561ab2cb08dcec27f9c84f36545abf6628b971751bdee63ef9284cd",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "480593",
+      "description": "卷筒或平版之其他未涂布纸及纸板,其加工或处理程度不超过本章注三所述者：其他：每平方公尺重量225公克(g/m2)及以上者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "5856b0c6893d1f1363da75d7421b7f8d9f7e8446b37af72e67fabbda70cf5859",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481019",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之纸及纸板,其一面或双面用高岭土(白土)或其他无机物涂布,不论是否有黏结剂均在内,惟未有其他涂布,且不论是否经表面着色、表面装饰、或表面印刷。：书写、印刷或其他制图用纸及纸板,不含用机械法或化学机械法制得纤维,或所含前述纤维重量占全部纤维含量不超过10%者：其他,系一边超过435公厘且另一边超过297公厘,不折叠之平版纸",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6e89e8524e5c86a299b042d98092993d6eb1ec742349c58d697ecc44dc2c94d1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481022",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之纸及纸板,其一面或双面用高岭土(白土)或其他无机物涂布,不论是否有黏结剂均在内,惟未有其他涂布,且不论是否经表面着色、表面装饰、或表面印刷。：书写、印刷或其他制图用纸及纸板,其所含用机械法或化学机械法制得纤维重量占全部纤维含量之比例超过10%者：轻量涂布纸",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b1809464f2cb76851cf9a3aeb6335f4bb30f7f49d3b51d14bfd01f5302fc1378",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481029",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之纸及纸板,其一面或双面用高岭土(白土)或其他无机物涂布,不论是否有黏结剂均在内,惟未有其他涂布,且不论是否经表面着色、表面装饰、或表面印刷。：书写、印刷或其他制图用纸及纸板,其所含用机械法或化学机械法制得纤维重量占全部纤维含量之比例超过10%者：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "cf0fecaca1087030482a82ba97664dd677a53501aaed7ddf0b6027cbd535dcb3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481031",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之纸及纸板,其一面或双面用高岭土(白土)或其他无机物涂布,不论是否有黏结剂均在内,惟未有其他涂布,且不论是否经表面着色、表面装饰、或表面印刷。：牛皮纸及纸板,书写、印刷或其他制图用者除外：整幅均匀漂白,且所含化学法木材纤维重量占全部纤维含量之比例超过95%,而其每平方公尺重量在150公克(g/m2)及以下者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "800b6f9d95b8b5a69110feda4b3908d715b278789a6638db5bd8404fcd348aa5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481032",
+      "description": "任何尺寸卷筒或长方形(包括正方形)平版之纸及纸板,其一面或双面用高岭土(白土)或其他无机物涂布,不论是否有黏结剂均在内,惟未有其他涂布,且不论是否经表面着色、表面装饰、或表面印刷。：牛皮纸及纸板,书写、印刷或其他制图用者除外：整幅均匀漂白,且所含化学法木材纤维重量占全部纤维含量之比例超过95%,而其每平方公尺重量超过150公克者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "beea8487ce294dc586b15bd1f8fbec7b3ebf5ec9abf7cc7ba91721502101e2c5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481159",
+      "description": "任何尺寸之卷筒或长方形(包括正方形)平版之纸、纸板、纤维素胎及纤维素纸,经涂布、浸渍、覆面、表面着色、表面装饰或印刷者,第4803、4809、4810节者除外：以塑料(接着剂除外)涂布、浸渍或覆面之纸及纸板：其他,每平方公尺重量超过150公克者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0fee74812813494b0e0714203a6b2e8896f6668d01842e912bfc9402e97155a4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481390",
+      "description": "卷烟纸,不论是否切成一定尺寸,亦不论其是否为小册或管状均在内：其他,但宽度不超过5公分之卷筒、小册或管状者除外",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a3e3e37571621023db7a9237ebf6cda36ceec6d792f51f5404d71c8441d2d3ac",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "481940",
+      "description": "纸、纸板、纤维素胎或纤维素纸所制之箱、盒、匣、袋及其他包装容器;办公室及商店等用之纸或纸板制之文卷盒、信盘及其类似品：其他纸袋,包括锥形者,其底宽低于40公分者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7af9c51cd8e2ef8bb61bda690e468256b3bf2b9dc9bc49c0807d717eb01b0798",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "510620",
+      "description": "非供零售用初梳羊毛纱(纺毛纱)：含羊毛重量低于85%者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "88e3efd3293cf524f54b8d2e85c4e56bba9a92ee6e5641eefd2c71b747638b18",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "510720",
+      "description": "非供零售用精梳羊毛纱(梳毛纱)：含羊毛重量低于85%者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f9c35a0a91669e74fa90736a3c2c5d8d48f6b8b62c3226360d5b54eb3cadd122",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "510990",
+      "description": "供零售用羊毛或动物细毛纺制之毛纱：其他,按重量计含羊毛或动物细毛低于85%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0d0f139a905e7f6440dd807a6808d5c9309f96ea4c3784d15cd3d133b4125544",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511119",
+      "description": "羊毛或动物细毛纺毛梭织物：含羊毛或动物细毛重量在85%及以上者：其他,每平方公尺重量超过300公克者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "177f7f2a1226fb1f7a08bc2bd5c5be46219c3c4f62b6680f3862ee1cc63234cd",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511120",
+      "description": "羊毛或动物细毛纺毛梭织物：含羊毛或动物细毛重量低于85%,主要或单独与人造纤维丝混制者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a35516b142047f64162a592447a33be395ad199c8426a6f6323e715ef66c76a4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511130",
+      "description": "羊毛或动物细毛纺毛梭织物：含羊毛或动物细毛重量低于85%,主要或单独与人造纤维棉混制者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "1cd96f3976bee727f5a7697a77a8fccde488e3bc2f7b2a49b5ad83535de2c182",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511190",
+      "description": "羊毛或动物细毛纺毛梭织物：其他,含羊毛或动物细毛重量低于85%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "744d83d03b1aa8cfd11ce6a3d2f9fa52529d26ab1e6da73aeb73c8b534ce7c39",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511219",
+      "description": "羊毛或动物细毛梳毛梭织物：含羊毛或动物细毛重量在85%及以上者：其他,每平方公尺重量超过200公克者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f4dc415bb3082ee74b4bd89d57aeb8d0808ccea22e99b3b07229949ab846b534",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511220",
+      "description": "羊毛或动物细毛梳毛梭织物：含羊毛或动物细毛重量低于85%,主要或单独与人造纤维丝混制者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3a6ad145dfb1d6b3cf9fc05695f51d65519b8e2f18b7209c845c4c7bb97934ed",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511230",
+      "description": "羊毛或动物细毛梳毛梭织物：含羊毛或动物细毛重量低于85%,主要或单独与人造纤维棉混制者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c49ba7e8508f066b29c9b142202ea5534a2c7e1e4aa6fc4fafb42b9f37b71a57",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "511290",
+      "description": "羊毛或动物细毛梳毛梭织物：其他,含羊毛或动物细毛重量低于85%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "cf503cbd8f9ac13e6998f7bef0cd3a57395c5972ae134e8b07e5bca224871a98",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520419",
+      "description": "供零售用或非供零售用之棉缝纫线：非供零售用者：其他,含棉重量低于85%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d4f8b3629aa239cc07a2dd7624aa14deea4b3ebc21f0a45b4f6229bb6ac2f4a1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520512",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股未精梳棉纱：支数在232.56分德士及以上,低于714.29分德士(公制支数超过14支,但不超过43支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "12bbc0b6c5b4c3ff9d38365bce388a7ecfcf997060211c76368029126714e9b3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520513",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股未精梳棉纱：支数在192.31分德士及以上,低于232.56分德士(公制支数超过43支,但不超过52支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b146fb0d0e1b5c97dafb93c907b524f11b91b480e1eeddf1784fe5771c2e90c4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520514",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股未精梳棉纱：支数在125分德士及以上,低于192.31分德士(公制支数超过52支,但不超过80支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7cea88d5620cca58d5d72d696c46c426594a56139d728c78f1525441f9b97bcf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520522",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股精梳棉纱：支数在232.56分德士及以上,低于714.29分德士(公制支数超过14支,但不超过43支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "05d7eaad6bd4a782410579aa294ea055c514549c0d63285e6f364bdd29ffdef7",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520523",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股精梳棉纱：支数在192.31分德士及以上,低于232.56分德士(公制支数超过43支,但不超过52支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "16ba7e5ce8efae41411b3c4b5b9fba79596a702c8fa4434e50dce4ab9ade64e8",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520524",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股精梳棉纱：支数在125分德士及以上,低于192.31分德士(公制支数超过52支,但不超过80支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "40b247b67bc71bf54223f16205e6e5438f1226c84c8bfca4499996e9c8f53db6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520526",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股精梳棉纱：支数在106.38分德士及以上,低于125分德士(公制支数超过80支,但不超过94支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f913174c67de77e51425dc02dd2aaf0fbc7c3b00da282b9a7ebcdfac26ff4aac",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520527",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：单股精梳棉纱：支数在83.33分德士及以上,低于106.38分德士(公制支数超过94支,但不超过120支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "e24a75d0fe50556a57d1b2d005f0c4686920db7050485add9b6d18c175a2c0d1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520532",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股未精梳棉纱：单纱线细度714.28至232.56分德士(公制支数15至43)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "3a24ac80fb91cce2e66423f9e2815abe31ea59497716b077a3f88a2eca31806b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520533",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股未精梳棉纱：单纱线细度232.55至192.31分德士(公制支数44至52)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "ca9bf1ca6b7aae65f4f622ad81385e037ab2fdc43af75d86c1a11aef20982245",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520534",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股未精梳棉纱：单纱线细度192.30至125分德士(公制支数53至80)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "5e769d1ceb255759ca0956cfae23383a6f1793aea8b89d8d0bb8aab96e0f06c5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520542",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股精梳棉纱：单纱线细度714.28至232.56分德士(公制支数15至43)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "0c84e75af7a9a932cf0ab3d0359aefba397347482671b1749251b982cbcf9d68",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520543",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股精梳棉纱：单纱线细度232.55至192.31分德士(公制支数44至52)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "02219c4578737b25406e1df892291fa0680720dabe0149c6c5a67cf27fa234b5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520544",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股精梳棉纱：单纱线细度192.30至125分德士(公制支数53至80)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "0fccfc655e73dc174182d297ced3de1b2d56f94c432c6d473cbc2e7704f7c5da",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520546",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股精梳棉纱：单纱线细度124至106.38分德士(公制支数81至94)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "af99bd1f2ecda0ef39688979848f5e3d4d5ae93dece510d4d69b8e185ac58a79",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520547",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量在85%及以上者：多股(合股)或粗股精梳棉纱：单纱线细度106.37至83.33分德士(公制支数95至120)者",
+      "reasons": [
+        "numeric-preservation"
+      ],
+      "sourceDescriptionSha256": "78df1c6e8bcd89110cb1a5c2db1cc335e5cf66a41ea4853f2de34c285448c368",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520611",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股未精梳棉纱：支数在714.29分德士及以上(公制支数不超过14支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "15c4472951ca9150c8cc0fd12ad3c8e8149aac675afdf107757403af07715993",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520612",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股未精梳棉纱：支数在232.56分德士及以上,低于714.29分德士(公制支数超过14支,但不超过43支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "56cf69ffcd26ce33555ba6b70bcc30f1cb37703d30f6447f1cf7f7578e0eb84a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520613",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股未精梳棉纱：支数在192.31分德士及以上,低于232.56分德士(公制支数超过43支,但不超过52支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "31400122397760692b91fb36f419422595926be9cd2b9c79e937681298e525bb",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520614",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股未精梳棉纱：支数在125分德士及以上,低于192.31分德士(公制支数超过52支,但不超过80支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0d054247a70755ddda67cc0583a654d768d0a92331ee67e089f835aa59cade42",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520621",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股精梳棉纱：支数在714.29分德士及以上(公制支数不超过14支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "2b7fd0ed98cb7c06a4a20ece7094e47211514820ffe08d6963a5a2f239b2e770",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520622",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股精梳棉纱：支数在232.56分德士及以上,低于714.29分德士(公制支数超过14支,但不超过43支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "abc1ad986cca49dc2405cdcfe51ad5484ee1f5df75fee1effd3c1b0a491edd81",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520623",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股精梳棉纱：支数在192.31分德士及以上,低于232.56分德士(公制支数超过43支,但不超过52支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "9006b8f1eb1c95900532db3793dc4faf11ea2086439e4c9373e831f32ca8385c",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520624",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：单股精梳棉纱：支数在125分德士及以上,低于192.31分德士(公制支数超过52支,但不超过80支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ebc690217b91eb94832e2a76b65c81c960e04bbd6ab89c1e2ff2b92aeb6dd042",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520631",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股未精梳棉纱：单股纱支数在714.29分德士及以上(公制支数不超过14支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d7a88926de0f9c0a54434970445066a28cc7a84f5113795bf084f509218f099e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520632",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股未精梳棉纱：单纱线细度714.28至232.56分德士(公制支数15至43)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6abd02f8da3f32077950d9d280ef9b431faee7b448cbbed16f6374b363937301",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520633",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股未精梳棉纱：单纱线细度232.55至192.31分德士(公制支数44至52)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "28f53cc142609c0624ebd637092720d31eaffed1c7e4190c14663cc163098760",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520634",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股未精梳棉纱：单纱线细度192.30至125分德士(公制支数53至80)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "39b844725c815df578e955194c5b9808ea5fefe20e3ee4546a30f4cbc1a4c463",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520635",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股未精梳棉纱：单股纱支数在125分德士以下(公制支数超过80支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ce32ff8adc3a4d96db2503db90fcebbbfb0e60b556cc2adf262bf4027bc36217",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520641",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股精梳棉纱：单股纱支数在714.29分德士及以上(公制支数不超过14支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4e83c1dbea09c8e59bb12580e8aa5e14eae4548af8bf38a65e58e758c16fc0f5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520642",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股精梳棉纱：单纱线细度714.28至232.56分德士(公制支数15至43)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d738bc53f537f49520d67d6fb983701eb2a22e173367e77c7beefba0a2fcd4af",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520643",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股精梳棉纱：单纱线细度232.55至192.31分德士(公制支数44至52)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8c4642cbc91d36d30fb293ecbc974562dcdf31ced8ddbaf66602fe50fab74edf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520644",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股精梳棉纱：单纱线细度192.30至125分德士(公制支数53至80)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7ccb984e0117d641e46b593d96a8f32ad2774f70221805c860b23200855bec2f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520645",
+      "description": "非供零售用棉纱(棉缝纫线除外),含棉重量低于85%者：多股(合股)或粗股精梳棉纱：单股纱支数在125分德士以下(公制支数超过80支)者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "60ed64e0dcb0df6be996e9037d0dab8697b20dbcdefc107b3a23bd58d13cffa4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "520790",
+      "description": "供零售用棉纱(缝纫线除外)：其他,含棉重量低于85%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "47c1568c569caa97274825338bef051ecce6ad6e3ca6aef1fee071a464794cfa",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521011",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：未漂白者：平纹梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f9fd7cf30a9c22d6ad2fff4b6e851c58646086b2f2f9ee02eba31a597e7eaa48",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521019",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：未漂白者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6620a103eaab348c7d69aac833258ef15ab0cf1afe5d1d430d6d2c7136cc1544",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521021",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：漂白者：平纹梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "83471622fc95b59161cc8dfd656dae5102c7a2af61b77954490b52b880222088",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521029",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：漂白者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "42a8835419599d484231b74ac072c95b5c43b200920f072d6472718d84b072f1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521031",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：染色者：平纹梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "5b85c64920cceae513ba759c05fb60cc5ff337e3b5625a296445a376c6036dd2",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521032",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：染色者：3枚或4枚斜纹梭织物,包含破斜纹梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "cc68c1856898c64924da624b958dd8b65b41ced47fa2d86a14ba616c39cf4f1b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521039",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：染色者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "35dba1a62cbcc0fb7fd53c608ffd049ebb514bd27b8a694a5765a9e0e1b3b104",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521041",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：异色纱织成者：平纹梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "48821708de1e7f7249fc8aefb81d88d42f827425bb7941d3de164771f0478c7c",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521049",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：异色纱织成者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "813685b2afeae3c7c2f93fba1b85c2e3eda5f602a712ada2ede68a9da2f5c7b8",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521051",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：印花者：平纹梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "63abf7148c855b51c7d0ff6771d9731df74e19bc25538c215533421e505b6b3f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "521059",
+      "description": "主要或单独与人造纤维混制之棉梭织物,含棉重量在85%以下,每平方公尺重量在200公克(g/m2)及以下者：印花者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c388b90fa26f3c520cc17b0c3e2d5f2d3c75cc318350c8157865bd2254787f7d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "530921",
+      "description": "亚麻梭织物：含亚麻重量低于85%者：未漂白或漂白者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a2ef16bf0ba0fc30d6a7a11d437d69d2a8f0a827a6f9026f48f4fc52de7df719",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "530929",
+      "description": "亚麻梭织物：含亚麻重量低于85%者：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "36a44af5f8bf59ba9ee50afe24d826f8550476f45853cc20b409dffae6b8a337",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540211",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：高强力尼龙或其他聚酰胺纱：芳香族聚酰胺制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f6ad07974e0f26b1a2b0c06cfb48d5987c256eefd0ae6bd57eb1222e5b6887b6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540219",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：高强力尼龙或其他聚酰胺纱：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "557769945bed77130b66789250401e98f6e3c601d65cc7e6108c59636a761872",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540220",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：高强力聚酯纱",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ece1f52c6ba61ee76d295f887c7f81dc89f859fd4e3ca86fc6b6900d12381270",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540231",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：加工纱：尼龙或其他聚酰胺制,每单股纱支数不超过50分德士者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "23cdcdf2bbd5ee1b6cc615099132f3740951b96d78be5f444ec76082851368e2",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540232",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：加工纱：尼龙或其他聚酰胺制,每单股纱支数超过50分德士者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c7a020f832d4bf43e1574d39b49e671fba18a90d1593a5a4bdceebbb84aed628",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540233",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：加工纱：聚酯制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6344b65bf8bfb7a65d7f6aa40b18b65270a9ca67c35a90a3a1901c1e4e47ec1b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540234",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：加工纱：聚丙烯制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d45af8ccf070d21c73287754a83d1dba69a1a9a9da5233c50ee6ecca91372bec",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540239",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：加工纱：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3f0573808be6222dbfe863f38e0ca6316c13b15f062a5036c4ebc94c83e0950e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540244",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他未加捻或捻度每公尺不超过50捻之单股纱：弹性者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3d43ae1d6705dca5bcfc4f7c9ea41197ebaf29a6786b26c97fa876cf3bed96a3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540245",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他未加捻或捻度每公尺不超过50捻之单股纱：其他,尼龙或其他聚酰胺制",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "460ebae58f952c2435069dd41906ad80b96ab35c929aff6e72de8f2281baaa67",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540246",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他未加捻或捻度每公尺不超过50捻之单股纱：其他,聚酯制,半延伸者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "66cd48d8fb6523168030b4d4e34915dc00fdddb9db940331ff666a3176513c24",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540247",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他未加捻或捻度每公尺不超过50捻之单股纱：其他,聚酯制",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c637f91a54cf7ba60f608f1ae917088abce67429fb075df8907dac2182a21867",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540248",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他未加捻或捻度每公尺不超过50捻之单股纱：其他,聚丙烯制",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f3faf44743c86a442b4f860f700d6f748d24f8b21f1b30e84fdf5d37bfad2f09",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540249",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他未加捻或捻度每公尺不超过50捻之单股纱：其他",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d5029b2b6727cf883d741ee5126e92c0578b31cd6e26d5d1581fb4894360765a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540251",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他捻度每公尺超过50捻之单股丝纱：尼龙或其他聚酰胺制",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "232ad5c94a7d9696c567af82cd15c66e3b1e175fcbb3e8e26dfd55ba262d8c35",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540252",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他捻度每公尺超过50捻之单股丝纱：聚酯制",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ece7f032e72c777412c79f9bf726dd9d75cebdb000e9607349b075bb811f8d56",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540259",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他捻度每公尺超过50捻之单股丝纱：其他",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "29322faa0174dff710096c442c044c1c769abbbfe4f8c86a908d03c9f5c982cf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540261",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他多股(合股)或粗股纱：尼龙或其他聚酰胺制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "18e641b6d319e7d08572ea89f448026332c07d1676d79d74d5d580b2f7e60c72",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540262",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他多股(合股)或粗股纱：聚酯制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b0c6a07936664737ce720ce734fd52e982c7d8c6e8f93fa1a5a84e74eba2f6d6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540269",
+      "description": "合成纤维丝纱(缝纫线除外),包括支数低于67分德士(60.3丹尼)之合成纤维单丝,非供零售用者：其他多股(合股)或粗股纱：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b53b4f76f5fdfc4e1b04451e10652edddf1cd3c9c9b354a6af16df9d840fe135",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540310",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：高强力黏液嫘萦丝",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0550e58a5194c3816bc754d8ece2ae76e2808075f5c97e1deb61fb825d7ff2d7",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540331",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他单股纱：黏液嫘萦制,未加捻或捻度每公尺不超过120捻者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "432242caf4b172eec87f00d7b219d526268d6d29c77df163dd1cb95ef9653d68",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540332",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他单股纱：黏液嫘萦制,捻度每公尺超过120捻者",
+      "reasons": [
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "bbc11b8dc6f3c94670f270dd122cf3298c5734fbdce37814d92b6acd04851b70",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540333",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他单股纱：醋酸纤维制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "aef9707645bbbf545d252f8f56e730527669bf07909e8076efbc32ddb9011141",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540339",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他单股纱：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4e3aaaec6adb053ab80433f0eac077c4d72b1ed79619d762af9d2794655e9778",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540341",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他多股(合股)或粗股纱：黏液嫘萦制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "db94cbb7c19b3b527f3c5a090cdc7ec2e2dd80f19d36e367b90e5560c66db4fe",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540342",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他多股(合股)或粗股纱：醋酸纤维制",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "78a936b9c8848d73bf9b5b90f9fdb45fc0f29316516f56c10016bf50d341e1a4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540349",
+      "description": "再生纤维丝纱(缝纫线除外),包括支数低于67分德士(即60.3丹尼)之再生纤维单丝,非供零售用者：其他多股(合股)或粗股纱：其他",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3e53a583abd1dfec47f9064a0c9a2f985f1341c741b15f0523dfc4077a97f167",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540769",
+      "description": "合成纤维丝纱梭织物,包括以第5404节材料制成之梭织物：其他梭织物,含非变形聚酯丝重量低于85%者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "9cd66fd3c47f6fc4fd6498a653e41464123f13bbd0272852f83b688da549b016",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540781",
+      "description": "合成纤维丝纱梭织物,包括以第5404节材料制成之梭织物：主要或单独与棉花混制成之其他梭织物,含合成纤维丝重量低于85%者：未漂白或漂白者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "2207fcc452391aaebcef1b6a4ce4aed878de4ba64ced43ee662d9ad31ee17260",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540782",
+      "description": "合成纤维丝纱梭织物,包括以第5404节材料制成之梭织物：主要或单独与棉花混制成之其他梭织物,含合成纤维丝重量低于85%者：染色者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c069257d8d9f27b9284b9dc8301417b3bc85f8e9bc65185fe1b1223db3a237a6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540783",
+      "description": "合成纤维丝纱梭织物,包括以第5404节材料制成之梭织物：主要或单独与棉花混制成之其他梭织物,含合成纤维丝重量低于85%者：异色纱织成者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d17b4774fe2bc7c3e80c7513ac5a8a51dd32d7d394a076480a271b73de742d79",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "540784",
+      "description": "合成纤维丝纱梭织物,包括以第5404节材料制成之梭织物：主要或单独与棉花混制成之其他梭织物,含合成纤维丝重量低于85%者：印花者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "28af7bd5982604a5abdc7fa60fdf03200bd998528173ef5b970c4d81df786e64",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551120",
+      "description": "供零售用之人造纤维棉纱(缝纫线除外)：合成纤维棉制,含合成纤维重量低于85%者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3e2ae613ec38d10198f2243bb5c5813ed63e01635e6037d31d0241eba915755f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551311",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：未漂白或漂白者：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6846ad7de3f21d2d07a4b7adca48d58f374bbbcd64566835447e2e1489b57b59",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551312",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：未漂白或漂白者：聚酯纤维棉制,三枚或四枚斜纹者,包括破斜纹者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "fe91edb73a3e6236376a46c25aa7d843f3632de5e2dfbf71be0202058155dcb2",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551313",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：未漂白或漂白者：其他聚酯纤维棉梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "29da5e7c36e8e90ce95e91fb5f9eaa75d112f4f13360c5716bbc510e80a99720",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551319",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：未漂白或漂白者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "810f111b535c16abcc8b6a33db85fa60ed2c1337d6c690547b730da84ec1b2e2",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551321",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：染色者：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c598d0c6b6047e5f74f02054630a10c9825cfc303d8c92109001aa7a7797bb4f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551323",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：染色者：其他聚酯纤维棉梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "df007814ba958c9614bf9897ab6b69abae34eeda7c8d16d75229553441b1d2fe",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551329",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：染色者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7094aa4933eb9730517ac897c6906e00b6b90e1852c0a810dca93f3a09cd7e0c",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551331",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：异色纱织成者：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b34ebcf0116fc291a049d4db8da3f21e9da78d2492414216a138654cfbcd7926",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551339",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：异色纱织成者：其他合成纤维棉梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3ef78dd0db9759d228fe0d1ac225988bd09089522c9146662607b89091b68751",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551341",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：印花者：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6fdda7018a92608b18f19b63cd2c6cf889c7953883b7d76bab8ebee1af414640",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551349",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量不超过170公克：印花者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b2ac126366ee5e59133ac3b895f7725030d4452ceef233694922270ab9aed6de",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551411",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：未漂白或漂白者：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "3ea8629d015a47fb3b515ca4b28bddf27b9d962be302edfc2d6af757d1a38193",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551412",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：未漂白或漂白者：聚酯纤维棉制,3枚或4枚斜纹者,包括破斜纹者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8b1c44d9e02f42efc0f27304c4db17c7d88f23405ec6a8cf01b8d16d0e6ea3cf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551419",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：未漂白或漂白者：其他合成纤维梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "5e66048c84c32f789065fd7b0253568d66de169ae4f0d500d3c31adf44ede18e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551421",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：染色者：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "d93f84028882fc67d764588f136dab74554293228639d08c02d24be65dadd3d4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551422",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：染色者：聚酯纤维棉制,3枚或4枚斜纹者,包括破斜纹者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0704ce66e8dce75d592accaa59231f1f5c61c6fef61b10a945119da378d3372d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551423",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：染色者：其他聚酯纤维棉梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ffe7476f161762f69dcb40935aaf7297f867839e2fae0f2eb03a033f8c0f92e9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551429",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：染色者：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "1514a2a59312bceef0bb89b480181465445bbef6568bcf4b93f8dc44a102eb15",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551430",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：异色纱织成者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "86b9fe4a0300aee85f83cdc2ca51da5d2c7c03c8d64ddf52cd1c3ac1d8fc3ed3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551441",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：印花：聚酯纤维棉制,平纹梭织者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c9a69021feeb48c8853db808d8669cfc001517af51d606b8ca83bfa0dd374ffe",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551442",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：印花：聚酯纤维棉制,3枚或4枚斜纹者,包括破斜纹者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ce139b18dbd8018c2e2731d650592efa3756f662bfe87defbafb04ed71d246b4",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551443",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：印花：其他聚酯纤维棉梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8036d0131b053f697b9317320e68fc471faef5a7d8605b5e7666c944f3c85f5a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551449",
+      "description": "合成纤维棉梭织物,含合成纤维重量低于85%,主要或单独与棉花混制,每平方公尺重量超过170公克者：印花：其他梭织物",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "491ab467bacb9b61c4c128143d12e390791441a7b9c953ce9a84fee9f47d556a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551621",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与人造纤维丝混制者：未漂白或漂白者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a53dc189b042d7b1795db269b74cd0e0d142cf65929a24b665775f7097942ed9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551622",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与人造纤维丝混制者：染色者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "9c5ab2c57bf886dbfd6603ce1911791eb27fb1cd2221ed46e2a5b29362e5c4da",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551623",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与人造纤维丝混制者：异色纱织成者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c3337a8e73d94ff732fa82b5707d90798b71bdb138bae372e7adc218354caaeb",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551624",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与人造纤维丝混制者：印花者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a98015f7f2946c5399734e5c2c8026029c630a72e020ad54570096d24f51060e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551631",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与羊毛或动物细毛混制者：未漂白或漂白者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "6e773ce1204ae9ef6d7e508de41ba9716f0c0d632ad3832c1b1c5ce7e23caa58",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551632",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与羊毛或动物细毛混制者：染色者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "343ff129efcd443a7354297662c7ed5c4f05b3aedc8f40b5e6afaeeac5a92ea6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551633",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与羊毛或动物细毛混制者：异色纱织成者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "10b3be77fc95d5f9e5f00f86dd7636be2de1f07ef3458d329f9a7d55fccaf730",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551634",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与羊毛或动物细毛混制者：印花者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c02c3e49afd5d0ebbb6d7c12eddd38673c2bfb858283f9a44c8fab63b9c2fe21",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551641",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与棉花混制者：未漂白或漂白者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "23a4564bdd9b308b8ca10b82880b3ab300d2f5dc4f01a6b2e47e6e0dd8feeada",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551642",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与棉花混制者：染色者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4621cfd62afb0383cd47075376a9456b9670ac24e145b725b37828ea17b511f0",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551643",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与棉花混制者：异色纱织成者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "454a920ff74a11b823524ec8f09a8548275ce32476f3b5a9347f933e1a0aa5a6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "551644",
+      "description": "再生纤维棉梭织物：含再生纤维棉重量低于85%,主要或单独与棉花混制者：印花者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "82254fc34cb4b8b8ee39316038cb6aa6366a6b0a82436bf0f1f258f8fd3b023d",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "570490",
+      "description": "毡呢地毯及其他覆地物,非刺织或植毛者,不论完成与否：其他(最大表面积为0.3平方公尺之瓷砖除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "6a6c24484773b62146a52bd03b945672b8605c6f054faa7ed4b773e92479845c",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "590691",
+      "description": "用橡胶处理之纺织物,但第5902节所列者及宽度不超过20公分之胶黏带除外：其他：针织或钩针织",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "5533e69186b39be413a19bcc3d0c5e9014c12b53166f947d8414540ac326c133",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "590699",
+      "description": "用橡胶处理之纺织物,但第5902节所列者及宽度不超过20公分之胶黏带除外：其他",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "baf41f8c51b134d730acc237146d398ea31fac106974703d93c93d20c56e0046",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "591131",
+      "description": "本章注七所指工业用之纺织产品或制品：循环或头尾有环扣相结合之纺织物及毡呢,用于造纸或类似机器(例如:纸浆或石棉-水泥机器用)：每平方公尺重量低于650公克",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "76e510e0b3c5033dcac771e6726f8091c0b0045f022d7f4742c08b15f7f0fa5f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "591132",
+      "description": "本章注七所指工业用之纺织产品或制品：循环或头尾有环扣相结合之纺织物及毡呢,用于造纸或类似机器(例如:纸浆或石棉-水泥机器用)：每平方公尺重量为650公克(g/m2)及以上",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "9d78834949eb691760517aaa8e6385f6ca989efadd56fa96b93d85a91e79fb22",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "611594",
+      "description": "裤袜、紧身衣、长袜、短袜及其他袜,包括分等级之压力袜(例如:静脉瘤用长袜)及无实用鞋底之鞋袜,针织或钩针织者：其他：羊毛或动物细毛制(分级压力袜、连裤袜、紧身袜及每单纱线细度低于67分德士之女用长袜或及膝袜除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7471d7c0eb4bc3afb1804d74415714114f8c229c3e92dfcb1da27faa3ab9f2b3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "611595",
+      "description": "裤袜、紧身衣、长袜、短袜及其他袜,包括分等级之压力袜(例如:静脉瘤用长袜)及无实用鞋底之鞋袜,针织或钩针织者：其他：棉制(分级压力袜、连裤袜、紧身袜及每单纱线细度低于67分德士之长袜或及膝袜除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "dafd120ef8cbd2c3bc03bdfb25042ca1ded240462e40f6b0a9c2eea591b8ba81",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "611596",
+      "description": "裤袜、紧身衣、长袜、短袜及其他袜,包括分等级之压力袜(例如:静脉瘤用长袜)及无实用鞋底之鞋袜,针织或钩针织者：其他：合成纤维制(分级压力袜、连裤袜、紧身袜及每单纱线细度低于67分德士之长袜或及膝袜除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "84fd5e76ae84d61176d25dc01c1da06a0467d783dd6cc80ebd83f73d5d47932c",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "611599",
+      "description": "裤袜、紧身衣、长袜、短袜及其他袜,包括分等级之压力袜(例如:静脉瘤用长袜)及无实用鞋底之鞋袜,针织或钩针织者：其他：其他纺织材料制(分级压力袜、连裤袜、紧身袜及每单纱线细度低于67分德士之长袜或及膝袜除外)",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "19871d24f9390404ea5bba23b9b5f2bea0b74be013c680463b91d259bb8b66c1",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "680210",
+      "description": "第6801节货品以外之已加工供制碑或建筑用石及其制品(板岩除外);已否衬底之马赛克石块及类似品;含人工着色之天然石(包括板岩)制小颗石、细碎石及石粉(包括板岩)：瓦、立方砖及类似品,不论是否为长方形(包括正方形),其最大表面积可内切于边长小于7公分之正方形;人工着色之小颗石、细碎石及石粉",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "1dda562072459feff5ef830e523ee449a13f24031ebccaf6bb6ae1e9fc59f0d3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "690912",
+      "description": "实验室、化学或其他工业用陶瓷制品;陶瓷槽、桶及类似之农业用容器;陶瓷罐、缸及类似品,供搬运或包装货物用者：实验室、化学或其他工业用陶瓷制品：硬度相当于莫氏硬度9或以上之物品",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "592635fa4fb657eb4ae3b1b9cbdad08e7ccdcc094370c7966340ff3c0facdabf",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "690919",
+      "description": "实验室、化学或其他工业用陶瓷制品;陶瓷槽、桶及类似之农业用容器;陶瓷罐、缸及类似品,供搬运或包装货物用者：实验室、化学或其他工业用陶瓷制品：其他(硬度相当于莫氏硬度9或以上之物品及瓷器除外)",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "540b289773d8ee86731a595746d473b848955f96d3f76b1b8e2ab271fcaae29f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "700239",
+      "description": "玻璃球(第7018节之微球体除外),棒或管,未加工：管：其他,但在0至300度C温度范围内每凯氏温度线膨胀系数不超过5×10负6次方(即0.000005)之玻璃除外",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "1358e06d8f2b4085cf870873702762dd5c6823a6b4b2140db91e17b5b8af35f6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "711790",
+      "description": "仿首饰：卑金属制以外之其他材料制,不论是否镀有贵金属",
+      "reasons": [
+        "scope-qualifier-preservation"
+      ],
+      "sourceDescriptionSha256": "60da3ed0ad2daad482bf4bd8db7b6e8658dca49d79b14f6286975f185b2b3139",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "720219",
+      "description": "合金铁：锰铁：其他,按重量计含碳2%及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a18909ea6f1cadb01412c81c3aa51a855a8dba5ec9572162718f8adb90558b12",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "720229",
+      "description": "合金铁：硅铁：其他,按重量计含硅55%及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "9b87e6d28dc128f784c57cb6f7137949604be605480f67489af0c09cdcfe1606",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "720249",
+      "description": "合金铁：铬铁：其他,按重量计含碳4%及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "e663587aac52107ab6a9a7b98d27bc755c342bf3bc67853910eebc46cc7cf7d6",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "721119",
+      "description": "未经被覆、镀面或涂面之铁或非合金钢扁轧制品,宽度小于600公厘者：热轧后未进一步加工者：其他,厚度小于4.75公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "fcebcd9cd02fb53a4468f219688289b717f14d56767c916ac5020fa17660f439",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "721129",
+      "description": "未经被覆、镀面或涂面之铁或非合金钢扁轧制品,宽度小于600公厘者：冷轧(冷延)后未进一步加工者：其他,按重量计含碳0.25%及以上者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "87fb1f728313faa82e30918711fbf4c4ca87d732b0345d3d5ecefa9f7ac48723",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "721399",
+      "description": "热轧之铁或非合金钢条及杆,绕成不规则卷盘状者：其他,圆形横断面直径在14公厘及以上者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a27959dbbad78d27e54c509e9505f42a980d6bcf01d7025da7f7f30876409409",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "731420",
+      "description": "钢铁线制布(包括环状带)、栅格、网及篱网;钢铁制拉孔片：栅格、网及篱网,交叉点经焊接,线之最大横断面尺寸3公厘及以上,网眼尺寸100平方公分(cm2)及以上者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "e390a710e4025a9af273e6bc0900dc3a825e2a955f7114ee958f6bbef6afff45",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "740819",
+      "description": "铜线：精炼铜制者：其他,最大横断面尺寸在6公厘及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "15f97ab1b59983ad8489e97cb94d0bd071370d5c9be7d9d61b261e652b7ba8b0",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "760511",
+      "description": "铝线：铝,非合金：其最大横断面尺寸超过7公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "046aa02984c6caef34d308f2a3710af4c591411a048e1e3bdc3302c4ac3ca4ce",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "760519",
+      "description": "铝线：铝,非合金：其他,其最大横断面尺寸在7公厘及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "7d9603c61131904324ff0cd079ff3df9ba73d46eaa8dc892a063314c525000ff",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "760521",
+      "description": "铝线：铝合金者：其最大横断面尺寸超过7公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "f54fb5f879c7e55d7b60d7e9509758c0132e5a8322da8ce9b4c885817e465314",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "760529",
+      "description": "铝线：铝合金者：其他,其最大横断面尺寸在7公厘及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "66361981b29da873e84c0db737f54a3ed1568c85df057a94e0030a6ffd2fbdef",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "780419",
+      "description": "铅板、片、扁条及箔;铅粉及鳞片：板、片、扁条及箔：其他,厚度(不含任何衬背)超过0.2公厘者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "b3b0620e62ae834b366d8448fced602ea7bb3300c7399abc0fa95f38860fae72",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "810419",
+      "description": "镁及其制品,包括废料及碎屑：镁,未经塑性加工者：其他,按重量计含镁低于99.8%者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "c7912ec730b80dbbebda62150eb5c1ece26fbf8c34715d4b0e0359018c974db7",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "821000",
+      "description": "供调理食品或饮料用之手操作机械用具,其重量在10公斤及以下者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "bea02ded11e59af05a1add7869960f3178cc76d5a49864945b56b6f11d387699",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "840681",
+      "description": "水蒸汽涡轮机及其他蒸汽涡轮机：其他涡轮机：出力超过40兆瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "282a770bde4813f8d86b390d935627360c52321d08727c81670af4ccf864da37",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "840682",
+      "description": "水蒸汽涡轮机及其他蒸汽涡轮机：其他涡轮机：出力不超过40兆瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "5152a305c5ba25a5608ac742a7a6e7d01a870ba0118dc2b494154a59a061ed45",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841011",
+      "description": "水力涡轮机、水轮及其调整器：水力涡轮机及水轮：功率不超过1000千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "4a92732b08c7f63e6e3e84d7424e87143c57c89cdb35fc7fbc9c085d9b2a5cca",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841012",
+      "description": "水力涡轮机、水轮及其调整器：水力涡轮机及水轮：功率超过1000千瓦,但不超过10000千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "0d1099dade48012fdf4972374a8e9ae8dc643f939543611f02ae98c16a828518",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841013",
+      "description": "水力涡轮机、水轮及其调整器：水力涡轮机及水轮：功率超过10000千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "3588042babd983c606810f8a3e2db8b7fdd19b59560c7db9d0924da6de280f6e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841111",
+      "description": "涡轮喷射引擎、螺旋桨推动用涡轮机及其他燃气涡轮机：涡轮喷射引擎：推进力不超过25千牛顿者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "c3a5cb0430cfe43d9270c1afd8a5dd7d72a4e64679c1d22b972aa7f13718e6c0",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841112",
+      "description": "涡轮喷射引擎、螺旋桨推动用涡轮机及其他燃气涡轮机：涡轮喷射引擎：推进力超过25千牛顿者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "d53d20855277aa18456704ad30201b963c3933ba18dbec62764afa9aab74c198",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841121",
+      "description": "涡轮喷射引擎、螺旋桨推动用涡轮机及其他燃气涡轮机：螺旋桨推动用涡轮机：功率不超过1100千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "0a345effed59a192b7f1806c10f112e8299deb5f6507ae12be836488d7e55aa9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841122",
+      "description": "涡轮喷射引擎、螺旋桨推动用涡轮机及其他燃气涡轮机：螺旋桨推动用涡轮机：功率超过1100千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "85b6ebccb7614a2d4d003f474fba67e45704cbc792ba03cfad194e7385774bae",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841181",
+      "description": "涡轮喷射引擎、螺旋桨推动用涡轮机及其他燃气涡轮机：其他燃气涡轮机：功率不超过5000千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "6881a123108e5de04542e86c98298fe3631f4f29720cc7efcdf12cc380340d7b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "841182",
+      "description": "涡轮喷射引擎、螺旋桨推动用涡轮机及其他燃气涡轮机：其他燃气涡轮机：功率超过5000千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "fbf55c1ecd653776e5a87d3e6600a7693f7e695831a34fc0c991c6e219f0afb8",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "842381",
+      "description": "衡器(不包括感量5厘克或更精密之天平),包括重锤操作计数及校对机器在内;各种衡器用法码：其他衡器：衡重最大重量不超过30公斤者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "a3555216b06488d070ce94e540e968cf8a875ca477e49462a5da629e0881a7b0",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "842389",
+      "description": "衡器(不包括感量5厘克或更精密之天平),包括重锤操作计数及校对机器在内;各种衡器用法码：其他衡器：最大衡重超过5000公斤者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "ea1419e97b7de13afc2457371d552a764780d7cdc905d8ee7e470e92585952de",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "845129",
+      "description": "纱线、织物或纺织纤维成品之洗涤、清洗、扭绞、干燥、熨烫、熨平(包括融熨机)、漂白、染色、修饰、整理、上胶或浸渍机器(第8450节之机器除外);供制造覆地物,如亚麻油地毯,所用基层织物或支撑层浆料涂布之机器;织物卷取、松卷、折叠、切断或剪边机器。：干衣机：其他,干亚麻布容量超过10公斤者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "425aa4f3e49f28050f9c0e7108fdf75faa5b385bf1ac74f7154e52fd16c4b18e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850132",
+      "description": "电动机及发电机(发电机组除外)：其他直流电动机;直流发电机：输出超过750瓦,但未超过75千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "7d7a46b08b6d17baf2dc798034ed1dd42599150b10c37e536096c048d6578a95",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850133",
+      "description": "电动机及发电机(发电机组除外)：其他直流电动机;直流发电机：输出超过75千瓦,但未超过375千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "b610e41b3a585e87da718c036f603a5fb1bc253ec7c444634e0d3d96659af197",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850134",
+      "description": "电动机及发电机(发电机组除外)：其他直流电动机;直流发电机：输出超过375千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "edccf7cf9bccfd483bda3321452c24437210918a95ed7d63012f4e88c4e92cbb",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850152",
+      "description": "电动机及发电机(发电机组除外)：其他多相交流电动机：输出超过750瓦,但未超过75千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "c75f43e24414174191503a4d277c8d710281e8687ab39ffee2f2b081387376bd",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850153",
+      "description": "电动机及发电机(发电机组除外)：其他多相交流电动机：输出超过75千瓦者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "8e48e6cd598b867d229062125d832300da0274aeb992557a723301a1f19a2b0b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850161",
+      "description": "电动机及发电机(发电机组除外)：交流发电机：输出未超过75千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "8a7dc4ff1b3db3d94747d65a8deece0fb641a50224d445ecd2b33cd100a65132",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850162",
+      "description": "电动机及发电机(发电机组除外)：交流发电机：输出超过75千伏安,但未超过375千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "2ba2f8fbe8a62e0aa08d79b5a499509c07e189da4f5e79396aeb06b2e0a14c7b",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850163",
+      "description": "电动机及发电机(发电机组除外)：交流发电机：输出超过375千伏安,但未超过750千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "c1e21e379beaf2581e8af424adc140ff58e44f5106400b326d67baf55e27944f",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850164",
+      "description": "电动机及发电机(发电机组除外)：交流发电机：输出超过750千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "3b1afc0d913cd4c4b58e405e80163366ab42249a56b310f485ab70b22b8d87ab",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850211",
+      "description": "发电机组及旋转变流机：发电机组,以压缩点火活塞内燃机(柴油或半柴油引擎)组成者：输出未超过75千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "af49790187119f49fdb4af826415e8e628dd06f75b5f47ca346d69b5be2ff2d9",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850212",
+      "description": "发电机组及旋转变流机：发电机组,以压缩点火活塞内燃机(柴油或半柴油引擎)组成者：输出超过75千伏安,但未超过375千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "a8e11dd0d3c571508d99c84bc5d966199c7370ca7c9955c024df86f40b190142",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850213",
+      "description": "发电机组及旋转变流机：发电机组,以压缩点火活塞内燃机(柴油或半柴油引擎)组成者：输出超过375千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "a63cc43c5415fad4f4b50dd9d358e15deef069861deb4b03a96f1fad7eb2c58a",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850421",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：液体介质变压器：容量未超过650千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "2038cb105361b8826508c84fcb22af8e6d9e6c6ee747feeb2c9e7b0487a20780",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850422",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：液体介质变压器：容量超过650千伏安,但未超过10000千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "1126eeb7a5b51c260c78efe18362b2f80c50ec9ef2bee568947c65adaa9b846e",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850423",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：液体介质变压器：容量超过10000千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "af890f97b85ddbbc98eaa615b61f3dadf1bc5a5a96f6a5b7b77400addac671ed",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850431",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：其他变压器：容量未超过1千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "b891fa5d85ba4a0d21247a8648ea91c4e1124b3b9768b059cbf37cdaf7b31afd",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850432",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：其他变压器：容量超过1千伏安,但未超过16千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "a3e58c10580fbd2a180b4252155fcf7e27a2f4fde958252d5dc37b465828c830",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850433",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：其他变压器：容量超过16千伏安,但未超过500千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "cee96f10fd1242dcfea0fc837d29dc4f9c2505db53cc1bab535ac63ce89a7bf3",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "850434",
+      "description": "变压器、静电式变流器(例如:整流器)及感应器：其他变压器：容量超过500千伏安者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "ed1c5aab379ad7a57f4d805bb07ee4f4f53ff7242e9567a6a1efb9ff01b2a4ba",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853210",
+      "description": "固定、可变或可预先调整之电容器：适用于频率50/60赫兹电路之固定电容器,其操作功率不低于0.5千乏者(功率电容器)",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "f70b417b4e98f7c571b4f83e5e986f670c52db274d9612b03444e3700897a430",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853329",
+      "description": "电阻器(包括变阻器及电位计),电阻电热器除外：其他固定电阻器：其他,额定功率超过20瓦者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8274d116da5b5e9d84b419afdf9ac0f30428027232d021cfe8402793ba442d54",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853339",
+      "description": "电阻器(包括变阻器及电位计),电阻电热器除外：绕线式可变电阻器,包括变阻器及电位计：其他,额定功率超过20瓦者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "8e3ac309c270277c014a94ccaab6d0ce9f0377ca595cfe293d6fd9f8d235e517",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853521",
+      "description": "电路开关、保护电路或联接电路用之电气用具(例如:开关、熔丝设备、避雷器、限压器、突波遏止器、插头及其他连接器、接线盒),其电压超过1000伏特者：自动断路器：电压低于72.5千伏特者",
+      "reasons": [
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "36820ea1b5cee32435608e825d77ff1e7e1df76d0eb69dc4b8ca82bfd733e3ef",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853529",
+      "description": "电路开关、保护电路或联接电路用之电气用具(例如:开关、熔丝设备、避雷器、限压器、突波遏止器、插头及其他连接器、接线盒),其电压超过1000伏特者：自动断路器：适用电压在72.5千伏及以上者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "e355a26d078f20e164d586e8dacabce0e5fc5b61224705445428f2959fbbb2f5",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853649",
+      "description": "电路开关、保护电路或连接电路用之电气用具(例如:开关、继电器、熔丝设备、突波遏止器、插头、插座、灯头及其他连接器、接线盒),其电压未超过1000伏特者;光纤、光纤束、光纤电缆或光纤传输缆用之连接器：电驿(继电器)：电压超过60伏特者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "4a6d0b7ce6c7b58ddeb4a75495d0aa92ba7c723d5142967a3c07e5ea00b0e9a0",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "853922",
+      "description": "灯丝电灯泡或放电式灯泡,包括密封式光束灯泡组、紫外线或红外线灯泡;弧光灯：其他灯丝电灯泡,不包括紫外线灯泡或红外线灯泡：其他灯泡,功率未超过200瓦及电压超过100伏特者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "a3d08e08edf4c7032d43efb1f507adb62f3fae3ade8bd3655b57b6400ba64aba",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "854129",
+      "description": "二极管、晶体管及类似半导体设备;光敏半导体设备,包括是否为各体之集合或制造成组件之光伏打电池;发光二极管;已装妥之压晶体管：晶体管,光敏晶体管除外：其他,散逸率在1瓦及以上者",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "5493929501c1323c8f7fe51a1b312b9cdede7af1f59de53113183d9622b8d093",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "870210",
+      "description": "供载客10人及以上(包括驾驶人)之机动车辆：具有压缩点火式内燃活塞引擎(柴油引擎或半柴油引擎)者",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0b5f88482c073e561939b2c0a7ed9f7ebfe1fbabfdc0ef599a4dd84011d209d8",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "870290",
+      "description": "供载客10人及以上(包括驾驶人)之机动车辆：其他",
+      "reasons": [
+        "numeric-preservation",
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "0fd8573cb8aed08d95690b406fc2527ef7633d78484e0aa7b052bff27c7c3ecd",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "871130",
+      "description": "机器自行车(包括机器脚踏两用车)及自行车装有辅助动力者(有无边车者均在内);边车：装有往复式内燃活塞引擎,其汽缸容量超过250立方公分,但未超过500立方公分者",
+      "reasons": [
+        "inequality-preservation"
+      ],
+      "sourceDescriptionSha256": "1bb07bcdef0ae70098e4be3063fe555d3beb23f63205a212bad2d0819e41faa2",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    },
+    {
+      "code": "901600",
+      "description": "天平,感量为5厘克或更精密者,不论附有砝码与否",
+      "reasons": [
+        "numeric-preservation",
+        "unit-preservation"
+      ],
+      "sourceDescriptionSha256": "decd7e5edb46c0500bd4d65ebd219359ec61cb4b0a1d01ee862d02b050aaa6bd",
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T23:12:16Z"
+    }
+  ]
+}

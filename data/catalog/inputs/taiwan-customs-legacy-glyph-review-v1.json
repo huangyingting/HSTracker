@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "taiwan-customs-legacy-glyph-review-v1",
+  "source": {
+    "hs2012OdsSha256": "74a0f1c3b4d85d27fb8ed0983eb203d8587df02cb517fa34a4177ac39b8d12ce",
+    "currentTariffCsvSha256": "b9d3a7ba23e2ea05a7f379aa9d1bc6a7874dfba81e612c7e7438f4fbac5f43e6"
+  },
+  "method": "Same-code current Taiwan tariff labels plus HS nomenclature context review",
+  "scalarMappings": {
+    "E086": "沖",
+    "E0EF": "吡",
+    "E0F4": "呋",
+    "E0FA": "吲",
+    "E100": "哚",
+    "E104": "啉",
+    "E109": "喹",
+    "E111": "噻",
+    "E14E": "皂",
+    "E20A": "㗁",
+    "E228": "肽",
+    "E229": "𠸁",
+    "E2C8": "脲",
+    "E2CA": "腈",
+    "E2CB": "腖",
+    "E2F7": "榲",
+    "E345": "煙",
+    "E350": "煅",
+    "E36A": "牀",
+    "E371": "犁",
+    "E3B9": "脇",
+    "E3C3": "苄",
+    "E3C5": "苷",
+    "E3CC": "菓",
+    "E3D3": "萘",
+    "E3D4": "萜",
+    "E3D9": "韮",
+    "E3DD": "蒭",
+    "E3E2": "蒽",
+    "E3EC": "藁",
+    "E443": "碍",
+    "E445": "鹼",
+    "E447": "碸",
+    "E495": "茚",
+    "E4DC": "蟎",
+    "E528": "酶",
+    "E529": "醌",
+    "E530": "鉤",
+    "E534": "鉢",
+    "E571": "靱",
+    "E5A0": "鮃",
+    "E5A1": "鮟",
+    "E5A9": "𫙮",
+    "E5AB": "鰮",
+    "E5AE": "鱇",
+    "E5B0": "鰺",
+    "E5B3": "鮰",
+    "E5BF": "鶓",
+    "E5C6": "𠸁",
+    "E714": "ｍ³",
+    "E716": "10⁻⁶",
+    "E71E": "肼",
+    "E728": "𠯤",
+    "E729": "腖",
+    "EF9C": "二",
+    "EF9D": "三",
+    "F26D": "蝲",
+    "F6CF": "、"
+  },
+  "contextMappings": [
+    {
+      "source": "E0EF F6B0 F6B0",
+      "replacement": "吡𠯤"
+    },
+    {
+      "source": "E111 F6B0 F6B0",
+      "replacement": "噻𠯤"
+    },
+    {
+      "source": "F6B0 F6B0",
+      "replacement": "𠯤"
+    },
+    {
+      "sourceContext": "真 F6B0 屬",
+      "replacement": "真鮰屬"
+    },
+    {
+      "sourceContext": "F6B0 桲",
+      "replacement": "榲桲"
+    },
+    {
+      "sourceContext": "穀類之 F6B0 及",
+      "replacement": "穀類之藁及"
+    },
+    {
+      "sourceContext": "4,4 F6B0 and 2,2 F6B0",
+      "replacement": "prime mark"
+    },
+    {
+      "sourceContext": "異位 F6B0 酸",
+      "replacement": "異位酜酸"
+    },
+    {
+      "sourceContext": "F6B0 甲苯異丙胺",
+      "replacement": "苄甲苯異丙胺"
+    },
+    {
+      "sourceContext": "N,N F6B0",
+      "replacement": "prime mark"
+    },
+    {
+      "sourceContext": "薰草酮、F6B0 或薰草酮 F6B0",
+      "replacement": "薰草酮、茚或薰草酮茚"
+    },
+    {
+      "sourceContext": "紡織 F6B0 皮",
+      "replacement": "紡織靱皮"
+    },
+    {
+      "sourceContext": "匣 F6B0",
+      "replacement": "匣鉢"
+    }
+  ],
+  "reviewer": "project:hs-tracker-catalog-review",
+  "reviewedAt": "2026-07-11T20:45:00Z",
+  "disposition": "accepted"
+}

@@ -78,7 +78,7 @@ test("a three-market comparison downloads the complete bilingual 13-row CSV", as
   expect(exportUrl!.searchParams.get("exporter")).toBe("156");
   expect(exportUrl!.searchParams.get("product")).toBe("010121");
   expect(exportUrl!.searchParams.get("productSearchBuildId")).toBe(
-    "acceptance-product-search-v1",
+    "acceptance-product-search-v3",
   );
   expect(exportUrl!.searchParams.get("freshnessStatusId")).toMatch(
     /^freshness:/u,

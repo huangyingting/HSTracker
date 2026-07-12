@@ -12,11 +12,14 @@ import type {
   ProductSearchResult,
 } from "./product-catalog";
 import {
-  invalidProductSearchQuery,
   retiredProductSearchBuild,
   unavailableProductSearchBuild,
 } from "./product-catalog-errors";
-import { searchProductIndex } from "./product-search";
+import {
+  indexProductSearchCatalog,
+  searchProductIndex,
+} from "./product-search";
+import { validateProductSearchQuery } from "./validate-product-search-query";
 
 const products: readonly ProductSearchProduct[] =
   ACCEPTANCE_PRODUCT_RECORDS.map((product) => {
@@ -34,25 +37,16 @@ const products: readonly ProductSearchProduct[] =
       translationVersion: translation.translationVersion,
     };
   });
+const searchIndex = indexProductSearchCatalog(
+  products,
+  ACCEPTANCE_PRODUCT_ALIASES,
+);
 
 class FixtureProductCatalog implements ProductCatalog {
   async search(
     query: Parameters<ProductCatalog["search"]>[0],
   ): Promise<ProductSearchResult> {
-    if ([...query.query].length > 300) {
-      throw invalidProductSearchQuery(
-        "Product search query exceeds 300 Unicode code points.",
-      );
-    }
-    if (
-      !Number.isInteger(query.limit) ||
-      query.limit < 1 ||
-      query.limit > 20
-    ) {
-      throw invalidProductSearchQuery(
-        "Product search limit must be an integer from 1 through 20.",
-      );
-    }
+    validateProductSearchQuery(query);
     if (
       query.productSearchBuildId ===
       PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS.failing
@@ -73,8 +67,7 @@ class FixtureProductCatalog implements ProductCatalog {
 
     return searchProductIndex(
       query,
-      products,
-      ACCEPTANCE_PRODUCT_ALIASES,
+      searchIndex,
       ACCEPTANCE_TRADITIONAL_TO_SIMPLIFIED,
     );
   }

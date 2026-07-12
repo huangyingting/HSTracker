@@ -22,7 +22,7 @@ describe("current analysis manifest route", () => {
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "current-analysis-manifest-v1",
       analysisBuildId: "acceptance-fixtures-v1",
-      productSearchBuildId: "acceptance-product-search-v1",
+      productSearchBuildId: "acceptance-product-search-v3",
       analysisReleaseCatalogSha256:
         "3b1ff899c301d11a2bb5c29e3040e9261a68633b54a7d94f4b15338129d4fcff",
       source: {
