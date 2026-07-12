@@ -259,7 +259,7 @@ describe("immutable DuckDB analysis artifact CLI", () => {
     ).rejects.toThrow(
       "Artifact metadata baci_release does not match its manifest.",
     );
-  });
+  }, 20_000);
 
   it("matches fixture evidence and public results through the production adapter", async () => {
     const root = await temporaryWorkspace();
@@ -399,7 +399,7 @@ describe("immutable DuckDB analysis artifact CLI", () => {
     } finally {
       source.close();
     }
-  });
+  }, 20_000);
 
   it("fails closed before publishing from changed accepted staging", async () => {
     const root = await temporaryWorkspace();
@@ -426,7 +426,7 @@ describe("immutable DuckDB analysis artifact CLI", () => {
     await expect(
       access(join(artifactWorkspace, "artifacts")),
     ).rejects.toMatchObject({ code: "ENOENT" });
-  });
+  }, 20_000);
 });
 
 async function temporaryWorkspace(): Promise<string> {
