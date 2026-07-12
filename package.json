@@ -16,6 +16,7 @@
     "build:analysis-artifact": "tsx scripts/release/build-analysis-artifact.ts",
     "build:product-catalog": "tsx scripts/catalog/build-product-catalog.ts",
     "build:product-translations": "tsx scripts/catalog/build-product-translations.ts",
+    "deployment:check": "tsx scripts/deployment/check-deployment.ts",
     "start": "next start",
     "stage:baci": "tsx scripts/release/stage-baci.ts",
     "prepare:standalone": "node scripts/prepare-standalone.mjs",

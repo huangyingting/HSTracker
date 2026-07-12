@@ -11,6 +11,7 @@ import {
   jsonErrorResponseFor,
 } from "../../../../../../http/json-error-response";
 import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
+import { writeStructuredErrorLog } from "../../../../../../operations/structured-log";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
 import { utf8ByteLength } from "../../../../../../runtime/serialized-size";
@@ -103,10 +104,13 @@ const candidateMarketRoute =
       }
 
       const correlationId = measurement.correlationId;
-      console.error("Candidate Market analysis request failed", {
-        correlationId,
+      writeStructuredErrorLog(
+        "candidate-market-analysis-request-failed",
         error,
-      });
+        {
+        correlationId,
+        },
+      );
       return jsonErrorResponse(
         500,
         "INTERNAL_ERROR",

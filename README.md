@@ -90,4 +90,6 @@ Accepted analysis and product-search candidates are uploaded to private,
 immutable S3-compatible storage and activated as one exact pairing. See
 [release publication](docs/release-publication.md) for candidate layout,
 credential scopes, promotion, production startup, rollback, and the local
-MinIO integration test.
+MinIO integration test. See
+[production deployment and restore](docs/production-deployment.md) for the
+container, Fly Machine, cost, smoke, and recovery contract.

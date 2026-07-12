@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "recurring-cost-forecast-v1",
+  "checkedAt": "2026-07-12T00:00:00Z",
+  "currency": "USD",
+  "region": "sin",
+  "machineClass": "shared-cpu-2x",
+  "memoryGiB": 2,
+  "volumeGiB": 50,
+  "lineItems": [
+    {
+      "id": "fly-machine",
+      "monthlyUsd": 14.46,
+      "sourceUrl": "https://fly.io/docs/about/pricing/",
+      "assumption": "One always-on shared-cpu-2x Machine with 2 GiB RAM in Singapore for 30 days."
+    },
+    {
+      "id": "fly-volume",
+      "monthlyUsd": 7.5,
+      "sourceUrl": "https://fly.io/docs/about/pricing/",
+      "assumption": "One 50-GiB Fly Volume at USD 0.15 per provisioned GiB-month."
+    },
+    {
+      "id": "tigris-object-storage",
+      "monthlyUsd": 0.38,
+      "sourceUrl": "https://www.tigrisdata.com/pricing/",
+      "assumption": "Twenty-five GiB retained privately, with the first 5 GiB free and 20 GiB billed at USD 0.019 per GiB-month."
+    },
+    {
+      "id": "fly-volume-snapshots",
+      "monthlyUsd": 0.8,
+      "sourceUrl": "https://fly.io/docs/about/pricing/",
+      "assumption": "A conservative 20 GiB-month of billable incremental snapshots after the first 10 GiB free."
+    },
+    {
+      "id": "public-egress",
+      "monthlyUsd": 2,
+      "sourceUrl": "https://fly.io/docs/about/pricing/",
+      "assumption": "Fifty GiB of Asia-Pacific public egress at USD 0.04 per GiB."
+    },
+    {
+      "id": "managed-certificate",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://fly.io/docs/about/pricing/",
+      "assumption": "One single-hostname certificate, within the first ten free certificates."
+    },
+    {
+      "id": "basic-monitoring",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://fly.io/docs/monitoring/",
+      "assumption": "Fly logs, health checks, and built-in metrics only; no paid monitoring service."
+    }
+  ],
+  "forecastMonthlyUsd": 25.14,
+  "targetMonthlyUsd": 40,
+  "reviewThresholdMonthlyUsd": 50
+}

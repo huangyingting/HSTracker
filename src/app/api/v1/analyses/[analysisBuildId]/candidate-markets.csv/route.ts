@@ -17,6 +17,7 @@ import {
   jsonErrorResponseFor,
 } from "../../../../../../http/json-error-response";
 import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
+import { writeStructuredErrorLog } from "../../../../../../operations/structured-log";
 import type { ApplicationRuntime } from "../../../../../../runtime/application-runtime";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
@@ -216,10 +217,13 @@ const candidateMarketCsvRoute =
       }
 
       const correlationId = measurement.correlationId;
-      console.error("Candidate Market CSV export request failed", {
-        correlationId,
+      writeStructuredErrorLog(
+        "candidate-market-csv-export-request-failed",
         error,
-      });
+        {
+        correlationId,
+        },
+      );
       return jsonErrorResponse(
         500,
         "INTERNAL_ERROR",

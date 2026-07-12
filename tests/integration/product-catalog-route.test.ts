@@ -196,12 +196,13 @@ describe("versioned Product Catalog route", () => {
       },
     });
     expect(JSON.stringify(body)).not.toContain("fixture catalog failure");
-    expect(errorLog).toHaveBeenCalledWith(
-      "Product Catalog request failed",
-      expect.objectContaining({
-        correlationId: body.error.correlationId,
-        error: expect.any(Error),
-      }),
-    );
+    expect(
+      JSON.parse(String(errorLog.mock.calls[0]?.[0])),
+    ).toMatchObject({
+      level: "error",
+      event: "product-catalog-request-failed",
+      correlationId: body.error.correlationId,
+      error: { name: "Error", message: expect.any(String) },
+    });
   });
 });

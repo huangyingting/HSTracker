@@ -349,13 +349,14 @@ describe("versioned Candidate Market CSV route", () => {
         ),
       },
     });
-    expect(errorLog).toHaveBeenCalledWith(
-      "Candidate Market CSV export request failed",
-      expect.objectContaining({
-        correlationId: body.error.correlationId,
-        error: expect.any(Error),
-      }),
-    );
+    expect(
+      JSON.parse(String(errorLog.mock.calls[0]?.[0])),
+    ).toMatchObject({
+      level: "error",
+      event: "candidate-market-csv-export-request-failed",
+      correlationId: body.error.correlationId,
+      error: { name: "Error", message: expect.any(String) },
+    });
     vi.restoreAllMocks();
   });
 });

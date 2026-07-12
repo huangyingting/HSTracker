@@ -366,12 +366,13 @@ describe("versioned Candidate Market route", () => {
       },
     });
     expect(JSON.stringify(body)).not.toContain("fixture adapter failure");
-    expect(errorLog).toHaveBeenCalledWith(
-      "Candidate Market analysis request failed",
-      expect.objectContaining({
-        correlationId: body.error.correlationId,
-        error: expect.any(Error),
-      }),
-    );
+    expect(
+      JSON.parse(String(errorLog.mock.calls[0]?.[0])),
+    ).toMatchObject({
+      level: "error",
+      event: "candidate-market-analysis-request-failed",
+      correlationId: body.error.correlationId,
+      error: { name: "Error", message: expect.any(String) },
+    });
   });
 });

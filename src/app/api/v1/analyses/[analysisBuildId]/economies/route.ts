@@ -8,6 +8,7 @@ import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../ht
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import { jsonErrorResponse } from "../../../../../../http/json-error-response";
 import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
+import { writeStructuredErrorLog } from "../../../../../../operations/structured-log";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
 import { utf8ByteLength } from "../../../../../../runtime/serialized-size";
 
@@ -83,10 +84,13 @@ const economyRoute = createMeasuredRuntimeRoute<EconomyRouteContext>({
     }
 
     const correlationId = measurement.correlationId;
-    console.error("Economy Directory request failed", {
-      correlationId,
+    writeStructuredErrorLog(
+      "economy-directory-request-failed",
       error,
-    });
+      {
+      correlationId,
+      },
+    );
     return jsonErrorResponse(
       500,
       "INTERNAL_ERROR",

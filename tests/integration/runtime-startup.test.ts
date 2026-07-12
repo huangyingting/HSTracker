@@ -71,6 +71,7 @@ describe("Next.js runtime startup", () => {
     const started = await startApplicationRuntime({
       environment: {
         NODE_ENV: "production",
+        APP_BUILD_ID: "runtime-test-build",
         HS_TRACKER_RUNTIME_MODE: "release",
         HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
       },
@@ -140,6 +141,7 @@ describe("Next.js runtime startup", () => {
     const started = await startApplicationRuntime({
       environment: {
         NODE_ENV: "production",
+        APP_BUILD_ID: "runtime-test-build",
         HS_TRACKER_RUNTIME_MODE: "release",
         HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
       },
@@ -191,6 +193,7 @@ describe("Next.js runtime startup", () => {
       startApplicationRuntime({
         environment: {
           NODE_ENV: "production",
+          APP_BUILD_ID: "runtime-test-build",
           HS_TRACKER_RUNTIME_MODE: "release",
         },
         objectStore: new InMemoryReleaseObjectStore(),
@@ -198,6 +201,62 @@ describe("Next.js runtime startup", () => {
     ).rejects.toMatchObject({
       name: "RuntimeStartupConfigurationError",
       code: "ENVIRONMENT_INVALID",
+    });
+  });
+
+  it("fails closed when production has no application build identity", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
+    temporaryDirectories.push(root);
+
+    await expect(
+      startApplicationRuntime({
+        environment: {
+          NODE_ENV: "production",
+          HS_TRACKER_RUNTIME_MODE: "release",
+          HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
+        },
+        objectStore: new InMemoryReleaseObjectStore(),
+      }),
+    ).rejects.toMatchObject({
+      name: "RuntimeStartupConfigurationError",
+      code: "ENVIRONMENT_INVALID",
+      message: "APP_BUILD_ID is required.",
+    });
+  });
+
+  it("fails closed when the serving volume path is not absolute", async () => {
+    await expect(
+      startApplicationRuntime({
+        environment: {
+          NODE_ENV: "production",
+          HS_TRACKER_RUNTIME_MODE: "release",
+          HS_TRACKER_RELEASE_VOLUME_PATH: "relative-volume",
+        },
+        objectStore: new InMemoryReleaseObjectStore(),
+      }),
+    ).rejects.toMatchObject({
+      name: "RuntimeStartupConfigurationError",
+      code: "ENVIRONMENT_INVALID",
+      message: "HS_TRACKER_RELEASE_VOLUME_PATH must be an absolute path.",
+    });
+  });
+
+  it("fails closed when write-scoped credentials reach the runtime", async () => {
+    await expect(
+      startApplicationRuntime({
+        environment: {
+          NODE_ENV: "production",
+          HS_TRACKER_RUNTIME_MODE: "release",
+          HS_TRACKER_RELEASE_VOLUME_PATH: "/data/releases",
+          HS_TRACKER_RELEASE_WRITE_ACCESS_KEY_ID: "must-not-be-present",
+        },
+        objectStore: new InMemoryReleaseObjectStore(),
+      }),
+    ).rejects.toMatchObject({
+      name: "RuntimeStartupConfigurationError",
+      code: "ENVIRONMENT_INVALID",
+      message:
+        "Write-scoped release credentials must not be available to the runtime.",
     });
   });
 
@@ -219,6 +278,7 @@ describe("Next.js runtime startup", () => {
       startApplicationRuntime({
         environment: {
           NODE_ENV: "production",
+          APP_BUILD_ID: "runtime-test-build",
           HS_TRACKER_RUNTIME_MODE: "release",
           HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
         },
@@ -292,6 +352,7 @@ describe("Next.js runtime startup", () => {
         startApplicationRuntime({
           environment: {
             NODE_ENV: "production",
+            APP_BUILD_ID: "runtime-test-build",
             HS_TRACKER_RUNTIME_MODE: "release",
             HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
           },

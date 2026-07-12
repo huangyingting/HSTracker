@@ -1,6 +1,9 @@
+import { isAbsolute } from "node:path";
+
 import type { ReleaseObjectReader } from "../release/release-object-store";
 import { createRuntimeReleaseObjectReader } from "../release/release-object-storage";
 import { privateErrorDiagnostic } from "../operations/private-error-diagnostic";
+import { writeStructuredLog } from "../operations/structured-log";
 import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,
@@ -43,20 +46,24 @@ export async function startApplicationRuntime(
   const environment = input.environment ?? process.env;
   const mode = runtimeMode(environment);
   if (mode === "fixture") {
+    const buildId = applicationBuildId(environment);
     const runtime = createBoundedApplicationRuntime(
       createFixtureApplicationRuntime(),
     );
     const restore = installApplicationRuntime(runtime);
+    logRuntimeReady(environment, runtime, mode, buildId);
     return {
       runtime,
       stop: restore,
     };
   }
 
-  const volumePath = required(
+  assertRuntimeCredentialScope(environment);
+  const volumePath = requiredAbsolutePath(
     environment.HS_TRACKER_RELEASE_VOLUME_PATH,
     "HS_TRACKER_RELEASE_VOLUME_PATH",
   );
+  const buildId = applicationBuildId(environment);
   const objectStore =
     input.objectStore ??
     createRuntimeReleaseObjectReader(environment);
@@ -83,6 +90,7 @@ export async function startApplicationRuntime(
   const runtime = createBoundedApplicationRuntime(verifiedRuntime);
   const restore = installApplicationRuntime(runtime);
   sourceStatusPoller.start();
+  logRuntimeReady(environment, runtime, mode, buildId);
   let stopped = false;
   return {
     runtime,
@@ -128,6 +136,39 @@ function required(value: string | undefined, name: string): string {
   return value;
 }
 
+function requiredAbsolutePath(
+  value: string | undefined,
+  name: string,
+): string {
+  const path = required(value, name);
+  if (!isAbsolute(path)) {
+    throw new RuntimeStartupConfigurationError(
+      `${name} must be an absolute path.`,
+    );
+  }
+  return path;
+}
+
+function assertRuntimeCredentialScope(environment: Environment): void {
+  if (
+    environment.HS_TRACKER_RELEASE_WRITE_ACCESS_KEY_ID !== undefined ||
+    environment.HS_TRACKER_RELEASE_WRITE_SECRET_ACCESS_KEY !== undefined ||
+    environment.HS_TRACKER_RELEASE_WRITE_SESSION_TOKEN !== undefined
+  ) {
+    throw new RuntimeStartupConfigurationError(
+      "Write-scoped release credentials must not be available to the runtime.",
+    );
+  }
+}
+
+function applicationBuildId(environment: Environment): string {
+  const value = environment.APP_BUILD_ID?.trim();
+  if (environment.NODE_ENV === "production") {
+    return required(value, "APP_BUILD_ID");
+  }
+  return value || "development";
+}
+
 function observeSourceStatusPolling(
   event: SourceStatusPollerEvent,
 ): void {
@@ -135,7 +176,7 @@ function observeSourceStatusPolling(
     event.type === "status-poll-failed" &&
     event.consecutiveFailures === 3
   ) {
-    console.warn("Source Freshness Status pointer polling is degraded", {
+    writeStructuredLog("warn", "source-status-poll-degraded", {
       consecutiveFailures: event.consecutiveFailures,
       error: privateErrorDiagnostic(event.error),
     });
@@ -150,13 +191,41 @@ function observeSourceStatusPolling(
     current: event.current,
   };
   if (event.current.level === "page") {
-    console.error(
-      "Source Freshness Status requires operator action",
+    writeStructuredLog(
+      "error",
+      "source-freshness-alert-page",
       details,
     );
   } else if (event.current.level === "warn") {
-    console.warn("Source Freshness Status warning", details);
+    writeStructuredLog(
+      "warn",
+      "source-freshness-alert-warning",
+      details,
+    );
   } else {
-    console.info("Source Freshness Status alert resolved", details);
+    writeStructuredLog(
+      "info",
+      "source-freshness-alert-resolved",
+      details,
+    );
   }
+}
+
+function logRuntimeReady(
+  environment: Environment,
+  runtime: ApplicationRuntime,
+  mode: "fixture" | "release",
+  buildId: string,
+): void {
+  if (environment.NODE_ENV !== "production") {
+    return;
+  }
+  const current = runtime.currentAnalysis();
+  writeStructuredLog("info", "application-runtime-ready", {
+    mode,
+    buildId,
+    baciRelease: current.source.baciRelease,
+    analysisBuildId: current.analysisBuildId,
+    productSearchBuildId: current.productSearchBuildId,
+  });
 }
