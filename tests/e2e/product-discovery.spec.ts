@@ -230,7 +230,7 @@ test("product choices remain usable without horizontal overflow on mobile", asyn
 function searchResult(query: string, fixture: SearchFixture) {
   return {
     schemaVersion: "product-search-result-v1",
-    productSearchBuildId: "acceptance-product-search-v1",
+    productSearchBuildId: "acceptance-product-search-v3",
     query: { normalized: query, locale: "en", limit: 20 },
     state: "RESULTS",
     messageCode: null,

@@ -7,7 +7,6 @@ import type {
   ProductSearchProduct,
   ProductSearchResult,
 } from "../catalog/product-catalog";
-import { isSuppressedProductQuery } from "../catalog/product-query";
 
 const copy = {
   en: {
@@ -148,7 +147,8 @@ export function ProductCombobox({
     }
 
     const normalized = inputValue.normalize("NFKC").trim();
-    if (normalized.length === 0 || isSuppressedProductQuery(normalized)) {
+    // The catalog decides whether a short query is an exact reviewed alias.
+    if (normalized.length === 0) {
       return;
     }
 
@@ -302,14 +302,7 @@ export function ProductCombobox({
               setMatches([]);
               setActiveIndex(-1);
               setOpen(false);
-              const normalized = nextValue.normalize("NFKC").trim();
-              setStatus(
-                normalized.length === 0
-                  ? "idle"
-                  : isSuppressedProductQuery(normalized)
-                    ? "too-short"
-                    : "idle",
-              );
+              setStatus("idle");
             }}
             onFocus={() => {
               if (matches.length > 0) {

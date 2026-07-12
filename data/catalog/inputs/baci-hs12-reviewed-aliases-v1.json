@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "hs12-product-aliases-v1",
+  "aliasVersion": "baci-hs12-reviewed-aliases-v1",
+  "rows": [
+    {
+      "code": "010121",
+      "locale": "en",
+      "alias": "purebred horse",
+      "normalizedSearchText": "purebred horse",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "010121",
+      "locale": "zh-Hans",
+      "alias": "马",
+      "normalizedSearchText": "马",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "010129",
+      "locale": "zh-Hans",
+      "alias": "马",
+      "normalizedSearchText": "马",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "en",
+      "alias": "laptop",
+      "normalizedSearchText": "laptop",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "en",
+      "alias": "notebook computer",
+      "normalizedSearchText": "notebook computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "zh-Hans",
+      "alias": "笔记本电脑",
+      "normalizedSearchText": "笔记本电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "en",
+      "alias": "cell phone",
+      "normalizedSearchText": "cell phone",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "en",
+      "alias": "mobile phone",
+      "normalizedSearchText": "mobile phone",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "en",
+      "alias": "smartphone",
+      "normalizedSearchText": "smartphone",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "zh-Hans",
+      "alias": "蜂窝网络或其他无线网络用电话机",
+      "normalizedSearchText": "蜂窝网络或其他无线网络用电话机",
+      "aliasKind": "nomenclature-synonym",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "zh-Hans",
+      "alias": "手机",
+      "normalizedSearchText": "手机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "zh-Hans",
+      "alias": "智能手机",
+      "normalizedSearchText": "智能手机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "854140",
+      "locale": "en",
+      "alias": "LED",
+      "normalizedSearchText": "led",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "854140",
+      "locale": "en",
+      "alias": "photovoltaic cell",
+      "normalizedSearchText": "photovoltaic cell",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "854140",
+      "locale": "en",
+      "alias": "solar panel",
+      "normalizedSearchText": "solar panel",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "854140",
+      "locale": "zh-Hans",
+      "alias": "发光二极管",
+      "normalizedSearchText": "发光二极管",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "854140",
+      "locale": "zh-Hans",
+      "alias": "太阳能板",
+      "normalizedSearchText": "太阳能板",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870390",
+      "locale": "en",
+      "alias": "electric car",
+      "normalizedSearchText": "electric car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870390",
+      "locale": "zh-Hans",
+      "alias": "电动汽车",
+      "normalizedSearchText": "电动汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    }
+  ]
+}

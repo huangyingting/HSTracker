@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "hs12-zh-translation-corrections-v1",
+  "correctionVersion": "baci-hs12-aggregate-corrections-v1",
+  "generator": {
+    "method": "manual",
+    "name": "HS Tracker catalog review",
+    "version": "v1",
+    "evidenceSha256": "6ba36720a209da50f5bb12cb502798404587d79b5de5c891c4e41aee593e704e"
+  },
+  "rows": [
+    {
+      "code": "271000",
+      "description": "石油及从沥青矿物提取的油（原油除外）；以石油或沥青矿物油为基本成分（按重量计不低于70%）的未列名制品；废油",
+      "reasons": [
+        "BACI aggregate absent from the HS2012 nomenclature"
+      ],
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T20:45:00Z",
+      "sourceDescriptionSha256": "a4b1cfad9da35f7d8824750f5191c98b0f6fcd6f9ffa4c502250f6708ca3965e"
+    },
+    {
+      "code": "999999",
+      "description": "未按品种指定的商品",
+      "reasons": [
+        "BACI residual aggregate absent from the HS2012 nomenclature"
+      ],
+      "reviewer": "project:hs-tracker-catalog-review",
+      "reviewedAt": "2026-07-11T20:45:00Z",
+      "sourceDescriptionSha256": "a318abc1cf9749e6a10148630348071f1ed18a3a0367db879b0c64d26245a730"
+    }
+  ]
+}

@@ -17,7 +17,7 @@ export const ECONOMY_DIRECTORY_FIXTURE_BUILD_IDS = {
 } as const;
 
 export const ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS = {
-  core: "acceptance-product-search-v1",
+  core: "acceptance-product-search-v3",
 } as const;
 
 export const PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS = {

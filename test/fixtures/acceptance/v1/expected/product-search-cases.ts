@@ -145,6 +145,12 @@ export const PRODUCT_SEARCH_GOLDEN_CASES: readonly ProductSearchGoldenCase[] = [
         field: "AUXILIARY_DESCRIPTION_ZH_HANS",
         matchedText: "纯种繁殖用活马",
       },
+      {
+        code: "010129",
+        class: "DESCRIPTION_TOKENS",
+        field: "AUXILIARY_DESCRIPTION_ZH_HANS",
+        matchedText: "非纯种繁殖用活马",
+      },
     ],
   },
   {
@@ -179,6 +185,12 @@ export const PRODUCT_SEARCH_GOLDEN_CASES: readonly ProductSearchGoldenCase[] = [
         class: "EXACT_DESCRIPTION",
         field: "AUXILIARY_DESCRIPTION_ZH_HANS",
         matchedText: "纯种繁殖用活马",
+      },
+      {
+        code: "010129",
+        class: "DESCRIPTION_TOKENS",
+        field: "AUXILIARY_DESCRIPTION_ZH_HANS",
+        matchedText: "非纯种繁殖用活马",
       },
     ],
   },

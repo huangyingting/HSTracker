@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "product-catalog-build-report-v1",
+  "status": "accepted",
+  "catalogManifestSha256": "db51f8e130f1291b392a4d23cffdd4bdb89f3b56930c69c91d442cd9a726457b",
+  "catalogManifest": {
+    "schemaVersion": "product-catalog-manifest-v1",
+    "baciRelease": "V202601",
+    "hsRevision": "HS12",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "identitySha256": "aa1f4027019c194bc2f0dbd7b1aa7875903796aa8123d8a78fba0de2ec7fa368",
+    "sourceArchiveSha256": "2dd0dd6174f11e9fc33b9bacf001d50c1913dbfeed9cba30876a1668b2b75bf9",
+    "stagingManifestSha256": "839a443679946810b5a7e1ba883bbe4d4f7c616038cb4155c9b2ed1b12e84e3c",
+    "sourceProducts": {
+      "rowCount": 5202,
+      "bytes": 114835,
+      "sha256": "17c1e3021b36de40840d4d1b74fabc7c4bd71fb3cb3c9067fdfaab4c420b11cf"
+    },
+    "attribution": {
+      "translation": "HS Tracker project auxiliary Simplified-Chinese translation of CEPII BACI source descriptions; terminology adapted from Taiwan Customs HS2012 tariff nomenclature (2/4/5/6-digit rows) (Taiwan Open Government Data License 1.0)."
+    },
+    "inputs": {
+      "translationsSha256": "c6082b65fce2bcfdbe620fa9f4795e06879f06d72c84a7b14d9e99d251cd31f8",
+      "aliasesSha256": "c2fe359d8e189a65f313769a32b8c24d56d6e8222c27b1488bc4cfb193f73a0f",
+      "traditionalToSimplifiedSha256": "84fc5fdf6c0e7d1e23580e9ff0ca67d8e408ab6a1bfd63d7f69ff349c41def91",
+      "reviewManifestSha256": "5783e1a05acf8ae21c5a76672862a8d1ef8da107237c6f935d47a7f33e70f38f"
+    },
+    "versions": {
+      "translation": "hs12-zh-hans-v1-5ab4ce24827a953c",
+      "aliases": "baci-hs12-reviewed-aliases-v1",
+      "traditionalToSimplified": "opencc-python-0.1.7-tw2sp-hs12-query-v2",
+      "searchAlgorithm": "deterministic-lexical-product-search-v3",
+      "searchResponseSchema": "product-search-result-v1",
+      "glossary": "taiwan-customs-hs2012-zh-v1"
+    },
+    "counts": {
+      "products": 5202,
+      "acceptedTranslations": 5202,
+      "aliases": 19,
+      "traditionalMappings": 5109,
+      "chapters": 97
+    },
+    "residentSizeGate": {
+      "measurement": "isolated-v8-heap-used-delta-v1",
+      "limitBytes": 33554432,
+      "status": "accepted"
+    },
+    "catalog": {
+      "schemaVersion": "product-catalog-artifact-v1",
+      "relativePath": "product-catalog.json",
+      "bytes": 5331843,
+      "sha256": "fc765075a361650e74d6513114035dc004f8ec0b032434a09fa3b059a901475d"
+    },
+    "pipelineGitSha": "eb509de9ea6152966e30b3ee0dd04b7b11da0140",
+    "builtAt": "2026-07-12T01:40:45Z"
+  },
+  "validation": {
+    "sourceProducts": 5202,
+    "acceptedTranslations": 5202,
+    "staleTranslations": 0,
+    "missingTranslations": 0,
+    "flaggedCodes": 3327,
+    "reviewedFlaggedCodes": 3327,
+    "coveredChapters": 97,
+    "residentSizeGate": {
+      "measurement": "isolated-v8-heap-used-delta-v1",
+      "measuredBytes": 5153712,
+      "limitBytes": 33554432,
+      "status": "accepted"
+    }
+  },
+  "timingsMs": {
+    "total": 1052.087
+  },
+  "builtAt": "2026-07-12T01:40:45Z"
+}

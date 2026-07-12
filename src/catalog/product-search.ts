@@ -7,7 +7,12 @@ import type {
   ProductSearchProduct,
   ProductSearchResult,
 } from "./product-catalog";
+import { compareCodeUnits } from "./deterministic-order";
 import { isSuppressedProductQuery } from "./product-query";
+import {
+  normalizeProductSearchQuery,
+  normalizeProductSearchText,
+} from "./product-search-normalization";
 
 const MATCH_CLASS_ORDER: Record<ProductSearchMatchClass, number> = {
   EXACT_CODE: 0,
@@ -20,7 +25,6 @@ const MATCH_CLASS_ORDER: Record<ProductSearchMatchClass, number> = {
   ALIAS_TOKENS: 7,
   LATIN_TYPO: 8,
 };
-
 type RankedMatch = ProductSearchResult["matches"][number] & {
   classOrder: number;
   unmatchedCharacters: number;
@@ -31,18 +35,72 @@ type RankedMatch = ProductSearchResult["matches"][number] & {
 
 type IndexedField = {
   text: string;
+  normalizedText: string;
   field: ProductSearchMatchedField;
   kind: "code" | "description" | "alias";
   locale: ProductSearchLocale;
 };
 
-export function searchProductIndex(
-  query: Parameters<ProductCatalog["search"]>[0],
+export type ProductSearchIndexedProduct = {
+  product: ProductSearchProduct;
+  normalizedSourceDescriptionEn: string;
+  normalizedAuxiliaryDescriptionZhHans: string;
+};
+
+export type ProductSearchIndexedAlias = {
+  alias: ProductAliasRecord;
+  normalizedSearchText: string;
+};
+
+export type ProductSearchIndex = {
+  products: readonly ProductSearchIndexedProduct[];
+  aliasesByProduct: ReadonlyMap<
+    string,
+    readonly ProductSearchIndexedAlias[]
+  >;
+};
+
+export function indexProductSearchCatalog(
   products: readonly ProductSearchProduct[],
   aliases: readonly ProductAliasRecord[],
+): ProductSearchIndex {
+  return createProductSearchIndex(
+    products.map((product) => ({
+      product,
+      normalizedSourceDescriptionEn: normalizeProductSearchText(
+        product.sourceDescriptionEn,
+      ),
+      normalizedAuxiliaryDescriptionZhHans: normalizeProductSearchText(
+        product.auxiliaryDescriptionZhHans,
+      ),
+    })),
+    aliases.map((alias) => ({
+      alias,
+      normalizedSearchText: normalizeProductSearchText(alias.alias),
+    })),
+  );
+}
+
+export function createProductSearchIndex(
+  products: readonly ProductSearchIndexedProduct[],
+  aliases: readonly ProductSearchIndexedAlias[],
+): ProductSearchIndex {
+  const aliasesByProduct = new Map<string, ProductSearchIndexedAlias[]>();
+  for (const alias of aliases) {
+    const key = productKey(alias.alias);
+    const productAliases = aliasesByProduct.get(key) ?? [];
+    productAliases.push(alias);
+    aliasesByProduct.set(key, productAliases);
+  }
+  return { products, aliasesByProduct };
+}
+
+export function searchProductIndex(
+  query: Parameters<ProductCatalog["search"]>[0],
+  index: ProductSearchIndex,
   traditionalToSimplified: Readonly<Record<string, string>>,
 ): ProductSearchResult {
-  const normalizedInput = normalizeQuery(
+  const normalizedInput = normalizeProductSearchQuery(
     query.query,
     traditionalToSimplified,
   );
@@ -50,31 +108,34 @@ export function searchProductIndex(
   const normalizedQuery = unsupportedRevision
     ? normalizedInput
     : removeAcceptedHs12Scope(normalizedInput);
-  const querySuppressed = isSuppressedProductQuery(normalizedQuery);
-  const allMatches =
+  const querySuppressed =
+    isSuppressedProductQuery(normalizedQuery) &&
+    !hasExactReviewedAlias(index, normalizedQuery);
+  const rankedMatches =
     querySuppressed || unsupportedRevision
       ? []
-      : products
-          .flatMap((product) => {
+      : index.products
+          .flatMap((indexedProduct) => {
             const match = matchProduct(
-              product,
-              aliases.filter(
-                (alias) =>
-                  alias.hsRevision === product.hsRevision &&
-                  alias.code === product.code,
-              ),
+              indexedProduct,
+              index.aliasesByProduct.get(productKey(indexedProduct.product)) ??
+                [],
               normalizedQuery,
               query.locale,
             );
             return match === null ? [] : [match];
           })
-          .sort(compareRankedMatches)
-          .map(({ product, match }) => ({ product, match }));
-  const matches = allMatches.slice(0, query.limit);
+          .sort(compareRankedMatches);
+  const matches = rankedMatches
+    .slice(0, query.limit)
+    .map(({ product, match }) => ({
+      product: { ...product },
+      match: { ...match },
+    }));
   const outcome = resolveSearchOutcome(
     unsupportedRevision,
     querySuppressed,
-    allMatches.length,
+    rankedMatches.length,
   );
 
   return {
@@ -86,18 +147,19 @@ export function searchProductIndex(
       limit: query.limit,
     },
     ...outcome,
-    totalMatches: allMatches.length,
-    truncated: matches.length < allMatches.length,
+    totalMatches: rankedMatches.length,
+    truncated: matches.length < rankedMatches.length,
     matches,
   };
 }
 
 function matchProduct(
-  product: ProductSearchProduct,
-  aliases: readonly ProductAliasRecord[],
+  indexedProduct: ProductSearchIndexedProduct,
+  aliases: readonly ProductSearchIndexedAlias[],
   normalizedQuery: string,
   locale: ProductSearchLocale,
 ): RankedMatch | null {
+  const { product } = indexedProduct;
   const codeCandidate = matchCode(product, normalizedQuery);
   if (codeCandidate !== null || /^\d+$/u.test(normalizedQuery)) {
     return codeCandidate;
@@ -106,22 +168,26 @@ function matchProduct(
   const fields: IndexedField[] = [
     {
       text: product.sourceDescriptionEn,
+      normalizedText: indexedProduct.normalizedSourceDescriptionEn,
       field: "SOURCE_DESCRIPTION_EN",
       kind: "description",
       locale: "en",
     },
     {
       text: product.auxiliaryDescriptionZhHans,
+      normalizedText: indexedProduct.normalizedAuxiliaryDescriptionZhHans,
       field: "AUXILIARY_DESCRIPTION_ZH_HANS",
       kind: "description",
       locale: "zh-Hans",
     },
     ...aliases.map(
-      (alias): IndexedField => ({
-        text: alias.alias,
-        field: alias.locale === "en" ? "ALIAS_EN" : "ALIAS_ZH_HANS",
+      (indexedAlias): IndexedField => ({
+        text: indexedAlias.alias.alias,
+        normalizedText: indexedAlias.normalizedSearchText,
+        field:
+          indexedAlias.alias.locale === "en" ? "ALIAS_EN" : "ALIAS_ZH_HANS",
         kind: "alias",
-        locale: alias.locale,
+        locale: indexedAlias.alias.locale,
       }),
     ),
   ];
@@ -151,6 +217,7 @@ function matchCode(
       "EXACT_CODE",
       {
         text: product.code,
+        normalizedText: product.code,
         field: "CODE",
         kind: "code",
         locale: "en",
@@ -166,6 +233,7 @@ function matchCode(
       "CODE_PREFIX",
       {
         text: product.code,
+        normalizedText: product.code,
         field: "CODE",
         kind: "code",
         locale: "en",
@@ -184,7 +252,7 @@ function matchField(
   normalizedQuery: string,
   locale: ProductSearchLocale,
 ): RankedMatch | null {
-  const normalizedField = normalizeSearchText(field.text);
+  const normalizedField = field.normalizedText;
   let matchClass: ProductSearchMatchClass | null = null;
   let editedCharacters = 0;
 
@@ -225,10 +293,7 @@ function rankedMatch(
   locale: ProductSearchLocale,
   editedCharacters: number,
 ): RankedMatch {
-  const normalizedText =
-    indexedField.kind === "code"
-      ? indexedField.text
-      : normalizeSearchText(indexedField.text);
+  const normalizedText = indexedField.normalizedText;
   return {
     product,
     match: {
@@ -259,7 +324,7 @@ function compareRankedMatches(
       (right.unmatchedCharacters + right.editedCharacters) ||
     left.localePenalty - right.localePenalty ||
     left.fieldKindPenalty - right.fieldKindPenalty ||
-    left.product.code.localeCompare(right.product.code)
+    compareCodeUnits(left.product.code, right.product.code)
   );
 }
 
@@ -289,25 +354,6 @@ function resolveSearchOutcome(
   return { state: "RESULTS", messageCode: null };
 }
 
-function normalizeSearchText(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase("und")
-    .replace(/[\p{P}\p{S}]+/gu, " ")
-    .trim()
-    .replace(/\s+/gu, " ");
-}
-
-function normalizeQuery(
-  value: string,
-  traditionalToSimplified: Readonly<Record<string, string>>,
-): string {
-  const simplified = [...value.normalize("NFKC")]
-    .map((character) => traditionalToSimplified[character] ?? character)
-    .join("");
-  return normalizeSearchText(simplified);
-}
-
 function hasUnsupportedHsRevision(normalizedQuery: string): boolean {
   const match = /^hs\s*(\d{2}|\d{4})(?:\s|$)/u.exec(normalizedQuery);
   return (
@@ -315,6 +361,13 @@ function hasUnsupportedHsRevision(normalizedQuery: string): boolean {
     match[1] !== "12" &&
     match[1] !== "2012"
   );
+}
+
+function productKey(product: {
+  hsRevision: "HS12";
+  code: string;
+}): string {
+  return `${product.hsRevision}\u0000${product.code}`;
 }
 
 function removeAcceptedHs12Scope(normalizedQuery: string): string {
@@ -329,7 +382,28 @@ function containsEveryToken(
   const fieldTokens = new Set(normalizedField.split(" "));
   return normalizedQuery
     .split(" ")
-    .every((token) => fieldTokens.has(token));
+    .every((token) =>
+      /\p{Script=Han}/u.test(token)
+        ? normalizedField.includes(token)
+        : fieldTokens.has(token),
+    );
+}
+
+function hasExactReviewedAlias(
+  index: ProductSearchIndex,
+  normalizedQuery: string,
+): boolean {
+  for (const aliases of index.aliasesByProduct.values()) {
+    if (
+      aliases.some(
+        ({ normalizedSearchText }) =>
+          normalizedSearchText === normalizedQuery,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function boundedLatinTypoEdits(

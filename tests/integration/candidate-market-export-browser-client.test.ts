@@ -13,7 +13,7 @@ describe("Candidate Market export browser client", () => {
     const manifest = resolveFixtureCurrentAnalysisManifest();
     const refreshed = {
       ...manifest,
-      productSearchBuildId: "acceptance-product-search-v2",
+      productSearchBuildId: "acceptance-product-search-v3",
       freshness: {
         ...manifest.freshness,
         freshnessStatusId: `${manifest.freshness.freshnessStatusId}-refreshed`,
@@ -39,7 +39,7 @@ describe("Candidate Market export browser client", () => {
     });
     expect(prepared.manifest).toEqual(refreshed);
     expect(prepared.url).toBe(
-      `/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v2&freshnessStatusId=${encodeURIComponent(
+      `/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product=010121&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=${encodeURIComponent(
         refreshed.freshness.freshnessStatusId,
       )}&schema=candidate-markets-csv-v1`,
     );

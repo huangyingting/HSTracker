@@ -143,7 +143,7 @@ test("a retired analysis build is replaced through current-manifest revalidation
       const originalUrl = route
         .request()
         .url()
-        .replace("replacement-products-v2", "acceptance-product-search-v1");
+        .replace("replacement-products-v2", "acceptance-product-search-v3");
       const response = await route.fetch({ url: originalUrl });
       await route.fulfill({ response });
     },

@@ -167,7 +167,7 @@ describe("candidate-markets-csv-v1 serializer", () => {
     expect(new Set(records.slice(1).map((record) => record[byColumn.export_id])))
       .toEqual(new Set([exported.exportId]));
     expect(exported.sha256).toBe(
-      "128c0696b800ed2cb685cb4d0a8a29df9a4441a5db029380e36a4d9276c309b3",
+      "309c135c17e8d1d8bd4956fbdf773d4ec62833ce859843f992f820c6d6405db7",
     );
     await expect(decoded).toMatchFileSnapshot(
       "../../test/fixtures/acceptance/v1/expected/candidate-markets-core.csv",
@@ -204,7 +204,7 @@ describe("candidate-markets-csv-v1 serializer", () => {
     expect(row.provisional_state).toBe("");
     expect(row.release_revision_state).toBe("");
     expect(exported.sha256).toBe(
-      "3e82127c219a6b8af7b0f91ad23de90dd25c03e5fa297f2698dc00a46ee8d5af",
+      "e7db5732abc1d940610e6ccc89386388438c3ac4e2935a20926aa45d0ce85372",
     );
     await expect(decoded).toMatchFileSnapshot(
       "../../test/fixtures/acceptance/v1/expected/candidate-markets-empty.csv",
@@ -396,7 +396,7 @@ describe("candidate-markets-csv-v1 serializer", () => {
       },
       manifest: {
         ...input.manifest,
-        productSearchBuildId: "acceptance-product-search-v2",
+        productSearchBuildId: "acceptance-product-search-v4",
       },
     });
     expect(catalogMutation.exportId).not.toBe(repeated.exportId);
@@ -684,7 +684,7 @@ async function fixtureExportInput(productCode: string) {
     productCode,
   });
   const productSearch = await createFixtureProductCatalog().search({
-    productSearchBuildId: "acceptance-product-search-v1",
+    productSearchBuildId: "acceptance-product-search-v3",
     query: productCode,
     locale: "en",
     limit: 1,
