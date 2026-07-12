@@ -8,6 +8,10 @@ import type {
   RuntimeRequestOptions,
 } from "./application-runtime";
 import { AnalysisCapacityExceededError } from "./analysis-capacity-error";
+import {
+  serializedBytes,
+  serializedWeight,
+} from "./serialized-size";
 
 type AnalysisQuery = Parameters<ApplicationRuntime["analyze"]>[0];
 type AnalysisPromise = ReturnType<ApplicationRuntime["analyze"]>;
@@ -168,7 +172,7 @@ export function createBoundedApplicationRuntime(
             }
           },
           timing,
-          true,
+          { measureQueryTiming: true },
         );
         productSearches.set(key, shared);
       }
@@ -232,7 +236,7 @@ export function createBoundedApplicationRuntime(
             }
           },
           timing,
-          true,
+          { measureQueryTiming: true },
         );
         economySearches.set(key, shared);
       }
@@ -323,7 +327,6 @@ function startSharedAnalysis(
       }
     },
     timing,
-    false,
   );
   return shared;
 }
@@ -333,7 +336,7 @@ function startSharedOperation<Result>(
   admitResult: (result: Result, resultBytes: number) => void,
   remove: () => void,
   timing: OperationTiming,
-  measureQuery: boolean,
+  options: { measureQueryTiming?: boolean } = {},
 ): SharedOperation<Result> {
   const controller = new AbortController();
   let settled = false;
@@ -345,7 +348,7 @@ function startSharedOperation<Result>(
     operation = Promise.reject(error);
   }
   const finishMeasuredQuery = () => {
-    if (measureQuery && timing.queryMs === null) {
+    if (options.measureQueryTiming && timing.queryMs === null) {
       timing.queryMs = performance.now() - queryStartedAt;
     }
   };
@@ -562,14 +565,6 @@ class ByteWeightedLru<Value> {
       maxBytes: this.maxBytes,
     };
   }
-}
-
-function serializedWeight(value: unknown): number {
-  return serializedBytes(value) + 1_024;
-}
-
-function serializedBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
 type QueuedAnalysis = {

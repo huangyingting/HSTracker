@@ -32,6 +32,7 @@ import type {
   ApplicationRuntimeResources,
   RuntimeRequestOptions,
 } from "./application-runtime";
+import { serializedWeight } from "./serialized-size";
 
 type VerifiedReleaseRuntimeInput = {
   objectStore: ReleaseObjectReader;
@@ -287,11 +288,7 @@ function statusMicroCacheWeight(
   deployment: CurrentAnalysisDeployment,
   sourceStatus: SourceStatusSnapshot,
 ): number {
-  return (
-    new TextEncoder().encode(
-      JSON.stringify({ deployment, sourceStatus }),
-    ).byteLength + 1_024
-  );
+  return serializedWeight({ deployment, sourceStatus });
 }
 
 function validateHydratedPairing(

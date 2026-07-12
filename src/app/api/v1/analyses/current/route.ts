@@ -36,21 +36,11 @@ function respond(request: Request, headOnly: boolean): Response {
     (measurement) => {
       const { manifest, asOf } =
         applicationRuntime.currentAnalysisSnapshot();
-      if (deadline.hasElapsed()) {
-        return jsonErrorResponseFor(
-          new RequestDeadlineExceededError(),
-        );
-      }
       const body = measurement.measureSerialization(
         () => JSON.stringify(manifest),
         (serialized) =>
           new TextEncoder().encode(serialized).byteLength,
       );
-      if (deadline.hasElapsed()) {
-        return jsonErrorResponseFor(
-          new RequestDeadlineExceededError(),
-        );
-      }
       const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
       const headers = {
         "Cache-Control": currentManifestCacheControl(

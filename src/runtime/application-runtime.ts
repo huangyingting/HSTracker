@@ -12,6 +12,7 @@ import {
   resolveFixtureExportFreshnessStatus,
 } from "../release/fixture-current-analysis";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
+import { serializedWeight } from "./serialized-size";
 
 export type RuntimeRequestOptions = Readonly<{
   signal?: AbortSignal;
@@ -162,10 +163,4 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
       return { status: "ok", buildId };
     },
   };
-}
-
-function serializedWeight(value: unknown): number {
-  return (
-    new TextEncoder().encode(JSON.stringify(value)).byteLength + 1_024
-  );
 }

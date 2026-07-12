@@ -4,28 +4,14 @@ import {
   invalidEconomyQuery,
   isEconomyDirectoryError,
 } from "../../../../../../economy/economy-directory-errors";
+import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import { jsonErrorResponse } from "../../../../../../http/json-error-response";
-import { withoutResponseBody } from "../../../../../../http/response";
-import {
-  getApplicationRuntime,
-  type ApplicationRuntime,
-} from "../../../../../../runtime/application-runtime";
-import {
-  createRequestDeadline,
-  isRequestDeadlineExceededError,
-  ROUTE_DEADLINE_MS,
-} from "../../../../../../runtime/request-deadline";
-import {
-  measureRuntimeRequest,
-  type RuntimeRequestMeasurement,
-} from "../../../../../../runtime/runtime-metrics";
+import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
+import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const IMMUTABLE_CACHE_CONTROL =
-  "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 
 type EconomyRouteContext = {
   params: Promise<{
@@ -37,61 +23,31 @@ export async function GET(
   request: Request,
   context: EconomyRouteContext,
 ): Promise<Response> {
-  return respond(request, context, false);
+  return economyRoute.get(request, context);
 }
 
 export async function HEAD(
   request: Request,
   context: EconomyRouteContext,
 ): Promise<Response> {
-  return respond(request, context, true);
+  return economyRoute.head(request, context);
 }
 
-async function respond(
-  request: Request,
-  context: EconomyRouteContext,
-  headOnly: boolean,
-): Promise<Response> {
-  const applicationRuntime = getApplicationRuntime();
-  return measureRuntimeRequest(
-    applicationRuntime,
-    "economy-search",
-    async (measurement) => {
-      const response = await respondMeasured(
-        request,
-        context,
-        headOnly,
-        applicationRuntime,
-        measurement,
-      );
-      return headOnly ? withoutResponseBody(response) : response;
-    },
-  );
-}
-
-async function respondMeasured(
-  request: Request,
-  context: EconomyRouteContext,
-  headOnly: boolean,
-  applicationRuntime: ApplicationRuntime,
-  measurement: RuntimeRequestMeasurement,
-): Promise<Response> {
-  const deadline = createRequestDeadline(
-    request.signal,
-    ROUTE_DEADLINE_MS.search,
-  );
-  try {
+const economyRoute = createMeasuredRuntimeRoute<EconomyRouteContext>({
+  routeFamily: "economy-search",
+  deadlineMs: ROUTE_DEADLINE_MS.search,
+  async respond({ request, context, runtime, signal, measurement }) {
     const url = new URL(request.url);
     const query = parseSearchParameters(url.searchParams);
     const { analysisBuildId } = await context.params;
-    const result = await applicationRuntime.searchEconomies(
+    const result = await runtime.searchEconomies(
       {
         analysisBuildId,
         query,
         limit: 50,
       },
       {
-        signal: deadline.signal,
+        signal,
         observe: measurement.observeOperation,
       },
     );
@@ -101,7 +57,7 @@ async function respondMeasured(
     );
     const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
     const headers = {
-      "Cache-Control": IMMUTABLE_CACHE_CONTROL,
+      "Cache-Control": IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL,
       "Content-Type": "application/json; charset=utf-8",
       ETag: etag,
       Vary: "Accept-Encoding",
@@ -111,18 +67,12 @@ async function respondMeasured(
       return new Response(null, { status: 304, headers });
     }
 
-    return new Response(headOnly ? null : body, {
+    return new Response(body, {
       status: 200,
       headers,
     });
-  } catch (error) {
-    if (isRequestDeadlineExceededError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-      );
-    }
+  },
+  errorResponse(error, measurement) {
     if (isEconomyDirectoryError(error)) {
       return jsonErrorResponse(
         error.status,
@@ -142,10 +92,8 @@ async function respondMeasured(
       "Economy search could not be completed.",
       correlationId,
     );
-  } finally {
-    deadline.dispose();
-  }
-}
+  },
+});
 
 function parseSearchParameters(searchParameters: URLSearchParams): string {
   const keys = [...searchParameters.keys()];

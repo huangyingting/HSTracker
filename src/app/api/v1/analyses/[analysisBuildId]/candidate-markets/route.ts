@@ -4,29 +4,15 @@ import {
   invalidAnalysisQuery,
   isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
+import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import { jsonErrorResponse } from "../../../../../../http/json-error-response";
-import { withoutResponseBody } from "../../../../../../http/response";
+import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
-import {
-  getApplicationRuntime,
-  type ApplicationRuntime,
-} from "../../../../../../runtime/application-runtime";
-import {
-  createRequestDeadline,
-  isRequestDeadlineExceededError,
-  ROUTE_DEADLINE_MS,
-} from "../../../../../../runtime/request-deadline";
-import {
-  measureRuntimeRequest,
-  type RuntimeRequestMeasurement,
-} from "../../../../../../runtime/runtime-metrics";
+import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const IMMUTABLE_CACHE_CONTROL =
-  "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 
 type CandidateMarketRouteContext = {
   params: Promise<{
@@ -38,124 +24,96 @@ export async function GET(
   request: Request,
   context: CandidateMarketRouteContext,
 ): Promise<Response> {
-  return respond(request, context, false);
+  return candidateMarketRoute.get(request, context);
 }
 
 export async function HEAD(
   request: Request,
   context: CandidateMarketRouteContext,
 ): Promise<Response> {
-  return respond(request, context, true);
+  return candidateMarketRoute.head(request, context);
 }
 
-async function respond(
-  request: Request,
-  context: CandidateMarketRouteContext,
-  headOnly: boolean,
-): Promise<Response> {
-  const applicationRuntime = getApplicationRuntime();
-  return measureRuntimeRequest(
-    applicationRuntime,
-    "candidate-market",
-    async (measurement) => {
-      const response = await respondMeasured(
-        request,
-        context,
-        headOnly,
-        applicationRuntime,
-        measurement,
+const candidateMarketRoute =
+  createMeasuredRuntimeRoute<CandidateMarketRouteContext>({
+    routeFamily: "candidate-market",
+    deadlineMs: ROUTE_DEADLINE_MS.candidateMarket,
+    async respond({
+      request,
+      context,
+      runtime,
+      signal,
+      measurement,
+    }) {
+      const url = new URL(request.url);
+      validateSearchParameters(url.searchParams);
+      const { analysisBuildId } = await context.params;
+      const result = await runtime.analyze(
+        {
+          analysisBuildId,
+          exporterCode: url.searchParams.get("exporter") ?? "",
+          productCode: url.searchParams.get("product") ?? "",
+        },
+        {
+          signal,
+          observe: measurement.observeOperation,
+        },
       );
-      return headOnly ? withoutResponseBody(response) : response;
+      const body = measurement.measureSerialization(
+        () => JSON.stringify(result),
+        (serialized) =>
+          new TextEncoder().encode(serialized).byteLength,
+      );
+      const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
+      const headers = {
+        "Cache-Control": IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL,
+        "Content-Type": "application/json; charset=utf-8",
+        ETag: etag,
+        Vary: "Accept-Encoding",
+      };
+
+      if (
+        matchesIfNoneMatch(request.headers.get("if-none-match"), etag)
+      ) {
+        return new Response(null, { status: 304, headers });
+      }
+
+      return new Response(body, {
+        status: 200,
+        headers,
+      });
     },
-  );
-}
+    errorResponse(error, measurement) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+          undefined,
+          { "Retry-After": String(error.retryAfterSeconds) },
+        );
+      }
+      if (isCandidateMarketAnalysisError(error)) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+        );
+      }
 
-async function respondMeasured(
-  request: Request,
-  context: CandidateMarketRouteContext,
-  headOnly: boolean,
-  applicationRuntime: ApplicationRuntime,
-  measurement: RuntimeRequestMeasurement,
-): Promise<Response> {
-  const deadline = createRequestDeadline(
-    request.signal,
-    ROUTE_DEADLINE_MS.candidateMarket,
-  );
-  try {
-    const url = new URL(request.url);
-    validateSearchParameters(url.searchParams);
-    const { analysisBuildId } = await context.params;
-    const result = await applicationRuntime.analyze(
-      {
-        analysisBuildId,
-        exporterCode: url.searchParams.get("exporter") ?? "",
-        productCode: url.searchParams.get("product") ?? "",
-      },
-      {
-        signal: deadline.signal,
-        observe: measurement.observeOperation,
-      },
-    );
-    const body = measurement.measureSerialization(
-      () => JSON.stringify(result),
-      (serialized) => new TextEncoder().encode(serialized).byteLength,
-    );
-    const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
-    const headers = {
-      "Cache-Control": IMMUTABLE_CACHE_CONTROL,
-      "Content-Type": "application/json; charset=utf-8",
-      ETag: etag,
-      Vary: "Accept-Encoding",
-    };
-
-    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
-      return new Response(null, { status: 304, headers });
-    }
-
-    return new Response(headOnly ? null : body, {
-      status: 200,
-      headers,
-    });
-  } catch (error) {
-    if (isRequestDeadlineExceededError(error)) {
+      const correlationId = measurement.correlationId;
+      console.error("Candidate Market analysis request failed", {
+        correlationId,
+        error,
+      });
       return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
+        500,
+        "INTERNAL_ERROR",
+        "Candidate Market analysis could not be completed.",
+        correlationId,
       );
-    }
-    if (isAnalysisCapacityExceededError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-        undefined,
-        { "Retry-After": String(error.retryAfterSeconds) },
-      );
-    }
-    if (isCandidateMarketAnalysisError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-      );
-    }
-
-    const correlationId = measurement.correlationId;
-    console.error("Candidate Market analysis request failed", {
-      correlationId,
-      error,
-    });
-    return jsonErrorResponse(
-      500,
-      "INTERNAL_ERROR",
-      "Candidate Market analysis could not be completed.",
-      correlationId,
-    );
-  } finally {
-    deadline.dispose();
-  }
-}
+    },
+  });
 
 function validateSearchParameters(searchParameters: URLSearchParams) {
   const keys = [...searchParameters.keys()];

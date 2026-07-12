@@ -10,29 +10,17 @@ import {
   serializeCandidateMarketCsv,
 } from "../../../../../../export/candidate-market-csv";
 import type { CandidateMarketCsvIdentity } from "../../../../../../export/candidate-market-csv-contract";
+import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import { jsonErrorResponse } from "../../../../../../http/json-error-response";
-import { withoutResponseBody } from "../../../../../../http/response";
-import {
-  getApplicationRuntime,
-  type ApplicationRuntime,
-} from "../../../../../../runtime/application-runtime";
+import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
+import type { ApplicationRuntime } from "../../../../../../runtime/application-runtime";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
-import {
-  createRequestDeadline,
-  isRequestDeadlineExceededError,
-  ROUTE_DEADLINE_MS,
-} from "../../../../../../runtime/request-deadline";
-import {
-  measureRuntimeRequest,
-  type RuntimeRequestMeasurement,
-} from "../../../../../../runtime/runtime-metrics";
+import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const IMMUTABLE_CACHE_CONTROL =
-  "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 const REQUIRED_SEARCH_PARAMETERS = [
   "exporter",
   "product",
@@ -63,203 +51,182 @@ export async function GET(
   request: Request,
   context: CandidateMarketExportRouteContext,
 ): Promise<Response> {
-  return handleCandidateMarketCsvRequest(request, context, false);
+  return candidateMarketCsvRoute.get(request, context);
 }
 
 export async function HEAD(
   request: Request,
   context: CandidateMarketExportRouteContext,
 ): Promise<Response> {
-  return handleCandidateMarketCsvRequest(request, context, true);
+  return candidateMarketCsvRoute.head(request, context);
 }
 
-async function handleCandidateMarketCsvRequest(
-  request: Request,
-  context: CandidateMarketExportRouteContext,
-  headOnly: boolean,
-): Promise<Response> {
-  const applicationRuntime = getApplicationRuntime();
-  return measureRuntimeRequest(
-    applicationRuntime,
-    "candidate-market-csv",
-    async (measurement) => {
-      const response = await handleMeasuredCandidateMarketCsvRequest(
-        request,
-        context,
-        headOnly,
-        applicationRuntime,
-        measurement,
-      );
-      return headOnly ? withoutResponseBody(response) : response;
-    },
-  );
-}
-
-async function handleMeasuredCandidateMarketCsvRequest(
-  request: Request,
-  context: CandidateMarketExportRouteContext,
-  headOnly: boolean,
-  runtime: ApplicationRuntime,
-  measurement: RuntimeRequestMeasurement,
-): Promise<Response> {
-  const deadline = createRequestDeadline(
-    request.signal,
-    ROUTE_DEADLINE_MS.candidateMarketCsv,
-  );
-  try {
-    const url = new URL(request.url);
-    const parsedIdentity = validateSearchParameters(url.searchParams);
-    const { analysisBuildId } = await context.params;
-    validateIdentifier(analysisBuildId, "analysis build");
-    const identity: CandidateMarketCsvIdentity = {
-      analysisBuildId,
-      ...parsedIdentity,
-    };
-
-    const manifest = runtime.currentAnalysis();
-    if (identity.productSearchBuildId !== manifest.productSearchBuildId) {
-      throw new CandidateMarketExportRouteError(
-        410,
-        "PRODUCT_SEARCH_BUILD_RETIRED",
-        "The requested product-search build is no longer served.",
-        `Product-search build ${identity.productSearchBuildId} is not served.`,
-      );
-    }
-    const freshness = runtime.resolveFreshnessStatus(
-      identity.freshnessStatusId,
-    );
-    if (freshness === null) {
-      throw new CandidateMarketExportRouteError(
-        404,
-        "FRESHNESS_STATUS_NOT_FOUND",
-        "The requested freshness status is not available.",
-        `Freshness status ${identity.freshnessStatusId} is not served.`,
-      );
-    }
-
-    const result = await runtime.analyze(
-      {
-        analysisBuildId: identity.analysisBuildId,
-        exporterCode: identity.exporterCode,
-        productCode: identity.productCode,
-      },
-      {
-        signal: deadline.signal,
-        observe: measurement.observeOperation,
-      },
-    );
-    if (result.analysisBuildId !== manifest.analysisBuildId) {
-      throw new CandidateMarketExportRouteError(
-        409,
-        "INCOMPATIBLE_PRODUCT_SEARCH_BUILD",
-        "The product-search build is not compatible with the analysis build.",
-        `Product-search build ${identity.productSearchBuildId} is not bound to analysis build ${analysisBuildId}.`,
-      );
-    }
-    if (
-      freshness.servedBaciRelease !== result.provenance.baciRelease
-    ) {
-      throw new CandidateMarketExportRouteError(
-        409,
-        "INCOMPATIBLE_FRESHNESS_STATUS",
-        "The freshness status is not compatible with the analysis release.",
-        `Freshness status ${identity.freshnessStatusId} does not describe ${result.provenance.baciRelease}.`,
-      );
-    }
-
-    const product = await findExactProduct(
+const candidateMarketCsvRoute =
+  createMeasuredRuntimeRoute<CandidateMarketExportRouteContext>({
+    routeFamily: "candidate-market-csv",
+    deadlineMs: ROUTE_DEADLINE_MS.candidateMarketCsv,
+    async respond({
+      request,
+      context,
       runtime,
-      identity.productSearchBuildId,
-      identity.productCode,
-      deadline.signal,
-    );
-    const exported = measurement.measureSerialization(
-      () =>
-        serializeCandidateMarketCsv({
-          result,
-          product,
-          manifest: { ...manifest, freshness },
-        }),
-      (serialized) => serialized.bytes.byteLength,
-    );
-    const etag = `W/"sha256-${exported.sha256}"`;
-    const headers = {
-      "Cache-Control": IMMUTABLE_CACHE_CONTROL,
-      "Content-Disposition": `attachment; filename="${exported.filename}"`,
-      "Content-Type": "text/csv; charset=utf-8; header=present",
-      ETag: etag,
-      "X-Content-Type-Options": "nosniff",
-      Vary: "Accept-Encoding",
-    };
+      signal,
+      measurement,
+    }) {
+      const url = new URL(request.url);
+      const parsedIdentity = validateSearchParameters(
+        url.searchParams,
+      );
+      const { analysisBuildId } = await context.params;
+      validateIdentifier(analysisBuildId, "analysis build");
+      const identity: CandidateMarketCsvIdentity = {
+        analysisBuildId,
+        ...parsedIdentity,
+      };
 
-    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
-      return new Response(null, { status: 304, headers });
-    }
-    return new Response(headOnly ? null : exported.bytes, {
-      status: 200,
-      headers,
-    });
-  } catch (error) {
-    if (isRequestDeadlineExceededError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
+      const manifest = runtime.currentAnalysis();
+      if (
+        identity.productSearchBuildId !==
+        manifest.productSearchBuildId
+      ) {
+        throw new CandidateMarketExportRouteError(
+          410,
+          "PRODUCT_SEARCH_BUILD_RETIRED",
+          "The requested product-search build is no longer served.",
+          `Product-search build ${identity.productSearchBuildId} is not served.`,
+        );
+      }
+      const freshness = runtime.resolveFreshnessStatus(
+        identity.freshnessStatusId,
       );
-    }
-    if (isAnalysisCapacityExceededError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-        undefined,
-        { "Retry-After": String(error.retryAfterSeconds) },
-      );
-    }
-    if (error instanceof CandidateMarketExportRouteError) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-      );
-    }
-    if (isCandidateMarketAnalysisError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-      );
-    }
-    if (isProductCatalogError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-      );
-    }
-    if (error instanceof CandidateMarketCsvRepresentationError) {
-      return jsonErrorResponse(
-        503,
-        error.code,
-        "The complete Candidate Market export is temporarily unavailable.",
-      );
-    }
+      if (freshness === null) {
+        throw new CandidateMarketExportRouteError(
+          404,
+          "FRESHNESS_STATUS_NOT_FOUND",
+          "The requested freshness status is not available.",
+          `Freshness status ${identity.freshnessStatusId} is not served.`,
+        );
+      }
 
-    const correlationId = measurement.correlationId;
-    console.error("Candidate Market CSV export request failed", {
-      correlationId,
-      error,
-    });
-    return jsonErrorResponse(
-      500,
-      "INTERNAL_ERROR",
-      "Candidate Market export could not be completed.",
-      correlationId,
-    );
-  } finally {
-    deadline.dispose();
-  }
-}
+      const result = await runtime.analyze(
+        {
+          analysisBuildId: identity.analysisBuildId,
+          exporterCode: identity.exporterCode,
+          productCode: identity.productCode,
+        },
+        {
+          signal,
+          observe: measurement.observeOperation,
+        },
+      );
+      if (result.analysisBuildId !== manifest.analysisBuildId) {
+        throw new CandidateMarketExportRouteError(
+          409,
+          "INCOMPATIBLE_PRODUCT_SEARCH_BUILD",
+          "The product-search build is not compatible with the analysis build.",
+          `Product-search build ${identity.productSearchBuildId} is not bound to analysis build ${analysisBuildId}.`,
+        );
+      }
+      if (
+        freshness.servedBaciRelease !==
+        result.provenance.baciRelease
+      ) {
+        throw new CandidateMarketExportRouteError(
+          409,
+          "INCOMPATIBLE_FRESHNESS_STATUS",
+          "The freshness status is not compatible with the analysis release.",
+          `Freshness status ${identity.freshnessStatusId} does not describe ${result.provenance.baciRelease}.`,
+        );
+      }
+
+      const product = await findExactProduct(
+        runtime,
+        identity.productSearchBuildId,
+        identity.productCode,
+        signal,
+      );
+      const exported = measurement.measureSerialization(
+        () =>
+          serializeCandidateMarketCsv({
+            result,
+            product,
+            manifest: { ...manifest, freshness },
+          }),
+        (serialized) => serialized.bytes.byteLength,
+      );
+      const etag = `W/"sha256-${exported.sha256}"`;
+      const headers = {
+        "Cache-Control": IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL,
+        "Content-Disposition": `attachment; filename="${exported.filename}"`,
+        "Content-Type": "text/csv; charset=utf-8; header=present",
+        ETag: etag,
+        "X-Content-Type-Options": "nosniff",
+        Vary: "Accept-Encoding",
+      };
+
+      if (
+        matchesIfNoneMatch(request.headers.get("if-none-match"), etag)
+      ) {
+        return new Response(null, { status: 304, headers });
+      }
+      return new Response(exported.bytes, {
+        status: 200,
+        headers,
+      });
+    },
+    errorResponse(error, measurement) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+          undefined,
+          { "Retry-After": String(error.retryAfterSeconds) },
+        );
+      }
+      if (error instanceof CandidateMarketExportRouteError) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+        );
+      }
+      if (isCandidateMarketAnalysisError(error)) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+        );
+      }
+      if (isProductCatalogError(error)) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+        );
+      }
+      if (
+        error instanceof CandidateMarketCsvRepresentationError
+      ) {
+        return jsonErrorResponse(
+          503,
+          error.code,
+          "The complete Candidate Market export is temporarily unavailable.",
+        );
+      }
+
+      const correlationId = measurement.correlationId;
+      console.error("Candidate Market CSV export request failed", {
+        correlationId,
+        error,
+      });
+      return jsonErrorResponse(
+        500,
+        "INTERNAL_ERROR",
+        "Candidate Market export could not be completed.",
+        correlationId,
+      );
+    },
+  });
 
 function validateSearchParameters(
   searchParameters: URLSearchParams,

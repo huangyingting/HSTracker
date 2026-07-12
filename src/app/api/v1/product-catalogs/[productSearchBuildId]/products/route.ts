@@ -5,28 +5,14 @@ import {
   isProductCatalogError,
 } from "../../../../../../catalog/product-catalog-errors";
 import type { ProductSearchLocale } from "../../../../../../catalog/product-catalog";
+import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import { jsonErrorResponse } from "../../../../../../http/json-error-response";
-import { withoutResponseBody } from "../../../../../../http/response";
-import {
-  getApplicationRuntime,
-  type ApplicationRuntime,
-} from "../../../../../../runtime/application-runtime";
-import {
-  createRequestDeadline,
-  isRequestDeadlineExceededError,
-  ROUTE_DEADLINE_MS,
-} from "../../../../../../runtime/request-deadline";
-import {
-  measureRuntimeRequest,
-  type RuntimeRequestMeasurement,
-} from "../../../../../../runtime/runtime-metrics";
+import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
+import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const IMMUTABLE_CACHE_CONTROL =
-  "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable";
 
 type ProductCatalogRouteContext = {
   params: Promise<{
@@ -38,114 +24,86 @@ export async function GET(
   request: Request,
   context: ProductCatalogRouteContext,
 ): Promise<Response> {
-  return respond(request, context, false);
+  return productCatalogRoute.get(request, context);
 }
 
 export async function HEAD(
   request: Request,
   context: ProductCatalogRouteContext,
 ): Promise<Response> {
-  return respond(request, context, true);
+  return productCatalogRoute.head(request, context);
 }
 
-async function respond(
-  request: Request,
-  context: ProductCatalogRouteContext,
-  headOnly: boolean,
-): Promise<Response> {
-  const applicationRuntime = getApplicationRuntime();
-  return measureRuntimeRequest(
-    applicationRuntime,
-    "product-search",
-    async (measurement) => {
-      const response = await respondMeasured(
-        request,
-        context,
-        headOnly,
-        applicationRuntime,
-        measurement,
+const productCatalogRoute =
+  createMeasuredRuntimeRoute<ProductCatalogRouteContext>({
+    routeFamily: "product-search",
+    deadlineMs: ROUTE_DEADLINE_MS.search,
+    async respond({
+      request,
+      context,
+      runtime,
+      signal,
+      measurement,
+    }) {
+      const url = new URL(request.url);
+      const searchQuery = parseSearchParameters(url.searchParams);
+      const { productSearchBuildId } = await context.params;
+      const result = await runtime.searchProducts(
+        {
+          productSearchBuildId,
+          ...searchQuery,
+        },
+        {
+          signal,
+          observe: measurement.observeOperation,
+        },
       );
-      return headOnly ? withoutResponseBody(response) : response;
+      const body = measurement.measureSerialization(
+        () => JSON.stringify(result),
+        (serialized) =>
+          new TextEncoder().encode(serialized).byteLength,
+      );
+      const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
+      const headers = {
+        "Cache-Control": IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL,
+        "Content-Type": "application/json; charset=utf-8",
+        ETag: etag,
+        Vary: "Accept-Encoding",
+      };
+
+      if (
+        matchesIfNoneMatch(request.headers.get("if-none-match"), etag)
+      ) {
+        return new Response(null, { status: 304, headers });
+      }
+
+      return new Response(body, {
+        status: 200,
+        headers,
+      });
     },
-  );
-}
+    errorResponse(error, measurement) {
+      if (isProductCatalogError(error)) {
+        return jsonErrorResponse(
+          error.status,
+          error.code,
+          error.publicMessage,
+        );
+      }
 
-async function respondMeasured(
-  request: Request,
-  context: ProductCatalogRouteContext,
-  headOnly: boolean,
-  applicationRuntime: ApplicationRuntime,
-  measurement: RuntimeRequestMeasurement,
-): Promise<Response> {
-  const deadline = createRequestDeadline(
-    request.signal,
-    ROUTE_DEADLINE_MS.search,
-  );
-  try {
-    const url = new URL(request.url);
-    const searchQuery = parseSearchParameters(url.searchParams);
-    const { productSearchBuildId } = await context.params;
-    const result = await applicationRuntime.searchProducts(
-      {
-        productSearchBuildId,
-        ...searchQuery,
-      },
-      {
-        signal: deadline.signal,
-        observe: measurement.observeOperation,
-      },
-    );
-    const body = measurement.measureSerialization(
-      () => JSON.stringify(result),
-      (serialized) => new TextEncoder().encode(serialized).byteLength,
-    );
-    const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
-    const headers = {
-      "Cache-Control": IMMUTABLE_CACHE_CONTROL,
-      "Content-Type": "application/json; charset=utf-8",
-      ETag: etag,
-      Vary: "Accept-Encoding",
-    };
-
-    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
-      return new Response(null, { status: 304, headers });
-    }
-
-    return new Response(headOnly ? null : body, {
-      status: 200,
-      headers,
-    });
-  } catch (error) {
-    if (isRequestDeadlineExceededError(error)) {
+      const correlationId = measurement.correlationId;
+      console.error("Product Catalog request failed", {
+        correlationId,
+        error,
+      });
       return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
+        500,
+        "INTERNAL_ERROR",
+        "Product search could not be completed.",
+        correlationId,
       );
-    }
-    if (isProductCatalogError(error)) {
-      return jsonErrorResponse(
-        error.status,
-        error.code,
-        error.publicMessage,
-      );
-    }
-
-    const correlationId = measurement.correlationId;
-    console.error("Product Catalog request failed", {
-      correlationId,
-      error,
-    });
-    return jsonErrorResponse(
-      500,
-      "INTERNAL_ERROR",
-      "Product search could not be completed.",
-      correlationId,
-    );
-  } finally {
-    deadline.dispose();
-  }
-}
+    },
+  });
 
 function parseSearchParameters(searchParameters: URLSearchParams): {
   query: string;

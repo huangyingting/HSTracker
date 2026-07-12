@@ -34,7 +34,10 @@ describe("versioned Economy Directory route", () => {
     const second = await GET(new Request(url), routeContext(build));
 
     expect(first.status).toBe(200);
-    expect(first.headers.get("cache-control")).toContain("immutable");
+    expect(first.headers.get("cache-control")).toBe(
+      "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+    );
+    expect(first.headers.get("vary")).toBe("Accept-Encoding");
     expect(first.headers.get("etag")).toMatch(/^W\/"[a-f0-9]{64}"$/);
     expect(await second.text()).toBe(firstBody);
     expect(second.headers.get("etag")).toBe(first.headers.get("etag"));
