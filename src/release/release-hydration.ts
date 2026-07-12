@@ -9,37 +9,23 @@ import {
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import {
+  ACTIVE_DEPLOYMENT_POINTER_KEY as ACTIVE_POINTER_KEY,
+  deploymentPairingIdFromKey as pairingIdFromKey,
+  parseActiveDeploymentPointer as parsePointer,
+  parseDeploymentPairingManifest as parseDeployment,
+  readReleaseMetadata,
+  releaseObjectIdentity as identity,
+  singleChunk as oneChunk,
+  type ActiveDeploymentPointer,
+  type DeploymentPairingManifest,
+  type ReleaseObjectReference,
+} from "./release-manifest";
 import type {
   ReleaseObjectIdentity,
   ReleaseObjectReader,
 } from "./release-object-store";
 import type { PublishedDeployment } from "./release-publication";
-
-const ACTIVE_POINTER_KEY = "deployment-pointers/current.json";
-const MAX_METADATA_BYTES = 1024 * 1024;
-
-type ObjectReference = ReleaseObjectIdentity & {
-  key: string;
-};
-
-type StoredDeployment = {
-  deploymentPairingId: string;
-  analysisBuildId: string;
-  analysisReleaseCatalogSha256: string;
-  productSearchBuildId: string;
-  baciRelease: string;
-  analysisArtifact: ObjectReference;
-  analysisManifest: ObjectReference;
-  analysisReleaseCatalog: ObjectReference;
-  productCatalog: ObjectReference;
-  productCatalogManifest: ObjectReference;
-};
-
-type ActivePointer = {
-  current: ObjectReference;
-  previous: ObjectReference | null;
-  activatedAt: string;
-};
 
 export type HydrateCurrentReleaseInput = {
   volumePath: string;
@@ -73,10 +59,7 @@ export class ReleaseHydrator {
     input: HydrateCurrentReleaseInput,
   ): Promise<HydratedRelease> {
     const pointer = await this.readPointer();
-    const deploymentBytes = await this.readVerifiedObject(
-      pointer.current,
-      MAX_METADATA_BYTES,
-    );
+    const deploymentBytes = await this.readVerifiedObject(pointer.current);
     const deployment = parseDeployment(
       JSON.parse(deploymentBytes.toString("utf8")),
     );
@@ -97,23 +80,23 @@ export class ReleaseHydrator {
     try {
       await Promise.all([
         this.downloadVerified(
-          deployment.analysisArtifact,
+          deployment.analysis.artifact.artifact,
           join(partialPath, "candidate-market.duckdb"),
         ),
         this.downloadVerified(
-          deployment.analysisManifest,
+          deployment.analysis.artifact.manifest,
           join(partialPath, "artifact-manifest.json"),
         ),
         this.downloadVerified(
-          deployment.analysisReleaseCatalog,
+          deployment.analysis.releaseCatalog,
           join(partialPath, "analysis-release-catalog.json"),
         ),
         this.downloadVerified(
-          deployment.productCatalog,
+          deployment.productSearch.catalog,
           join(partialPath, "product-catalog.json"),
         ),
         this.downloadVerified(
-          deployment.productCatalogManifest,
+          deployment.productSearch.manifest,
           join(partialPath, "catalog-manifest.json"),
         ),
         writeVerifiedFile(
@@ -140,33 +123,32 @@ export class ReleaseHydrator {
     return hydratedRelease(finalPath, pointer, deployment);
   }
 
-  private async readPointer(): Promise<ActivePointer> {
+  private async readPointer(): Promise<ActiveDeploymentPointer> {
     const stored = await this.objectStore.getObject(ACTIVE_POINTER_KEY);
     if (stored === null) {
       throw new Error("No active deployment pairing is available.");
     }
     return parsePointer(
       JSON.parse(
-        (await collect(stored.body, MAX_METADATA_BYTES)).toString("utf8"),
+        (await readReleaseMetadata(stored.body)).toString("utf8"),
       ),
     );
   }
 
   private async readVerifiedObject(
-    reference: ObjectReference,
-    maximumBytes: number,
+    reference: ReleaseObjectReference,
   ): Promise<Buffer> {
     const stored = await this.objectStore.getObject(reference.key);
     if (stored === null) {
       throw new Error("A deployment object is unavailable.");
     }
-    const bytes = await collect(stored.body, maximumBytes);
+    const bytes = await readReleaseMetadata(stored.body);
     verifyIdentity(identity(bytes), reference);
     return bytes;
   }
 
   private async downloadVerified(
-    reference: ObjectReference,
+    reference: ReleaseObjectReference,
     path: string,
   ): Promise<void> {
     const stored = await this.objectStore.getObject(reference.key);
@@ -175,80 +157,6 @@ export class ReleaseHydrator {
     }
     await writeVerifiedFile(path, stored.body, reference);
   }
-}
-
-function parsePointer(value: unknown): ActivePointer {
-  const pointer = record(value, "active deployment pointer");
-  if (pointer.schemaVersion !== "active-deployment-pointer-v1") {
-    throw new Error("Active deployment pointer schema is incompatible.");
-  }
-  return {
-    current: objectReference(pointer.current, "current deployment"),
-    previous:
-      pointer.previous === null
-        ? null
-        : objectReference(pointer.previous, "previous deployment"),
-    activatedAt: utcTimestamp(pointer.activatedAt, "pointer activatedAt"),
-  };
-}
-
-function parseDeployment(value: unknown): StoredDeployment {
-  const deployment = record(value, "deployment pairing manifest");
-  if (deployment.schemaVersion !== "deployment-pairing-manifest-v1") {
-    throw new Error("Deployment pairing manifest schema is incompatible.");
-  }
-  const analysis = record(deployment.analysis, "deployment analysis");
-  const analysisArtifact = record(
-    analysis.artifact,
-    "deployment analysis artifact",
-  );
-  const productSearch = record(
-    deployment.productSearch,
-    "deployment product search",
-  );
-  const releaseCatalog = objectReference(
-    analysis.releaseCatalog,
-    "analysis release catalog",
-  );
-  const analysisReleaseCatalogSha256 = sha256String(
-    deployment.analysisReleaseCatalogSha256,
-    "analysis release catalog SHA-256",
-  );
-  if (releaseCatalog.sha256 !== analysisReleaseCatalogSha256) {
-    throw new Error("Analysis release catalog identity is inconsistent.");
-  }
-  return {
-    deploymentPairingId: pairingId(
-      deployment.deploymentPairingId,
-      "deployment pairing ID",
-    ),
-    analysisBuildId: buildId(
-      deployment.analysisBuildId,
-      "analysis build ID",
-    ),
-    analysisReleaseCatalogSha256,
-    productSearchBuildId: productSearchBuildId(
-      deployment.productSearchBuildId,
-    ),
-    baciRelease: string(deployment.baciRelease, "deployment BACI Release"),
-    analysisArtifact: objectReference(
-      analysisArtifact.artifact,
-      "analysis artifact",
-    ),
-    analysisManifest: objectReference(
-      analysisArtifact.manifest,
-      "analysis artifact manifest",
-    ),
-    analysisReleaseCatalog: releaseCatalog,
-    productCatalog: objectReference(
-      productSearch.catalog,
-      "product catalog",
-    ),
-    productCatalogManifest: objectReference(
-      productSearch.manifest,
-      "product catalog manifest",
-    ),
-  };
 }
 
 async function writeVerifiedFile(
@@ -277,29 +185,29 @@ async function writeVerifiedFile(
 
 async function verifyResidentRelease(
   rootPath: string,
-  deployment: StoredDeployment,
+  deployment: DeploymentPairingManifest,
   deploymentBytes: Buffer,
 ): Promise<void> {
   await Promise.all([
     verifyFile(
       join(rootPath, "candidate-market.duckdb"),
-      deployment.analysisArtifact,
+      deployment.analysis.artifact.artifact,
     ),
     verifyFile(
       join(rootPath, "artifact-manifest.json"),
-      deployment.analysisManifest,
+      deployment.analysis.artifact.manifest,
     ),
     verifyFile(
       join(rootPath, "analysis-release-catalog.json"),
-      deployment.analysisReleaseCatalog,
+      deployment.analysis.releaseCatalog,
     ),
     verifyFile(
       join(rootPath, "product-catalog.json"),
-      deployment.productCatalog,
+      deployment.productSearch.catalog,
     ),
     verifyFile(
       join(rootPath, "catalog-manifest.json"),
-      deployment.productCatalogManifest,
+      deployment.productSearch.manifest,
     ),
     verifyFile(
       join(rootPath, "deployment-manifest.json"),
@@ -343,8 +251,8 @@ function verifyIdentity(
 
 function hydratedRelease(
   rootPath: string,
-  pointer: ActivePointer,
-  deployment: StoredDeployment,
+  pointer: ActiveDeploymentPointer,
+  deployment: DeploymentPairingManifest,
 ): HydratedRelease {
   return {
     deployment: {
@@ -377,50 +285,6 @@ function hydratedRelease(
   };
 }
 
-function objectReference(value: unknown, label: string): ObjectReference {
-  const reference = record(value, label);
-  return {
-    key: string(reference.key, `${label} key`),
-    bytes: count(reference.bytes, `${label} bytes`),
-    sha256: sha256String(reference.sha256, `${label} SHA-256`),
-  };
-}
-
-function pairingIdFromKey(key: string): string {
-  const match =
-    /^deployment-pairings\/(deployment-pairing-v1-[a-f0-9]{16})\.json$/u.exec(
-      key,
-    );
-  if (match === null) {
-    throw new Error("Deployment pairing key is invalid.");
-  }
-  return match[1];
-}
-
-function pairingId(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (!/^deployment-pairing-v1-[a-f0-9]{16}$/u.test(candidate)) {
-    throw new Error(`${label} is malformed.`);
-  }
-  return candidate;
-}
-
-function buildId(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (!/^analysis-build-v1-[a-f0-9]{16}$/u.test(candidate)) {
-    throw new Error(`${label} is malformed.`);
-  }
-  return candidate;
-}
-
-function productSearchBuildId(value: unknown): string {
-  const candidate = string(value, "product-search build ID");
-  if (!/^product-search-v1-[a-f0-9]{16}$/u.test(candidate)) {
-    throw new Error("Product-search build ID is malformed.");
-  }
-  return candidate;
-}
-
 async function syncDirectory(path: string): Promise<void> {
   const handle = await open(path, constants.O_RDONLY);
   try {
@@ -449,75 +313,4 @@ function isEnoent(error: unknown): boolean {
     "code" in error &&
     error.code === "ENOENT"
   );
-}
-
-async function collect(
-  body: AsyncIterable<Uint8Array>,
-  maximumBytes: number,
-): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let bytes = 0;
-  for await (const chunk of body) {
-    bytes += chunk.byteLength;
-    if (bytes > maximumBytes) {
-      throw new Error("Release metadata exceeds its size limit.");
-    }
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
-}
-
-async function* oneChunk(bytes: Buffer): AsyncIterable<Uint8Array> {
-  yield bytes;
-}
-
-function identity(bytes: Buffer): ReleaseObjectIdentity {
-  return {
-    bytes: bytes.length,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-  };
-}
-
-function record(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${label} must be an object.`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function string(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${label} must be a nonempty string.`);
-  }
-  return value;
-}
-
-function count(value: unknown, label: string): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw new Error(`${label} must be a nonnegative safe integer.`);
-  }
-  return value;
-}
-
-function sha256String(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (!/^[a-f0-9]{64}$/u.test(candidate)) {
-    throw new Error(`${label} must be a lowercase SHA-256.`);
-  }
-  return candidate;
-}
-
-function utcTimestamp(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(candidate) ||
-    Number.isNaN(Date.parse(candidate))
-  ) {
-    throw new Error(`${label} must be a UTC timestamp without fractions.`);
-  }
-  return candidate;
 }

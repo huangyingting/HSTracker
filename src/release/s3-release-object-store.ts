@@ -105,12 +105,26 @@ export class S3ReleaseObjectStore
         new HeadObjectCommand({
           Bucket: this.location.bucket,
           Key: key,
+          ChecksumMode: "ENABLED",
         }),
       );
-      return (
-        existing.ContentLength === identity.bytes &&
-        existing.Metadata?.sha256 === identity.sha256
-      );
+      if (existing.ContentLength !== identity.bytes) {
+        return false;
+      }
+      const expectedChecksum = Buffer.from(
+        identity.sha256,
+        "hex",
+      ).toString("base64");
+      if (existing.ChecksumSHA256 !== undefined) {
+        return existing.ChecksumSHA256 === expectedChecksum;
+      }
+      if (existing.Metadata?.sha256 === identity.sha256) {
+        return true;
+      }
+      const stored = await this.getObject(key);
+      return stored === null
+        ? null
+        : streamMatchesIdentity(stored.body, identity);
     } catch (error) {
       if (isNotFound(error)) {
         return null;
@@ -177,6 +191,19 @@ function isConditionalWriteConflict(error: unknown): boolean {
 
 function createSha256Checksum(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("base64");
+}
+
+async function streamMatchesIdentity(
+  body: AsyncIterable<Uint8Array>,
+  expected: ReleaseObjectIdentity,
+): Promise<boolean> {
+  const digest = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of body) {
+    bytes += chunk.byteLength;
+    digest.update(chunk);
+  }
+  return bytes === expected.bytes && digest.digest("hex") === expected.sha256;
 }
 
 function serviceErrorStatus(error: unknown): number | undefined {

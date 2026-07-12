@@ -1,12 +1,13 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import {
   CreateBucketCommand,
+  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import {
@@ -21,6 +22,7 @@ import {
   createPromotionReleaseObjectStore,
   createRuntimeReleaseObjectReader,
 } from "../../src/release/release-object-storage";
+import { ReleaseHydrator } from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { S3ReleaseObjectStore } from "../../src/release/s3-release-object-store";
 import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
@@ -132,6 +134,23 @@ describe("S3 release object store", () => {
     await expect(objectStore.getObject(key)).resolves.toBeNull();
   });
 
+  it("accepts an identity-equivalent object created without adapter metadata", async () => {
+    const key = "retry-fixtures/external.bin";
+    const bytes = Buffer.from("externally uploaded release", "utf8");
+    await client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: bytes,
+        ContentLength: bytes.length,
+      }),
+    );
+
+    await expect(
+      objectStore.putImmutable(key, chunks(bytes), identity(bytes)),
+    ).resolves.toBeUndefined();
+  });
+
   it("replaces a pointer only from the version the caller observed", async () => {
     const key = "test-pointers/current.json";
     const firstBytes = Buffer.from('{"current":"first"}\n', "utf8");
@@ -207,7 +226,7 @@ describe("S3 release object store", () => {
     await expect(collect(readPromoted?.body)).resolves.toEqual(promoted);
   });
 
-  it("promotes and rolls back exact pairings through operator commands", async () => {
+  it("promotes, rolls back, and hydrates exact pairings through MinIO", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-s3-release-"));
     const firstCandidate = await writeAcceptedReleaseCandidate(
       join(root, "first"),
@@ -276,7 +295,55 @@ describe("S3 release object store", () => {
     await expect(new ReleasePublisher(objectStore).current()).resolves.toEqual(
       rolledBack,
     );
+
+    const reader = createRuntimeReleaseObjectReader({
+      HS_TRACKER_RELEASE_S3_BUCKET: BUCKET,
+      HS_TRACKER_RELEASE_S3_ENDPOINT: endpoint,
+      HS_TRACKER_RELEASE_S3_FORCE_PATH_STYLE: "true",
+      HS_TRACKER_RELEASE_S3_REGION: "us-east-1",
+      HS_TRACKER_RELEASE_READ_ACCESS_KEY_ID: MINIO_USERNAME,
+      HS_TRACKER_RELEASE_READ_SECRET_ACCESS_KEY: MINIO_PASSWORD,
+    });
+    const hydrated = await new ReleaseHydrator(reader).hydrateCurrent({
+      volumePath: join(root, "volume"),
+    });
+    expect(hydrated.deployment).toEqual(rolledBack);
+    await expect(
+      readFile(hydrated.analysisArtifactPath, "utf8"),
+    ).resolves.toBe("fixture DuckDB artifact v1");
+    await expect(readFile(hydrated.productCatalogPath, "utf8")).resolves.toBe(
+      "fixture product catalog v1",
+    );
+
+    const publicMetadata = await activePublicMetadata();
+    for (const metadata of publicMetadata) {
+      expect(metadata).not.toContain(endpoint);
+      expect(metadata).not.toContain(MINIO_USERNAME);
+      expect(metadata).not.toContain(MINIO_PASSWORD);
+    }
   }, 30_000);
+
+  async function activePublicMetadata(): Promise<string[]> {
+    const pointerText = await objectText(
+      objectStore,
+      "deployment-pointers/current.json",
+    );
+    const pointer = JSON.parse(pointerText) as {
+      current: { key: string };
+    };
+    const deploymentText = await objectText(
+      objectStore,
+      pointer.current.key,
+    );
+    const deployment = JSON.parse(deploymentText) as {
+      analysis: { releaseCatalog: { key: string } };
+    };
+    const releaseCatalogText = await objectText(
+      objectStore,
+      deployment.analysis.releaseCatalog.key,
+    );
+    return [pointerText, deploymentText, releaseCatalogText];
+  }
 });
 
 async function* chunks(bytes: Buffer): AsyncIterable<Uint8Array> {
@@ -296,6 +363,14 @@ async function collect(
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+async function objectText(
+  objectStore: S3ReleaseObjectStore,
+  key: string,
+): Promise<string> {
+  const stored = await objectStore.getObject(key);
+  return (await collect(stored?.body)).toString("utf8");
 }
 
 function identity(bytes: Buffer): { bytes: number; sha256: string } {

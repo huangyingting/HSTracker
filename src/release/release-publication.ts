@@ -3,13 +3,25 @@ import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import {
+  ACTIVE_DEPLOYMENT_POINTER_KEY as ACTIVE_POINTER_KEY,
+  deploymentPairingIdFromKey as pairingIdFromKey,
+  parseActiveDeploymentPointer as parsePointer,
+  parseDeploymentPairingManifest as parseDeployment,
+  readReleaseMetadata,
+  releaseObjectIdentity as identity,
+  singleChunk as oneChunk,
+  type ActiveDeploymentPointer,
+  type AnalysisArtifactReference,
+  type DeploymentPairingManifest,
+  type ProductCatalogReference,
+  type ReleaseObjectReference,
+} from "./release-manifest";
 import type {
   ReleaseObjectIdentity,
   ReleaseObjectStore,
 } from "./release-object-store";
 
-const ACTIVE_POINTER_KEY = "deployment-pointers/current.json";
-const MAX_METADATA_BYTES = 1024 * 1024;
 const RESULT_SCHEMA_VERSION = "candidate-market-result-v1";
 const SCORE_VERSION = "cms-v1";
 
@@ -48,51 +60,6 @@ export class ReleasePublicationError extends Error {
     this.name = "ReleasePublicationError";
   }
 }
-
-type ObjectReference = ReleaseObjectIdentity & {
-  key: string;
-};
-
-type AnalysisArtifactReference = {
-  baciRelease: string;
-  sourceSha256: string;
-  hsRevision: "HS12";
-  artifactBuildId: string;
-  artifactSchemaVersion: string;
-  artifact: ObjectReference;
-  manifest: ObjectReference;
-};
-
-type ProductCatalogReference = {
-  baciRelease: string;
-  sourceArchiveSha256: string;
-  hsRevision: "HS12";
-  productSearchBuildId: string;
-  catalogSchemaVersion: string;
-  catalog: ObjectReference;
-  manifest: ObjectReference;
-};
-
-type DeploymentPairingManifest = {
-  schemaVersion: "deployment-pairing-manifest-v1";
-  deploymentPairingId: string;
-  baciRelease: string;
-  analysisBuildId: string;
-  analysisReleaseCatalogSha256: string;
-  productSearchBuildId: string;
-  analysis: {
-    artifact: AnalysisArtifactReference;
-    releaseCatalog: ObjectReference;
-  };
-  productSearch: ProductCatalogReference;
-};
-
-type ActiveDeploymentPointer = {
-  schemaVersion: "active-deployment-pointer-v1";
-  current: ObjectReference;
-  previous: ObjectReference | null;
-  activatedAt: string;
-};
 
 type CurrentState = {
   pointer: ActiveDeploymentPointer;
@@ -207,7 +174,6 @@ export class ReleasePublisher {
     const previousBytes = await readVerifiedReference(
       this.objectStore,
       current.pointer.previous,
-      MAX_METADATA_BYTES,
     );
     const previous = parseDeployment(
       JSON.parse(previousBytes.toString("utf8")),
@@ -234,7 +200,7 @@ export class ReleasePublisher {
     current: CurrentState | null,
   ): Promise<{
     artifact: AnalysisArtifactReference;
-    releaseCatalog: ObjectReference;
+    releaseCatalog: ReleaseObjectReference;
     releaseCatalogSha256: string;
     analysisBuildId: string;
   }> {
@@ -318,7 +284,7 @@ export class ReleasePublisher {
     key: string,
     path: string,
     expectedIdentity: ReleaseObjectIdentity,
-  ): Promise<ObjectReference> {
+  ): Promise<ReleaseObjectReference> {
     await this.objectStore.putImmutable(
       key,
       createReadStream(path),
@@ -331,7 +297,7 @@ export class ReleasePublisher {
   private async publishBytes(
     key: string,
     bytes: Buffer,
-  ): Promise<ObjectReference> {
+  ): Promise<ReleaseObjectReference> {
     const expectedIdentity = identity(bytes);
     await this.objectStore.putImmutable(
       key,
@@ -349,13 +315,12 @@ export class ReleasePublisher {
     }
     const pointer = parsePointer(
       JSON.parse(
-        (await collect(storedPointer.body, MAX_METADATA_BYTES)).toString("utf8"),
+        (await readReleaseMetadata(storedPointer.body)).toString("utf8"),
       ),
     );
     const deploymentBytes = await readVerifiedReference(
       this.objectStore,
       pointer.current,
-      MAX_METADATA_BYTES,
     );
     return {
       pointer,
@@ -598,14 +563,13 @@ async function verifyStoredObject(
 
 async function readVerifiedReference(
   objectStore: ReleaseObjectStore,
-  reference: ObjectReference,
-  maximumBytes: number,
+  reference: ReleaseObjectReference,
 ): Promise<Buffer> {
   const stored = await objectStore.getObject(reference.key);
   if (stored === null) {
     throw new Error(`Referenced release object ${reference.key} is unavailable.`);
   }
-  const bytes = await collect(stored.body, maximumBytes);
+  const bytes = await readReleaseMetadata(stored.body);
   const actualIdentity = identity(bytes);
   if (
     actualIdentity.bytes !== reference.bytes ||
@@ -614,125 +578,6 @@ async function readVerifiedReference(
     throw new Error(`Referenced release object ${reference.key} is corrupt.`);
   }
   return bytes;
-}
-
-function parsePointer(value: unknown): ActiveDeploymentPointer {
-  const pointer = record(value, "active deployment pointer");
-  if (pointer.schemaVersion !== "active-deployment-pointer-v1") {
-    throw new Error("Active deployment pointer schema is incompatible.");
-  }
-  return {
-    schemaVersion: "active-deployment-pointer-v1",
-    current: objectReference(pointer.current, "current deployment"),
-    previous:
-      pointer.previous === null
-        ? null
-        : objectReference(pointer.previous, "previous deployment"),
-    activatedAt: utcTimestamp(pointer.activatedAt, "pointer activatedAt"),
-  };
-}
-
-function parseDeployment(value: unknown): DeploymentPairingManifest {
-  const deployment = record(value, "deployment pairing manifest");
-  if (deployment.schemaVersion !== "deployment-pairing-manifest-v1") {
-    throw new Error("Deployment pairing manifest schema is incompatible.");
-  }
-  const analysis = record(deployment.analysis, "deployment analysis");
-  const productSearch = record(
-    deployment.productSearch,
-    "deployment product search",
-  );
-  return {
-    schemaVersion: "deployment-pairing-manifest-v1",
-    deploymentPairingId: string(
-      deployment.deploymentPairingId,
-      "deployment pairing ID",
-    ),
-    baciRelease: string(deployment.baciRelease, "deployment BACI Release"),
-    analysisBuildId: string(
-      deployment.analysisBuildId,
-      "deployment analysis build ID",
-    ),
-    analysisReleaseCatalogSha256: sha256String(
-      deployment.analysisReleaseCatalogSha256,
-      "analysis release catalog SHA-256",
-    ),
-    productSearchBuildId: productSearchBuildId(
-      deployment.productSearchBuildId,
-    ),
-    analysis: {
-      artifact: analysisArtifactReference(
-        analysis.artifact,
-        "deployment analysis artifact",
-      ),
-      releaseCatalog: objectReference(
-        analysis.releaseCatalog,
-        "deployment analysis release catalog",
-      ),
-    },
-    productSearch: productCatalogReference(
-      productSearch,
-      "deployment product search",
-    ),
-  };
-}
-
-function analysisArtifactReference(
-  value: unknown,
-  label: string,
-): AnalysisArtifactReference {
-  const candidate = record(value, label);
-  return {
-    baciRelease: string(candidate.baciRelease, `${label} BACI Release`),
-    sourceSha256: sha256String(
-      candidate.sourceSha256,
-      `${label} source SHA-256`,
-    ),
-    hsRevision: hs12(candidate.hsRevision, `${label} HS revision`),
-    artifactBuildId: string(
-      candidate.artifactBuildId,
-      `${label} build ID`,
-    ),
-    artifactSchemaVersion: string(
-      candidate.artifactSchemaVersion,
-      `${label} schema version`,
-    ),
-    artifact: objectReference(candidate.artifact, `${label} object`),
-    manifest: objectReference(candidate.manifest, `${label} manifest`),
-  };
-}
-
-function productCatalogReference(
-  value: unknown,
-  label: string,
-): ProductCatalogReference {
-  const candidate = record(value, label);
-  return {
-    baciRelease: string(candidate.baciRelease, `${label} BACI Release`),
-    sourceArchiveSha256: sha256String(
-      candidate.sourceArchiveSha256,
-      `${label} source archive SHA-256`,
-    ),
-    hsRevision: hs12(candidate.hsRevision, `${label} HS revision`),
-    productSearchBuildId: productSearchBuildId(
-      candidate.productSearchBuildId,
-    ),
-    catalogSchemaVersion: string(
-      candidate.catalogSchemaVersion,
-      `${label} schema version`,
-    ),
-    catalog: objectReference(candidate.catalog, `${label} object`),
-    manifest: objectReference(candidate.manifest, `${label} manifest`),
-  };
-}
-
-function objectReference(value: unknown, label: string): ObjectReference {
-  const reference = record(value, label);
-  return {
-    key: string(reference.key, `${label} key`),
-    bytes: count(reference.bytes, `${label} bytes`),
-    sha256: sha256String(reference.sha256, `${label} SHA-256`),
-  };
 }
 
 function publishedDeployment(
@@ -753,17 +598,6 @@ function publishedDeployment(
         ? null
         : pairingIdFromKey(pointer.previous.key),
   };
-}
-
-function pairingIdFromKey(key: string): string {
-  const match =
-    /^deployment-pairings\/(deployment-pairing-v1-[a-f0-9]{16})\.json$/u.exec(
-      key,
-    );
-  if (match === null) {
-    throw new Error("Deployment pairing key is invalid.");
-  }
-  return match[1];
 }
 
 async function fileIdentity(
@@ -791,32 +625,8 @@ async function streamIdentity(
   return { bytes, sha256: digest.digest("hex") };
 }
 
-async function collect(
-  body: AsyncIterable<Uint8Array>,
-  maximumBytes: number,
-): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let bytes = 0;
-  for await (const chunk of body) {
-    bytes += chunk.byteLength;
-    if (bytes > maximumBytes) {
-      throw new Error("Release metadata exceeds its size limit.");
-    }
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
-}
-
-async function* oneChunk(bytes: Buffer): AsyncIterable<Uint8Array> {
-  yield bytes;
-}
-
 function contentId(prefix: string, value: unknown): string {
   return `${prefix}-${sha256(jsonBytes(value)).slice(0, 16)}`;
-}
-
-function identity(bytes: Buffer): ReleaseObjectIdentity {
-  return { bytes: bytes.length, sha256: sha256(bytes) };
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -879,12 +689,6 @@ function productSearchBuildId(value: unknown): string {
   if (!/^product-search-v1-[a-f0-9]{16}$/u.test(candidate)) {
     throw new Error("Product-search build ID is malformed.");
   }
-  return candidate;
-}
-
-function utcTimestamp(value: unknown, label: string): string {
-  const candidate = string(value, label);
-  validateUtcTimestamp(candidate, label);
   return candidate;
 }
 
