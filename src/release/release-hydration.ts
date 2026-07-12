@@ -15,16 +15,16 @@ import {
   parseDeploymentPairingManifest,
   publishedDeployment,
   readReleaseMetadata,
-  releaseObjectIdentity,
-  singleChunk,
   type ActiveDeploymentPointer,
   type DeploymentPairingManifest,
   type PublishedDeployment,
   type ReleaseObjectReference,
 } from "./release-manifest";
-import type {
-  ReleaseObjectIdentity,
-  ReleaseObjectReader,
+import {
+  releaseObjectIdentity,
+  singleChunk,
+  type ReleaseObjectIdentity,
+  type ReleaseObjectReader,
 } from "./release-object-store";
 
 export type HydrateCurrentReleaseInput = {

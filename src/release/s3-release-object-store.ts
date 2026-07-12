@@ -8,12 +8,12 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 
-import { streamReleaseObjectIdentity } from "./release-manifest";
-import type {
-  ReleaseObject,
-  ReleaseObjectIdentity,
-  ReleaseObjectReader,
-  ReleaseObjectStore,
+import {
+  streamReleaseObjectIdentity,
+  type ReleaseObject,
+  type ReleaseObjectIdentity,
+  type ReleaseObjectReader,
+  type ReleaseObjectStore,
 } from "./release-object-store";
 
 export type S3ReleaseObjectLocation = {

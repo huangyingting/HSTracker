@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
-
-import type {
-  ReleaseObject,
-  ReleaseObjectIdentity,
-  ReleaseObjectStore,
+import {
+  releaseObjectIdentity,
+  singleChunk,
+  type ReleaseObject,
+  type ReleaseObjectIdentity,
+  type ReleaseObjectStore,
 } from "./release-object-store";
 
 type StoredObject = {
@@ -22,7 +22,7 @@ export class InMemoryReleaseObjectStore implements ReleaseObjectStore {
     }
     const bytes = Buffer.from(stored.bytes);
     return {
-      body: oneChunk(bytes),
+      body: singleChunk(bytes),
       version: stored.version,
     };
   }
@@ -78,16 +78,15 @@ async function collect(body: AsyncIterable<Uint8Array>): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function* oneChunk(bytes: Buffer): AsyncIterable<Uint8Array> {
-  yield bytes;
-}
-
 function verifyIdentity(
   bytes: Buffer,
   identity: ReleaseObjectIdentity,
 ): void {
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  if (bytes.length !== identity.bytes || sha256 !== identity.sha256) {
+  const actual = releaseObjectIdentity(bytes);
+  if (
+    actual.bytes !== identity.bytes ||
+    actual.sha256 !== identity.sha256
+  ) {
     throw new Error("Release object bytes do not match their identity.");
   }
 }

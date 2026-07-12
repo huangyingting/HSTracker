@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import type { ReleaseObjectIdentity } from "./release-object-store";
 import {
   count,
@@ -189,33 +187,6 @@ export async function readReleaseMetadata(
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
-}
-
-export async function* singleChunk(
-  bytes: Uint8Array,
-): AsyncIterable<Uint8Array> {
-  yield bytes;
-}
-
-export function releaseObjectIdentity(
-  bytes: Uint8Array,
-): ReleaseObjectIdentity {
-  return {
-    bytes: bytes.byteLength,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-  };
-}
-
-export async function streamReleaseObjectIdentity(
-  body: AsyncIterable<Uint8Array>,
-): Promise<ReleaseObjectIdentity> {
-  const digest = createHash("sha256");
-  let bytes = 0;
-  for await (const chunk of body) {
-    bytes += chunk.byteLength;
-    digest.update(chunk);
-  }
-  return { bytes, sha256: digest.digest("hex") };
 }
 
 export function releaseJsonBytes(value: unknown): Buffer {

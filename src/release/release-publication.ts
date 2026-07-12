@@ -9,9 +9,6 @@ import {
   publishedDeployment,
   readReleaseMetadata,
   releaseJsonBytes,
-  releaseObjectIdentity,
-  singleChunk,
-  streamReleaseObjectIdentity,
   type ActiveDeploymentPointer,
   type AnalysisArtifactReference,
   type DeploymentPairingManifest,
@@ -19,9 +16,12 @@ import {
   type ProductCatalogReference,
   type ReleaseObjectReference,
 } from "./release-manifest";
-import type {
-  ReleaseObjectIdentity,
-  ReleaseObjectStore,
+import {
+  releaseObjectIdentity,
+  singleChunk,
+  streamReleaseObjectIdentity,
+  type ReleaseObjectIdentity,
+  type ReleaseObjectStore,
 } from "./release-object-store";
 import {
   count,

@@ -4,10 +4,8 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 
-import {
-  releaseJsonBytes,
-  releaseObjectIdentity,
-} from "../../src/release/release-manifest";
+import { releaseJsonBytes } from "../../src/release/release-manifest";
+import { releaseObjectIdentity } from "../../src/release/release-object-store";
 
 export type AcceptedReleaseCandidateOptions = {
   analysisArtifactBuildId?: string;
