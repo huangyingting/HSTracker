@@ -7,6 +7,7 @@ import {
   ROUTE_DEADLINE_MS,
   createSynchronousRequestDeadline,
 } from "../../runtime/request-deadline";
+import { utf8ByteLength } from "../../runtime/serialized-size";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,8 +31,7 @@ export function GET(): Response {
       }
       const body = measurement.measureSerialization(
         () => JSON.stringify(health),
-        (serialized) =>
-          new TextEncoder().encode(serialized).byteLength,
+        utf8ByteLength,
       );
       if (deadline.hasElapsed()) {
         return jsonErrorResponseFor(

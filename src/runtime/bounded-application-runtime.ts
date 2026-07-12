@@ -9,6 +9,7 @@ import type {
 } from "./application-runtime";
 import { AnalysisCapacityExceededError } from "./analysis-capacity-error";
 import {
+  CACHE_ENTRY_OVERHEAD_BYTES,
   serializedBytes,
   serializedWeight,
 } from "./serialized-size";
@@ -162,7 +163,7 @@ export function createBoundedApplicationRuntime(
               searchCache.set(
                 key,
                 { kind: "product", value: result },
-                resultBytes + 1_024,
+                resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
               );
             }
           },
@@ -226,7 +227,7 @@ export function createBoundedApplicationRuntime(
               searchCache.set(
                 key,
                 { kind: "economy", value: result },
-                resultBytes + 1_024,
+                resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
               );
             }
           },
@@ -288,7 +289,11 @@ export function createBoundedApplicationRuntime(
           execution,
           (result, resultBytes) => {
             if (cacheGeneration === generation) {
-              analysisCache.set(key, result, resultBytes + 1_024);
+              analysisCache.set(
+                key,
+                result,
+                resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
+              );
             }
           },
           timing,
@@ -517,7 +522,7 @@ class ByteWeightedLru<Value> {
     this.entries.set(key, entry);
     return {
       value: entry.value,
-      resultBytes: entry.weight - 1_024,
+      resultBytes: entry.weight - CACHE_ENTRY_OVERHEAD_BYTES,
     };
   }
 

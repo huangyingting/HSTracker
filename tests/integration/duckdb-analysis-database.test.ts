@@ -83,6 +83,7 @@ describe("DuckDB analysis database", () => {
         queued: 1,
         threads: 2,
         memoryLimit: "1GiB",
+        tempDirectory: resolve(volumePath, "spill"),
         maxTempDirectorySize: "4GiB",
       });
       release.resolve();

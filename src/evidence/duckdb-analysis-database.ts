@@ -29,6 +29,7 @@ export class DuckDbAnalysisDatabase {
   private constructor(
     private readonly instance: DuckDBInstance,
     private readonly connections: readonly DuckDBConnection[],
+    private readonly tempDirectory: string,
   ) {
     this.available = [...connections];
   }
@@ -70,7 +71,11 @@ export class DuckDbAnalysisDatabase {
         );
       }
       connections.push(await instance.connect());
-      return new DuckDbAnalysisDatabase(instance, connections);
+      return new DuckDbAnalysisDatabase(
+        instance,
+        connections,
+        spillPath,
+      );
     } catch (error) {
       for (const connection of connections.reverse()) {
         connection.closeSync();
@@ -126,6 +131,7 @@ export class DuckDbAnalysisDatabase {
     queued: number;
     threads: number;
     memoryLimit: string;
+    tempDirectory: string;
     maxTempDirectorySize: string;
   } {
     return {
@@ -135,6 +141,7 @@ export class DuckDbAnalysisDatabase {
       queued: this.waiters.length,
       threads: RUNTIME_RESOURCE_POLICY.duckDbThreads,
       memoryLimit: RUNTIME_RESOURCE_POLICY.duckDbMemoryLimit,
+      tempDirectory: this.tempDirectory,
       maxTempDirectorySize:
         RUNTIME_RESOURCE_POLICY.duckDbMaxTempDirectorySize,
     };

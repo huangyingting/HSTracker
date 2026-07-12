@@ -78,6 +78,7 @@ describe("current analysis manifest route", () => {
     );
     const head = await HEAD(new Request(currentUrl, { method: "HEAD" }));
 
+    expect(initial.headers.get("vary")).toBeNull();
     expect(notModified.status).toBe(304);
     expect(await notModified.text()).toBe("");
     expect(notModified.headers.get("etag")).toBe(etag);

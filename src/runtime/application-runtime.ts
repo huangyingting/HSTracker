@@ -45,6 +45,7 @@ export type ApplicationRuntimeResources = Readonly<{
     queued: number;
     threads: number;
     memoryLimit: string;
+    tempDirectory: string;
     maxTempDirectorySize: string;
   };
 }>;

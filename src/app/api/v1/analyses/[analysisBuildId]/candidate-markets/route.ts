@@ -10,6 +10,7 @@ import { jsonErrorResponse } from "../../../../../../http/json-error-response";
 import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
+import { utf8ByteLength } from "../../../../../../runtime/serialized-size";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,8 +62,7 @@ const candidateMarketRoute =
       );
       const body = measurement.measureSerialization(
         () => JSON.stringify(result),
-        (serialized) =>
-          new TextEncoder().encode(serialized).byteLength,
+        utf8ByteLength,
       );
       const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
       const headers = {

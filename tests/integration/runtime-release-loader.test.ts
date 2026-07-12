@@ -100,6 +100,7 @@ describe("verified release runtime", () => {
         queued: 0,
         threads: 2,
         memoryLimit: "1GiB",
+        tempDirectory: join(root, "volume", "spill"),
         maxTempDirectorySize: "4GiB",
       },
     });

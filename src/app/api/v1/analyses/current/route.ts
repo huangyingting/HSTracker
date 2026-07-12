@@ -13,6 +13,7 @@ import {
   createSynchronousRequestDeadline,
 } from "../../../../../runtime/request-deadline";
 import { measureRuntimeRequestSync } from "../../../../../runtime/runtime-metrics";
+import { utf8ByteLength } from "../../../../../runtime/serialized-size";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,8 +39,7 @@ function respond(request: Request, headOnly: boolean): Response {
         applicationRuntime.currentAnalysisSnapshot();
       const body = measurement.measureSerialization(
         () => JSON.stringify(manifest),
-        (serialized) =>
-          new TextEncoder().encode(serialized).byteLength,
+        utf8ByteLength,
       );
       const etag = `W/"${createHash("sha256").update(body).digest("hex")}"`;
       const headers = {
@@ -49,7 +49,6 @@ function respond(request: Request, headOnly: boolean): Response {
         ),
         "Content-Type": "application/json; charset=utf-8",
         ETag: etag,
-        Vary: "Accept-Encoding",
       };
       if (deadline.hasElapsed()) {
         return jsonErrorResponseFor(
