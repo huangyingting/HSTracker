@@ -47,3 +47,10 @@ The download resumes from workspace download storage. Pass
 `--archive /path/to/BACI_HS12_V202601.zip` to validate an existing local copy.
 Accepted runs atomically publish year-partitioned Parquet under the workspace;
 coverage drift retains a report but publishes no staging.
+
+## Release publication
+
+Accepted analysis and product-search candidates are uploaded to private,
+immutable S3-compatible storage and activated as one exact pairing. See
+[release publication](docs/release-publication.md) for candidate layout,
+credential scopes, promotion, rollback, and the local MinIO integration test.
