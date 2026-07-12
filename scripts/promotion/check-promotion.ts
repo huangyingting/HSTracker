@@ -1,13 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
-import { verifyRetainedPromotionEvidence } from "../../src/promotion/promotion-evidence";
-import {
-  evaluatePromotionReport,
-  parsePromotionReportInput,
-} from "../../src/promotion/promotion-report";
-
-const MAX_PROMOTION_INPUT_BYTES = 8 * 1024 ** 2;
+import { loadPromotionEvaluation } from "../../src/promotion/promotion-acceptance";
 
 void main().catch((error: unknown) => {
   const code = stringProperty(error, "code") ?? "PROMOTION_CHECK_FAILED";
@@ -35,19 +28,8 @@ async function main(): Promise<void> {
       "--input is required.",
     );
   }
-  const inputBytes = await readFile(values.input);
-  if (inputBytes.byteLength > MAX_PROMOTION_INPUT_BYTES) {
-    throw new PromotionCheckError(
-      "PROMOTION_INPUT_OVERSIZED",
-      "Promotion input exceeds 8 MiB.",
-    );
-  }
-  const input = parsePromotionReportInput(
-    parseJson(inputBytes, "promotion input"),
-  );
-  const report = evaluatePromotionReport(input);
-  const retainedEvidence = await verifyRetainedPromotionEvidence(
-    input.evidence,
+  const { report, retainedEvidence } = await loadPromotionEvaluation(
+    values.input,
     process.cwd(),
   );
   process.stdout.write(
@@ -55,17 +37,6 @@ async function main(): Promise<void> {
   );
   if (report.status !== "accepted") {
     process.exitCode = 1;
-  }
-}
-
-function parseJson(bytes: Buffer, label: string): unknown {
-  try {
-    return JSON.parse(bytes.toString("utf8"));
-  } catch {
-    throw new PromotionCheckError(
-      "PROMOTION_INPUT_INVALID",
-      `${label} is not valid JSON.`,
-    );
   }
 }
 

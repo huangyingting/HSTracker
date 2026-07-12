@@ -26,19 +26,45 @@
       "machineClass": "local",
       "region": "loc"
     },
+    "benchmarkQueries": [
+      {
+        "role": "sparse",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      },
+      {
+        "role": "median",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      },
+      {
+        "role": "upper-quartile",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      },
+      {
+        "role": "maximum-row",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      }
+    ],
     "health": {
       "path": "/healthz",
       "bodySha256": "8518c5a41f54cee0e977476377dba725360f35e3f8a0810639e0d13a23057138"
     },
     "currentManifest": {
       "path": "/api/v1/analyses/current",
-      "etag": "W/\"efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975\"",
-      "bodySha256": "efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975",
+      "etag": "W/\"bc62cc58da6b9fa32f71dc61cb0d13d23ba025e5804200a3ded2bf6759f718e7\"",
+      "bodySha256": "bc62cc58da6b9fa32f71dc61cb0d13d23ba025e5804200a3ded2bf6759f718e7",
       "schemaVersion": "current-analysis-manifest-v1"
     }
   },
   "origin": "http://127.0.0.1:3200",
-  "generatedAt": "2026-07-12T17:42:09Z",
+  "generatedAt": "2026-07-12T19:55:02Z",
   "toolVersion": "http-performance-runner-v1",
   "targetLoad": {
     "sessions": 20,
@@ -59,29 +85,29 @@
     "includesMaximumRowProduct": true,
     "cacheStatesVerified": false,
     "queueRejections": 0,
-    "unretryableErrors": 79,
+    "unretryableErrors": 83,
     "timeouts": 0,
     "routeP95Ms": {
-      "currentManifest": 17.342883000000256,
-      "search": 6.780710999999428,
-      "analysis": 7.823599999999715,
-      "csv": 5.747698000000128
+      "currentManifest": 6.457714999998643,
+      "search": 9.258540000000721,
+      "analysis": 10.944604999998774,
+      "csv": 7.018541999997979
     },
-    "peakCgroupMemoryFraction": 0.11625607052371312,
-    "peakProcessRssFraction": 0.011556924005823893,
+    "peakCgroupMemoryFraction": 0.15643418725509378,
+    "peakProcessRssFraction": 0.01126944197955678,
     "peakSpillBytes": 0,
     "sparseOrMedianSpillCount": 0,
-    "minimumVolumeFreeFraction": 0.43343548084614414,
+    "minimumVolumeFreeFraction": 0.42882767384515946,
     "sharedCpuBurstBalanceDepleted": false
   },
   "observations": {
     "source": "runtime-prometheus-v1",
     "sampleCount": 24,
-    "peakCgroupMemoryFraction": 0.11625607052371312,
-    "peakProcessRssFraction": 0.011556924005823893,
+    "peakCgroupMemoryFraction": 0.15643418725509378,
+    "peakProcessRssFraction": 0.01126944197955678,
     "peakSpillBytes": 0,
     "sparseOrMedianSpillCount": 0,
-    "minimumVolumeFreeFraction": 0.43343548084614414,
+    "minimumVolumeFreeFraction": 0.42882767384515946,
     "sharedCpuBurstBalanceDepleted": false
   },
   "firstFailure": {
@@ -92,9 +118,19 @@
     "routeKind": "analysis",
     "status": 404,
     "timedOut": false,
-    "elapsedMs": 13.552067999999963
+    "elapsedMs": 38.31113400000004
   },
   "cacheViolations": [
+    {
+      "phase": "coordinated",
+      "sessionId": "coordinated-0-0",
+      "sequence": 0,
+      "offsetSeconds": 0,
+      "routeKind": "analysis",
+      "analysisKey": "010121",
+      "expected": "miss",
+      "actual": "hit"
+    },
     {
       "phase": "sustained",
       "sessionId": "session-4",
@@ -412,6 +448,16 @@
       "offsetSeconds": 16.95,
       "routeKind": "csv",
       "analysisKey": "900044",
+      "expected": "hit",
+      "actual": "miss"
+    },
+    {
+      "phase": "burst",
+      "sessionId": "burst",
+      "sequence": 26,
+      "offsetSeconds": 2.6,
+      "routeKind": "csv",
+      "analysisKey": "900050",
       "expected": "hit",
       "actual": "miss"
     }

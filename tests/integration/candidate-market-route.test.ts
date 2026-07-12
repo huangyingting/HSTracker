@@ -11,6 +11,7 @@ import {
 import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import {
+  RUNTIME_PROBE_CACHE_PARTITION_HEADER,
   RUNTIME_PROBE_CACHE_STATE_HEADER,
   subscribeRuntimeMetrics,
   type RuntimeRequestMetric,
@@ -217,6 +218,7 @@ describe("versioned Candidate Market route", () => {
     const unsubscribe = subscribeRuntimeMetrics((metric) => {
       metrics.push(metric);
     });
+
     const url =
       "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121";
 
@@ -316,6 +318,43 @@ describe("versioned Candidate Market route", () => {
       expect(JSON.stringify(metrics)).not.toContain("010121");
     } finally {
       unsubscribe();
+      restore();
+    }
+  });
+
+  it("measures the attested query through distinct probe cache partitions", async () => {
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+    );
+    const restore = installApplicationRuntime(runtime);
+    const url =
+      "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121";
+    const request = (partition: string) =>
+      new Request(url, {
+        headers: {
+          "X-HS-Tracker-Probe": "external-v1",
+          [RUNTIME_PROBE_CACHE_PARTITION_HEADER]: partition,
+        },
+      });
+
+    try {
+      const first = await GET(
+        request("candidate-analysis:median:0"),
+        routeContext("acceptance-fixtures-v1"),
+      );
+      const second = await GET(
+        request("candidate-analysis:median:1"),
+        routeContext("acceptance-fixtures-v1"),
+      );
+
+      expect(first.headers.get(RUNTIME_PROBE_CACHE_STATE_HEADER)).toBe(
+        "miss",
+      );
+      expect(second.headers.get(RUNTIME_PROBE_CACHE_STATE_HEADER)).toBe(
+        "miss",
+      );
+      await expect(first.json()).resolves.toEqual(await second.json());
+    } finally {
       restore();
     }
   });

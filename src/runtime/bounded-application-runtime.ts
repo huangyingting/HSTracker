@@ -260,7 +260,7 @@ export function createBoundedApplicationRuntime(
         return inner.analyze(query, options);
       }
 
-      const key = analysisKey(query);
+      const key = analysisKey(query, options?.cachePartitionKey);
       const cached = analysisCache.lookup(key);
       if (cached !== undefined) {
         options?.observe?.({
@@ -443,11 +443,15 @@ function economySearchKey(query: EconomySearchQuery): string {
   ].join("\u0000");
 }
 
-function analysisKey(query: AnalysisQuery): string {
+function analysisKey(
+  query: AnalysisQuery,
+  cachePartitionKey: string | undefined,
+): string {
   return [
     query.analysisBuildId,
     query.exporterCode,
     query.productCode,
+    cachePartitionKey ?? "",
   ].join("\u0000");
 }
 

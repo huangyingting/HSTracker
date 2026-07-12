@@ -21,6 +21,7 @@ import { writeStructuredErrorLog } from "../../../../../../operations/structured
 import type { ApplicationRuntime } from "../../../../../../runtime/application-runtime";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
+import { runtimeProbeCachePartition } from "../../../../../../runtime/runtime-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,6 +121,7 @@ const candidateMarketCsvRoute =
         {
           signal,
           observe: measurement.observeOperation,
+          cachePartitionKey: runtimeProbeCachePartition(request),
         },
       );
       if (result.analysisBuildId !== manifest.analysisBuildId) {

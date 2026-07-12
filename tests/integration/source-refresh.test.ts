@@ -18,6 +18,8 @@ import {
 } from "../../src/release/source-status-publication";
 import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
 
+const authorizePromotion = async () => {};
+
 describe("source refresh orchestration", () => {
   it("builds and atomically promotes a detected BACI Release before clearing its warning", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
@@ -56,6 +58,7 @@ describe("source refresh orchestration", () => {
       publishedAt: "2027-03-02T12:00:00Z",
     });
     const build = vi.fn(async () => refreshedCandidate);
+    const authorize = vi.fn(async () => {});
     const orchestrator = new SourceRefreshOrchestrator({
       deployments,
       statuses,
@@ -64,6 +67,7 @@ describe("source refresh orchestration", () => {
     const result = await orchestrator.refresh({
       baciRelease: "V202701",
       activatedAt: "2027-03-03T01:00:00Z",
+      authorizePromotion: authorize,
       build,
     });
 
@@ -71,6 +75,7 @@ describe("source refresh orchestration", () => {
       baciRelease: "V202701",
       signal: undefined,
     });
+    expect(authorize).toHaveBeenCalledWith(refreshedCandidate);
     expect(result.deployment).toMatchObject({
       baciRelease: "V202701",
       previousDeploymentPairingId: initial.deploymentPairingId,
@@ -136,6 +141,7 @@ describe("source refresh orchestration", () => {
       orchestrator.refresh({
         baciRelease: "V202701",
         activatedAt: "2027-03-03T01:00:00Z",
+        authorizePromotion,
         build: async () => {
           throw privateFailure;
         },
@@ -167,7 +173,7 @@ describe("source refresh orchestration", () => {
     ]);
   });
 
-  it("rejects a build for the wrong BACI Release before activation", async () => {
+  it("rejects a wrong release or failed authorization before activation", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-refresh-"));
     const initialCandidate = await writeAcceptedReleaseCandidate(
       join(root, "initial"),
@@ -181,6 +187,16 @@ describe("source refresh orchestration", () => {
         analysisArtifactBuildId:
           "candidate-market-artifact-v1-5555555555555555",
         productSearchBuildId: "product-search-v1-5555555555555555",
+      },
+    );
+    const targetCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "target"),
+      {
+        baciRelease: "V202701",
+        sourceSha256: "d".repeat(64),
+        analysisArtifactBuildId:
+          "candidate-market-artifact-v1-6666666666666666",
+        productSearchBuildId: "product-search-v1-6666666666666666",
       },
     );
     const objectStore = new InMemoryReleaseObjectStore();
@@ -208,6 +224,7 @@ describe("source refresh orchestration", () => {
       orchestrator.refresh({
         baciRelease: "V202701",
         activatedAt: "2027-03-03T01:00:00Z",
+        authorizePromotion,
         build: async () => wrongCandidate,
       }),
     ).rejects.toMatchObject({
@@ -222,6 +239,25 @@ describe("source refresh orchestration", () => {
       refreshFailed: true,
       state: "REFRESH_DELAYED",
     });
+
+    const authorizationFailure = new Error(
+      "Promotion evidence is blocked.",
+    );
+    await expect(
+      orchestrator.refresh({
+        baciRelease: "V202701",
+        activatedAt: "2027-03-03T02:00:00Z",
+        authorizePromotion: async () => {
+          throw authorizationFailure;
+        },
+        build: async () => targetCandidate,
+      }),
+    ).rejects.toMatchObject({
+      name: "SourceRefreshError",
+      code: "REFRESH_FAILED",
+      cause: authorizationFailure,
+    });
+    await expect(deployments.current()).resolves.toEqual(initial);
   });
 
   it("preserves a newer successful source check that lands while the build runs", async () => {
@@ -276,6 +312,7 @@ describe("source refresh orchestration", () => {
     const refreshing = orchestrator.refresh({
       baciRelease: "V202701",
       activatedAt: "2027-03-04T01:00:00Z",
+      authorizePromotion,
       build: async () => {
         markBuildStarted();
         return buildFinished;
@@ -348,6 +385,7 @@ describe("source refresh orchestration", () => {
       orchestrator.refresh({
         baciRelease: "V202701",
         activatedAt: "2027-03-03T01:00:00Z",
+        authorizePromotion,
         build,
       }),
     ).rejects.toMatchObject({
@@ -370,6 +408,7 @@ describe("source refresh orchestration", () => {
       orchestrator.refresh({
         baciRelease: "V202701",
         activatedAt: "2027-03-03T01:00:00Z",
+        authorizePromotion,
         build: recoveryBuild,
       }),
     ).resolves.toMatchObject({

@@ -13,7 +13,7 @@
     "region": "loc"
   },
   "origin": "http://127.0.0.1:3200",
-  "generatedAt": "2026-07-12T17:44:19.729Z",
+  "generatedAt": "2026-07-12T19:54:35.990Z",
   "attestation": {
     "schemaVersion": "runtime-identity-attestation-v1",
     "origin": "http://127.0.0.1:3200",
@@ -28,14 +28,40 @@
       "machineClass": "local",
       "region": "loc"
     },
+    "benchmarkQueries": [
+      {
+        "role": "sparse",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      },
+      {
+        "role": "median",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      },
+      {
+        "role": "upper-quartile",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      },
+      {
+        "role": "maximum-row",
+        "productCode": "010121",
+        "exporterCode": "156",
+        "candidateCount": 2
+      }
+    ],
     "health": {
       "path": "/healthz",
       "bodySha256": "8518c5a41f54cee0e977476377dba725360f35e3f8a0810639e0d13a23057138"
     },
     "currentManifest": {
       "path": "/api/v1/analyses/current",
-      "etag": "W/\"efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975\"",
-      "bodySha256": "efae6697dd8db2a44eca5bd4173e97609d196a5ad76730fc18c5d1dedd423975",
+      "etag": "W/\"bc62cc58da6b9fa32f71dc61cb0d13d23ba025e5804200a3ded2bf6759f718e7\"",
+      "bodySha256": "bc62cc58da6b9fa32f71dc61cb0d13d23ba025e5804200a3ded2bf6759f718e7",
       "schemaVersion": "current-analysis-manifest-v1"
     }
   },
@@ -48,21 +74,22 @@
           "productRole": "median",
           "status": "measured",
           "metrics": {
-            "lcpMs": 588,
+            "analyzeToCompleteListMs": 410,
+            "lcpMs": 688,
             "cls": 0,
-            "interactionToNextPaintMs": 556.8000000119209,
-            "longestTaskMs": 275,
+            "interactionToNextPaintMs": 144.2000000178814,
+            "longestTaskMs": 270,
             "criticalCompressedBytes": 18419,
-            "totalFirstPartyCompressedBytes": 343689,
-            "firstPartyJavaScriptCompressedBytes": 307299,
+            "totalFirstPartyCompressedBytes": 344195,
+            "firstPartyJavaScriptCompressedBytes": 307456,
             "candidateResultBytes": 19687,
-            "candidateResultCompressedBytes": 20194
+            "candidateResultCompressedBytes": 20195
           },
           "diagnostics": {
-            "analyzeToCompleteListMs": 447.80000001192093,
-            "candidateMarketChangeInteractionToNextPaintMs": 102.2999999821186,
-            "scoreDetailOpenInteractionToNextPaintMs": 556.8000000119209,
-            "scoreDetailCloseInteractionToNextPaintMs": 117.5
+            "analyzeToCompleteListMs": 410,
+            "candidateMarketChangeInteractionToNextPaintMs": 144.2000000178814,
+            "scoreDetailOpenInteractionToNextPaintMs": 125,
+            "scoreDetailCloseInteractionToNextPaintMs": 96
           },
           "violations": []
         }
@@ -78,21 +105,22 @@
           "productRole": "maximum-row",
           "status": "measured",
           "metrics": {
-            "lcpMs": 580,
+            "analyzeToCompleteListMs": 449,
+            "lcpMs": 736,
             "cls": 0,
-            "interactionToNextPaintMs": 176.39999997615814,
-            "longestTaskMs": 281,
-            "criticalCompressedBytes": 18419,
-            "totalFirstPartyCompressedBytes": 343687,
-            "firstPartyJavaScriptCompressedBytes": 307299,
+            "interactionToNextPaintMs": 127,
+            "longestTaskMs": 253,
+            "criticalCompressedBytes": 32500,
+            "totalFirstPartyCompressedBytes": 344192,
+            "firstPartyJavaScriptCompressedBytes": 307456,
             "candidateResultBytes": 19687,
             "candidateResultCompressedBytes": 20194
           },
           "diagnostics": {
-            "analyzeToCompleteListMs": 447.40000000596046,
-            "candidateMarketChangeInteractionToNextPaintMs": 147.69999998807907,
-            "scoreDetailOpenInteractionToNextPaintMs": 176.39999997615814,
-            "scoreDetailCloseInteractionToNextPaintMs": 125.69999998807907
+            "analyzeToCompleteListMs": 449,
+            "candidateMarketChangeInteractionToNextPaintMs": 123.7000000178814,
+            "scoreDetailOpenInteractionToNextPaintMs": 127,
+            "scoreDetailCloseInteractionToNextPaintMs": 120.90000000596046
           },
           "violations": []
         }

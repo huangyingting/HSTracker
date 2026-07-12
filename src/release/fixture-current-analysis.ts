@@ -23,6 +23,32 @@ export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
   productSearchBuildId: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
   analysisReleaseCatalogSha256:
     ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
+  benchmarkQueries: [
+    {
+      role: "sparse",
+      productCode: "010121",
+      exporterCode: "156",
+      candidateCount: 2,
+    },
+    {
+      role: "median",
+      productCode: "010121",
+      exporterCode: "156",
+      candidateCount: 2,
+    },
+    {
+      role: "upper-quartile",
+      productCode: "010121",
+      exporterCode: "156",
+      candidateCount: 2,
+    },
+    {
+      role: "maximum-row",
+      productCode: "010121",
+      exporterCode: "156",
+      candidateCount: 2,
+    },
+  ],
   source: {
     ...ACCEPTANCE_FIXTURE_RELEASE,
     windows: {

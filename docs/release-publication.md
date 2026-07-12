@@ -19,6 +19,12 @@ byte, and every artifact must match its manifest. The analysis and product
 catalog must name the same BACI Release, source archive SHA-256, and HS12
 revision.
 
+Activation also requires a canonical `production-promotion-input-v1` whose ten
+gate-specific retained reports evaluate to `accepted`. The accepted promotion
+identity must name the same BACI Release, analysis artifact SHA-256, and
+product-search build ID as these candidate directories. This check runs before
+the command creates an object-store client or publishes any immutable object.
+
 ## Object storage
 
 Configure the S3-compatible private bucket through the environment:
@@ -74,12 +80,15 @@ and content identities, never bucket URLs or credentials.
 npm run release:promote -- \
   --analysis-directory /path/to/accepted-analysis \
   --product-catalog-directory /path/to/accepted-product-catalog \
+  --promotion-input /path/to/production-promotion-input.json \
   --activated-at 2026-07-12T02:00:00Z
 ```
 
 The timestamp must be UTC without fractional seconds. The command prints the
-activated deployment identity as JSON. A failed upload, read-back, pairing
-check, or conditional pointer write leaves the active deployment unchanged.
+activated deployment identity as JSON. Missing, blocked, mismatched, or
+unverifiable promotion evidence prevents object-store access. A failed upload,
+read-back, pairing check, or conditional pointer write leaves the active
+deployment unchanged.
 Low-level promotion never treats activation as a source check: it preserves the
 current check time or, before the first status exists, uses the accepted
 artifact build time.
@@ -148,13 +157,17 @@ npm run release:refresh -- \
   --review-manifest /path/to/catalog-review.json \
   --pipeline-git-sha "$(git rev-parse HEAD)" \
   --built-at 2027-03-03T00:00:00Z \
+  --promotion-input reports/promotion/V202701.input.json \
   --activated-at 2027-03-03T01:00:00Z
 ```
 
 Pass `--archive` to use an already downloaded BACI ZIP. The command runs source
 staging, builds both accepted candidates, verifies the requested BACI Release
-before any activation, promotes one exact pairing, and then publishes the
-completed status. Any build or promotion failure keeps the prior pairing active
+and the accepted promotion identity before any activation, promotes one exact
+pairing, and then publishes the completed status. Generate the promotion input
+from a candidate built with the same pinned sources, pipeline SHA, and
+`--built-at`; the rebuilt artifact SHA-256 and product-search build ID must
+match. Any build, authorization, or promotion failure keeps the prior pairing active
 and immediately publishes `REFRESH_DELAYED`; private diagnostics go only to the
 operator stream. Deployment-pointer activation is the commit point: a
 post-commit status-pointer failure is retried as status reconciliation without

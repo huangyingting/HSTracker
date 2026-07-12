@@ -1,6 +1,9 @@
 import { gzipSync } from "node:zlib";
 
-import { RUNTIME_PROBE_CACHE_STATE_HEADER } from "../runtime/runtime-metrics";
+import {
+  RUNTIME_PROBE_CACHE_PARTITION_HEADER,
+  RUNTIME_PROBE_CACHE_STATE_HEADER,
+} from "../runtime/runtime-metrics";
 import {
   summarizeBenchmarkSamples,
   type BenchmarkSample,
@@ -330,6 +333,7 @@ const CACHE_STATE_MISS = "miss";
 const PRODUCT_ROLES = [
   "sparse",
   "median",
+  "upper-quartile",
   "maximum-row",
 ] as const satisfies readonly PerformanceProductRole[];
 
@@ -740,6 +744,87 @@ export type OriginBenchmarkRunnerDependencies = {
 
 const DEFAULT_TOOL_VERSION = "http-performance-runner-v1";
 
+function assertAttestedOriginBenchmarks(
+  plan: OriginBenchmarkPlan,
+  attestation: RuntimeIdentityAttestation,
+): void {
+  for (const requestCase of plan.requests) {
+    if (
+      requestCase.productRole === undefined ||
+      (requestCase.operation !== "candidate-analysis-uncached" &&
+        requestCase.operation !== "candidate-analysis-process-hit" &&
+        requestCase.operation !== "csv-uncached" &&
+        requestCase.operation !== "csv-analysis-hit")
+    ) {
+      continue;
+    }
+    const benchmark = attestation.benchmarkQueries.find(
+      (query) => query.role === requestCase.productRole,
+    );
+    if (benchmark === undefined) {
+      throw planError(
+        `The deployed artifact does not attest a ${requestCase.productRole} benchmark query.`,
+      );
+    }
+    assertRequestMatchesBenchmark(
+      plan.origin,
+      requestCase.request,
+      benchmark,
+      `${requestCase.operation}:${requestCase.productRole}`,
+    );
+    if (
+      requestCase.operation === "candidate-analysis-uncached" ||
+      requestCase.operation === "csv-uncached"
+    ) {
+      for (const sample of requestCase.sampleRequests ?? []) {
+        assertRequestMatchesBenchmark(
+          plan.origin,
+          sample.request,
+          benchmark,
+          `${requestCase.operation}:${requestCase.productRole} sample ${sample.semanticKey}`,
+        );
+        if (
+          requestHeader(
+            sample.request.headers,
+            RUNTIME_PROBE_CACHE_PARTITION_HEADER,
+          ) !== sample.semanticKey
+        ) {
+          throw planError(
+            `${requestCase.operation}:${requestCase.productRole} sample ${sample.semanticKey} must use its semantic key as the probe cache partition.`,
+          );
+        }
+      }
+    }
+  }
+}
+
+function assertRequestMatchesBenchmark(
+  origin: string,
+  request: HttpRequestCase,
+  benchmark: RuntimeIdentityAttestation["benchmarkQueries"][number],
+  label: string,
+): void {
+  const requestUrl = resolveRequestUrl(origin, request.path);
+  if (
+    requestUrl.searchParams.get("exporter") !== benchmark.exporterCode ||
+    requestUrl.searchParams.get("product") !== benchmark.productCode
+  ) {
+    throw planError(
+      `${label} does not match the deployed artifact benchmark query.`,
+    );
+  }
+}
+
+function requestHeader(
+  headers: Readonly<Record<string, string>> | undefined,
+  name: string,
+): string | undefined {
+  const normalizedName = name.toLowerCase();
+  return Object.entries(headers ?? {}).find(
+    ([headerName]) => headerName.toLowerCase() === normalizedName,
+  )?.[1];
+}
+
 export async function runOriginBenchmark(
   plan: OriginBenchmarkPlan,
   executor: HttpBenchmarkExecutor,
@@ -749,6 +834,7 @@ export async function runOriginBenchmark(
   const attestation = await (
     dependencies.attestIdentity ?? attestRuntimeIdentity
   )(plan.origin, plan.identity);
+  assertAttestedOriginBenchmarks(plan, attestation);
   await assertIdentity(
     plan.origin,
     plan.healthCheck,
@@ -775,6 +861,7 @@ export async function runOriginBenchmark(
       if (expected === null) {
         return;
       }
+
       const actual = outcome.timedOut
         ? null
         : outcome.header(RUNTIME_PROBE_CACHE_STATE_HEADER);
@@ -1511,6 +1598,39 @@ export function parseMixedLoadPlan(value: unknown): MixedLoadPlan {
         `Candidate evidence requires coordinatedBurstIntervalSeconds not to exceed ${MAXIMUM_COORDINATED_BURST_INTERVAL_SECONDS} seconds.`,
       );
     }
+    if (
+      sustainedSeconds % coordinatedBurstIntervalSeconds !==
+      0
+    ) {
+      throw planError(
+        "Candidate sustainedSeconds must divide evenly into coordinated burst windows.",
+      );
+    }
+    const sustainedDistinctKeys =
+      sustainedRequestsPerSecond *
+      sustainedSeconds *
+      ROUTE_MIX.analysis *
+      ANALYSIS_UNCACHED_FRACTION;
+    const coordinatedDistinctKeys =
+      (sustainedSeconds / coordinatedBurstIntervalSeconds) *
+      MINIMUM_COORDINATED_DISTINCT_KEYS;
+    const burstDistinctKeys =
+      burstRequestsPerSecond *
+      burstSeconds *
+      ROUTE_MIX.analysis *
+      ANALYSIS_UNCACHED_FRACTION;
+    const requiredDistinctKeys =
+      sustainedDistinctKeys +
+      coordinatedDistinctKeys +
+      burstDistinctKeys;
+    if (
+      !Number.isSafeInteger(requiredDistinctKeys) ||
+      analysisDistinctKeys.length < requiredDistinctKeys
+    ) {
+      throw planError(
+        `Candidate evidence requires at least ${requiredDistinctKeys} never-reused distinct analysis keys across sustained, coordinated, and burst traffic.`,
+      );
+    }
     if (observations !== undefined) {
       throw planError(
         "Candidate evidence must collect runtime observations; plan-declared observations are forbidden.",
@@ -1598,6 +1718,34 @@ function exactRouteMixCounts(perSessionTotal: number): Record<RouteKind, number>
       );
     }
     counts[kind] = scaled / 1_000;
+  }
+  return counts;
+}
+
+function routeMixCounts(
+  total: number,
+  requireExact: boolean,
+): Record<RouteKind, number> {
+  if (requireExact) {
+    return exactRouteMixCounts(total);
+  }
+  const counts = {} as Record<RouteKind, number>;
+  const remainders: Array<{ kind: RouteKind; remainder: number }> = [];
+  let assigned = 0;
+  for (const kind of ROUTE_KIND_ORDER) {
+    const scaled = total * ROUTE_MIX_PARTS_PER_THOUSAND[kind];
+    counts[kind] = Math.floor(scaled / 1_000);
+    assigned += counts[kind];
+    remainders.push({ kind, remainder: scaled % 1_000 });
+  }
+  remainders.sort(
+    (left, right) =>
+      right.remainder - left.remainder ||
+      ROUTE_KIND_ORDER.indexOf(left.kind) -
+        ROUTE_KIND_ORDER.indexOf(right.kind),
+  );
+  for (let index = 0; assigned < total; index += 1, assigned += 1) {
+    counts[remainders[index]!.kind] += 1;
   }
   return counts;
 }
@@ -1740,6 +1888,7 @@ export function buildMixedLoadSchedule(
   plan: Pick<
     MixedLoadPlan,
     | "sustainedRequestsPerSecond"
+    | "measurementClass"
     | "sustainedSeconds"
     | "burstRequestsPerSecond"
     | "burstSeconds"
@@ -1820,24 +1969,55 @@ export function buildMixedLoadSchedule(
   }
 
   const totalBurst = plan.burstRequestsPerSecond * plan.burstSeconds;
-  const burst: ScheduledRequest[] = [];
-  for (let index = 0; index < totalBurst; index += 1) {
-    burst.push({
-      phase: "burst",
-      sessionId: "burst",
-      sequence: index,
-      offsetSeconds: index / plan.burstRequestsPerSecond,
-      routeKind: "analysis",
-      analysisKey: plan.analysisHotKeys[index % plan.analysisHotKeys.length],
-      analysisKeyClass: "hot",
-    });
-  }
-
   const coordinated = buildCoordinatedDistinctKeyBursts(
     coordinatedDistinctKeys,
     plan.sustainedSeconds,
     plan.coordinatedBurstIntervalSeconds,
   );
+  const burstCounts = routeMixCounts(
+    totalBurst,
+    plan.measurementClass === "candidate",
+  );
+  const exactBurstDistinctCount =
+    burstCounts.analysis * ANALYSIS_UNCACHED_FRACTION;
+  const burstDistinctCount =
+    plan.measurementClass === "candidate"
+      ? exactBurstDistinctCount
+      : Math.round(exactBurstDistinctCount);
+  if (!Number.isSafeInteger(burstDistinctCount)) {
+    throw scheduleError(
+      "The candidate burst analysis count must split into an exact 80/20 hot/distinct mix.",
+    );
+  }
+  const coordinatedNonMaximumCount = coordinated.length - 1;
+  const burstDistinctKeys = distinctKeysWithoutMaximum.slice(
+    totalDistinctAnalysisRequests + coordinatedNonMaximumCount,
+    totalDistinctAnalysisRequests +
+      coordinatedNonMaximumCount +
+      burstDistinctCount,
+  );
+  if (burstDistinctKeys.length !== burstDistinctCount) {
+    throw scheduleError(
+      `The burst requires ${burstDistinctCount} additional never-reused distinct analysis keys.`,
+    );
+  }
+  const burstTemplate = buildSessionTemplate(
+    burstCounts,
+    plan.analysisHotKeys,
+    burstDistinctKeys,
+    0,
+    burstDistinctCount,
+    { value: 0 },
+  );
+  const burst: ScheduledRequest[] = burstTemplate.map((slot, index) => ({
+    phase: "burst",
+    sessionId: "burst",
+    sequence: index,
+    offsetSeconds: index / plan.burstRequestsPerSecond,
+    routeKind: slot.routeKind,
+    analysisKey: slot.analysisKey,
+    analysisKeyClass: slot.analysisKeyClass,
+  }));
 
   return {
     totalSustainedRequests: totalSustained,
@@ -1848,7 +2028,7 @@ export function buildMixedLoadSchedule(
     coordinated,
     burst,
     coordinatedWindowSeconds: plan.coordinatedBurstIntervalSeconds,
-    usesMaximumRowAnalysisKey: [...sustained, ...coordinated].some(
+    usesMaximumRowAnalysisKey: [...sustained, ...coordinated, ...burst].some(
       (request) => request.analysisKey === plan.maximumRowAnalysisKey,
     ),
   };

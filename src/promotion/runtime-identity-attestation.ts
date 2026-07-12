@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import type { AnalysisArtifactBenchmarkQuery } from "../evidence/analysis-artifact-manifest";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 import type { PerformanceMeasurementIdentity } from "./performance-gates";
 
@@ -13,6 +14,7 @@ export type RuntimeIdentityAttestation = {
   readonly schemaVersion: "runtime-identity-attestation-v1";
   readonly origin: string;
   readonly identity: PerformanceMeasurementIdentity;
+  readonly benchmarkQueries: readonly AnalysisArtifactBenchmarkQuery[];
   readonly health: {
     readonly path: "/healthz";
     readonly bodySha256: string;
@@ -75,6 +77,9 @@ export async function attestRuntimeIdentity(
     );
   }
   const source = object(manifestBody.source, "current manifest source");
+  const benchmarkQueries = parseBenchmarkQueries(
+    manifestBody.benchmarkQueries,
+  );
   const artifact = object(
     source.artifact,
     "current manifest source artifact",
@@ -132,6 +137,7 @@ export async function attestRuntimeIdentity(
     schemaVersion: "runtime-identity-attestation-v1",
     origin,
     identity: observed,
+    benchmarkQueries,
     health: {
       path: "/healthz",
       bodySha256: sha256(health.body),
@@ -143,6 +149,59 @@ export async function attestRuntimeIdentity(
       schemaVersion: "current-analysis-manifest-v1",
     },
   };
+}
+
+function parseBenchmarkQueries(
+  value: unknown,
+): AnalysisArtifactBenchmarkQuery[] {
+  if (!Array.isArray(value) || value.length !== 4) {
+    throw new RuntimeIdentityAttestationError(
+      "Candidate benchmark queries must contain the four representative roles.",
+    );
+  }
+  const roles = new Set<string>();
+  const parsed = value.map((entry, index) => {
+    const query = object(entry, `benchmark query ${index}`);
+    const role = stringValue(query.role, `benchmark query ${index} role`);
+    if (
+      role !== "sparse" &&
+      role !== "median" &&
+      role !== "upper-quartile" &&
+      role !== "maximum-row"
+    ) {
+      throw new RuntimeIdentityAttestationError(
+        `Candidate benchmark query ${index} has an invalid role.`,
+      );
+    }
+    const productCode = stringValue(
+      query.productCode,
+      `benchmark query ${index} product code`,
+    );
+    const exporterCode = stringValue(
+      query.exporterCode,
+      `benchmark query ${index} exporter code`,
+    );
+    const candidateCount = query.candidateCount;
+    if (
+      !/^\d{6}$/u.test(productCode) ||
+      !/^\d{1,3}$/u.test(exporterCode) ||
+      !Number.isInteger(candidateCount) ||
+      (candidateCount as number) < 0 ||
+      roles.has(role)
+    ) {
+      throw new RuntimeIdentityAttestationError(
+        `Candidate benchmark query ${index} is malformed or duplicated.`,
+      );
+    }
+    roles.add(role);
+    return {
+      role: role as AnalysisArtifactBenchmarkQuery["role"],
+      productCode,
+      exporterCode,
+      candidateCount: candidateCount as number,
+    };
+  });
+  return parsed;
 }
 
 async function fetchIdentityDocument(

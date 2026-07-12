@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { parseArgs } from "node:util";
 
-import { MAX_RELEASE_METADATA_BYTES } from "../../src/release/release-manifest";
+import { loadAcceptedPromotion } from "../../src/promotion/promotion-acceptance";
+import { verifyPromotionReleaseCandidates } from "../../src/promotion/release-candidate-acceptance";
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { compareBaciReleases } from "../../src/release/source-monitor";
@@ -12,11 +11,6 @@ import {
   SourceStatusPublisher,
   type PublishedSourceStatusSnapshot,
 } from "../../src/release/source-status-publication";
-import {
-  record,
-  string,
-  utcTimestamp,
-} from "../../src/release/release-validation";
 import {
   requiredOption,
   writeReleaseCommandError,
@@ -28,13 +22,11 @@ async function main(): Promise<void> {
       "analysis-directory": { type: "string" },
       "product-catalog-directory": { type: "string" },
       "activated-at": { type: "string" },
+      "promotion-input": { type: "string" },
     },
     allowPositionals: false,
     strict: true,
   });
-  const objectStore = createPromotionReleaseObjectStore();
-  const publisher = new ReleasePublisher(objectStore);
-  const statuses = new SourceStatusPublisher(objectStore);
   const analysisDirectoryPath = requiredOption(
     values["analysis-directory"],
     "analysis-directory",
@@ -47,12 +39,26 @@ async function main(): Promise<void> {
     values["activated-at"],
     "activated-at",
   );
-  const [currentDeployment, currentStatus, candidateSource] =
-    await Promise.all([
-      publisher.current(),
-      statuses.current(),
-      candidateSourceIdentity(analysisDirectoryPath),
-    ]);
+  const promotionInputPath = requiredOption(
+    values["promotion-input"],
+    "promotion-input",
+  );
+  const promotion = await loadAcceptedPromotion(
+    promotionInputPath,
+    process.cwd(),
+  );
+  const candidateSource = await verifyPromotionReleaseCandidates(
+    promotion.input.identity,
+    analysisDirectoryPath,
+    productCatalogDirectoryPath,
+  );
+  const objectStore = createPromotionReleaseObjectStore();
+  const publisher = new ReleasePublisher(objectStore);
+  const statuses = new SourceStatusPublisher(objectStore);
+  const [currentDeployment, currentStatus] = await Promise.all([
+    publisher.current(),
+    statuses.current(),
+  ]);
   if (
     currentDeployment !== null &&
     currentStatus !== null &&
@@ -84,28 +90,6 @@ async function main(): Promise<void> {
     await statuses.publish(statusInput);
   }
   process.stdout.write(`${JSON.stringify(published)}\n`);
-}
-
-async function candidateSourceIdentity(
-  analysisDirectoryPath: string,
-): Promise<{ baciRelease: string; builtAt: string }> {
-  const bytes = await readFile(
-    join(analysisDirectoryPath, "artifact-manifest.json"),
-  );
-  if (bytes.byteLength > MAX_RELEASE_METADATA_BYTES) {
-    throw new Error("Analysis artifact manifest is oversized.");
-  }
-  const manifest = record(
-    JSON.parse(bytes.toString("utf8")),
-    "analysis artifact manifest",
-  );
-  return {
-    baciRelease: string(
-      manifest.baciRelease,
-      "analysis BACI Release",
-    ),
-    builtAt: utcTimestamp(manifest.builtAt, "analysis build time"),
-  };
 }
 
 void main().catch((error: unknown) => {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
-import { RUNTIME_PROBE_CACHE_STATE_HEADER } from "../../src/runtime/runtime-metrics";
+import {
+  RUNTIME_PROBE_CACHE_PARTITION_HEADER,
+  RUNTIME_PROBE_CACHE_STATE_HEADER,
+} from "../../src/runtime/runtime-metrics";
 import {
   HttpPerformanceRunnerError,
   createPrometheusMixedLoadObservationAdapter,
@@ -32,7 +35,7 @@ describe("origin-benchmark plan parsing", () => {
 
     expect(plan.measurementClass).toBe("candidate");
     expect(plan.origin).toBe("https://staging.example.com");
-    expect(plan.requests).toHaveLength(27);
+    expect(plan.requests).toHaveLength(35);
     expect(plan.warmupSamples).toBe(5);
   });
 
@@ -190,10 +193,10 @@ describe("runOriginBenchmark", () => {
 
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
-        // 1 health check + 27 routes * (5 warmups + timedSamples).
+        // 1 health check + 35 routes * (5 warmups + timedSamples).
         const perRoute = 5 + plan.timedSamples;
-        expect(calls.length).toBe(1 + 27 * perRoute);
-        expect(report.originBenchmarks).toHaveLength(27);
+        expect(calls.length).toBe(1 + 35 * perRoute);
+        expect(report.originBenchmarks).toHaveLength(35);
         expect(report.status).toBe("measurement-complete");
         expect(report.meetsAcceptanceEvidenceSampleSize).toBe(true);
         expect(report.firstFailure).toBeNull();
@@ -358,6 +361,35 @@ describe("runOriginBenchmark", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("rejects an executed uncached sample that differs from the attested query", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const requestCase = input.requests.find(
+      (request) =>
+        request.operation === "candidate-analysis-uncached" &&
+        request.productRole === "maximum-row",
+    );
+    if (requestCase?.sampleRequests === undefined) {
+      throw new Error("Expected maximum-row uncached samples.");
+    }
+    requestCase.sampleRequests[0].request.path =
+      "/api/v1/candidate-analysis-uncached/maximum-row?exporter=156&product=000001";
+    const plan = parseOriginBenchmarkPlan(input);
+    const calls: HttpBenchmarkRequest[] = [];
+
+    await expect(
+      runOriginBenchmark(
+        plan,
+        fakeExecutor(calls, () => {
+          throw new Error("must not execute");
+        }),
+        originRunnerDependencies(),
+      ),
+    ).rejects.toThrow(
+      "candidate-analysis-uncached:maximum-row sample",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
   it("uses a never-repeated request target for every uncached warmup and timed sample", async () => {
     const plan = parseOriginBenchmarkPlan(acceptedPlanInput());
     const calls: HttpBenchmarkRequest[] = [];
@@ -379,7 +411,12 @@ describe("runOriginBenchmark", () => {
     );
     expect(uncachedCandidateCalls).toHaveLength(105);
     expect(
-      new Set(uncachedCandidateCalls.map((request) => request.url.href)).size,
+      new Set(
+        uncachedCandidateCalls.map(
+          (request) =>
+            `${request.url.href}:${request.headers[RUNTIME_PROBE_CACHE_PARTITION_HEADER]}`,
+        ),
+      ).size,
     ).toBe(105);
   });
 
@@ -633,33 +670,67 @@ function acceptedPlanInput(
     "candidate-analysis-uncached",
     "csv-uncached",
   ]);
-  const roles = ["sparse", "median", "maximum-row"];
+  const roles = [
+    "sparse",
+    "median",
+    "upper-quartile",
+    "maximum-row",
+  ];
+  const roleProductCodes: Record<string, string> = {
+    sparse: "010121",
+    median: "851712",
+    "upper-quartile": "010121",
+    "maximum-row": "851712",
+  };
 
   const requests: TestRequestCase[] = [
     ...singletons,
     ...productOperations.flatMap((operation) =>
-      roles.map((role) => ({
-        operation,
-        productRole: role,
-        request: {
+      roles.map((role) => {
+        const attestedRequest = {
           method: "GET",
-          path: `/api/v1/${operation}/${role}`,
-        },
-        ...(uncachedOperations.has(operation)
-          ? {
-              sampleRequests: Array.from(
-                { length: 5 + timedSamples },
-                (_, index) => ({
-                  semanticKey: `${operation}:${role}:${index}`,
-                  request: {
-                    method: "GET",
-                    path: `/api/v1/${operation}/${role}?sample=${index}`,
+          path:
+            operation.startsWith("candidate-analysis") ||
+            operation.startsWith("csv-")
+              ? `/api/v1/${operation}/${role}?exporter=156&product=${roleProductCodes[role]}`
+              : `/api/v1/${operation}/${role}`,
+        };
+        const attestedUncachedOperation =
+          operation === "candidate-analysis-uncached" ||
+          operation === "csv-uncached";
+        return {
+          operation,
+          productRole: role,
+          request: attestedRequest,
+          ...(uncachedOperations.has(operation)
+            ? {
+                sampleRequests: Array.from(
+                  { length: 5 + timedSamples },
+                  (_, index) => {
+                    const semanticKey = `${operation}:${role}:${index}`;
+                    return {
+                      semanticKey,
+                      request: {
+                        method: "GET",
+                        path: attestedUncachedOperation
+                          ? attestedRequest.path
+                          : `/api/v1/${operation}/${role}?sample=${index}`,
+                        ...(attestedUncachedOperation
+                          ? {
+                              headers: {
+                                [RUNTIME_PROBE_CACHE_PARTITION_HEADER]:
+                                  semanticKey,
+                              },
+                            }
+                          : {}),
+                      },
+                    };
                   },
-                }),
-              ),
-            }
-          : {}),
-      })),
+                ),
+              }
+            : {}),
+        };
+      }),
     ),
   ];
 
@@ -701,7 +772,7 @@ const MIXED_LOAD_IDENTITY = {
 const MIXED_LOAD_HOT_KEYS = ["hot-a", "hot-b", "hot-c", "hot-d", "hot-e"];
 const MIXED_LOAD_DISTINCT_KEYS = [
   "max-row-key",
-  ...Array.from({ length: 319 }, (_, index) => `dk-${index + 1}`),
+  ...Array.from({ length: 339 }, (_, index) => `dk-${index + 1}`),
 ];
 
 type MixedLoadPlanOverrides = {
@@ -881,6 +952,43 @@ describe("mixed-load plan parsing", () => {
     expect(plan.sustainedSeconds).toBe(600);
   });
 
+  it("requires all 337 never-reused candidate analysis keys", () => {
+    const analysisDistinctKeys = [
+      "max-row-key",
+      ...Array.from({ length: 335 }, (_, index) => `candidate-${index}`),
+    ];
+    expect(() =>
+      parseMixedLoadPlan(
+        acceptedMixedLoadPlanInput({
+          measurementClass: "candidate",
+          origin: "https://staging.example.com",
+          sustainedRequestsPerSecond: 4,
+          sustainedSeconds: 600,
+          burstRequestsPerSecond: 10,
+          burstSeconds: 30,
+          coordinatedBurstIntervalSeconds: 60,
+          analysisDistinctKeys,
+        }),
+      ),
+    ).toThrow(/at least 337 never-reused distinct analysis keys/u);
+  });
+
+  it("derives a larger key pool for more frequent coordinated bursts", () => {
+    expect(() =>
+      parseMixedLoadPlan(
+        acceptedMixedLoadPlanInput({
+          measurementClass: "candidate",
+          origin: "https://staging.example.com",
+          sustainedRequestsPerSecond: 4,
+          sustainedSeconds: 600,
+          burstRequestsPerSecond: 10,
+          burstSeconds: 30,
+          coordinatedBurstIntervalSeconds: 30,
+        }),
+      ),
+    ).toThrow(/at least 377 never-reused distinct analysis keys/u);
+  });
+
   it("rejects candidate rates and durations above the exact target", () => {
     expect(() =>
       parseMixedLoadPlan(
@@ -959,6 +1067,59 @@ describe("mixed-load plan parsing", () => {
 });
 
 describe("mixed-load schedule", () => {
+  it("applies the exact route and 80/20 analysis mix to the candidate burst", () => {
+    const plan = parseMixedLoadPlan(
+      acceptedMixedLoadPlanInput({
+        measurementClass: "candidate",
+        origin: "https://staging.example.com",
+        sustainedRequestsPerSecond: 4,
+        sustainedSeconds: 600,
+        burstRequestsPerSecond: 10,
+        burstSeconds: 30,
+        coordinatedBurstIntervalSeconds: 60,
+      }),
+    );
+    const schedule = buildMixedLoadSchedule(plan);
+    const routeCounts = Object.fromEntries(
+      ["currentManifest", "search", "analysis", "csv"].map((routeKind) => [
+        routeKind,
+        schedule.burst.filter(
+          (request) => request.routeKind === routeKind,
+        ).length,
+      ]),
+    );
+    const analysisClassCounts = Object.fromEntries(
+      ["hot", "distinct"].map((keyClass) => [
+        keyClass,
+        schedule.burst.filter(
+          (request) =>
+            request.routeKind === "analysis" &&
+            request.analysisKeyClass === keyClass,
+        ).length,
+      ]),
+    );
+
+    expect(routeCounts).toEqual({
+      currentManifest: 30,
+      search: 75,
+      analysis: 165,
+      csv: 30,
+    });
+    expect(analysisClassCounts).toEqual({ hot: 132, distinct: 33 });
+    const distinctKeys = [
+      ...schedule.sustained,
+      ...schedule.coordinated,
+      ...schedule.burst,
+    ]
+      .filter(
+        (request) =>
+          request.routeKind === "analysis" &&
+          request.analysisKeyClass === "distinct",
+      )
+      .map((request) => request.analysisKey);
+    expect(new Set(distinctKeys).size).toBe(distinctKeys.length);
+  });
+
   it("splits a scaled deterministic schedule into the exact 10/25/55/10 route mix", () => {
     const plan = parseMixedLoadPlan(acceptedMixedLoadPlanInput());
     const schedule = buildMixedLoadSchedule(plan);
@@ -1056,6 +1217,7 @@ describe("mixed-load schedule", () => {
   it("throws when a coordinated window cannot reach 4 distinct uncached keys", () => {
     expect(() =>
       buildMixedLoadSchedule({
+        measurementClass: "local-smoke",
         sustainedRequestsPerSecond: 100,
         sustainedSeconds: 20,
         burstRequestsPerSecond: 10,
@@ -1139,6 +1301,32 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
   schemaVersion: "runtime-identity-attestation-v1",
   origin,
   identity,
+  benchmarkQueries: [
+    {
+      role: "sparse",
+      productCode: "010121",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+    {
+      role: "median",
+      productCode: "851712",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+    {
+      role: "upper-quartile",
+      productCode: "010121",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+    {
+      role: "maximum-row",
+      productCode: "851712",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+  ],
   health: { path: "/healthz", bodySha256: "c".repeat(64) },
   currentManifest: {
     path: "/api/v1/analyses/current",

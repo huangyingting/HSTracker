@@ -28,7 +28,7 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 27,
+          benchmarkCount: 35,
         },
         targetLoad: {
           status: "accepted",
@@ -58,6 +58,64 @@ describe("production performance gates", () => {
     expect(result.gates.browserLab.products.median).toMatchObject({
       medianLcpMs: 2_501,
       lcpLimitMs: 2_500,
+      status: "blocked",
+    });
+  });
+
+  it("gates user-visible analyze-to-complete-list p75 and p95", () => {
+    const input = acceptedInput();
+    input.browserLab[0].trials = [
+      2_000,
+      2_000,
+      2_500,
+      2_500,
+      4_001,
+    ].map((analyzeToCompleteListMs) => ({
+      ...input.browserLab[0].trials[0],
+      analyzeToCompleteListMs,
+    }));
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.browserLab.products.median).toMatchObject({
+      analyzeToCompleteListP75Ms: 2_500,
+      analyzeToCompleteListP95Ms: 4_001,
+      status: "blocked",
+    });
+  });
+
+  it("blocks an analysis p75 miss even when p95 remains within its limit", () => {
+    const input = acceptedInput();
+    input.browserLab[0].trials = [
+      2_000,
+      2_000,
+      2_500,
+      2_501,
+      3_000,
+    ].map((analyzeToCompleteListMs) => ({
+      ...input.browserLab[0].trials[0],
+      analyzeToCompleteListMs,
+    }));
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.gates.browserLab.products.median).toMatchObject({
+      analyzeToCompleteListP75Ms: 2_501,
+      analyzeToCompleteListP95Ms: 3_000,
+      status: "blocked",
+    });
+  });
+
+  it("blocks zero-valued candidate lifecycle placeholders", () => {
+    const input = acceptedInput();
+    input.lifecycle.restartToReadyMs = 0;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.lifecycle).toMatchObject({
+      hasMeasuredCandidateDurations: false,
       status: "blocked",
     });
   });
@@ -141,6 +199,7 @@ describe("production performance gates", () => {
 
 function acceptedInput(): PerformanceGateInput {
   const browserTrial = () => ({
+    analyzeToCompleteListMs: 2_500,
     lcpMs: 2_500,
     cls: 0.1,
     interactionToNextPaintMs: 200,
@@ -240,7 +299,12 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "csv-uncached",
     "csv-analysis-hit",
   ];
-  const roles = ["sparse", "median", "maximum-row"] as const;
+  const roles = [
+    "sparse",
+    "median",
+    "upper-quartile",
+    "maximum-row",
+  ] as const;
 
   return [
     ...singletons.map((operation) => benchmark(operation)),

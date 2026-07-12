@@ -425,6 +425,27 @@ describe("browser-lab full-plan report", () => {
     ).rejects.toThrow("Candidate build does not match.");
     expect(driver.openTrialSession).not.toHaveBeenCalled();
   });
+
+  it("does not start a trial when a journey substitutes another product", async () => {
+    const input = candidatePlanInput();
+    (
+      input.journeys[0].actions[0] as { productQuery: string }
+    ).productQuery = "000001";
+    const plan = validateBrowserLabPlan(input);
+    const driver = fakeDriver([fakeSession()]);
+
+    await expect(
+      runBrowserLab(
+        driver,
+        plan,
+        () => "2026-07-12T00:00:00Z",
+        fakeIdentityAttestor,
+      ),
+    ).rejects.toThrow(
+      "median journey does not match the deployed artifact benchmark query",
+    );
+    expect(driver.openTrialSession).not.toHaveBeenCalled();
+  });
 });
 
 const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
@@ -434,6 +455,32 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
   schemaVersion: "runtime-identity-attestation-v1",
   origin,
   identity,
+  benchmarkQueries: [
+    {
+      role: "sparse",
+      productCode: "090100",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+    {
+      role: "median",
+      productCode: "090100",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+    {
+      role: "upper-quartile",
+      productCode: "090100",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+    {
+      role: "maximum-row",
+      productCode: "090100",
+      exporterCode: "156",
+      candidateCount: 1,
+    },
+  ],
   health: {
     path: "/healthz",
     bodySha256: "c".repeat(64),
@@ -552,10 +599,10 @@ function journey(productRole: "median" | "maximum-row"): MutableJourney {
         kind: "select-context",
         label: "Select exporter and product",
         exporterComboboxLocator: { by: "role", role: "combobox", name: "Export economy" },
-        exporterQuery: "United States",
+        exporterQuery: "156",
         exporterOptionLocator: { by: "text", text: "United States" },
         productComboboxLocator: { by: "role", role: "combobox", name: "HS 2012 Product" },
-        productQuery: "0901",
+        productQuery: "090100",
         productOptionLocator: { by: "text", text: "0901" },
       },
       {

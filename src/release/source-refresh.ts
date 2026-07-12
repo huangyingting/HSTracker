@@ -20,6 +20,10 @@ export type SourceRefreshBuild = (input: {
   >
 >;
 
+export type SourceRefreshPromotionAuthorization = (
+  candidate: Awaited<ReturnType<SourceRefreshBuild>>,
+) => Promise<void>;
+
 export type SourceRefreshEvent =
   | {
       type: "refresh-failed";
@@ -66,6 +70,7 @@ export class SourceRefreshOrchestrator {
     baciRelease: string;
     activatedAt: string;
     build: SourceRefreshBuild;
+    authorizePromotion: SourceRefreshPromotionAuthorization;
     signal?: AbortSignal;
   }): Promise<{
     deployment: PublishedDeployment;
@@ -109,6 +114,8 @@ export class SourceRefreshOrchestrator {
         baciRelease: input.baciRelease,
         signal: input.signal,
       });
+      input.signal?.throwIfAborted();
+      await input.authorizePromotion(candidate);
       input.signal?.throwIfAborted();
       const stateBeforePromotion = await this.refreshState(
         initialDeployment.deploymentPairingId,

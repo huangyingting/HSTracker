@@ -17,6 +17,7 @@ import { serializedWeight } from "./serialized-size";
 export type RuntimeRequestOptions = Readonly<{
   signal?: AbortSignal;
   observe?: (observation: RuntimeOperationObservation) => void;
+  cachePartitionKey?: string;
 }>;
 
 export type RuntimeOperationObservation = Readonly<{

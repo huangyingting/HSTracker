@@ -4,12 +4,14 @@ import {
   type EffectiveSourceFreshness,
   type SourceStatusSnapshot,
 } from "./source-freshness";
+import type { AnalysisArtifactBenchmarkQuery } from "../../evidence/analysis-artifact-manifest";
 import type { ReleaseRevisionComparisonIdentity } from "./release-revision";
 
 export type CurrentAnalysisDeployment = {
   analysisBuildId: string;
   productSearchBuildId: string;
   analysisReleaseCatalogSha256: string;
+  benchmarkQueries: AnalysisArtifactBenchmarkQuery[];
   source: {
     baciRelease: string;
     sourceUpdateDate: string;

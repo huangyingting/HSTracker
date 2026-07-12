@@ -766,6 +766,9 @@ export async function runBrowserLabTrial(
 
     // Fail-closed guards above guarantee these are non-null at this point.
     const metrics: BrowserLabTrialInput = {
+      analyzeToCompleteListMs: nonNull(
+        analyzeOutcome.analyzeToCompleteListMs,
+      ),
       lcpMs: nonNull(snapshot.lcpMs),
       cls: nonNull(snapshot.cls),
       interactionToNextPaintMs: Math.max(
@@ -923,6 +926,7 @@ export async function runBrowserLab(
   attestIdentity: RuntimeIdentityAttestor = attestRuntimeIdentity,
 ): Promise<BrowserLabReport> {
   const attestation = await attestIdentity(plan.origin, plan.identity);
+  assertAttestedJourneys(plan, attestation);
   const [median, maximumRow] = plan.journeys;
   const medianReport = await runJourney(driver, plan, median);
   const maximumRowReport = await runJourney(driver, plan, maximumRow);
@@ -939,6 +943,31 @@ export async function runBrowserLab(
       "maximum-row": maximumRowReport,
     },
   };
+}
+
+function assertAttestedJourneys(
+  plan: BrowserLabPlan,
+  attestation: RuntimeIdentityAttestation,
+): void {
+  for (const journey of plan.journeys) {
+    const benchmark = attestation.benchmarkQueries.find(
+      (query) => query.role === journey.productRole,
+    );
+    if (benchmark === undefined) {
+      throw new BrowserLabPlanError(
+        `The deployed artifact does not attest a ${journey.productRole} benchmark query.`,
+      );
+    }
+    const context = journey.actions[0];
+    if (
+      context.exporterQuery !== benchmark.exporterCode ||
+      context.productQuery !== benchmark.productCode
+    ) {
+      throw new BrowserLabPlanError(
+        `The ${journey.productRole} journey does not match the deployed artifact benchmark query.`,
+      );
+    }
+  }
 }
 
 async function runJourney(

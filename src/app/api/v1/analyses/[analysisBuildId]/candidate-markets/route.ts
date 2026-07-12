@@ -14,6 +14,7 @@ import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runt
 import { writeStructuredErrorLog } from "../../../../../../operations/structured-log";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
+import { runtimeProbeCachePartition } from "../../../../../../runtime/runtime-metrics";
 import { utf8ByteLength } from "../../../../../../runtime/serialized-size";
 
 export const runtime = "nodejs";
@@ -62,6 +63,7 @@ const candidateMarketRoute =
         {
           signal,
           observe: measurement.observeOperation,
+          cachePartitionKey: runtimeProbeCachePartition(request),
         },
       );
       const body = measurement.measureSerialization(

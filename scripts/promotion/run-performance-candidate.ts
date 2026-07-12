@@ -174,35 +174,50 @@ function parseLifecycleEvidence(
     evidence.measurements,
     "lifecycle measurements",
   );
+  const parsedMeasurements: LifecycleMeasurementInput = {
+    restartToReadyMs: nonnegativeNumber(
+      measurements.restartToReadyMs,
+      "restartToReadyMs",
+    ),
+    coldHydrationToReadyMs: nonnegativeNumber(
+      measurements.coldHydrationToReadyMs,
+      "coldHydrationToReadyMs",
+    ),
+    rollbackToReadyMs: nonnegativeNumber(
+      measurements.rollbackToReadyMs,
+      "rollbackToReadyMs",
+    ),
+    deployInterruptionMs: nonnegativeNumber(
+      measurements.deployInterruptionMs,
+      "deployInterruptionMs",
+    ),
+    recoveryTimeMs: nonnegativeNumber(
+      measurements.recoveryTimeMs,
+      "recoveryTimeMs",
+    ),
+    acceptedArtifactLossCount: nonnegativeSafeInteger(
+      measurements.acceptedArtifactLossCount,
+      "acceptedArtifactLossCount",
+    ),
+  };
+  if (
+    measurementClass === "candidate" &&
+    [
+      parsedMeasurements.restartToReadyMs,
+      parsedMeasurements.coldHydrationToReadyMs,
+      parsedMeasurements.rollbackToReadyMs,
+      parsedMeasurements.deployInterruptionMs,
+      parsedMeasurements.recoveryTimeMs,
+    ].some((duration) => duration === 0)
+  ) {
+    throw new PerformanceCandidateCliError(
+      "Candidate lifecycle evidence requires positive measured durations; zero placeholders are forbidden.",
+    );
+  }
   return {
     schemaVersion: "lifecycle-measurement-v1",
     measuredAt: utcTimestamp(evidence.measuredAt, "lifecycle measuredAt"),
-    measurements: {
-      restartToReadyMs: nonnegativeNumber(
-        measurements.restartToReadyMs,
-        "restartToReadyMs",
-      ),
-      coldHydrationToReadyMs: nonnegativeNumber(
-        measurements.coldHydrationToReadyMs,
-        "coldHydrationToReadyMs",
-      ),
-      rollbackToReadyMs: nonnegativeNumber(
-        measurements.rollbackToReadyMs,
-        "rollbackToReadyMs",
-      ),
-      deployInterruptionMs: nonnegativeNumber(
-        measurements.deployInterruptionMs,
-        "deployInterruptionMs",
-      ),
-      recoveryTimeMs: nonnegativeNumber(
-        measurements.recoveryTimeMs,
-        "recoveryTimeMs",
-      ),
-      acceptedArtifactLossCount: nonnegativeSafeInteger(
-        measurements.acceptedArtifactLossCount,
-        "acceptedArtifactLossCount",
-      ),
-    },
+    measurements: parsedMeasurements,
   };
 }
 

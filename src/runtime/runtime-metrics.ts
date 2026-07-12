@@ -54,6 +54,8 @@ type MetricListener = (metric: RuntimeRequestMetric) => void;
 const metricsChannel = channel("hs-tracker.runtime.request");
 const EXTERNAL_PROBE_HEADER = "x-hs-tracker-probe";
 const EXTERNAL_PROBE_VALUE = "external-v1";
+export const RUNTIME_PROBE_CACHE_PARTITION_HEADER =
+  "X-HS-Tracker-Cache-Partition";
 export const RUNTIME_PROBE_CACHE_STATE_HEADER =
   "X-HS-Tracker-Cache-State";
 
@@ -194,6 +196,29 @@ export function classifyRuntimeRequest(
       request?.headers.get(EXTERNAL_PROBE_HEADER) ===
       EXTERNAL_PROBE_VALUE,
   };
+}
+
+export function runtimeProbeCachePartition(
+  request: Request,
+): string | undefined {
+  if (
+    request.headers.get(EXTERNAL_PROBE_HEADER) !==
+    EXTERNAL_PROBE_VALUE
+  ) {
+    return undefined;
+  }
+  const value = request.headers
+    .get(RUNTIME_PROBE_CACHE_PARTITION_HEADER)
+    ?.trim();
+  if (value === undefined || value.length === 0) {
+    return undefined;
+  }
+  if (value.length > 160 || !/^[A-Za-z0-9:._-]+$/u.test(value)) {
+    throw new TypeError(
+      "External probe cache partition is malformed.",
+    );
+  }
+  return value;
 }
 
 export function subscribeRuntimeMetrics(

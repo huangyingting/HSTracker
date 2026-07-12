@@ -61,9 +61,38 @@ function isCurrentAnalysisManifest(
     !isNonemptyString(candidate.analysisBuildId) ||
     !isNonemptyString(candidate.productSearchBuildId) ||
     !isSha256(candidate.analysisReleaseCatalogSha256) ||
+    !isBenchmarkQueries(candidate.benchmarkQueries) ||
     !isManifestSource(source)
   ) {
     return false;
+  }
+
+  function isBenchmarkQueries(value: unknown): boolean {
+    if (!Array.isArray(value) || value.length === 0) {
+      return false;
+    }
+    const roles = new Set<string>();
+    for (const query of value) {
+      if (
+        !isRecord(query) ||
+        !isOneOf(query.role, [
+          "sparse",
+          "median",
+          "upper-quartile",
+          "maximum-row",
+        ] as const) ||
+        typeof query.productCode !== "string" ||
+        !/^\d{6}$/u.test(query.productCode) ||
+        typeof query.exporterCode !== "string" ||
+        !/^\d{1,3}$/u.test(query.exporterCode) ||
+        !Number.isInteger(query.candidateCount) ||
+        (query.candidateCount as number) < 0
+      ) {
+        return false;
+      }
+      roles.add(query.role);
+    }
+    return roles.size === value.length;
   }
 
   return (

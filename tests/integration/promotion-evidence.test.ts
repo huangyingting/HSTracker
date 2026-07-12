@@ -45,7 +45,7 @@ describe("retained promotion evidence", () => {
         gate: "origin-benchmarks",
         reportSha256,
         report: {
-          schemaVersion: "origin-benchmark-report-v1",
+          schemaVersion: "origin-benchmarks-report-v1",
           measurementClass: "candidate",
           status: "accepted",
         },
@@ -77,6 +77,73 @@ describe("retained promotion evidence", () => {
       new PromotionEvidenceFileError(
         "origin-benchmarks report SHA-256 is not present in its retained logs.",
       ),
+    );
+  });
+
+  it("rejects a generic schema relabeled as gate evidence", async () => {
+    const workspace = await promotionWorkspace();
+    const input = evidence("0".repeat(64));
+    input.schemaVersion = "generic-candidate-report-v1";
+    const reportBytes = retainedReportBytes(input);
+    const reportSha256 = sha256(reportBytes);
+    input.reportSha256 = reportSha256;
+    input.attempts[0].logSha256 = reportSha256;
+    await writeFile(
+      join(workspace, "reports/promotion/origin.json"),
+      reportBytes,
+    );
+
+    await expect(
+      verifyRetainedPromotionEvidence([input], workspace),
+    ).rejects.toThrow(
+      "origin-benchmarks evidence must declare schemaVersion origin-benchmarks-report-v1",
+    );
+  });
+
+  it("rejects a report missing a required gate-specific check", async () => {
+    const workspace = await promotionWorkspace();
+    const input = evidence("0".repeat(64));
+    const reportBytes = retainedReportBytes(input, {
+      checks: [
+        { name: "representative-fixtures", status: "accepted" },
+      ],
+    });
+    const reportSha256 = sha256(reportBytes);
+    input.reportSha256 = reportSha256;
+    input.attempts[0].logSha256 = reportSha256;
+    await writeFile(
+      join(workspace, "reports/promotion/origin.json"),
+      reportBytes,
+    );
+
+    await expect(
+      verifyRetainedPromotionEvidence([input], workspace),
+    ).rejects.toThrow(
+      "origin-benchmarks retained report is missing required check origin-thresholds",
+    );
+  });
+
+  it("rejects accepted evidence containing a blocked check", async () => {
+    const workspace = await promotionWorkspace();
+    const input = evidence("0".repeat(64));
+    const reportBytes = retainedReportBytes(input, {
+      checks: [
+        { name: "representative-fixtures", status: "accepted" },
+        { name: "origin-thresholds", status: "blocked" },
+      ],
+    });
+    const reportSha256 = sha256(reportBytes);
+    input.reportSha256 = reportSha256;
+    input.attempts[0].logSha256 = reportSha256;
+    await writeFile(
+      join(workspace, "reports/promotion/origin.json"),
+      reportBytes,
+    );
+
+    await expect(
+      verifyRetainedPromotionEvidence([input], workspace),
+    ).rejects.toThrow(
+      "origin-benchmarks retained report checks do not support its declared status",
     );
   });
 
@@ -189,7 +256,7 @@ function evidence(reportSha256: string): PromotionEvidence {
   };
   return {
     gate: "origin-benchmarks",
-    schemaVersion: "origin-benchmark-report-v1",
+    schemaVersion: "origin-benchmarks-report-v1",
     status: "accepted",
     identity,
     reportSha256,
@@ -214,14 +281,23 @@ function retainedReportBytes(
     measurementClass?: "candidate" | "local-smoke";
     status?: PromotionEvidence["status"];
     identity?: PromotionEvidence["identity"];
+    checks?: Array<{
+      name: string;
+      status: PromotionEvidence["status"];
+    }>;
   } = {},
 ): Buffer {
   return Buffer.from(
     `${JSON.stringify({
       schemaVersion: input.schemaVersion,
+      gate: input.gate,
       measurementClass: overrides.measurementClass ?? "candidate",
       status: overrides.status ?? input.status,
       identity: overrides.identity ?? input.identity,
+      checks: overrides.checks ?? [
+        { name: "representative-fixtures", status: input.status },
+        { name: "origin-thresholds", status: input.status },
+      ],
     })}\n`,
   );
 }

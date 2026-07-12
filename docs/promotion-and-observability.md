@@ -18,7 +18,10 @@ Before sending measurement traffic, each runner independently reads
 `/healthz` and `/api/v1/analyses/current`. The health response attests the
 application and Machine fields through `X-HS-Tracker-*` headers; the current
 manifest attests the release, analysis, search, and artifact fields. A
-mismatch stops the run before its first trial. Measurement requests carry
+manifest-selected sparse, median, upper-quartile, and maximum-row benchmark
+query is also included in this attestation; plans cannot assign those roles
+to different exporter/product pairs. A mismatch stops the run before its first
+trial. Measurement requests carry
 `X-HS-Tracker-Probe: external-v1`, so they cannot inflate the request SLI.
 
 Plans and retained reports must not contain provider tokens or storage
@@ -39,7 +42,9 @@ trials each. Chromium applies the fixed 390 x 844 mobile profile, 150 ms RTT,
 1.6 Mbps down, 750 Kbps up, and 4x CPU throttle. Each journey selects context,
 loads the complete Candidate Market list, changes the selected market, and
 opens and closes the mobile Score details disclosure. Failed trials remain in
-the report and are never retried or discarded.
+the report and are never retried or discarded. The measured
+analyze-to-complete-list duration must meet p75 <= 2.5 seconds and p95 <= 4
+seconds.
 
 Each uncached origin benchmark entry supplies 105 never-reused semantic
 requests: five warmups followed by 100 timed samples. Candidate-analysis and
@@ -48,6 +53,15 @@ reuse their one declared request after five warmups. The origin report verifies
 the deployment-owned `X-HS-Tracker-Cache-State` header: every uncached request
 must report `miss`, and cache-hit warmups after the first request plus every
 timed cache-hit sample must report `hit`.
+The 35 route/role cases cover all four artifact-attested representative roles
+for each product operation, plus the three singleton routes.
+
+Every executed Candidate-analysis and CSV sample retains the artifact-attested
+exporter/product pair for its role. Uncached samples vary only the
+`X-HS-Tracker-Cache-Partition` value, which must equal the sample's unique
+semantic key; the bounded runtime includes that partition in its process-cache
+key without changing the query sent to DuckDB. This provides real misses
+without substituting an easier, caller-selected product.
 
 The candidate load plan is exact:
 
@@ -58,12 +72,15 @@ The candidate load plan is exact:
 | Sustained duration | 600 seconds |
 | Route mix | 10% current / 25% search / 55% analysis / 10% CSV |
 | Analysis mix | 80% primed hot keys / 20% never-reused keys |
-| Burst | 10 requests/second for 30 seconds |
+| Burst | 10 requests/second for 30 seconds, with the same route and analysis mixes |
 | Coordinated work | Four simultaneous uncached keys at least every 60 seconds |
 
-With a 60-second coordinated interval, the plan needs at least 304 distinct
-analysis keys: 264 for the sustained 20% uncached share and 40 for coordinated
-bursts. Reserve the declared maximum-row key for the first coordinated burst.
+With a 60-second coordinated interval, the plan needs at least 337 distinct
+analysis keys: 264 for the sustained 20% uncached share, 40 for coordinated
+bursts, and 33 for the burst's 20% uncached analysis share. The 300-request
+burst contains exactly 30 current-manifest, 75 search, 165 analysis, and 30 CSV
+requests; its analysis requests contain 132 hot and 33 distinct keys. Reserve
+the declared maximum-row key for the first coordinated burst.
 Every CSV request reuses its session's most recent analysis key and must report
 a process-cache hit. Analysis keys are URI-component values substituted into
 the one `{analysisKey}` placeholder in both analysis and CSV route templates;
@@ -97,17 +114,18 @@ Retain a versioned lifecycle file from the same candidate and identity:
     "region": "sin"
   },
   "measurements": {
-    "restartToReadyMs": 0,
-    "coldHydrationToReadyMs": 0,
-    "rollbackToReadyMs": 0,
-    "deployInterruptionMs": 0,
-    "recoveryTimeMs": 0,
+    "restartToReadyMs": 42000,
+    "coldHydrationToReadyMs": 480000,
+    "rollbackToReadyMs": 360000,
+    "deployInterruptionMs": 12000,
+    "recoveryTimeMs": 900000,
     "acceptedArtifactLossCount": 0
   }
 }
 ```
 
-Use measured durations; zeros above only illustrate the JSON shape. Run all
+Candidate durations must be measured positive values; zero placeholders are
+rejected. Run all
 performance surfaces and emit one identity-bound gate report with:
 
 ```bash
@@ -134,9 +152,24 @@ Every gate descriptor must have retained local evidence, the same identity,
 and complete attempt history. Verify evidence hashes before relying on a
 report. A failed attempt remains blocking until a same-build resolution is
 retained. The file named by each gate's `reportSha256` must itself be a JSON
-report carrying the declared schema version, status, measurement class, and
-measured build/release/artifact/Machine identity. Accepted evidence must carry
-`measurementClass: "candidate"`; a local-smoke report cannot be relabeled.
+gate-specific `<gate>-report-v1` report carrying the gate ID, status,
+measurement class, measured build/release/artifact/Machine identity, and every
+required named check for that gate. The report status is derived from those
+checks. Accepted evidence must carry `measurementClass: "candidate"`; a
+generic envelope or local-smoke report cannot be relabeled.
+
+Activation consumes the same accepted input before object-store access:
+
+```bash
+npm run release:promote -- \
+  --analysis-directory <accepted-analysis> \
+  --product-catalog-directory <accepted-product-catalog> \
+  --promotion-input <promotion-input.json> \
+  --activated-at 2026-07-12T02:00:00Z
+```
+
+The accepted promotion identity must match the candidate BACI Release,
+artifact SHA-256, and product-search build ID.
 
 ## Runtime monitoring
 

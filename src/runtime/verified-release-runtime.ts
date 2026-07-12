@@ -564,6 +564,7 @@ function currentAnalysisDeployment(
     productSearchBuildId: hydrated.deployment.productSearchBuildId,
     analysisReleaseCatalogSha256:
       hydrated.deployment.analysisReleaseCatalogSha256,
+    benchmarkQueries: manifest.benchmarkQueries,
     source: {
       baciRelease: manifest.baciRelease,
       sourceUpdateDate: manifest.sourceUpdateDate,

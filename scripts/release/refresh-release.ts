@@ -3,6 +3,8 @@ import { parseArgs } from "node:util";
 
 import { buildProductCatalogArtifact } from "../catalog/product-catalog-artifact";
 import { privateErrorDiagnostic } from "../../src/operations/private-error-diagnostic";
+import { loadAcceptedPromotion } from "../../src/promotion/promotion-acceptance";
+import { verifyPromotionReleaseCandidates } from "../../src/promotion/release-candidate-acceptance";
 import { createPromotionReleaseObjectStore } from "../../src/release/release-object-storage";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import {
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
       "pipeline-git-sha": { type: "string" },
       "built-at": { type: "string" },
       "activated-at": { type: "string" },
+      "promotion-input": { type: "string" },
     },
     allowPositionals: false,
     strict: true,
@@ -50,6 +53,10 @@ async function main(): Promise<void> {
     values["activated-at"],
     "activated-at",
   );
+  const promotion = await loadAcceptedPromotion(
+    requiredOption(values["promotion-input"], "promotion-input"),
+    process.cwd(),
+  );
   const objectStore = createPromotionReleaseObjectStore();
   const orchestrator = new SourceRefreshOrchestrator({
     deployments: new ReleasePublisher(objectStore),
@@ -59,6 +66,13 @@ async function main(): Promise<void> {
   const result = await orchestrator.refresh({
     baciRelease,
     activatedAt,
+    authorizePromotion: async (candidate) => {
+      await verifyPromotionReleaseCandidates(
+        promotion.input.identity,
+        candidate.analysisDirectoryPath,
+        candidate.productCatalogDirectoryPath,
+      );
+    },
     async build({ baciRelease: requestedRelease, signal }) {
       if (requestedRelease !== baciRelease) {
         throw new Error("Refresh build target changed unexpectedly.");

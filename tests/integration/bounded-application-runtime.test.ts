@@ -62,6 +62,33 @@ describe("bounded application runtime", () => {
     expect(results[0]?.candidates).toHaveLength(13);
   });
 
+  it("partitions analysis cache entries for external probe samples", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      async analyze(request) {
+        computations += 1;
+        return fixture.analyze(request);
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner);
+    const cacheStates: string[] = [];
+    const options = (cachePartitionKey: string) => ({
+      cachePartitionKey,
+      observe: (observation: { cacheState: string }) => {
+        cacheStates.push(observation.cacheState);
+      },
+    });
+
+    await runtime.analyze(query, options("sample-a"));
+    await runtime.analyze(query, options("sample-a"));
+    await runtime.analyze(query, options("sample-b"));
+
+    expect(computations).toBe(2);
+    expect(cacheStates).toEqual(["miss", "hit", "miss"]);
+  });
+
   it("isolates a disconnected waiter from a shared computation", async () => {
     const fixture = createFixtureApplicationRuntime();
     const computation = deferred<void>();

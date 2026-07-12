@@ -98,6 +98,10 @@ before considering replicas.
 Each single-route benchmark has 5 untimed warm-up requests and at least 100
 timed samples per product/cache class. Report p50, p75, p95, p99, maximum,
 errors, and timeouts; the promotion gate uses p95 and p99 below.
+Candidate-analysis and CSV samples must execute the exact artifact-selected
+exporter/product query for their role. To obtain independent process-cache
+misses without substituting another product, each uncached probe supplies a
+unique bounded cache-partition key that does not change the DuckDB query.
 
 ### Browser lab profile
 
@@ -221,6 +225,12 @@ at the 2-second p95 ceiling. During the 10-request/s burst it is 1.1/s for only
 minute, the generator also releases four different uncached keys together,
 including the maximum-row product. The cache-hit ratio and burst are assertions,
 not assumptions hidden from the load report.
+
+The 30-second burst uses the same 10/25/55/10 route mix and the same 80/20
+analysis-key split as sustained traffic: 30 current-manifest, 75 search, 165
+analysis (132 hot and 33 distinct), and 30 CSV requests. With ten coordinated
+four-key bursts, candidate plans therefore require 337 never-reused analysis
+keys: 264 sustained, 40 coordinated, and 33 burst keys.
 
 Warm the bounded hot-key set before timing, bypass browser/shared HTTP caches so
 the declared origin route mix actually reaches the process, and verify each
@@ -550,7 +560,8 @@ sample count rather than treating an empty window as success.
 No artifact/deployment pairing becomes current until:
 
 1. source/schema/checksum/domain fixtures pass;
-2. sparse, median, and maximum-row benchmarks meet all origin p95/p99 gates;
+2. sparse, median, upper-quartile, and maximum-row benchmarks selected by the
+   artifact manifest meet all origin p95/p99 gates;
 3. at least five browser-lab trials each for median and maximum-row products
    meet LCP/CLS, scripted interaction, response-compression, and byte budgets;
 4. the 10-minute target-load and 30-second burst phases, with the explicit
@@ -579,8 +590,8 @@ The implementation pack includes:
    for median and maximum-row products, LCP/CLS thresholds, scripted <=200-ms
    interaction, no >200-ms long task, compressed-result cap, and
    critical/total/JavaScript byte assertions.
-2. **Pinned products:** manifest-selected sparse, median, and maximum-row codes
-   reused by pipeline and application benchmarks.
+2. **Pinned products:** manifest-selected sparse, median, upper-quartile, and
+   maximum-row codes reused by pipeline and application benchmarks.
 3. **Origin benchmark:** at least 100 timed samples after warm-up for every
    route/cache class, asserting p95, p99, payload, and hard deadlines.
 4. **Load script:** exact sessions/rate/route mix, 80/20 analysis-key mix,

@@ -14,6 +14,8 @@ const BROWSER_LIMITS = {
   firstPartyJavaScriptCompressedBytes: 250 * KIB,
   candidateResultBytes: 1_536 * KIB,
   candidateResultCompressedBytes: 300 * KIB,
+  analyzeToCompleteListP75Ms: 2_500,
+  analyzeToCompleteListP95Ms: 4_000,
 } as const;
 
 const TARGET_ROUTE_P95_MS = {
@@ -26,6 +28,7 @@ const TARGET_ROUTE_P95_MS = {
 const REQUIRED_PRODUCT_ROLES = [
   "sparse",
   "median",
+  "upper-quartile",
   "maximum-row",
 ] as const;
 
@@ -71,6 +74,7 @@ export type PerformanceMeasurementIdentity = {
 };
 
 export type BrowserLabTrialInput = {
+  analyzeToCompleteListMs: number;
   lcpMs: number;
   cls: number;
   interactionToNextPaintMs: number;
@@ -262,7 +266,10 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
   const browserLab = evaluateBrowserLab(input.browserLab);
   const origin = evaluateOriginBenchmarks(input.originBenchmarks);
   const targetLoad = evaluateTargetLoad(input.targetLoad);
-  const lifecycle = evaluateLifecycle(input.lifecycle);
+  const lifecycle = evaluateLifecycle(
+    input.lifecycle,
+    input.measurementClass,
+  );
 
   return {
     schemaVersion: "production-performance-gates-v1" as const,
@@ -360,6 +367,14 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
   const maximumCandidateResultCompressedBytes = maximum(
     trials.map((trial) => trial.candidateResultCompressedBytes),
   );
+  const analyzeToCompleteListP75Ms = percentile(
+    trials.map((trial) => trial.analyzeToCompleteListMs),
+    0.75,
+  );
+  const analyzeToCompleteListP95Ms = percentile(
+    trials.map((trial) => trial.analyzeToCompleteListMs),
+    0.95,
+  );
   const thresholdStatus: PerformanceGateStatus =
     medianLcpMs <= BROWSER_LIMITS.lcpMs &&
     medianCls <= BROWSER_LIMITS.cls &&
@@ -374,7 +389,11 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
       BROWSER_LIMITS.firstPartyJavaScriptCompressedBytes &&
     maximumCandidateResultBytes <= BROWSER_LIMITS.candidateResultBytes &&
     maximumCandidateResultCompressedBytes <=
-      BROWSER_LIMITS.candidateResultCompressedBytes
+      BROWSER_LIMITS.candidateResultCompressedBytes &&
+    analyzeToCompleteListP75Ms <=
+      BROWSER_LIMITS.analyzeToCompleteListP75Ms &&
+    analyzeToCompleteListP95Ms <=
+      BROWSER_LIMITS.analyzeToCompleteListP95Ms
       ? "accepted"
       : "blocked";
 
@@ -405,6 +424,12 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     maximumCandidateResultCompressedBytes,
     candidateResultCompressedBytesLimit:
       BROWSER_LIMITS.candidateResultCompressedBytes,
+    analyzeToCompleteListP75Ms,
+    analyzeToCompleteListP75LimitMs:
+      BROWSER_LIMITS.analyzeToCompleteListP75Ms,
+    analyzeToCompleteListP95Ms,
+    analyzeToCompleteListP95LimitMs:
+      BROWSER_LIMITS.analyzeToCompleteListP95Ms,
     status: combinedStatus([sampleStatus, thresholdStatus]),
   };
 }
@@ -413,6 +438,10 @@ function validateBrowserTrial(
   input: BrowserLabTrialInput,
   label: string,
 ): BrowserLabTrialInput {
+  positiveNumber(
+    input.analyzeToCompleteListMs,
+    `${label} analyze-to-complete-list`,
+  );
   nonnegativeNumber(input.lcpMs, `${label} LCP`);
   fraction(input.cls, `${label} CLS`);
   nonnegativeNumber(
@@ -466,7 +495,10 @@ function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
       requireOriginBenchmark(benchmarks, `${operation}:${role}`);
     }
   }
-  if (benchmarks.size !== 27) {
+  const requiredBenchmarkCount =
+    SINGLETON_BENCHMARK_OPERATIONS.length +
+    PRODUCT_BENCHMARK_OPERATIONS.length * REQUIRED_PRODUCT_ROLES.length;
+  if (benchmarks.size !== requiredBenchmarkCount) {
     throw new PerformanceGateInputError(
       "Origin evidence contains an unsupported benchmark.",
     );
@@ -796,7 +828,10 @@ function evaluateTargetLoad(input: TargetLoadInput) {
   };
 }
 
-function evaluateLifecycle(input: LifecycleMeasurementInput) {
+function evaluateLifecycle(
+  input: LifecycleMeasurementInput,
+  measurementClass: PerformanceGateInput["measurementClass"],
+) {
   const restartToReadyMs = duration(
     input.restartToReadyMs,
     "restart-to-readiness duration",
@@ -821,7 +856,17 @@ function evaluateLifecycle(input: LifecycleMeasurementInput) {
     input.acceptedArtifactLossCount,
     "accepted artifact loss count",
   );
+  const hasMeasuredCandidateDurations =
+    measurementClass !== "candidate" ||
+    [
+      restartToReadyMs,
+      coldHydrationToReadyMs,
+      rollbackToReadyMs,
+      deployInterruptionMs,
+      recoveryTimeMs,
+    ].every((value) => value > 0);
   const status: PerformanceGateStatus =
+    hasMeasuredCandidateDurations &&
     restartToReadyMs <= 90_000 &&
     coldHydrationToReadyMs <= 900_000 &&
     rollbackToReadyMs <= 900_000 &&
@@ -844,6 +889,7 @@ function evaluateLifecycle(input: LifecycleMeasurementInput) {
     recoveryTimeLimitMs: 1_800_000,
     acceptedArtifactLossCount,
     acceptedArtifactLossLimit: 0,
+    hasMeasuredCandidateDurations,
     status,
   };
 }
@@ -892,8 +938,19 @@ function median(values: readonly number[]): number {
       "A median requires at least one sample.",
     );
   }
+
   const ordered = [...values].sort((left, right) => left - right);
   return ordered[Math.floor((ordered.length - 1) / 2)];
+}
+
+function percentile(values: readonly number[], quantile: number): number {
+  if (values.length === 0) {
+    throw new PerformanceGateInputError(
+      "A percentile requires at least one sample.",
+    );
+  }
+  const ordered = [...values].sort((left, right) => left - right);
+  return ordered[Math.ceil(quantile * ordered.length) - 1];
 }
 
 function maximum(values: readonly number[]): number {
@@ -913,6 +970,16 @@ function nonnegativeNumber(value: number, label: string): number {
   if (!Number.isFinite(value) || value < 0) {
     throw new PerformanceGateInputError(
       `${label} must be a finite nonnegative number.`,
+    );
+  }
+
+  return value;
+}
+
+function positiveNumber(value: number, label: string): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new PerformanceGateInputError(
+      `${label} must be a finite positive number.`,
     );
   }
   return value;

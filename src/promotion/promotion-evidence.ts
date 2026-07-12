@@ -23,6 +23,31 @@ const OPTIONAL_REPORT_IDENTITY_FIELDS = [
   "deploymentPairingId",
   "sourceStatusSnapshotId",
 ] as const satisfies readonly (keyof PromotionIdentity)[];
+export const PROMOTION_GATE_REQUIRED_CHECKS: Readonly<
+  Record<PromotionEvidence["gate"], readonly string[]>
+> = {
+  "source-and-domain": ["source-contract", "domain-contract"],
+  "origin-benchmarks": ["representative-fixtures", "origin-thresholds"],
+  "browser-lab": ["mobile-profile", "browser-thresholds"],
+  "target-load": ["route-mix", "load-thresholds", "cache-states"],
+  "coalescing-and-capacity": ["coalescing", "capacity"],
+  "http-cache-and-deadlines": ["http-cache", "deadlines"],
+  "lifecycle-and-recovery": [
+    "restart",
+    "hydration",
+    "rollback",
+    "deployment",
+    "recovery",
+  ],
+  "deployment-resources": ["memory", "storage", "cpu"],
+  "external-smoke-and-observability": [
+    "external-smoke",
+    "request-sli",
+    "probe-sli",
+    "alerts-and-dashboard",
+  ],
+  "recurring-cost": ["monthly-cost"],
+};
 
 export class PromotionEvidenceFileError extends Error {
   readonly code = "PROMOTION_EVIDENCE_FILE_INVALID";
@@ -134,6 +159,12 @@ function verifyRetainedReport(
     );
   }
   const report = value as Record<string, unknown>;
+  const expectedSchemaVersion = `${evidence.gate}-report-v1`;
+  if (evidence.schemaVersion !== expectedSchemaVersion) {
+    throw new PromotionEvidenceFileError(
+      `${evidence.gate} evidence must declare schemaVersion ${expectedSchemaVersion}.`,
+    );
+  }
   if (report.schemaVersion !== evidence.schemaVersion) {
     throw new PromotionEvidenceFileError(
       `${evidence.gate} retained report schemaVersion does not match its declared evidence.`,
@@ -188,16 +219,69 @@ function verifyRetainedReport(
       );
     }
   }
-  if (report.gate !== undefined && report.gate !== evidence.gate) {
+  if (report.gate !== evidence.gate) {
     throw new PromotionEvidenceFileError(
       `${evidence.gate} retained report gate does not match its declared evidence.`,
     );
   }
+  verifyGateChecks(report.checks, evidence);
   return {
     schemaVersion: evidence.schemaVersion,
     measurementClass,
     status: evidence.status,
   };
+}
+
+function verifyGateChecks(
+  value: unknown,
+  evidence: PromotionEvidence,
+): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new PromotionEvidenceFileError(
+      `${evidence.gate} retained report must contain gate-specific checks.`,
+    );
+  }
+  const statuses = new Map<string, PromotionEvidence["status"]>();
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new PromotionEvidenceFileError(
+        `${evidence.gate} retained report check ${index + 1} must be an object.`,
+      );
+    }
+    const check = entry as Record<string, unknown>;
+    if (
+      typeof check.name !== "string" ||
+      check.name.length === 0 ||
+      (check.status !== "accepted" &&
+        check.status !== "review-required" &&
+        check.status !== "blocked") ||
+      statuses.has(check.name)
+    ) {
+      throw new PromotionEvidenceFileError(
+        `${evidence.gate} retained report check ${index + 1} is malformed or duplicated.`,
+      );
+    }
+    statuses.set(check.name, check.status);
+  }
+  for (const name of PROMOTION_GATE_REQUIRED_CHECKS[evidence.gate]) {
+    if (!statuses.has(name)) {
+      throw new PromotionEvidenceFileError(
+        `${evidence.gate} retained report is missing required check ${name}.`,
+      );
+    }
+  }
+  const derivedStatus: PromotionEvidence["status"] = [
+    ...statuses.values(),
+  ].includes("blocked")
+    ? "blocked"
+    : [...statuses.values()].includes("review-required")
+      ? "review-required"
+      : "accepted";
+  if (derivedStatus !== evidence.status) {
+    throw new PromotionEvidenceFileError(
+      `${evidence.gate} retained report checks do not support its declared status.`,
+    );
+  }
 }
 
 async function retainedLogPath(

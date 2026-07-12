@@ -18,6 +18,17 @@ const identity: PerformanceMeasurementIdentity = {
   machineClass: "shared-cpu-2x",
   region: "sin",
 };
+const benchmarkQueries = [
+  "sparse",
+  "median",
+  "upper-quartile",
+  "maximum-row",
+].map((role) => ({
+  role,
+  productCode: "090100",
+  exporterCode: "156",
+  candidateCount: 1,
+}));
 
 describe("runtime identity attestation", () => {
   it("binds measurements to deployment-served build, release, artifact, and Machine identity", async () => {
@@ -87,10 +98,41 @@ describe("runtime identity attestation", () => {
     );
     expect(called).toBe(false);
   });
+
+  it.each([
+    {
+      name: "missing role",
+      queries: benchmarkQueries.slice(0, 3),
+      message: "must contain the four representative roles",
+    },
+    {
+      name: "duplicate role",
+      queries: benchmarkQueries.map((query, index) =>
+        index === 1 ? { ...query, role: "sparse" } : query,
+      ),
+      message: "malformed or duplicated",
+    },
+    {
+      name: "malformed product code",
+      queries: benchmarkQueries.map((query, index) =>
+        index === 0 ? { ...query, productCode: "901" } : query,
+      ),
+      message: "malformed or duplicated",
+    },
+  ])("rejects $name benchmark attestation", async ({ queries, message }) => {
+    await expect(
+      attestRuntimeIdentity(
+        "https://candidate.example",
+        identity,
+        identityFetch([], queries),
+      ),
+    ).rejects.toThrow(message);
+  });
 });
 
 function identityFetch(
   requests: Array<{ url: string; init: RequestInit | undefined }>,
+  queries: unknown = benchmarkQueries,
 ): typeof fetch {
   return async (input, init) => {
     const url = String(input);
@@ -114,6 +156,7 @@ function identityFetch(
           schemaVersion: "current-analysis-manifest-v1",
           analysisBuildId: identity.analysisBuildId,
           productSearchBuildId: identity.productSearchBuildId,
+          benchmarkQueries: queries,
           source: {
             baciRelease: identity.baciRelease,
             artifact: { sha256: identity.artifactSha256 },
