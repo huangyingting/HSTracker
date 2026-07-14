@@ -1,7 +1,7 @@
 import type {
   CmsV1Inputs,
   MarketYearEvidence,
-} from "../../../../../src/evidence/trade-evidence-source";
+} from "../../../../src/evidence/trade-evidence-source";
 import {
   ACCEPTANCE_FIXTURE_ANALYSIS_RELEASE_CATALOG_SHA256,
   ACCEPTANCE_FIXTURE_ARTIFACT,

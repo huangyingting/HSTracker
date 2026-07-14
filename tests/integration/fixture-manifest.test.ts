@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ACCEPTANCE_FIXTURES_V1_MANIFEST } from "../../test/fixtures/acceptance/v1/manifest";
+import { ACCEPTANCE_FIXTURES_V1_MANIFEST } from "../../fixtures/acceptance/v1/manifest";
 
 describe("acceptance-fixtures-v1 manifest", () => {
   it("content-addresses every implemented fixture input", async () => {
@@ -12,7 +12,7 @@ describe("acceptance-fixtures-v1 manifest", () => {
 
     for (const file of ACCEPTANCE_FIXTURES_V1_MANIFEST.contentFiles) {
       const bytes = await readFile(
-        resolve("test/fixtures/acceptance/v1", file.path),
+        resolve("fixtures/acceptance/v1", file.path),
       );
       const sha256 = createHash("sha256").update(bytes).digest("hex");
 

@@ -49,7 +49,7 @@ describe("pinned BACI release staging CLI", () => {
     await expect(
       runStagingCliArguments([
         "--descriptor",
-        resolve("test/fixtures/pipeline/v1/safe-source.json"),
+        resolve("fixtures/pipeline/v1/safe-source.json"),
       ]),
     ).rejects.toMatchObject({
       code: "CLI_ARGUMENT_INVALID",
@@ -61,15 +61,15 @@ describe("pinned BACI release staging CLI", () => {
     const workspace = await temporaryWorkspace();
     const reportPath = join(workspace, "source-report.json");
     const archivePath = resolve(
-      "test/fixtures/pipeline/v1/archives/safe-baci.zip",
+      "fixtures/pipeline/v1/archives/safe-baci.zip",
     );
 
     const outcome = await runStagingCli({
       descriptorPath: resolve(
-        "test/fixtures/pipeline/v1/safe-source.json",
+        "fixtures/pipeline/v1/safe-source.json",
       ),
       approvalPath: resolve(
-        "test/fixtures/pipeline/v1/safe-coverage-approval.json",
+        "fixtures/pipeline/v1/safe-coverage-approval.json",
       ),
       archivePath,
       workspace,
@@ -332,7 +332,7 @@ describe("pinned BACI release staging CLI", () => {
     const workspace = await temporaryWorkspace();
     const descriptor = JSON.parse(
       await readFile(
-        resolve("test/fixtures/pipeline/v1/safe-source.json"),
+        resolve("fixtures/pipeline/v1/safe-source.json"),
         "utf8",
       ),
     ) as MutableSourceDescriptor;
@@ -340,7 +340,7 @@ describe("pinned BACI release staging CLI", () => {
     const approval = JSON.parse(
       await readFile(
         resolve(
-          "test/fixtures/pipeline/v1/safe-coverage-approval.json",
+          "fixtures/pipeline/v1/safe-coverage-approval.json",
         ),
         "utf8",
       ),
@@ -356,7 +356,7 @@ describe("pinned BACI release staging CLI", () => {
         descriptorPath,
         approvalPath,
         archivePath: resolve(
-          "test/fixtures/pipeline/v1/archives/safe-baci.zip",
+          "fixtures/pipeline/v1/archives/safe-baci.zip",
         ),
         workspace,
         reportPath: join(workspace, "source-report.json"),
@@ -370,7 +370,7 @@ describe("pinned BACI release staging CLI", () => {
   it("resumes the pinned source into temporary build storage", async () => {
     const workspace = await temporaryWorkspace();
     const archiveBytes = await readFile(
-      resolve("test/fixtures/pipeline/v1/archives/safe-baci.zip"),
+      resolve("fixtures/pipeline/v1/archives/safe-baci.zip"),
     );
     const resumeOffset = 311;
     const downloadsPath = join(workspace, "downloads");
@@ -405,7 +405,7 @@ describe("pinned BACI release staging CLI", () => {
     try {
       const descriptor = JSON.parse(
         await readFile(
-          resolve("test/fixtures/pipeline/v1/safe-source.json"),
+          resolve("fixtures/pipeline/v1/safe-source.json"),
           "utf8",
         ),
       ) as MutableSourceDescriptor;
@@ -416,7 +416,7 @@ describe("pinned BACI release staging CLI", () => {
       const outcome = await runStagingCli({
         descriptorPath,
         approvalPath: resolve(
-          "test/fixtures/pipeline/v1/safe-coverage-approval.json",
+          "fixtures/pipeline/v1/safe-coverage-approval.json",
         ),
         workspace,
         reportPath: join(workspace, "source-report.json"),
@@ -441,7 +441,7 @@ describe("pinned BACI release staging CLI", () => {
   it("replaces an invalid completed download from the pinned source", async () => {
     const workspace = await temporaryWorkspace();
     const archiveBytes = await readFile(
-      resolve("test/fixtures/pipeline/v1/archives/safe-baci.zip"),
+      resolve("fixtures/pipeline/v1/archives/safe-baci.zip"),
     );
     const downloadsPath = join(workspace, "downloads");
     const completedPath = join(
@@ -469,7 +469,7 @@ describe("pinned BACI release staging CLI", () => {
     try {
       const descriptor = JSON.parse(
         await readFile(
-          resolve("test/fixtures/pipeline/v1/safe-source.json"),
+          resolve("fixtures/pipeline/v1/safe-source.json"),
           "utf8",
         ),
       ) as MutableSourceDescriptor;
@@ -480,7 +480,7 @@ describe("pinned BACI release staging CLI", () => {
       const outcome = await runStagingCli({
         descriptorPath,
         approvalPath: resolve(
-          "test/fixtures/pipeline/v1/safe-coverage-approval.json",
+          "fixtures/pipeline/v1/safe-coverage-approval.json",
         ),
         workspace,
         reportPath: join(workspace, "source-report.json"),
@@ -578,13 +578,13 @@ async function mutableFixtureInputs(archiveName: string): Promise<{
 }> {
   const workspace = await temporaryWorkspace();
   const archivePath = resolve(
-    "test/fixtures/pipeline/v1/archives",
+    "fixtures/pipeline/v1/archives",
     archiveName,
   );
   const archiveBytes = await readFile(archivePath);
   const descriptor = JSON.parse(
     await readFile(
-      resolve("test/fixtures/pipeline/v1/safe-source.json"),
+      resolve("fixtures/pipeline/v1/safe-source.json"),
       "utf8",
     ),
   ) as MutableSourceDescriptor;
@@ -594,7 +594,7 @@ async function mutableFixtureInputs(archiveName: string): Promise<{
     .digest("hex");
   const approval = JSON.parse(
     await readFile(
-      resolve("test/fixtures/pipeline/v1/safe-coverage-approval.json"),
+      resolve("fixtures/pipeline/v1/safe-coverage-approval.json"),
       "utf8",
     ),
   ) as MutableCoverageApproval;

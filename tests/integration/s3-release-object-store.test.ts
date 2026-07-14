@@ -36,7 +36,7 @@ import {
 } from "../../src/release/release-publication";
 import { S3ReleaseObjectStore } from "../../src/release/s3-release-object-store";
 import { SourceStatusReader } from "../../src/release/source-status-publication";
-import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
+import { writeAcceptedReleaseCandidate } from "../support/release-candidate";
 
 const MINIO_IMAGE =
   "minio/minio:RELEASE.2025-04-22T22-12-26Z@" +

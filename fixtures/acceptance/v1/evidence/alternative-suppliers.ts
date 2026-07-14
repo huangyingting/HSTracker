@@ -1,4 +1,4 @@
-import type { MarketYearEvidence } from "../../../../../src/evidence/trade-evidence-source";
+import type { MarketYearEvidence } from "../../../../src/evidence/trade-evidence-source";
 
 export function alternativeSuppliersFromShares(
   rawShares: readonly string[],

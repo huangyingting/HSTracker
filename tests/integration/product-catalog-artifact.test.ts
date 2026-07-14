@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createFixtureProductCatalog } from "../../src/catalog/fixture-product-catalog";
 import { ImmutableProductCatalog } from "../../src/catalog/immutable-product-catalog";
-import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../fixtures/acceptance/v1/metadata";
 import { missingScopeQualifiers } from "../../scripts/catalog/product-catalog-artifact";
 
 const execFileAsync = promisify(execFile);
@@ -1199,11 +1199,11 @@ async function stageSafeFixture(
       "stage:baci",
       "--",
       "--descriptor",
-      resolve("test/fixtures/pipeline/v1/safe-source.json"),
+      resolve("fixtures/pipeline/v1/safe-source.json"),
       "--approval",
-      resolve("test/fixtures/pipeline/v1/safe-coverage-approval.json"),
+      resolve("fixtures/pipeline/v1/safe-coverage-approval.json"),
       "--archive",
-      resolve("test/fixtures/pipeline/v1/archives/safe-baci.zip"),
+      resolve("fixtures/pipeline/v1/archives/safe-baci.zip"),
       "--workspace",
       workspace,
       "--report",

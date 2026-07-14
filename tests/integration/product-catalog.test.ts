@@ -4,8 +4,8 @@ import { createFixtureProductCatalog } from "../../src/catalog/fixture-product-c
 import {
   PRODUCT_SEARCH_GOLDEN_CASES,
   PRODUCT_SEARCH_GOLDEN_ERROR_CASES,
-} from "../../test/fixtures/acceptance/v1/expected/product-search-cases";
-import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/expected/product-search-cases";
+import { ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS } from "../../fixtures/acceptance/v1/metadata";
 
 const PRODUCT_SEARCH_BUILD_ID = ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core;
 

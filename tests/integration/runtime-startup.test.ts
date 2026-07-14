@@ -19,7 +19,7 @@ import { ReleasePublisher } from "../../src/release/release-publication";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
 import { getApplicationRuntime } from "../../src/runtime/application-runtime";
 import { startApplicationRuntime } from "../../src/runtime/runtime-startup";
-import { writeRuntimeReleaseCandidate } from "../fixtures/runtime-release";
+import { writeRuntimeReleaseCandidate } from "../support/runtime-release";
 
 const temporaryDirectories: string[] = [];
 const stops: (() => void)[] = [];

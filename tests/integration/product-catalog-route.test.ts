@@ -4,11 +4,11 @@ import {
   GET,
   HEAD,
 } from "../../src/app/api/v1/product-catalogs/[productSearchBuildId]/products/route";
-import { PRODUCT_CATALOG_ROUTE_ERROR_CASES } from "../../test/fixtures/acceptance/v1/expected/error-cases";
+import { PRODUCT_CATALOG_ROUTE_ERROR_CASES } from "../../fixtures/acceptance/v1/expected/error-cases";
 import {
   ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
   PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS,
-} from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/metadata";
 import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,

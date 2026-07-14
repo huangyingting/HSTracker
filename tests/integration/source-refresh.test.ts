@@ -16,7 +16,7 @@ import {
   ACTIVE_SOURCE_STATUS_POINTER_KEY,
   SourceStatusPublisher,
 } from "../../src/release/source-status-publication";
-import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
+import { writeAcceptedReleaseCandidate } from "../support/release-candidate";
 
 const authorizePromotion = async () => {};
 

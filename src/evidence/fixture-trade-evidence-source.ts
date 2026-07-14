@@ -15,16 +15,16 @@ import {
   EMPTY_INPUT,
   PROVISIONAL_MUTATION_INPUT,
   QUANTITY_ZERO_INPUT,
-} from "../../test/fixtures/acceptance/v1/evidence/core-current";
+} from "../../fixtures/acceptance/v1/evidence/core-current";
 import {
   generateDemoAnalysisInput,
   isDemoAnalysisProduct,
-} from "../../test/fixtures/acceptance/v1/evidence/demo-analysis";
-import { MICRO_FIXTURE_INPUTS } from "../../test/fixtures/acceptance/v1/evidence/microfixtures";
+} from "../../fixtures/acceptance/v1/evidence/demo-analysis";
+import { MICRO_FIXTURE_INPUTS } from "../../fixtures/acceptance/v1/evidence/microfixtures";
 import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   FIXTURE_ADAPTER_TEST_BUILD_IDS,
-} from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/metadata";
 import type {
   CmsV1Inputs,
   TradeEvidenceSource,

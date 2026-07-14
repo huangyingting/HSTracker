@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { CORE_CURRENT_INPUT } from "../../test/fixtures/acceptance/v1/evidence/core-current";
+import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
 import {
   generateDemoAnalysisInput,
   isDemoAnalysisProduct,
-} from "../../test/fixtures/acceptance/v1/evidence/demo-analysis";
+} from "../../fixtures/acceptance/v1/evidence/demo-analysis";
 
 const baseEconomyCodes = new Set(
   CORE_CURRENT_INPUT.marketYears.map((row) => row.candidateMarket.code),

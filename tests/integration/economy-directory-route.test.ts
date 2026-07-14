@@ -4,11 +4,11 @@ import {
   GET,
   HEAD,
 } from "../../src/app/api/v1/analyses/[analysisBuildId]/economies/route";
-import { ECONOMY_ROUTE_ERROR_CASES } from "../../test/fixtures/acceptance/v1/expected/error-cases";
+import { ECONOMY_ROUTE_ERROR_CASES } from "../../fixtures/acceptance/v1/expected/error-cases";
 import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   FIXTURE_ADAPTER_TEST_BUILD_IDS,
-} from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/metadata";
 import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,

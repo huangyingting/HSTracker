@@ -4,7 +4,7 @@ import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   ACCEPTANCE_FIXTURE_RELEASE,
   ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
-} from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/metadata";
 import {
   resolveCurrentAnalysisManifest,
   type CurrentAnalysisDeployment,

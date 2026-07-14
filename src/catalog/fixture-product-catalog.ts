@@ -1,16 +1,16 @@
-import { ACCEPTANCE_PRODUCT_ALIASES } from "../../test/fixtures/acceptance/v1/catalog/aliases";
+import { ACCEPTANCE_PRODUCT_ALIASES } from "../../fixtures/acceptance/v1/catalog/aliases";
 import {
   DEMO_PRODUCT_ALIASES,
   DEMO_PRODUCT_RECORDS,
   DEMO_PRODUCT_TRANSLATIONS,
-} from "../../test/fixtures/acceptance/v1/catalog/demo-products";
-import { ACCEPTANCE_PRODUCT_RECORDS } from "../../test/fixtures/acceptance/v1/catalog/products";
-import { ACCEPTANCE_TRADITIONAL_TO_SIMPLIFIED } from "../../test/fixtures/acceptance/v1/catalog/traditional-to-simplified";
-import { ACCEPTANCE_PRODUCT_TRANSLATIONS } from "../../test/fixtures/acceptance/v1/catalog/translations";
+} from "../../fixtures/acceptance/v1/catalog/demo-products";
+import { ACCEPTANCE_PRODUCT_RECORDS } from "../../fixtures/acceptance/v1/catalog/products";
+import { ACCEPTANCE_TRADITIONAL_TO_SIMPLIFIED } from "../../fixtures/acceptance/v1/catalog/traditional-to-simplified";
+import { ACCEPTANCE_PRODUCT_TRANSLATIONS } from "../../fixtures/acceptance/v1/catalog/translations";
 import {
   ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
   PRODUCT_SEARCH_FIXTURE_TEST_BUILD_IDS,
-} from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/metadata";
 import type {
   ProductCatalog,
   ProductSearchProduct,

@@ -16,8 +16,8 @@ import {
   subscribeRuntimeMetrics,
   type RuntimeRequestMetric,
 } from "../../src/runtime/runtime-metrics";
-import { ANALYSIS_ROUTE_ERROR_CASES } from "../../test/fixtures/acceptance/v1/expected/error-cases";
-import { FIXTURE_ADAPTER_TEST_BUILD_IDS } from "../../test/fixtures/acceptance/v1/metadata";
+import { ANALYSIS_ROUTE_ERROR_CASES } from "../../fixtures/acceptance/v1/expected/error-cases";
+import { FIXTURE_ADAPTER_TEST_BUILD_IDS } from "../../fixtures/acceptance/v1/metadata";
 
 const routeContext = (analysisBuildId: string) => ({
   params: Promise.resolve({ analysisBuildId }),

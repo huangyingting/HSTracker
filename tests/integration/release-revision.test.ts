@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { computeCmsV1 } from "../../src/domain/candidate-market/cms-v1";
 import { compareReleaseRevisions } from "../../src/domain/release/release-revision";
-import { CORE_CURRENT_INPUT } from "../../test/fixtures/acceptance/v1/evidence/core-current";
+import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
 
 const currentRelease = {
   baciRelease: "V202601",

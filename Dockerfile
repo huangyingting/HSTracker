@@ -15,7 +15,7 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY next.config.ts tsconfig.json next-env.d.ts ./
 COPY src ./src
-COPY test/fixtures ./test/fixtures
+COPY fixtures ./fixtures
 COPY scripts/prepare-standalone.mjs ./scripts/prepare-standalone.mjs
 RUN npm run build \
   && npm run prepare:standalone

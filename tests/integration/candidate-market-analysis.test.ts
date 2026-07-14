@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
 import { createFixtureCandidateMarketAnalysis } from "../../src/evidence/fixture-trade-evidence-source";
-import { CORE_CURRENT_INPUT } from "../../test/fixtures/acceptance/v1/evidence/core-current";
+import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
 import {
   CORE_CANDIDATE_SUMMARY,
   CORE_STABILITY,
-} from "../../test/fixtures/acceptance/v1/expected/core-analysis";
+} from "../../fixtures/acceptance/v1/expected/core-analysis";
 
 describe("CandidateMarketAnalysis", () => {
   it("does not recompute previous evidence from the same BACI Release", async () => {

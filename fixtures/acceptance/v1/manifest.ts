@@ -3,7 +3,7 @@ import {
   ACCEPTANCE_FIXTURE_RELEASE,
   ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
 } from "./metadata";
-import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../../../src/promotion/acceptance-fixture";
+import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../../src/promotion/acceptance-fixture";
 
 export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
   fixtureSchemaVersion: ACCEPTANCE_FIXTURE_SCHEMA_VERSION,
@@ -38,17 +38,17 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "catalog/products.ts",
       sha256:
-        "bae0d86fa9d2ac4693766ad42d06ef826f5d96cd2d74cc031910d3af77259fe8",
+        "d90745560bcc0132facc16bf24c4c87f8c37af157386e2f61bca4a82efdb4ac8",
     },
     {
       path: "catalog/translations.ts",
       sha256:
-        "37ed1f5e8cd037e8f6b34027a4b2acec53d40ec840042f33ba981c547a8d2ad9",
+        "834c38b9ed4a9551948a41a229e6326babbc6ff106e77ea73e9bd1e07f3bcd6c",
     },
     {
       path: "catalog/aliases.ts",
       sha256:
-        "6022c4d1ccc2977ce2a875ac52744487ec150d6117429d5539aafa26602fb428",
+        "66ee705b6821a8bce2e7d805a920beaac5d831fd3923a0adb2eb181361fe52e2",
     },
     {
       path: "catalog/traditional-to-simplified.ts",
@@ -58,27 +58,27 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "economies/core.ts",
       sha256:
-        "c654ac879b893c0dec7a1a16e35cc17dc9fea69c6469d2c0b19be1e39c67295d",
+        "fe93eeaff38273e46008c4ae74468ef4ee414cf73b07179821f7b0e16d56aac9",
     },
     {
       path: "economies/cap.ts",
       sha256:
-        "e984eb890b4401c7b2ab5c99fce5c6860b5d1037f26c8837f3d198489d8c10e8",
+        "58f4e59e2739148cd98bcf2e4f2ae957231343fb5342c6c1ecbfbc052fd51a3f",
     },
     {
       path: "evidence/alternative-suppliers.ts",
       sha256:
-        "01a871ff2cbfa0c3f10c96f9d1fe69808992ba9c62c0d53608b3f6875426c0b8",
+        "7da437484b1fdafc941e8538dcebc4da9757a965f1ddef60a23409dc2ebdaf39",
     },
     {
       path: "evidence/core-current.ts",
       sha256:
-        "1058fd187e4b86c60764fc3c971646ca556be4a395a81b8af6e461d7899ac444",
+        "b4f32139533791cd12a13feb1a9ee92a171dbb372d75a8f97c6d7503993edd04",
     },
     {
       path: "evidence/microfixtures.ts",
       sha256:
-        "677d348e4008c4cab5bf98ac407c7966f22a0e04fdc3b680620372a892fce3ba",
+        "cdad126053c27168891691ac166cd0a1413b868b9abb044f5bf3067825d6a71d",
     },
     {
       path: "expected/core-analysis.ts",
@@ -93,7 +93,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/product-search-cases.ts",
       sha256:
-        "64cb9c701183e67b106fac8839de997e88c38954b007476c4ab542a8e1d4c559",
+        "abc667eb6a74124ca0be38943cc2c27e2d8969c25c773f286ef5b7811a7df618",
     },
     {
       path: "expected/candidate-markets-core.csv",
@@ -120,7 +120,7 @@ export const ACCEPTANCE_FIXTURES_V1_MANIFEST = {
     {
       path: "expected/product-search-cases.ts",
       sha256:
-        "64cb9c701183e67b106fac8839de997e88c38954b007476c4ab542a8e1d4c559",
+        "abc667eb6a74124ca0be38943cc2c27e2d8969c25c773f286ef5b7811a7df618",
     },
     {
       path: "expected/candidate-markets-core.csv",

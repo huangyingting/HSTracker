@@ -170,7 +170,7 @@ describe("candidate-markets-csv-v1 serializer", () => {
       "309c135c17e8d1d8bd4956fbdf773d4ec62833ce859843f992f820c6d6405db7",
     );
     await expect(decoded).toMatchFileSnapshot(
-      "../../test/fixtures/acceptance/v1/expected/candidate-markets-core.csv",
+      "../../fixtures/acceptance/v1/expected/candidate-markets-core.csv",
     );
   });
 
@@ -207,7 +207,7 @@ describe("candidate-markets-csv-v1 serializer", () => {
       "e7db5732abc1d940610e6ccc89386388438c3ac4e2935a20926aa45d0ce85372",
     );
     await expect(decoded).toMatchFileSnapshot(
-      "../../test/fixtures/acceptance/v1/expected/candidate-markets-empty.csv",
+      "../../fixtures/acceptance/v1/expected/candidate-markets-empty.csv",
     );
   });
 

@@ -2,7 +2,7 @@ import type {
   ProductSearchLocale,
   ProductSearchMatchClass,
   ProductSearchMatchedField,
-} from "../../../../../src/catalog/product-catalog";
+} from "../../../../src/catalog/product-catalog";
 
 type ProductSearchGoldenCase = {
   name: string;

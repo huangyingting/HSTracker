@@ -1,10 +1,10 @@
-import { ACCEPTANCE_ECONOMIES } from "../../test/fixtures/acceptance/v1/economies/core";
-import { ACCEPTANCE_ECONOMY_CAP_RECORDS } from "../../test/fixtures/acceptance/v1/economies/cap";
+import { ACCEPTANCE_ECONOMIES } from "../../fixtures/acceptance/v1/economies/core";
+import { ACCEPTANCE_ECONOMY_CAP_RECORDS } from "../../fixtures/acceptance/v1/economies/cap";
 import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   ECONOMY_DIRECTORY_FIXTURE_BUILD_IDS,
   FIXTURE_ADAPTER_TEST_BUILD_IDS,
-} from "../../test/fixtures/acceptance/v1/metadata";
+} from "../../fixtures/acceptance/v1/metadata";
 import type {
   EconomyDirectory,
   EconomySearchResult,

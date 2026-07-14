@@ -1,4 +1,4 @@
-import type { ProductAliasRecord } from "../../../../../src/catalog/product-catalog";
+import type { ProductAliasRecord } from "../../../../src/catalog/product-catalog";
 
 import { ACCEPTANCE_CAP_PRODUCT_CODES } from "./cap-codes";
 

@@ -80,7 +80,7 @@ The exact test runner may adapt the leaf filenames, but it must preserve these
 seams:
 
 ```text
-test/fixtures/acceptance/v1/
+fixtures/acceptance/v1/
   manifest
   catalog/
     products

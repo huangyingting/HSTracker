@@ -1,4 +1,4 @@
-import type { EconomyRecord } from "../../../../../src/economy/economy-directory";
+import type { EconomyRecord } from "../../../../src/economy/economy-directory";
 
 export const ACCEPTANCE_ECONOMY_CAP_RECORDS: readonly EconomyRecord[] =
   Array.from({ length: 51 }, (_, index) => {

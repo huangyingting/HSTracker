@@ -17,7 +17,7 @@ import type {
 } from "../../src/release/release-object-store";
 import { ReleaseHydrator } from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
-import { writeAcceptedReleaseCandidate } from "../fixtures/release-candidate";
+import { writeAcceptedReleaseCandidate } from "../support/release-candidate";
 
 describe("immutable release publication", () => {
   it("publishes and activates one exact compatible pairing", async () => {

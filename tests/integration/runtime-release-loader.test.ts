@@ -16,11 +16,11 @@ import type {
 } from "../../src/release/release-object-store";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { VerifiedReleaseRuntime } from "../../src/runtime/verified-release-runtime";
-import { CountingReleaseReader } from "../fixtures/counting-release-reader";
+import { CountingReleaseReader } from "../support/counting-release-reader";
 import {
   RUNTIME_RELEASE_FIXTURE,
   writeRuntimeReleaseCandidate,
-} from "../fixtures/runtime-release";
+} from "../support/runtime-release";
 
 const temporaryDirectories: string[] = [];
 const runtimes: VerifiedReleaseRuntime[] = [];

@@ -1,8 +1,8 @@
-import type { EconomyIdentity } from "../../../../../src/domain/candidate-market/result";
+import type { EconomyIdentity } from "../../../../src/domain/candidate-market/result";
 import type {
   CmsV1Inputs,
   MarketYearEvidence,
-} from "../../../../../src/evidence/trade-evidence-source";
+} from "../../../../src/evidence/trade-evidence-source";
 import { DEMO_PRODUCT_RECORDS } from "../catalog/demo-products";
 import { CORE_CURRENT_INPUT } from "./core-current";
 

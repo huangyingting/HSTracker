@@ -2,7 +2,7 @@ import type {
   ProductAliasRecord,
   ProductCatalogRecord,
   ProductTranslationRecord,
-} from "../../../../../src/catalog/product-catalog";
+} from "../../../../src/catalog/product-catalog";
 
 /**
  * Recognizable real HS12 products used to make the fixture (development and
