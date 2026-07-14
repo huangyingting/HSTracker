@@ -6,6 +6,11 @@ import { GET as getEconomies } from "../../src/app/api/v1/analyses/[analysisBuil
 import { GET as getCurrentAnalysis } from "../../src/app/api/v1/analyses/current/route";
 import { GET as getProducts } from "../../src/app/api/v1/product-catalogs/[productSearchBuildId]/products/route";
 import type { CurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
+import type {
+  AnalysisExecutionOptions,
+  AnalysisOutcome,
+  AnalysisRequest,
+} from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,
@@ -38,7 +43,13 @@ describe("accepted public target load", () => {
     const runtime = createBoundedApplicationRuntime({
       ...fixture,
       tradeAnalytics: {
-        async execute(query) {
+        async execute<Request extends AnalysisRequest>(
+          query: Request,
+          _options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          if (query.recipe !== "candidate-market-v1") {
+            return fixture.tradeAnalytics.execute(query, _options);
+          }
           activeComputations += 1;
           maximumActiveComputations = Math.max(
             maximumActiveComputations,
@@ -62,7 +73,7 @@ describe("accepted public target load", () => {
                 },
               },
             },
-          };
+          } as AnalysisOutcome<Request["recipe"]>;
         },
       },
     });

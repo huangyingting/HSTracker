@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { DiscoveryWorkspace } from "./discovery-workspace";
+import { AnalysisTaskHome } from "./analysis-task-home";
 
 const copy = {
   en: {
@@ -179,7 +179,7 @@ export default function Home() {
         </aside>
       </section>
 
-      <DiscoveryWorkspace locale={locale} />
+      <AnalysisTaskHome locale={locale} />
 
       <section className="reading-guide" aria-labelledby="guide-title">
         <div className="guide-heading">

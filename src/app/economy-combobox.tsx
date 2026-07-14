@@ -12,6 +12,8 @@ const copy = {
     label: "Export economy",
     placeholder: "BACI code, ISO code, or source name",
     help: "Choose the export economy whose recorded foothold will be evaluated.",
+    importerLabel: "Importing economy",
+    importerHelp: "Choose the importing economy whose annual imports will be shown.",
     loading: "Searching economies…",
     failed: "Economy search is temporarily unavailable.",
     noMatch: "No economy matched that code or source name.",
@@ -20,11 +22,14 @@ const copy = {
       "This economy directory has retired. Refresh the current analysis.",
     refresh: "Refresh current analysis",
     selected: "Selected export economy",
+    importerSelected: "Selected importing economy",
   },
   "zh-Hans": {
     label: "出口经济体",
     placeholder: "BACI 编码、ISO 编码或来源名称",
     help: "选择要评估其已记录市场基础的出口经济体。",
+    importerLabel: "进口经济体",
+    importerHelp: "选择要显示其年度进口额的进口经济体。",
     loading: "正在搜索经济体…",
     failed: "经济体搜索暂时不可用。",
     noMatch: "没有经济体匹配该编码或来源名称。",
@@ -32,12 +37,14 @@ const copy = {
     retired: "该经济体目录已停用。请刷新当前分析。",
     refresh: "刷新当前分析",
     selected: "已选择出口经济体",
+    importerSelected: "已选择进口经济体",
   },
 } as const;
 
 type EconomyComboboxProps = {
   analysisBuildId: string;
   locale: keyof typeof copy;
+  role?: "exporter" | "importer";
   onSelectionChange: (
     economy: EconomyRecord | null,
     source: "restore" | "explicit",
@@ -51,10 +58,17 @@ type EconomySearchStatus =
 export function EconomyCombobox({
   analysisBuildId,
   locale,
+  role = "exporter",
   onSelectionChange,
   onRetiredBuild,
 }: EconomyComboboxProps) {
   const messages = copy[locale];
+  const parameter = role === "importer" ? "importer" : "exporter";
+  const label =
+    role === "importer" ? messages.importerLabel : messages.label;
+  const help = role === "importer" ? messages.importerHelp : messages.help;
+  const selectedLabel =
+    role === "importer" ? messages.importerSelected : messages.selected;
   const listboxId = useId();
   const requestSequence = useRef(0);
   const explicitlyEdited = useRef(false);
@@ -101,18 +115,18 @@ export function EconomyCombobox({
   );
 
   useEffect(() => {
-    const exporterCode = new URL(window.location.href).searchParams.get(
-      "exporter",
+    const economyCode = new URL(window.location.href).searchParams.get(
+      parameter,
     );
-    if (exporterCode === null || !/^\d{1,3}$/u.test(exporterCode)) {
+    if (economyCode === null || !/^\d{1,3}$/u.test(economyCode)) {
       return;
     }
 
     const controller = new AbortController();
-    void fetchEconomies(exporterCode, analysisBuildId, controller.signal)
+    void fetchEconomies(economyCode, analysisBuildId, controller.signal)
       .then((result) => {
         const restored = result.matches.find(
-          ({ economy }) => economy.code === exporterCode,
+          ({ economy }) => economy.code === economyCode,
         )?.economy;
         if (!explicitlyEdited.current && restored !== undefined) {
           setSelectedEconomy(restored);
@@ -129,7 +143,7 @@ export function EconomyCombobox({
         }
       });
     return () => controller.abort();
-  }, [analysisBuildId, onSelectionChange]);
+  }, [analysisBuildId, onSelectionChange, parameter]);
 
   useEffect(
     () => () => {
@@ -177,7 +191,7 @@ export function EconomyCombobox({
     setStatus("idle");
     onSelectionChange(economy, "explicit");
     const url = new URL(window.location.href);
-    url.searchParams.set("exporter", economy.code);
+    url.searchParams.set(parameter, economy.code);
     url.searchParams.delete("market");
     window.history.replaceState(null, "", url);
   }
@@ -189,7 +203,7 @@ export function EconomyCombobox({
     setSelectedEconomy(null);
     onSelectionChange(null, "explicit");
     const url = new URL(window.location.href);
-    url.searchParams.delete("exporter");
+    url.searchParams.delete(parameter);
     url.searchParams.delete("market");
     window.history.replaceState(null, "", url);
   }
@@ -221,7 +235,7 @@ export function EconomyCombobox({
 
   return (
     <div className="economy-field">
-      <label htmlFor="economy-search">{messages.label}</label>
+      <label htmlFor="economy-search">{label}</label>
       <input
         id="economy-search"
         type="search"
@@ -278,13 +292,13 @@ export function EconomyCombobox({
         }}
         onKeyDown={handleKeyDown}
       />
-      <p id="economy-search-help">{messages.help}</p>
+      <p id="economy-search-help">{help}</p>
       {open ? (
         <ul
           id={listboxId}
           className="economy-options"
           role="listbox"
-          aria-label={messages.label}
+          aria-label={label}
         >
           {matches.map(({ economy, match }, index) => (
             <li
@@ -318,7 +332,7 @@ export function EconomyCombobox({
                   ? messages.failed
                   : selectedEconomy === null
                     ? ""
-                    : `${messages.selected}: ${selectedEconomy.code}`}
+                    : `${selectedLabel}: ${selectedEconomy.code}`}
       </p>
       {status === "retired" ? (
         <button

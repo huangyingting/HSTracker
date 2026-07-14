@@ -3,7 +3,7 @@ import { createFixtureProductCatalog } from "../catalog/fixture-product-catalog"
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
 import {
-  createCandidateMarketV1TradeAnalyticsPlatform,
+  createTradeAnalyticsPlatform,
   type AnalysisOperationObservation,
   type TradeAnalyticsPlatform,
 } from "../domain/trade-analytics/trade-analytics-platform";
@@ -11,6 +11,7 @@ import type { EconomyDirectory } from "../economy/economy-directory";
 import { createFixtureEconomyDirectory } from "../economy/fixture-economy-directory";
 import {
   createFixtureCandidateMarketDatasetPackages,
+  createFixtureTradeTrendDatasetPackages,
   FixtureTradeEvidenceSource,
 } from "../evidence/fixture-trade-evidence-source";
 import {
@@ -121,9 +122,15 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
   const productCatalog = createFixtureProductCatalog();
   const economyDirectory = createFixtureEconomyDirectory();
   return {
-    tradeAnalytics: createCandidateMarketV1TradeAnalyticsPlatform({
-      evidenceSource: new FixtureTradeEvidenceSource(),
-      datasetPackages: createFixtureCandidateMarketDatasetPackages(),
+    tradeAnalytics: createTradeAnalyticsPlatform({
+      candidateMarket: {
+        evidenceSource: new FixtureTradeEvidenceSource(),
+        datasetPackages: createFixtureCandidateMarketDatasetPackages(),
+      },
+      tradeTrend: {
+        evidenceSource: new FixtureTradeEvidenceSource(),
+        datasetPackages: createFixtureTradeTrendDatasetPackages(),
+      },
     }),
     currentAnalysis: resolveFixtureCurrentAnalysisManifest,
     currentAnalysisSnapshot() {

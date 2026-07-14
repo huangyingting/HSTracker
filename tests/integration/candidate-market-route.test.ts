@@ -9,6 +9,7 @@ import {
   installApplicationRuntime,
 } from "../../src/runtime/application-runtime";
 import {
+  type AnalysisRequest,
   type AnalysisOutcome,
   type TradeAnalyticsPlatform,
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
@@ -410,8 +411,9 @@ describe("versioned Candidate Market route", () => {
     outcome: AnalysisOutcome<"candidate-market-v1">,
   ): TradeAnalyticsPlatform {
     return {
-      async execute() {
-        return outcome;
+      async execute<Request extends AnalysisRequest>(_request: Request) {
+        void _request;
+        return outcome as AnalysisOutcome<Request["recipe"]>;
       },
     };
   }

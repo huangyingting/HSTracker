@@ -3,6 +3,10 @@ import type {
   EconomyIdentity,
   ProductIdentity,
 } from "../domain/candidate-market/result";
+import type {
+  TradeTrendV1Inputs,
+  TradeTrendV1RecipeInput,
+} from "../domain/trade-trend/result";
 
 export type SelectedExporterEvidence =
   | {
@@ -66,4 +70,8 @@ export interface TradeEvidenceSource {
     query: CandidateMarketV1RecipeInput,
     options?: TradeEvidenceLoadOptions,
   ): Promise<CmsV1Inputs>;
+  loadTradeTrendV1Inputs?(
+    query: TradeTrendV1RecipeInput,
+    options?: TradeEvidenceLoadOptions,
+  ): Promise<TradeTrendV1Inputs>;
 }

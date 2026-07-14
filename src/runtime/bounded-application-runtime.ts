@@ -1,11 +1,14 @@
 import { validateProductSearchQuery } from "../catalog/validate-product-search-query";
 import { isCandidateMarketAnalysisError } from "../domain/candidate-market/errors";
 import { validateCandidateMarketV1Request } from "../domain/trade-analytics/candidate-market-v1-request";
+import { validateTradeTrendV1Request } from "../domain/trade-analytics/trade-trend-v1-request";
+import { isTradeTrendAnalysisError } from "../domain/trade-trend/errors";
 import type {
   AnalysisExecutionOptions,
   AnalysisOperationObservation,
   AnalysisOutcome,
-  CandidateMarketV1AnalysisRequest,
+  AnalysisRecipe,
+  AnalysisRequest,
   TradeAnalyticsPlatform,
 } from "../domain/trade-analytics/trade-analytics-platform";
 import { normalizeEconomyQuery } from "../economy/economy-search";
@@ -26,9 +29,11 @@ import {
   utf8ByteLength,
 } from "./serialized-size";
 
-type AnalysisQuery = CandidateMarketV1AnalysisRequest;
-type AnalysisPromise = Promise<AnalysisOutcome<"candidate-market-v1">>;
-type AnalysisResult = Awaited<AnalysisPromise>;
+type AnalysisQuery = AnalysisRequest;
+type AnalysisResult =
+  | AnalysisOutcome<"candidate-market-v1">
+  | AnalysisOutcome<"trade-trend-v1">;
+type AnalysisPromise = Promise<AnalysisResult>;
 type ProductSearchQuery = Parameters<
   ApplicationRuntime["searchProducts"]
 >[0];
@@ -232,9 +237,12 @@ export function createBoundedApplicationRuntime(
       return Promise.resolve(preflightBudget);
     }
     try {
-      validateCandidateMarketV1Request(query);
+      validateAnalysisRequest(query);
     } catch (error) {
-      if (!isCandidateMarketAnalysisError(error)) {
+      if (
+        !isCandidateMarketAnalysisError(error) &&
+        !isTradeTrendAnalysisError(error)
+      ) {
         return Promise.reject(error);
       }
       return inner.tradeAnalytics.execute(query, requestOptions).then(
@@ -332,7 +340,14 @@ export function createBoundedApplicationRuntime(
   }
 
   const tradeAnalytics: TradeAnalyticsPlatform = {
-    execute: executeAnalysis,
+    execute<Request extends AnalysisRequest>(
+      query: Request,
+      requestOptions?: AnalysisExecutionOptions,
+    ): Promise<AnalysisOutcome<Request["recipe"]>> {
+      return executeAnalysis(query, requestOptions) as Promise<
+        AnalysisOutcome<Request["recipe"]>
+      >;
+    },
   };
 
   return {
@@ -567,8 +582,9 @@ function analysisKey(
   cachePartitionKey: string | undefined,
 ): string {
   return [
+    query.recipe,
     query.analysisBuildId,
-    query.exporterCode,
+    normalizedEconomyCode(query),
     query.productCode,
     cachePartitionKey ?? "",
   ].join("\u0000");
@@ -580,6 +596,36 @@ function isCompletedAnalysis(
   return outcome.state === "success" || outcome.state === "empty";
 }
 
+function validateAnalysisRequest(query: AnalysisQuery): void {
+  if (query.recipe === "candidate-market-v1") {
+    validateCandidateMarketV1Request(query);
+    return;
+  }
+  validateTradeTrendV1Request(query);
+}
+
+function normalizedEconomyCode(query: AnalysisQuery): string {
+  return String(
+    Number(
+      query.recipe === "candidate-market-v1"
+        ? query.exporterCode
+        : query.importerCode,
+    ),
+  );
+}
+
+function analysisResultRows(
+  outcome: Extract<AnalysisResult, { state: "success" | "empty" }>,
+): number {
+  if (outcome.recipe === "candidate-market-v1") {
+    return outcome.payload.candidates.length;
+  }
+  return (
+    outcome.payload.finalizedObservations.length +
+    (outcome.payload.provisionalObservation === null ? 0 : 1)
+  );
+}
+
 function inputBudgetOutcome(
   request: AnalysisQuery,
   policy: AnalysisBudgetPolicy,
@@ -587,7 +633,9 @@ function inputBudgetOutcome(
   const canonicalInputs = [
     request.recipe,
     request.analysisBuildId,
-    request.exporterCode,
+    request.recipe === "candidate-market-v1"
+      ? request.exporterCode
+      : request.importerCode,
     request.productCode,
   ];
   if (
@@ -613,7 +661,7 @@ function resultBudgetOutcome(
   if (!isCompletedAnalysis(outcome)) {
     return outcome;
   }
-  if (outcome.payload.candidates.length > policy.maxResultRows) {
+  if (analysisResultRows(outcome) > policy.maxResultRows) {
     return budgetOutcome(request, "RESULT_ROWS");
   }
   if (serializedBytes(outcome.payload) > policy.maxResultBytes) {
@@ -651,7 +699,7 @@ function analysisDetailsFor(
   "recipeVersion" | "outcomeState" | "rejectionReason"
 > {
   return {
-    recipeVersion: "candidate-market-v1",
+    recipeVersion: outcome.recipe,
     outcomeState: outcome.state,
     rejectionReason: rejectionReasonFor(outcome),
   };
@@ -711,7 +759,7 @@ function rateLimitOutcome(
 function capacityOutcome(
   request: AnalysisQuery,
   error: AnalysisCapacityExceededError,
-): AnalysisOutcome<"candidate-market-v1"> {
+): AnalysisResult {
   return {
     state: "capacity",
     recipe: request.recipe,
@@ -729,7 +777,7 @@ function capacityOutcome(
 function unresolvedOutcome(
   request: AnalysisQuery,
 ): Readonly<{
-  recipe: "candidate-market-v1";
+  recipe: AnalysisRecipe;
   analysisIdentity: null;
   datasetPackageIdentity: null;
   normalizedInputs: null;

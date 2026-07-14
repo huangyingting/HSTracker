@@ -9,6 +9,11 @@ import {
   unknownProduct,
 } from "../domain/candidate-market/errors";
 import type { CandidateMarketV1RecipeInput } from "../domain/candidate-market/result";
+import { unavailableTradeTrendAnalysisBuild } from "../domain/trade-trend/errors";
+import type {
+  TradeTrendV1Inputs,
+  TradeTrendV1RecipeInput,
+} from "../domain/trade-trend/result";
 import type {
   CmsV1Inputs,
   MarketYearEvidence,
@@ -107,6 +112,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     if (this.closed) {
       throw new Error("The DuckDB evidence source is closed.");
     }
+
     if (query.analysisBuildId !== this.analysisBuildId) {
       throw retiredAnalysisBuild(query.analysisBuildId);
     }
@@ -115,6 +121,12 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       (connection) =>
         this.loadWithConnection(connection, query, options?.signal),
     );
+  }
+
+  async loadTradeTrendV1Inputs(
+    query: TradeTrendV1RecipeInput,
+  ): Promise<TradeTrendV1Inputs> {
+    throw unavailableTradeTrendAnalysisBuild(query.analysisBuildId);
   }
 
   private async loadWithConnection(

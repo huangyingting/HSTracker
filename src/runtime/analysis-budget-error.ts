@@ -9,16 +9,17 @@ const ERROR_BRAND = "AnalysisBudgetExceededError";
 export class AnalysisBudgetExceededError extends Error {
   readonly code = "ANALYSIS_BUDGET_EXCEEDED";
   readonly status = 413;
-  readonly publicMessage =
-    "The complete Candidate Market result exceeds its serving budget.";
+  readonly publicMessage: string;
 
   constructor(
     readonly budget: Extract<
       Extract<AnalysisOutcome<"candidate-market-v1">, { state: "budget" }>["error"]["budget"],
       string
     >,
+    analysisName = "Candidate Market",
   ) {
-    super(`Candidate Market analysis exceeded its ${budget} budget.`);
+    super(`${analysisName} analysis exceeded its ${budget} budget.`);
+    this.publicMessage = `The complete ${analysisName} result exceeds its serving budget.`;
     this.name = "AnalysisBudgetExceededError";
     brandCrossBundleError(this, ERROR_BRAND);
   }

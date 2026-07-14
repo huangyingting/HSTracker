@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import {
+  createCandidateMarketV1TradeAnalyticsPlatform,
+  createTradeAnalyticsPlatform,
+} from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createFixtureCandidateMarketDatasetPackages,
   FixtureTradeEvidenceSource,
@@ -9,8 +12,173 @@ import { createFixtureApplicationRuntime } from "../../src/runtime/application-r
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
 import { CORE_CANDIDATE_SUMMARY } from "../../fixtures/acceptance/v1/expected/core-analysis";
+import { TRADE_TREND_ACCEPTANCE_CASES } from "../../fixtures/trade-trend/v1/expected";
+import { createTradeTrendDatasetPackage } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 
 describe("TradeAnalyticsPlatform", () => {
+  it.each(TRADE_TREND_ACCEPTANCE_CASES)(
+    "returns the $name Trade Trend acceptance fixture",
+    async ({ importerCode, productCode, summary, provisional }) => {
+      const outcome =
+        await createFixtureApplicationRuntime().tradeAnalytics.execute({
+          recipe: "trade-trend-v1",
+          analysisBuildId: "acceptance-fixtures-v1",
+          importerCode,
+          productCode,
+        });
+
+      expect(outcome.state).toBe("success");
+      if (outcome.state !== "success") {
+        throw new Error(`Expected success, received ${outcome.state}.`);
+      }
+      expect(outcome.payload.summary).toEqual(
+        expect.objectContaining(summary),
+      );
+      expect(outcome.payload.provisionalObservation).toEqual(provisional);
+    },
+  );
+
+  it("returns the fixture-backed Trade Trend v1 outcome through the closed execute seam", async () => {
+    const outcome =
+      await createFixtureApplicationRuntime().tradeAnalytics.execute({
+        recipe: "trade-trend-v1",
+        analysisBuildId: "acceptance-fixtures-v1",
+        importerCode: "528",
+        productCode: "010121",
+      });
+
+    expect(outcome).toMatchObject({
+      state: "success",
+      recipe: "trade-trend-v1",
+      normalizedInputs: {
+        importerCode: "528",
+        product: { hsRevision: "HS12", code: "010121" },
+      },
+      payload: {
+        schemaVersion: "trade-trend-result-v1",
+        query: {
+          importer: { code: "528", name: "Netherlands" },
+          product: { code: "010121" },
+        },
+        finalizedObservations: [
+          {
+            year: 2019,
+            state: "RECORDED_POSITIVE",
+            valueCurrentUsd: "100000",
+          },
+          {
+            year: 2020,
+            state: "RECORDED_POSITIVE",
+            valueCurrentUsd: "110000",
+          },
+          {
+            year: 2021,
+            state: "RECORDED_POSITIVE",
+            valueCurrentUsd: "120000",
+          },
+          {
+            year: 2022,
+            state: "RECORDED_POSITIVE",
+            valueCurrentUsd: "130000",
+          },
+          {
+            year: 2023,
+            state: "RECORDED_POSITIVE",
+            valueCurrentUsd: "160000",
+          },
+        ],
+        summary: {
+          state: "AVAILABLE",
+          absoluteChangeCurrentUsd: "60000",
+          percentageChangePercent: "60.000000",
+          cagrPercent: "12.468265",
+        },
+        provisionalObservation: {
+          year: 2024,
+          state: "RECORDED_POSITIVE",
+          valueCurrentUsd: "200000",
+        },
+      },
+    });
+    expect(outcome.analysisIdentity).toMatch(
+      /^analysis-identity-v1-[a-f0-9]{64}$/,
+    );
+  });
+
+  it("derives Trade Trend identity only from its recipe, package, and normalized semantic inputs", async () => {
+    const platform = createFixtureApplicationRuntime().tradeAnalytics;
+    const request = {
+      recipe: "trade-trend-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      importerCode: "528",
+      productCode: "010121",
+    } as const;
+
+    const [first, presentationVariant] = await Promise.all([
+      platform.execute(request),
+      platform.execute({
+        ...request,
+        locale: "zh-Hans",
+        executionTime: "2099-01-01T00:00:00Z",
+        cacheState: "miss",
+        requestOrigin: "198.51.100.4",
+      }),
+    ]);
+
+    expect(first.analysisIdentity).toBe(presentationVariant.analysisIdentity);
+    expect(first.normalizedInputs).toEqual({
+      importerCode: "528",
+      product: { hsRevision: "HS12", code: "010121" },
+    });
+  });
+
+  it("changes Trade Trend Analysis Identity when exact package evidence changes", async () => {
+    const request = {
+      recipe: "trade-trend-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      importerCode: "528",
+      productCode: "010121",
+    } as const;
+    const platform = (evidenceSha256: string) =>
+      createTradeAnalyticsPlatform({
+        tradeTrend: {
+          evidenceSource: new FixtureTradeEvidenceSource(),
+          datasetPackages: new Map([
+            [
+              request.analysisBuildId,
+              createTradeTrendDatasetPackage({
+                schemaVersion: "trade-trend-dataset-package-manifest-v1",
+                baciRelease: "V202601",
+                hsRevision: "HS12",
+                finalizedYearCount: 5,
+                evidenceSha256,
+                capabilities: [
+                  {
+                    id: "trade-trend/importer-annual-value",
+                    version: "1",
+                  },
+                  { id: "trade-trend/economy-identity", version: "1" },
+                  { id: "trade-trend/hs-product-identity", version: "1" },
+                ],
+              }),
+            ],
+          ]),
+        },
+      });
+
+    const [first, changed] = await Promise.all([
+      platform("a".repeat(64)).execute(request),
+      platform("b".repeat(64)).execute(request),
+    ]);
+
+    expect(first.state).toBe("success");
+    expect(changed.state).toBe("success");
+    expect(first.analysisIdentity).not.toBe(changed.analysisIdentity);
+    expect(first.datasetPackageIdentity).not.toBe(
+      changed.datasetPackageIdentity,
+    );
+  });
+
   it("returns the accepted 13-market Candidate Market v1 oracle", async () => {
     const outcome =
       await createFixtureApplicationRuntime().tradeAnalytics.execute({

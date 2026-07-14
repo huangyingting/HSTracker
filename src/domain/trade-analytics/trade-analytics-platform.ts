@@ -1,10 +1,19 @@
 import { createHash } from "node:crypto";
 
-import { isCandidateMarketAnalysisError } from "../candidate-market/errors";
+import {
+  isCandidateMarketAnalysisError,
+} from "../candidate-market/errors";
 import type {
   CandidateMarketV1RecipeInput,
   CandidateMarketResult,
 } from "../candidate-market/result";
+import {
+  isTradeTrendAnalysisError,
+} from "../trade-trend/errors";
+import type {
+  TradeTrendResult,
+  TradeTrendV1RecipeInput,
+} from "../trade-trend/result";
 import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
 import type { AnonymousSourceIdentity } from "../../runtime/anonymous-source";
@@ -18,6 +27,14 @@ import {
   type CandidateMarketDatasetPackage,
   type DatasetPackageIdentity,
 } from "./dataset-package";
+import {
+  createTradeTrendV1RecipeExecution,
+} from "./trade-trend-v1-recipe";
+import { validateTradeTrendV1Request } from "./trade-trend-v1-request";
+import {
+  evaluateTradeTrendV1DatasetPackage,
+  type TradeTrendDatasetPackage,
+} from "./trade-trend-v1-dataset-package";
 
 export type { DatasetPackageIdentity } from "./dataset-package";
 
@@ -35,8 +52,23 @@ export type CandidateMarketV1AnalysisRequest = Readonly<{
   productCode: string;
 }>;
 
+export type TradeTrendV1AnalysisRequest = Readonly<{
+  recipe: "trade-trend-v1";
+  analysisBuildId: string;
+  importerCode: string;
+  productCode: string;
+}>;
+
 export type CandidateMarketV1NormalizedInputs = Readonly<{
   exporterCode: string;
+  product: Readonly<{
+    hsRevision: "HS12";
+    code: string;
+  }>;
+}>;
+
+export type TradeTrendV1NormalizedInputs = Readonly<{
+  importerCode: string;
   product: Readonly<{
     hsRevision: "HS12";
     code: string;
@@ -55,8 +87,8 @@ export type AnalysisOperationObservation = Readonly<{
   queueWaitMs: number | null;
   queryMs: number | null;
   resultBytes: number;
-  recipeVersion?: "candidate-market-v1";
-  outcomeState?: AnalysisOutcome<"candidate-market-v1">["state"];
+  recipeVersion?: AnalysisRecipe;
+  outcomeState?: AnalysisOutcome<AnalysisRecipe>["state"];
   rejectionReason?:
     | "INPUT_CARDINALITY"
     | "SCAN"
@@ -78,6 +110,20 @@ type AnalysisRecipeContracts = {
     normalizedInputs: CandidateMarketV1NormalizedInputs;
     payload: CandidateMarketResult;
     emptyReason: "NO_ELIGIBLE_CANDIDATES_IN_SCORE_WINDOW";
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNKNOWN_EXPORTER"; exporterCode: string }>
+      | Readonly<{ code: "UNKNOWN_PRODUCT"; productCode: string }>;
+  };
+  "trade-trend-v1": {
+    request: TradeTrendV1AnalysisRequest;
+    normalizedInputs: TradeTrendV1NormalizedInputs;
+    payload: TradeTrendResult;
+    emptyReason: never;
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNKNOWN_IMPORTER"; importerCode: string }>
+      | Readonly<{ code: "UNKNOWN_PRODUCT"; productCode: string }>;
   };
 };
 
@@ -108,7 +154,7 @@ type UnresolvedAnalysisOutcome<Recipe extends AnalysisRecipe> = Readonly<{
   normalizedInputs: null;
 }>;
 
-export type AnalysisOutcome<Recipe extends AnalysisRecipe> =
+type AnalysisOutcomeFor<Recipe extends AnalysisRecipe> =
   | (CompletedAnalysisOutcome<Recipe> & Readonly<{ state: "success" }>)
   | (CompletedAnalysisOutcome<Recipe> &
       Readonly<{
@@ -118,16 +164,7 @@ export type AnalysisOutcome<Recipe extends AnalysisRecipe> =
   | (UnresolvedAnalysisOutcome<Recipe> &
       Readonly<{
         state: "invalid-input";
-        error:
-          | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
-          | Readonly<{
-              code: "UNKNOWN_EXPORTER";
-              exporterCode: string;
-            }>
-          | Readonly<{
-              code: "UNKNOWN_PRODUCT";
-              productCode: string;
-            }>;
+        error: AnalysisRecipeContracts[Recipe]["invalidError"];
       }>)
   | (UnresolvedAnalysisOutcome<Recipe> &
       Readonly<{
@@ -186,6 +223,9 @@ export type AnalysisOutcome<Recipe extends AnalysisRecipe> =
         error: Readonly<{ code: "ANALYSIS_UNAVAILABLE" }>;
       }>);
 
+export type AnalysisOutcome<Recipe extends AnalysisRecipe> =
+  Recipe extends AnalysisRecipe ? AnalysisOutcomeFor<Recipe> : never;
+
 export interface TradeAnalyticsPlatform {
   execute<Request extends AnalysisRequest>(
     request: Request,
@@ -199,22 +239,31 @@ export type CandidateMarketV1PlatformInput = Readonly<{
   datasetPackages: ReadonlyMap<string, CandidateMarketDatasetPackage>;
 }>;
 
+export type TradeTrendV1PlatformInput = Readonly<{
+  evidenceSource: TradeEvidenceSource;
+  datasetPackages: ReadonlyMap<string, TradeTrendDatasetPackage>;
+}>;
+
+export type TradeAnalyticsPlatformInput = Readonly<{
+  candidateMarket?: CandidateMarketV1PlatformInput;
+  tradeTrend?: TradeTrendV1PlatformInput;
+}>;
+
 export type {
   CandidateMarketV1PreviousReleaseEvidence,
 } from "./candidate-market-v1-recipe";
 
-export function createCandidateMarketV1TradeAnalyticsPlatform({
-  evidenceSource,
-  previousRelease = null,
-  datasetPackages,
-}: CandidateMarketV1PlatformInput): TradeAnalyticsPlatform {
-  return new CandidateMarketTradeAnalyticsPlatform(
-    createCandidateMarketV1RecipeExecution(
-      evidenceSource,
-      previousRelease,
-    ),
-    datasetPackages,
-  );
+export function createCandidateMarketV1TradeAnalyticsPlatform(
+  input: CandidateMarketV1PlatformInput,
+): TradeAnalyticsPlatform {
+  return createTradeAnalyticsPlatform({ candidateMarket: input });
+}
+
+export function createTradeAnalyticsPlatform({
+  candidateMarket,
+  tradeTrend,
+}: TradeAnalyticsPlatformInput): TradeAnalyticsPlatform {
+  return new InternalTradeAnalyticsPlatform(candidateMarket, tradeTrend);
 }
 
 type CandidateMarketExecution = (
@@ -222,18 +271,44 @@ type CandidateMarketExecution = (
   options?: AnalysisExecutionOptions,
 ) => Promise<CandidateMarketResult>;
 
-class CandidateMarketTradeAnalyticsPlatform
-  implements TradeAnalyticsPlatform
-{
-  constructor(
-    private readonly executeCandidateMarket: CandidateMarketExecution,
-    private readonly datasetPackages: ReadonlyMap<
-      string,
-      CandidateMarketDatasetPackage
-    >,
-  ) {}
+type TradeTrendExecution = (
+  request: TradeTrendV1RecipeInput,
+  options?: AnalysisExecutionOptions,
+) => Promise<TradeTrendResult>;
 
-  async execute(
+class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
+  private readonly executeCandidateMarket: CandidateMarketExecution | null;
+  private readonly executeTradeTrend: TradeTrendExecution | null;
+
+  constructor(
+    private readonly candidateMarket: CandidateMarketV1PlatformInput | undefined,
+    private readonly tradeTrend: TradeTrendV1PlatformInput | undefined,
+  ) {
+    this.executeCandidateMarket =
+      candidateMarket === undefined
+        ? null
+        : createCandidateMarketV1RecipeExecution(
+            candidateMarket.evidenceSource,
+            candidateMarket.previousRelease ?? null,
+          );
+    this.executeTradeTrend =
+      tradeTrend === undefined
+        ? null
+        : createTradeTrendV1RecipeExecution(tradeTrend.evidenceSource);
+  }
+
+  async execute<Request extends AnalysisRequest>(
+    request: Request,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<Request["recipe"]>> {
+    const outcome =
+      request.recipe === "candidate-market-v1"
+        ? await this.executeCandidateMarketV1(request, options)
+        : await this.executeTradeTrendV1(request, options);
+    return outcome as AnalysisOutcome<Request["recipe"]>;
+  }
+
+  private async executeCandidateMarketV1(
     request: CandidateMarketV1AnalysisRequest,
     options?: AnalysisExecutionOptions,
   ): Promise<AnalysisOutcome<"candidate-market-v1">> {
@@ -243,13 +318,12 @@ class CandidateMarketTradeAnalyticsPlatform
       if (!isCandidateMarketAnalysisError(error)) {
         throw error;
       }
-
       return expectedCandidateMarketFailure(request, error.code);
     }
-    const datasetPackage = this.datasetPackages.get(
+    const datasetPackage = this.candidateMarket?.datasetPackages.get(
       request.analysisBuildId,
     );
-    if (datasetPackage === undefined) {
+    if (datasetPackage === undefined || this.executeCandidateMarket === null) {
       return expectedCandidateMarketFailure(
         request,
         "ANALYSIS_BUILD_RETIRED",
@@ -260,7 +334,7 @@ class CandidateMarketTradeAnalyticsPlatform
     if (!compatibility.compatible) {
       return {
         state: "incompatible-package",
-        ...unresolvedOutcome(request),
+        ...unresolvedOutcome<"candidate-market-v1">(request),
         error: {
           code: "NO_COMPATIBLE_DATASET_PACKAGE",
           reason: compatibility.reason,
@@ -286,25 +360,14 @@ class CandidateMarketTradeAnalyticsPlatform
       );
     } catch (error) {
       if (isAnalysisCapacityExceededError(error)) {
-        return {
-          state: "capacity",
-          recipe: request.recipe,
-          analysisIdentity: null,
-          datasetPackageIdentity: null,
-          normalizedInputs: null,
-          error: {
-            code: error.code,
-            reason: error.reason,
-            retryAfterSeconds: error.retryAfterSeconds,
-          },
-        };
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
       }
       if (!isCandidateMarketAnalysisError(error)) {
         throw error;
       }
       return expectedCandidateMarketFailure(request, error.code);
     }
-    const completed = completedOutcome(
+    const completed = completedCandidateMarketOutcome(
       request.recipe,
       result,
       datasetPackage.identity,
@@ -320,7 +383,6 @@ class CandidateMarketTradeAnalyticsPlatform
           "Candidate Market empty-result invariants were violated.",
         );
       }
-
       return {
         state: "empty",
         emptyReason: result.emptyReason,
@@ -335,9 +397,72 @@ class CandidateMarketTradeAnalyticsPlatform
         "Candidate Market success-result invariants were violated.",
       );
     }
+    return { state: "success", ...completed };
+  }
+
+  private async executeTradeTrendV1(
+    request: TradeTrendV1AnalysisRequest,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<"trade-trend-v1">> {
+    try {
+      validateTradeTrendV1Request(request);
+    } catch (error) {
+      if (!isTradeTrendAnalysisError(error)) {
+        throw error;
+      }
+      return expectedTradeTrendFailure(request, error.code);
+    }
+    const datasetPackage = this.tradeTrend?.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    if (datasetPackage === undefined || this.executeTradeTrend === null) {
+      return expectedTradeTrendFailure(request, "ANALYSIS_BUILD_RETIRED");
+    }
+    const compatibility = evaluateTradeTrendV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"trade-trend-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const normalizedInputs: TradeTrendV1NormalizedInputs = {
+      importerCode: String(Number(request.importerCode)),
+      product: {
+        hsRevision: "HS12",
+        code: request.productCode,
+      },
+    };
+    let result: TradeTrendResult;
+    try {
+      result = await this.executeTradeTrend(
+        {
+          analysisBuildId: request.analysisBuildId,
+          importerCode: request.importerCode,
+          productCode: request.productCode,
+        },
+        options,
+      );
+    } catch (error) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
+      }
+      if (!isTradeTrendAnalysisError(error)) {
+        throw error;
+      }
+      return expectedTradeTrendFailure(request, error.code);
+    }
     return {
       state: "success",
-      ...completed,
+      ...completedTradeTrendOutcome(
+        request.recipe,
+        result,
+        datasetPackage.identity,
+        normalizedInputs,
+      ),
     };
   }
 }
@@ -351,12 +476,7 @@ function expectedCandidateMarketFailure(
     | "ANALYSIS_BUILD_RETIRED"
     | "ANALYSIS_UNAVAILABLE",
 ): AnalysisOutcome<"candidate-market-v1"> {
-  const unresolved: UnresolvedAnalysisOutcome<"candidate-market-v1"> = {
-    recipe: request.recipe,
-    analysisIdentity: null,
-    datasetPackageIdentity: null,
-    normalizedInputs: null,
-  };
+  const unresolved = unresolvedOutcome<"candidate-market-v1">(request);
   switch (code) {
     case "INVALID_ANALYSIS_QUERY":
       return {
@@ -391,18 +511,78 @@ function expectedCandidateMarketFailure(
   }
 }
 
-function unresolvedOutcome(
-  request: CandidateMarketV1AnalysisRequest,
-): UnresolvedAnalysisOutcome<"candidate-market-v1"> {
+function expectedTradeTrendFailure(
+  request: TradeTrendV1AnalysisRequest,
+  code:
+    | "INVALID_ANALYSIS_QUERY"
+    | "UNKNOWN_IMPORTER"
+    | "UNKNOWN_PRODUCT"
+    | "ANALYSIS_BUILD_RETIRED"
+    | "ANALYSIS_UNAVAILABLE",
+): AnalysisOutcome<"trade-trend-v1"> {
+  const unresolved = unresolvedOutcome<"trade-trend-v1">(request);
+  switch (code) {
+    case "INVALID_ANALYSIS_QUERY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code },
+      };
+    case "UNKNOWN_IMPORTER":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code, importerCode: request.importerCode },
+      };
+    case "UNKNOWN_PRODUCT":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code, productCode: request.productCode },
+      };
+    case "ANALYSIS_BUILD_RETIRED":
+      return {
+        state: "retired",
+        ...unresolved,
+        error: { code, analysisBuildId: request.analysisBuildId },
+      };
+    case "ANALYSIS_UNAVAILABLE":
+      return {
+        state: "temporary-unavailability",
+        ...unresolved,
+        error: { code },
+      };
+  }
+}
+
+function unresolvedOutcome<Recipe extends AnalysisRecipe>(
+  request: AnalysisRequest<Recipe>,
+): UnresolvedAnalysisOutcome<Recipe> {
   return {
-    recipe: request.recipe,
+    recipe: request.recipe as Recipe,
     analysisIdentity: null,
     datasetPackageIdentity: null,
     normalizedInputs: null,
   };
 }
 
-function completedOutcome(
+function capacityOutcome<Recipe extends AnalysisRecipe>(
+  request: AnalysisRequest<Recipe>,
+  reason: "queue-full" | "queue-timeout" | "execution-timeout",
+  retryAfterSeconds: number,
+): AnalysisOutcome<Recipe> {
+  return {
+    state: "capacity",
+    ...unresolvedOutcome(request),
+    error: {
+      code: "ANALYSIS_CAPACITY_EXCEEDED",
+      reason,
+      retryAfterSeconds,
+    },
+  } as AnalysisOutcome<Recipe>;
+}
+
+function completedCandidateMarketOutcome(
   recipe: "candidate-market-v1",
   payload: CandidateMarketResult,
   datasetPackageIdentity: DatasetPackageIdentity,
@@ -421,16 +601,51 @@ function completedOutcome(
   };
 }
 
+function completedTradeTrendOutcome(
+  recipe: "trade-trend-v1",
+  payload: TradeTrendResult,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: TradeTrendV1NormalizedInputs,
+): CompletedAnalysisOutcome<"trade-trend-v1"> {
+  return {
+    recipe,
+    analysisIdentity: analysisIdentityFor(
+      recipe,
+      datasetPackageIdentity,
+      normalizedInputs,
+    ),
+    datasetPackageIdentity,
+    normalizedInputs,
+    payload,
+  };
+}
+
 function analysisIdentityFor(
   recipe: "candidate-market-v1",
   datasetPackageIdentity: DatasetPackageIdentity,
   normalizedInputs: CandidateMarketV1NormalizedInputs,
+): AnalysisIdentity;
+function analysisIdentityFor(
+  recipe: "trade-trend-v1",
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: TradeTrendV1NormalizedInputs,
+): AnalysisIdentity;
+function analysisIdentityFor(
+  recipe: AnalysisRecipe,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs:
+    | CandidateMarketV1NormalizedInputs
+    | TradeTrendV1NormalizedInputs,
 ): AnalysisIdentity {
+  const economyCode =
+    recipe === "candidate-market-v1"
+      ? (normalizedInputs as CandidateMarketV1NormalizedInputs).exporterCode
+      : (normalizedInputs as TradeTrendV1NormalizedInputs).importerCode;
   const canonicalIdentity = JSON.stringify([
     "analysis-identity-v1",
     recipe,
     datasetPackageIdentity,
-    normalizedInputs.exporterCode,
+    economyCode,
     normalizedInputs.product.hsRevision,
     normalizedInputs.product.code,
   ]);

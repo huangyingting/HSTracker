@@ -242,7 +242,7 @@ export class RuntimeMetricRegistry {
       "# HELP hs_tracker_cgroup_cpu_throttled_periods_total Cgroup CPU periods throttled after shared CPU capacity was exhausted.",
       "# TYPE hs_tracker_cgroup_cpu_throttled_periods_total counter",
       `hs_tracker_cgroup_cpu_throttled_periods_total${labels(identityLabels)} ${resources.cpuThrottledPeriods}`,
-      "# HELP hs_tracker_analysis_cache_bytes Candidate Market cache bytes.",
+      "# HELP hs_tracker_analysis_cache_bytes Analytical result cache bytes.",
       "# TYPE hs_tracker_analysis_cache_bytes gauge",
       `hs_tracker_analysis_cache_bytes${labels(identityLabels)} ${metric.resources.caches.analysis.bytes}`,
       "# HELP hs_tracker_search_cache_bytes Search cache bytes.",

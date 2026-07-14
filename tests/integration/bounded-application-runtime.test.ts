@@ -7,6 +7,7 @@ import {
 import type {
   AnalysisExecutionOptions,
   AnalysisOutcome,
+  AnalysisRequest,
   CandidateMarketV1AnalysisRequest,
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
@@ -17,6 +18,12 @@ const query = {
   recipe: "candidate-market-v1" as const,
   analysisBuildId: "acceptance-fixtures-v1",
   exporterCode: "156",
+  productCode: "010121",
+};
+const tradeTrendQuery = {
+  recipe: "trade-trend-v1" as const,
+  analysisBuildId: "acceptance-fixtures-v1",
+  importerCode: "156",
   productCode: "010121",
 };
 const anonymousSourceAdapter = createAnonymousSourceHttpAdapter({
@@ -36,6 +43,35 @@ function anonymousSource(address: string) {
 }
 
 describe("bounded application runtime", () => {
+  it("uses distinct recipe-aware cache and coalescing keys for Trade Trend and Candidate Market", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          request: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          computations += 1;
+          return fixture.tradeAnalytics.execute(request, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner);
+    const cacheStates: string[] = [];
+    const observe = (observation: { cacheState: string }) =>
+      cacheStates.push(observation.cacheState);
+
+    await runtime.tradeAnalytics.execute(query, { observe });
+    await runtime.tradeAnalytics.execute(tradeTrendQuery, { observe });
+    await runtime.tradeAnalytics.execute(query, { observe });
+    await runtime.tradeAnalytics.execute(tradeTrendQuery, { observe });
+
+    expect(computations).toBe(2);
+    expect(cacheStates).toEqual(["miss", "miss", "hit", "hit"]);
+  });
+
   it("reserves the accepted 128-MiB process-cache allocation", () => {
     expect({
       analysis: RUNTIME_RESOURCE_POLICY.analysisCacheMaxBytes,
@@ -740,6 +776,35 @@ describe("bounded application runtime", () => {
     });
   });
 
+  it("measures raw economy input before semantic normalization", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+    );
+
+    await expect(
+      runtime.tradeAnalytics.execute({
+        ...query,
+        exporterCode: "1".repeat(257),
+      }),
+    ).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "INPUT_CARDINALITY",
+      },
+    });
+    expect(computations).toBe(0);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 0,
+      queued: 0,
+    });
+  });
+
   it("charges every source request, including a cache hit, and recovers after refill", async () => {
     const fixture = createFixtureApplicationRuntime();
     let computations = 0;
@@ -1073,7 +1138,19 @@ function runtimeWithExecution(
 ): ApplicationRuntime {
   return {
     ...runtime,
-    tradeAnalytics: { execute },
+    tradeAnalytics: {
+      execute<Request extends AnalysisRequest>(
+        request: Request,
+        options?: AnalysisExecutionOptions,
+      ): Promise<AnalysisOutcome<Request["recipe"]>> {
+        if (request.recipe !== "candidate-market-v1") {
+          return runtime.tradeAnalytics.execute(request, options);
+        }
+        return execute(request, options) as Promise<
+          AnalysisOutcome<Request["recipe"]>
+        >;
+      },
+    },
   };
 }
 

@@ -8,18 +8,27 @@ const copy = {
     hint: "The address bar already carries this exact context — export economy, HS Product, and selected Candidate Market. Copy it to share the same evidence.",
     idle: "Copy analysis link",
     done: "Link copied",
+    trendHint:
+      "The address bar already carries this exact context — importing economy and HS Product. Copy it to share the same evidence.",
   },
   "zh-Hans": {
     kicker: "分享此分析",
     hint: "地址栏已包含当前完整情境——出口经济体、HS 产品与所选候选市场。复制它即可分享相同的证据。",
     idle: "复制分析链接",
     done: "已复制链接",
+    trendHint: "地址栏已包含当前完整情境——进口经济体与 HS 产品。复制它即可分享相同的证据。",
   },
 } as const;
 
 type ShareLocale = keyof typeof copy;
 
-export function AnalysisShareLink({ locale }: { locale: ShareLocale }) {
+export function AnalysisShareLink({
+  locale,
+  task = "candidate-market",
+}: {
+  locale: ShareLocale;
+  task?: "candidate-market" | "trade-trend";
+}) {
   const messages = copy[locale];
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<number | null>(null);
@@ -52,7 +61,9 @@ export function AnalysisShareLink({ locale }: { locale: ShareLocale }) {
     <div className="analysis-share">
       <div>
         <p>{messages.kicker}</p>
-        <span>{messages.hint}</span>
+        <span>
+          {task === "trade-trend" ? messages.trendHint : messages.hint}
+        </span>
       </div>
       <button type="button" data-copied={copied} onClick={copyAnalysisLink}>
         {copied ? messages.done : messages.idle}

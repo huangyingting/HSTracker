@@ -6,10 +6,12 @@ import type {
   ApplicationRuntimeResources,
   RuntimeOperationObservation,
 } from "./application-runtime";
+import type { AnalysisRecipe } from "../domain/trade-analytics/trade-analytics-platform";
 
 export type RuntimeRouteFamily =
   | "candidate-market"
   | "candidate-market-csv"
+  | "trade-trend"
   | "product-search"
   | "economy-search"
   | "current-analysis"
@@ -21,7 +23,7 @@ export type RuntimeRequestMetric = Readonly<{
   synthetic: boolean;
   status: number;
   cacheState: RuntimeOperationObservation["cacheState"] | "bypass";
-  recipeVersion: "candidate-market-v1" | "not-applicable";
+  recipeVersion: AnalysisRecipe | "not-applicable";
   outcomeState:
     | NonNullable<RuntimeOperationObservation["outcomeState"]>
     | "not-applicable";

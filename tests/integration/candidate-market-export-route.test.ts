@@ -7,6 +7,7 @@ import {
 import { GET as getCandidateMarkets } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
 import { resolveCurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
 import type {
+  AnalysisRequest,
   AnalysisOutcome,
   TradeAnalyticsPlatform,
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
@@ -516,8 +517,9 @@ function platformReturning(
   outcome: AnalysisOutcome<"candidate-market-v1">,
 ): TradeAnalyticsPlatform {
   return {
-    async execute() {
-      return outcome;
+    async execute<Request extends AnalysisRequest>(_request: Request) {
+      void _request;
+      return outcome as AnalysisOutcome<Request["recipe"]>;
     },
   };
 }

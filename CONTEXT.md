@@ -76,6 +76,14 @@ _Avoid_: Browser session, user project, hidden account state
 An immutable tabular snapshot of the complete ranked Candidate Market cohort for one export economy and HS Product under explicit analysis, product-catalog, and freshness identities. It carries derived evidence and provenance for follow-up, not raw trade records or company evidence.
 _Avoid_: BACI export, raw-data extract, buyer list
 
+**Trade Trend**:
+A deterministic five-Finalized-Year view of one importing economy's nominal current-USD imports for one HS Product, with recorded positive values, no recorded positive flow, and missing observations kept distinct. It is evidence for investigation, not a forecast.
+_Avoid_: Demand forecast, sales trend, zero-filled time series
+
+**Trade Trend Summary**:
+The first and last recorded-positive observations in a Trade Trend's Finalized Years, their span, exact absolute change, percentage change, and CAGR. It is explicitly unavailable when fewer than two recorded-positive endpoints exist.
+_Avoid_: Neutral growth, inferred zero trend, summary including Provisional Year
+
 **Company Trade Context**:
 Separately sourced and access-controlled evidence about Source Party Mentions, Legal Entities, brands, models, transport documents, or shipment events for a Candidate Market Context. It is not BACI evidence and never changes the Candidate Market Score or Data Confidence.
 _Avoid_: Company-level BACI, customer list, buyer database
