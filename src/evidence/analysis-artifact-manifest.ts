@@ -1,5 +1,14 @@
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
+import {
+  CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+  createCandidateMarketDatasetPackage,
+  parseCandidateMarketDatasetCapabilityDeclaration,
+  type CandidateMarketDatasetCapabilityDeclaration,
+  type CandidateMarketDatasetPackage,
+  type DatasetSourceReconciliationEvidence,
+} from "../domain/trade-analytics/dataset-package";
 import {
   count,
   hs12,
@@ -20,14 +29,25 @@ export type AnalysisArtifactBenchmarkQuery = {
 export type AnalysisArtifactManifest = {
   schemaVersion: "candidate-market-artifact-manifest-v1";
   baciRelease: string;
+  sourceUrl: string;
+  sourceBytes: number;
   sourceSha256: string;
   sourceUpdateDate: string;
+  license: {
+    name: string;
+    url: string;
+  };
+  attribution: string;
   hsRevision: "HS12";
   ingestedYears: number[];
   finalizedYears: number[];
   provisionalYears: number[];
   finalizedCutoffYear: number;
   scoreWindow: { start: number; end: number };
+  stagingManifestSha256: string;
+  coverageApprovalSha256: string;
+  sourceReconciliationEvidence: DatasetSourceReconciliationEvidence;
+  datasetPackage: CandidateMarketDatasetCapabilityDeclaration;
   scoreVersionsSupported: string[];
   artifact: {
     schemaVersion: "candidate-market-artifact-v1";
@@ -39,6 +59,18 @@ export type AnalysisArtifactManifest = {
   builtAt: string;
   benchmarkQueries: AnalysisArtifactBenchmarkQuery[];
 };
+
+const LEGACY_ANNUAL_SOURCE_CHECK_KEYS = [
+  "year",
+  "rowCount",
+  "exporterCount",
+  "importerCount",
+  "observedProductCount",
+  "quantityPresentCount",
+  "quantityNullCount",
+  "valueTotalKusd",
+  "quantityTotalTons",
+];
 
 export async function readAnalysisArtifactManifest(
   path: string,
@@ -61,6 +93,7 @@ export function parseAnalysisArtifactManifest(
     throw new Error("Analysis artifact manifest schema is incompatible.");
   }
   const artifact = record(manifest.artifact, "analysis artifact identity");
+  const license = record(manifest.license, "analysis source license");
   if (
     artifact.schemaVersion !== "candidate-market-artifact-v1" ||
     artifact.relativePath !== "candidate-market.duckdb"
@@ -103,6 +136,33 @@ export function parseAnalysisArtifactManifest(
   if (!scoreVersionsSupported.includes("cms-v1")) {
     throw new Error("Analysis artifact does not support cms-v1.");
   }
+  const hasSourceReport =
+    manifest.sourceReportSha256 !== undefined;
+  const hasCapabilityDeclaration =
+    manifest.datasetPackage !== undefined;
+  if (hasSourceReport !== hasCapabilityDeclaration) {
+    throw new Error(
+      "Analysis artifact Dataset Package evidence is incomplete.",
+    );
+  }
+  const sourceReconciliationEvidence: DatasetSourceReconciliationEvidence =
+    hasSourceReport
+      ? {
+          kind: "SOURCE_REPORT",
+          sha256: sha256String(
+            manifest.sourceReportSha256,
+            "source report SHA-256",
+          ),
+        }
+      : embeddedAnnualSourceChecksEvidence(
+          manifest.annualSourceChecks,
+          ingestedYears,
+        );
+  const datasetPackage = hasCapabilityDeclaration
+    ? parseCandidateMarketDatasetCapabilityDeclaration(
+        manifest.datasetPackage,
+      )
+    : CANDIDATE_MARKET_V1_DATASET_DECLARATION;
   const benchmarkQueries = array(
     manifest.benchmarkQueries,
     "benchmark queries",
@@ -115,17 +175,34 @@ export function parseAnalysisArtifactManifest(
   return {
     schemaVersion: "candidate-market-artifact-manifest-v1",
     baciRelease: string(manifest.baciRelease, "BACI Release"),
+    sourceUrl: absoluteUrl(manifest.sourceUrl, "source URL"),
+    sourceBytes: count(manifest.sourceBytes, "source bytes"),
     sourceSha256: sha256String(manifest.sourceSha256, "source SHA-256"),
     sourceUpdateDate: date(
       manifest.sourceUpdateDate,
       "source update date",
     ),
+    license: {
+      name: string(license.name, "source license name"),
+      url: absoluteUrl(license.url, "source license URL"),
+    },
+    attribution: string(manifest.attribution, "source attribution"),
     hsRevision: hs12(manifest.hsRevision, "HS revision"),
     ingestedYears,
     finalizedYears,
     provisionalYears,
     finalizedCutoffYear,
     scoreWindow,
+    stagingManifestSha256: sha256String(
+      manifest.stagingManifestSha256,
+      "staging manifest SHA-256",
+    ),
+    coverageApprovalSha256: sha256String(
+      manifest.coverageApprovalSha256,
+      "coverage approval SHA-256",
+    ),
+    sourceReconciliationEvidence,
+    datasetPackage,
     scoreVersionsSupported,
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
@@ -140,6 +217,212 @@ export function parseAnalysisArtifactManifest(
     builtAt: utcTimestamp(manifest.builtAt, "artifact builtAt"),
     benchmarkQueries,
   };
+}
+
+export function createCandidateMarketDatasetPackageFromArtifacts(input: {
+  manifest: AnalysisArtifactManifest;
+  analysisReleaseCatalogSha256: string;
+  previousManifest: AnalysisArtifactManifest | null;
+}): CandidateMarketDatasetPackage {
+  const { manifest, previousManifest } = input;
+  const currentEvidence =
+    datasetPackageEvidenceFromArtifactManifest(manifest);
+  return createCandidateMarketDatasetPackage({
+    schemaVersion: "candidate-market-dataset-package-manifest-v1",
+    ...currentEvidence,
+    content: {
+      releaseCatalogSha256: input.analysisReleaseCatalogSha256,
+      ...currentEvidence.content,
+    },
+    physicalObjects: [
+      {
+        role: "ANALYSIS_ARTIFACT",
+        objectId: manifest.artifact.buildId,
+        relativePath: manifest.artifact.relativePath,
+        schemaVersion: manifest.artifact.schemaVersion,
+        bytes: manifest.artifact.bytes,
+        sha256: manifest.artifact.sha256,
+      },
+    ],
+    comparisonEvidence:
+      previousManifest === null
+        ? null
+        : {
+            ...datasetPackageEvidenceFromArtifactManifest(
+              previousManifest,
+            ),
+            physicalObject: {
+              role: "PREVIOUS_ANALYSIS_ARTIFACT",
+              objectId: previousManifest.artifact.buildId,
+              relativePath: `previous/${previousManifest.artifact.relativePath}`,
+              schemaVersion:
+                previousManifest.artifact.schemaVersion,
+              bytes: previousManifest.artifact.bytes,
+              sha256: previousManifest.artifact.sha256,
+            },
+          },
+  });
+}
+
+function datasetPackageEvidenceFromArtifactManifest(
+  manifest: AnalysisArtifactManifest,
+) {
+  return {
+    source: {
+      dataset: "CEPII_BACI",
+      release: manifest.baciRelease,
+      updateDate: manifest.sourceUpdateDate,
+      archive: {
+        url: manifest.sourceUrl,
+        bytes: manifest.sourceBytes,
+        sha256: manifest.sourceSha256,
+      },
+    },
+    packageSchemaVersion: manifest.artifact.schemaVersion,
+    hsRevision: manifest.hsRevision,
+    missingObservationTreatment:
+      manifest.datasetPackage.missingObservationTreatment,
+    coverage: {
+      ingestedYears: {
+        start: manifest.ingestedYears[0]!,
+        end: manifest.ingestedYears.at(-1)!,
+      },
+      finalized: {
+        years: {
+          start: manifest.finalizedYears[0]!,
+          end: manifest.finalizedYears.at(-1)!,
+        },
+        cutoffYear: manifest.finalizedCutoffYear,
+        scoreWindow: manifest.scoreWindow,
+        treatment: manifest.datasetPackage.finalizedTreatment,
+      },
+      provisional: {
+        years: manifest.provisionalYears,
+        treatment: manifest.datasetPackage.provisionalTreatment,
+      },
+    },
+    capabilities: manifest.datasetPackage.capabilities,
+    content: {
+      stagingManifestSha256: manifest.stagingManifestSha256,
+      coverageApprovalSha256: manifest.coverageApprovalSha256,
+      sourceReconciliationEvidence:
+        manifest.sourceReconciliationEvidence,
+    },
+    quality: {
+      status: "accepted",
+      evidence: [
+        {
+          kind: manifest.sourceReconciliationEvidence.kind,
+          sha256: manifest.sourceReconciliationEvidence.sha256,
+        },
+        {
+          kind: "COVERAGE_APPROVAL",
+          sha256: manifest.coverageApprovalSha256,
+        },
+      ],
+    },
+    attribution: {
+      statement: manifest.attribution,
+      license: manifest.license,
+    },
+  };
+}
+
+function embeddedAnnualSourceChecksEvidence(
+  value: unknown,
+  ingestedYears: readonly number[],
+): DatasetSourceReconciliationEvidence {
+  const values = array(value, "annual source checks");
+  if (values.length !== ingestedYears.length) {
+    throw new Error(
+      "Legacy analysis artifact must contain one annual source check per ingested year.",
+    );
+  }
+  const checks = values.map((value, index) =>
+    parseLegacyAnnualSourceCheck(
+      value,
+      ingestedYears[index]!,
+      index,
+    ),
+  );
+  const bytes = `${JSON.stringify(checks, null, 2)}\n`;
+  return {
+    kind: "EMBEDDED_ANNUAL_SOURCE_CHECKS",
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+function parseLegacyAnnualSourceCheck(
+  value: unknown,
+  expectedYear: number,
+  index: number,
+) {
+  const label = `legacy annual source check ${index}`;
+  const check = record(value, label);
+  const keys = Object.keys(check);
+  if (
+    keys.length !== LEGACY_ANNUAL_SOURCE_CHECK_KEYS.length ||
+    keys.some(
+      (key) => !LEGACY_ANNUAL_SOURCE_CHECK_KEYS.includes(key),
+    )
+  ) {
+    throw new Error(`${label} has an invalid object shape.`);
+  }
+  const parsed = {
+    year: year(check.year, `${label} year`),
+    rowCount: count(check.rowCount, `${label} row count`),
+    exporterCount: count(
+      check.exporterCount,
+      `${label} exporter count`,
+    ),
+    importerCount: count(
+      check.importerCount,
+      `${label} importer count`,
+    ),
+    observedProductCount: count(
+      check.observedProductCount,
+      `${label} observed product count`,
+    ),
+    quantityPresentCount: count(
+      check.quantityPresentCount,
+      `${label} quantity-present count`,
+    ),
+    quantityNullCount: count(
+      check.quantityNullCount,
+      `${label} quantity-null count`,
+    ),
+    valueTotalKusd: fixed3(
+      check.valueTotalKusd,
+      `${label} value total`,
+    ),
+    quantityTotalTons: fixed3(
+      check.quantityTotalTons,
+      `${label} quantity total`,
+    ),
+  };
+  if (parsed.year !== expectedYear) {
+    throw new Error(
+      `${label} must align with ingested year ${expectedYear}.`,
+    );
+  }
+  if (
+    parsed.quantityPresentCount + parsed.quantityNullCount !==
+      parsed.rowCount ||
+    parsed.exporterCount > parsed.rowCount ||
+    parsed.importerCount > parsed.rowCount ||
+    parsed.observedProductCount > parsed.rowCount
+  ) {
+    throw new Error(`${label} counts are inconsistent.`);
+  }
+  return parsed;
+}
+
+function fixed3(value: unknown, label: string): string {
+  const candidate = string(value, label);
+  if (!/^\d+\.\d{3}$/u.test(candidate)) {
+    throw new Error(`${label} must have exactly three decimal places.`);
+  }
+  return candidate;
 }
 
 function parseBenchmarkQuery(
@@ -230,6 +513,21 @@ function date(value: unknown, label: string): string {
     instant.toISOString().slice(0, 10) !== candidate
   ) {
     throw new Error(`${label} must be an ISO date.`);
+  }
+
+  return candidate;
+}
+
+function absoluteUrl(value: unknown, label: string): string {
+  const candidate = string(value, label);
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error(`${label} must be an absolute URL.`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`${label} must use HTTP or HTTPS.`);
   }
   return candidate;
 }

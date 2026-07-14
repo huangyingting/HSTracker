@@ -237,9 +237,17 @@ export function createBoundedApplicationRuntime(
     );
   }
 
-  const tradeAnalytics = new CandidateMarketTradeAnalyticsPlatform(
-    analyze,
-  );
+  if (
+    !(
+      inner.tradeAnalytics instanceof
+      CandidateMarketTradeAnalyticsPlatform
+    )
+  ) {
+    throw new TypeError(
+      "Bounded runtime requires the Candidate Market platform implementation.",
+    );
+  }
+  const tradeAnalytics = inner.tradeAnalytics.withExecution(analyze);
 
   return {
     tradeAnalytics,

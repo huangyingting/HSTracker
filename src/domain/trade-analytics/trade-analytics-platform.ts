@@ -1,23 +1,25 @@
 import { createHash } from "node:crypto";
 
+import { validateCandidateMarketAnalysisQuery } from "../candidate-market/analyze-candidate-markets";
 import { isCandidateMarketAnalysisError } from "../candidate-market/errors";
 import type {
   CandidateMarketAnalysisQuery,
   CandidateMarketResult,
 } from "../candidate-market/result";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
+import {
+  evaluateCandidateMarketV1DatasetPackage,
+  type CandidateMarketDatasetPackage,
+  type DatasetPackageIdentity,
+} from "./dataset-package";
+
+export type { DatasetPackageIdentity } from "./dataset-package";
 
 declare const analysisIdentityBrand: unique symbol;
-declare const datasetPackageIdentityBrand: unique symbol;
 
 export type AnalysisIdentity =
   `analysis-identity-v1-${string}` & {
     readonly [analysisIdentityBrand]: true;
-  };
-
-export type DatasetPackageIdentity =
-  `dataset-package-v1-${string}` & {
-    readonly [datasetPackageIdentityBrand]: true;
   };
 
 export type CandidateMarketV1AnalysisRequest = Readonly<{
@@ -179,12 +181,65 @@ export class CandidateMarketTradeAnalyticsPlatform
 {
   constructor(
     private readonly executeCandidateMarket: CandidateMarketExecution,
+    private readonly datasetPackages: ReadonlyMap<
+      string,
+      CandidateMarketDatasetPackage
+    >,
   ) {}
+
+  withExecution(
+    executeCandidateMarket: CandidateMarketExecution,
+  ): CandidateMarketTradeAnalyticsPlatform {
+    return new CandidateMarketTradeAnalyticsPlatform(
+      executeCandidateMarket,
+      this.datasetPackages,
+    );
+  }
 
   async execute(
     request: CandidateMarketV1AnalysisRequest,
     options?: AnalysisExecutionOptions,
   ): Promise<AnalysisOutcome<"candidate-market-v1">> {
+    try {
+      validateCandidateMarketAnalysisQuery({
+        analysisBuildId: request.analysisBuildId,
+        exporterCode: request.exporterCode,
+        productCode: request.productCode,
+      });
+    } catch (error) {
+      if (!isCandidateMarketAnalysisError(error)) {
+        throw error;
+      }
+      return expectedCandidateMarketFailure(request, error.code);
+    }
+    const datasetPackage = this.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    if (datasetPackage === undefined) {
+      return expectedCandidateMarketFailure(
+        request,
+        "ANALYSIS_BUILD_RETIRED",
+      );
+    }
+    const compatibility =
+      evaluateCandidateMarketV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const normalizedInputs: CandidateMarketV1NormalizedInputs = {
+      exporterCode: String(Number(request.exporterCode)),
+      product: {
+        hsRevision: "HS12",
+        code: request.productCode,
+      },
+    };
     let result: CandidateMarketResult;
     try {
       result = await this.executeCandidateMarket(
@@ -215,7 +270,12 @@ export class CandidateMarketTradeAnalyticsPlatform
       }
       return expectedCandidateMarketFailure(request, error.code);
     }
-    const completed = completedOutcome(request.recipe, result);
+    const completed = completedOutcome(
+      request.recipe,
+      result,
+      datasetPackage.identity,
+      normalizedInputs,
+    );
     if (result.cohortSize === 0) {
       if (
         result.emptyReason !==
@@ -297,18 +357,23 @@ function expectedCandidateMarketFailure(
   }
 }
 
+function unresolvedOutcome(
+  request: CandidateMarketV1AnalysisRequest,
+): UnresolvedAnalysisOutcome<"candidate-market-v1"> {
+  return {
+    recipe: request.recipe,
+    analysisIdentity: null,
+    datasetPackageIdentity: null,
+    normalizedInputs: null,
+  };
+}
+
 function completedOutcome(
   recipe: "candidate-market-v1",
   payload: CandidateMarketResult,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: CandidateMarketV1NormalizedInputs,
 ): CompletedAnalysisOutcome<"candidate-market-v1"> {
-  const datasetPackageIdentity = datasetPackageIdentityFor(payload);
-  const normalizedInputs: CandidateMarketV1NormalizedInputs = {
-    exporterCode: payload.query.exporter.code,
-    product: {
-      hsRevision: payload.query.product.hsRevision,
-      code: payload.query.product.code,
-    },
-  };
   return {
     recipe,
     analysisIdentity: analysisIdentityFor(
@@ -320,49 +385,6 @@ function completedOutcome(
     normalizedInputs,
     payload,
   };
-}
-
-function datasetPackageIdentityFor(
-  payload: CandidateMarketResult,
-): DatasetPackageIdentity {
-  const releaseCatalogSha256 =
-    payload.analysisReleaseCatalogSha256;
-  const artifactSha256 = payload.provenance.artifactSha256;
-  if (
-    !/^[a-f0-9]{64}$/u.test(releaseCatalogSha256) ||
-    !/^[a-f0-9]{64}$/u.test(artifactSha256)
-  ) {
-    throw new TypeError(
-      "Candidate Market result has an invalid Dataset Package identity.",
-    );
-  }
-  const provenance = payload.provenance;
-  const revision = payload.releaseRevisionSummary;
-  const canonicalIdentity = JSON.stringify([
-    "dataset-package-identity-v1",
-    releaseCatalogSha256,
-    artifactSha256,
-    provenance.artifactSchemaVersion,
-    provenance.artifactBuildId,
-    provenance.baciRelease,
-    provenance.sourceUpdateDate,
-    provenance.hsRevision,
-    provenance.ingestedYears.start,
-    provenance.ingestedYears.end,
-    provenance.finalizedCutoffYear,
-    provenance.scoreWindow.start,
-    provenance.scoreWindow.end,
-    provenance.provisionalYear,
-    provenance.scoreVersion,
-    provenance.valueUnit,
-    revision.comparisonRelease,
-    revision.previousArtifactSha256,
-    revision.notComparedReason,
-  ]);
-  const digest = createHash("sha256")
-    .update(canonicalIdentity)
-    .digest("hex");
-  return `dataset-package-v1-${digest}` as DatasetPackageIdentity;
 }
 
 function analysisIdentityFor(

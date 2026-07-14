@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
 import { CandidateMarketTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
-import { FixtureTradeEvidenceSource } from "../../src/evidence/fixture-trade-evidence-source";
+import {
+  createFixtureCandidateMarketDatasetPackages,
+  FixtureTradeEvidenceSource,
+} from "../../src/evidence/fixture-trade-evidence-source";
 import { createFixtureApplicationRuntime } from "../../src/runtime/application-runtime";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
@@ -137,6 +140,11 @@ describe("TradeAnalyticsPlatform", () => {
     );
     const platform = new CandidateMarketTradeAnalyticsPlatform(
       analysis.analyze.bind(analysis),
+      createFixtureCandidateMarketDatasetPackages(
+        new Map([
+          [CORE_CURRENT_INPUT.analysisBuildId, previousInput],
+        ]),
+      ),
     );
 
     const outcome = await platform.execute({
@@ -434,11 +442,11 @@ describe("TradeAnalyticsPlatform", () => {
     );
 
     expect(first.analysisIdentity).toBe(
-      "analysis-identity-v1-c2581f2f118f78be998a7f581f2851844ba3d385bff7b5cd8f51bce00882ebbd",
+      "analysis-identity-v1-9b0b1f1b6bef89cda3060c0242de91d2b9dc8f6e541a77ce17779b688e60125d",
     );
     expect(second.analysisIdentity).toBe(first.analysisIdentity);
     expect(first.datasetPackageIdentity).toBe(
-      "dataset-package-v1-70d25bce90ecc0400de7984e72b78ed34477e9aa55a5eca7cf767730d1519cb8",
+      "dataset-package-v1-e213940cbd10bc1028dee1dbae426387fd6472a6561ee5ff834e1693210b2ef4",
     );
     expect(first.normalizedInputs).toEqual({
       exporterCode: "156",

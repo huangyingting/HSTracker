@@ -4,6 +4,10 @@ import { join, resolve } from "node:path";
 
 import { DuckDBInstance } from "@duckdb/node-api";
 
+import {
+  CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+  type CandidateMarketDatasetCapabilityDeclaration,
+} from "../../src/domain/trade-analytics/dataset-package";
 import { releaseJsonBytes } from "../../src/release/release-manifest";
 import { releaseObjectIdentity } from "../../src/release/release-object-store";
 
@@ -27,6 +31,8 @@ export async function writeRuntimeReleaseCandidate(
     valueOffset?: number;
     finalizedCutoffYear?: number;
     benchmarkCandidateCount?: number;
+    datasetPackage?: CandidateMarketDatasetCapabilityDeclaration;
+    legacyDatasetPackageManifest?: boolean;
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -46,16 +52,17 @@ export async function writeRuntimeReleaseCandidate(
   const baciRelease = options.baciRelease ?? BACI_RELEASE;
   const finalizedCutoffYear =
     options.finalizedCutoffYear ?? 2023;
+  const valueOffset = options.valueOffset ?? 0;
   const ingestedYears = Array.from(
-    { length: 6 },
-    (_, index) => finalizedCutoffYear - 4 + index,
+    { length: 11 },
+    (_, index) => finalizedCutoffYear - 9 + index,
   );
   const finalizedYears = ingestedYears.slice(0, -1);
   const provisionalYear = ingestedYears.at(-1)!;
   await writeRuntimeDuckDb(
     artifactPath,
     baciRelease,
-    options.valueOffset ?? 0,
+    valueOffset,
     finalizedCutoffYear,
   );
   const artifactBytes = await readFile(artifactPath);
@@ -65,8 +72,15 @@ export async function writeRuntimeReleaseCandidate(
   const artifactManifest = {
     schemaVersion: "candidate-market-artifact-manifest-v1",
     baciRelease,
+    sourceUrl: `https://fixtures.invalid/${baciRelease}.zip`,
+    sourceBytes: 0,
     sourceSha256: SOURCE_SHA256,
     sourceUpdateDate: "2026-01-22",
+    license: {
+      name: "Test fixture",
+      url: "https://fixtures.invalid/license",
+    },
+    attribution: "Runtime fixture with CEPII BACI semantics.",
     hsRevision: "HS12",
     ingestedYears,
     finalizedYears,
@@ -76,6 +90,27 @@ export async function writeRuntimeReleaseCandidate(
       start: finalizedCutoffYear - 4,
       end: finalizedCutoffYear,
     },
+    annualSourceChecks: ingestedYears.map((year, index) => ({
+      year,
+      rowCount: 1,
+      exporterCount: 1,
+      importerCount: 1,
+      observedProductCount: 1,
+      quantityPresentCount: 1,
+      quantityNullCount: 0,
+      valueTotalKusd: `${100 + valueOffset + index * 10}.000`,
+      quantityTotalTons: "1.000",
+    })),
+    stagingManifestSha256: SOURCE_SHA256,
+    coverageApprovalSha256: SOURCE_SHA256,
+    ...(options.legacyDatasetPackageManifest === true
+      ? {}
+      : {
+          sourceReportSha256: SOURCE_SHA256,
+          datasetPackage:
+            options.datasetPackage ??
+            CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+        }),
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
@@ -89,7 +124,7 @@ export async function writeRuntimeReleaseCandidate(
         role: "maximum-row",
         productCode: PRODUCT_CODE,
         exporterCode: "156",
-        completeRowCount: 6,
+        completeRowCount: 11,
         primaryWindowRowCount: 5,
         candidateCount: options.benchmarkCandidateCount ?? 1,
         resultBytes: 1,
@@ -207,8 +242,8 @@ async function writeRuntimeDuckDb(
         (276, 'Germany', 'DE', 'DEU', 'ECONOMY', FALSE, NULL, TRUE)
     `);
     const ingestedYears = Array.from(
-      { length: 6 },
-      (_, index) => finalizedCutoffYear - 4 + index,
+      { length: 11 },
+      (_, index) => finalizedCutoffYear - 9 + index,
     );
     for (const [index, year] of ingestedYears.entries()) {
       const value = `${100 + valueOffset + index * 10}.000`;

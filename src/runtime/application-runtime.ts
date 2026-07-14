@@ -10,7 +10,10 @@ import {
 } from "../domain/trade-analytics/trade-analytics-platform";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import { createFixtureEconomyDirectory } from "../economy/fixture-economy-directory";
-import { createFixtureCandidateMarketAnalysis } from "../evidence/fixture-trade-evidence-source";
+import {
+  createFixtureCandidateMarketAnalysis,
+  createFixtureCandidateMarketDatasetPackages,
+} from "../evidence/fixture-trade-evidence-source";
 import {
   FIXTURE_CURRENT_AS_OF,
   resolveFixtureCurrentAnalysisManifest,
@@ -126,6 +129,7 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
   return {
     tradeAnalytics: new CandidateMarketTradeAnalyticsPlatform(
       analysis.analyze.bind(analysis),
+      createFixtureCandidateMarketDatasetPackages(),
     ),
     currentAnalysis: resolveFixtureCurrentAnalysisManifest,
     currentAnalysisSnapshot() {

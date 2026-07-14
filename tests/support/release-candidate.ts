@@ -4,6 +4,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 
+import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
 import { releaseJsonBytes } from "../../src/release/release-manifest";
 import { releaseObjectIdentity } from "../../src/release/release-object-store";
 
@@ -37,13 +38,36 @@ export async function writeAcceptedReleaseCandidate(
     `fixture DuckDB artifact ${options.analysisArtifactVersion ?? "v1"}`,
     "utf8",
   );
+  const baciRelease = options.baciRelease ?? "VTEST001";
   const analysisArtifactIdentity = releaseObjectIdentity(analysisArtifact);
   const analysisManifest = {
     schemaVersion: "candidate-market-artifact-manifest-v1",
-    baciRelease: options.baciRelease ?? "VTEST001",
+    baciRelease,
+    sourceUrl: `https://fixtures.invalid/${baciRelease}.zip`,
+    sourceBytes: 0,
     sourceSha256: options.sourceSha256 ?? "a".repeat(64),
     sourceUpdateDate: options.sourceUpdateDate ?? "2026-01-22",
+    license: {
+      name: "Test fixture",
+      url: "https://fixtures.invalid/license",
+    },
+    attribution: "Release fixture with CEPII BACI semantics.",
     hsRevision: "HS12",
+    ingestedYears: [
+      2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
+      2023, 2024,
+    ],
+    finalizedYears: [
+      2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
+      2023,
+    ],
+    provisionalYears: [2024],
+    finalizedCutoffYear: 2023,
+    scoreWindow: { start: 2019, end: 2023 },
+    stagingManifestSha256: "b".repeat(64),
+    coverageApprovalSha256: "c".repeat(64),
+    sourceReportSha256: "d".repeat(64),
+    datasetPackage: CANDIDATE_MARKET_V1_DATASET_DECLARATION,
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
@@ -72,7 +96,7 @@ export async function writeAcceptedReleaseCandidate(
   const productCatalogIdentity = releaseObjectIdentity(productCatalog);
   const catalogManifest = {
     schemaVersion: "product-catalog-manifest-v1",
-    baciRelease: options.baciRelease ?? "VTEST001",
+    baciRelease,
     sourceArchiveSha256:
       options.productSourceArchiveSha256 ??
       options.sourceSha256 ??

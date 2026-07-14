@@ -19,6 +19,7 @@ import {
 } from "@duckdb/node-api";
 
 import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
+import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
 import { DuckDbTradeEvidenceSource } from "../../src/evidence/duckdb-trade-evidence-source";
 
 const ARTIFACT_SCHEMA_VERSION = "candidate-market-artifact-v1";
@@ -299,6 +300,8 @@ export async function buildAnalysisArtifact(
     annualSourceChecks: sourceReport.annualChecks,
     stagingManifestSha256: sha256(stagingManifestBytes),
     coverageApprovalSha256: stagingManifest.coverageApprovalSha256,
+    sourceReportSha256: sha256(sourceReportBytes),
+    datasetPackage: CANDIDATE_MARKET_V1_DATASET_DECLARATION,
     pipelineGitSha: options.pipelineGitSha,
     duckdbVersion,
     artifact: {

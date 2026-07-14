@@ -8,6 +8,10 @@ import {
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
 import {
+  evaluateCandidateMarketV1DatasetPackage,
+  type CandidateMarketDatasetPackage,
+} from "../domain/trade-analytics/dataset-package";
+import {
   CandidateMarketTradeAnalyticsPlatform,
   type TradeAnalyticsPlatform,
 } from "../domain/trade-analytics/trade-analytics-platform";
@@ -19,6 +23,7 @@ import {
 import { DuckDbEconomyDirectory } from "../economy/duckdb-economy-directory";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import {
+  createCandidateMarketDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
@@ -62,9 +67,11 @@ export class VerifiedReleaseRuntime {
     private readonly productCatalog: ProductCatalog,
     private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
+    datasetPackage: CandidateMarketDatasetPackage,
   ) {
     this.tradeAnalytics = new CandidateMarketTradeAnalyticsPlatform(
       analysis.analyze.bind(analysis),
+      new Map([[deployment.analysisBuildId, datasetPackage]]),
     );
     this.retainedSourceStatuses.set(
       sourceStatus.sourceStatusSnapshotId,
@@ -104,7 +111,16 @@ export class VerifiedReleaseRuntime {
       previousManifest,
       catalogManifest,
     );
-
+    const datasetPackage =
+      createCandidateMarketDatasetPackageFromArtifacts({
+        manifest,
+        analysisReleaseCatalogSha256:
+          hydrated.deployment.analysisReleaseCatalogSha256,
+        previousManifest,
+      });
+    const runAnalyticalSmoke =
+      evaluateCandidateMarketV1DatasetPackage(datasetPackage)
+        .compatible;
     let analysisDatabase: DuckDbAnalysisDatabase | undefined;
     try {
       analysisDatabase = await DuckDbAnalysisDatabase.open({
@@ -147,6 +163,7 @@ export class VerifiedReleaseRuntime {
         analysis,
         productCatalog,
         economyDirectory,
+        runAnalyticalSmoke,
       );
       const deployment = currentAnalysisDeployment(
         hydrated,
@@ -167,6 +184,7 @@ export class VerifiedReleaseRuntime {
         productCatalog,
         economyDirectory,
         input.now ?? currentUtcSecond,
+        datasetPackage,
       );
     } catch (error) {
       analysisDatabase?.close();
@@ -518,6 +536,7 @@ async function verifyStartupSmoke(
   analysis: CandidateMarketAnalysis,
   productCatalog: ProductCatalog,
   economyDirectory: EconomyDirectory,
+  runAnalyticalSmoke: boolean,
 ): Promise<void> {
   const benchmarks = manifest.benchmarkQueries.filter(
     ({ role }) => role === "maximum-row",
@@ -528,12 +547,15 @@ async function verifyStartupSmoke(
     );
   }
   const benchmark = benchmarks[0]!;
+  const analysisResultPromise = runAnalyticalSmoke
+    ? analysis.analyze({
+        analysisBuildId: hydrated.deployment.analysisBuildId,
+        exporterCode: benchmark.exporterCode,
+        productCode: benchmark.productCode,
+      })
+    : Promise.resolve(null);
   const [analysisResult, productResult, economyResult] = await Promise.all([
-    analysis.analyze({
-      analysisBuildId: hydrated.deployment.analysisBuildId,
-      exporterCode: benchmark.exporterCode,
-      productCode: benchmark.productCode,
-    }),
+    analysisResultPromise,
     productCatalog.search({
       productSearchBuildId:
         hydrated.deployment.productSearchBuildId,
@@ -548,11 +570,12 @@ async function verifyStartupSmoke(
     }),
   ]);
   if (
-    analysisResult.cohortSize !== benchmark.candidateCount ||
-    analysisResult.provenance.baciRelease !==
-      hydrated.deployment.baciRelease ||
-    analysisResult.analysisReleaseCatalogSha256 !==
-      hydrated.deployment.analysisReleaseCatalogSha256 ||
+    (analysisResult !== null &&
+      (analysisResult.cohortSize !== benchmark.candidateCount ||
+        analysisResult.provenance.baciRelease !==
+          hydrated.deployment.baciRelease ||
+        analysisResult.analysisReleaseCatalogSha256 !==
+          hydrated.deployment.analysisReleaseCatalogSha256)) ||
     productResult.productSearchBuildId !==
       hydrated.deployment.productSearchBuildId ||
     productResult.matches[0]?.product.code !== benchmark.productCode ||

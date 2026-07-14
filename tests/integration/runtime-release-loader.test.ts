@@ -9,6 +9,10 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  CANDIDATE_MARKET_V1_CAPABILITY_REQUIREMENTS,
+  CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+} from "../../src/domain/trade-analytics/dataset-package";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import type {
   ReleaseObject,
@@ -109,6 +113,84 @@ describe("verified release runtime", () => {
         memoryLimit: "1GiB",
         tempDirectory: join(root, "volume", "spill"),
         maxTempDirectorySize: "4GiB",
+      },
+    });
+  }, 20_000);
+
+  it("skips analytical startup smoke and returns typed package incompatibility", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const failingAnalyticalSmokeOracle = 999;
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+      {
+        benchmarkCandidateCount: failingAnalyticalSmokeOracle,
+        datasetPackage: {
+          ...CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+          capabilities:
+            CANDIDATE_MARKET_V1_CAPABILITY_REQUIREMENTS.slice(1),
+        },
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: published.analysisBuildId,
+      exporterCode: "156",
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+
+    expect(outcome).toMatchObject({
+      state: "incompatible-package",
+      error: {
+        code: "NO_COMPATIBLE_DATASET_PACKAGE",
+        reason: "MISSING_REQUIRED_CAPABILITY",
+      },
+    });
+  }, 20_000);
+
+  it("normalizes and serves an accepted legacy cms-v1 artifact manifest", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+      { legacyDatasetPackageManifest: true },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: published.analysisBuildId,
+      exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+
+    expect(outcome).toMatchObject({
+      state: "success",
+      payload: {
+        schemaVersion: "candidate-market-result-v1",
+        cohortSize: 1,
       },
     });
   }, 20_000);
@@ -675,11 +757,16 @@ describe("verified release runtime", () => {
       now: () => "2026-07-12T02:00:00Z",
     });
     runtimes.push(runtime);
-    const result = await runtime.analyze({
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
       analysisBuildId: published.analysisBuildId,
       exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
       productCode: RUNTIME_RELEASE_FIXTURE.productCode,
     });
+    if (outcome.state !== "success") {
+      throw new Error(`Expected success, received ${outcome.state}.`);
+    }
+    const result = outcome.payload;
 
     expect({
       previousHealth: runtime.health("runtime-test-build")
