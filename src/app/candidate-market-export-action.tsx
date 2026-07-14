@@ -186,6 +186,17 @@ export function CandidateMarketExportAction({
         disabled={busy}
         onClick={() => void beginExport()}
       >
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+        </svg>
         {messages.buttonVisible}
       </button>
       {status !== "idle" ? (

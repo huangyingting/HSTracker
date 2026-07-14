@@ -7,6 +7,7 @@ import { DiscoveryWorkspace } from "./discovery-workspace";
 
 const copy = {
   en: {
+    skipToContent: "Skip to the analysis workspace",
     brandTagline: "Public trade intelligence",
     publicWorkspace: "Public workspace",
     eyebrow: "Public merchandise-trade evidence",
@@ -42,6 +43,7 @@ const copy = {
     footer: "Public data · Clear provenance · No company records",
   },
   "zh-Hans": {
+    skipToContent: "跳转到分析工作区",
     brandTagline: "公共贸易洞察",
     publicWorkspace: "公共工作区",
     eyebrow: "公共商品贸易证据",
@@ -91,6 +93,9 @@ export default function Home() {
 
   return (
     <main className="site-shell">
+      <a className="skip-link" href="#discovery">
+        {messages.skipToContent}
+      </a>
       <header className="topbar">
         <Link className="brand" href="/" aria-label="HS Tracker home">
           <span className="brand-mark" aria-hidden="true">

@@ -3,9 +3,11 @@
   --ink-deep: #0a201b;
   --paper: #eaefec;
   --paper-light: #ffffff;
-  --accent: #f2542d;
-  --accent-strong: #d8431f;
+  --accent: #bf3d1e;
+  --accent-strong: #a83214;
+  --accent-glow: #f2542d;
   --signal: #17a34a;
+  --signal-text: #0f7a37;
   --signal-soft: #8fd39a;
   --line: rgba(18, 49, 42, 0.12);
   --line-strong: rgba(18, 49, 42, 0.22);
@@ -20,7 +22,8 @@
   --shadow-sm: 0 1px 2px rgba(16, 40, 34, 0.05), 0 2px 6px rgba(16, 40, 34, 0.06);
   --shadow-md: 0 12px 32px -16px rgba(16, 40, 34, 0.28);
   --shadow-lg: 0 34px 70px -30px rgba(16, 40, 34, 0.42);
-  --ring: 0 0 0 3px rgba(242, 84, 45, 0.3);
+  --focus: 2px solid var(--accent);
+  --ring: 0 0 0 3px rgba(191, 61, 30, 0.32);
   --font-display: "Fraunces", "Noto Serif SC", Georgia, "Times New Roman",
     serif;
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
@@ -61,6 +64,36 @@ body {
 
 a {
   color: inherit;
+}
+
+/* Consistent, high-contrast keyboard focus for every interactive element.
+   :where() keeps this at zero specificity so component rules can refine it. */
+:where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 100;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(calc(-100% - 20px));
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .site-shell {
@@ -434,6 +467,11 @@ a {
   border-top: 1px solid var(--line);
 }
 
+.analysis-workspace:focus,
+.analysis-workspace:focus-visible {
+  outline: none;
+}
+
 .workspace-intro {
   max-width: 760px;
   margin-bottom: 32px;
@@ -599,9 +637,13 @@ a {
 .analyze-button {
   min-height: 58px;
   padding: 0 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   border: 0;
   border-radius: var(--radius);
-  background: linear-gradient(160deg, #f2542d 0%, #d8431f 100%);
+  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: #fff;
   cursor: pointer;
   font: inherit;
@@ -609,13 +651,24 @@ a {
   font-weight: 800;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  box-shadow: 0 10px 24px -12px rgba(216, 67, 31, 0.75);
+  box-shadow: 0 10px 24px -12px rgba(168, 50, 20, 0.7);
   transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.analyze-button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 
 .analyze-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 16px 30px -12px rgba(216, 67, 31, 0.8);
+  box-shadow: 0 16px 30px -12px rgba(168, 50, 20, 0.78);
+}
+
+.analyze-button:hover:not(:disabled) svg {
+  transform: translateX(2px);
+  transition: transform 0.16s ease;
 }
 
 .analyze-button:disabled {
@@ -625,10 +678,24 @@ a {
 }
 
 .analyze-button:focus-visible,
-.analysis-state button:focus-visible,
-.candidate-ranking button:focus-visible {
+.analysis-state button:focus-visible {
   outline: none;
   box-shadow: var(--ring);
+}
+
+/* These buttons live inside overflow-clipped cards, so an inset outline is
+   used to keep the focus indicator fully visible (a glow ring would clip). */
+.candidate-ranking button:focus-visible,
+.evidence-actions button:focus-visible,
+.candidate-comparison button:focus-visible,
+.source-scope-summary button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.candidate-ranking button[aria-pressed="true"]:focus-visible,
+.source-scope-summary button:focus-visible {
+  outline-color: #ffb59c;
 }
 
 .analysis-state {
@@ -937,6 +1004,10 @@ a {
 .candidate-export > button {
   min-height: 44px;
   padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   border: 0;
   border-radius: var(--radius);
   background: var(--ink);
@@ -946,6 +1017,12 @@ a {
   font-size: 0.72rem;
   font-weight: 900;
   transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.candidate-export > button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 
 .candidate-export > button:hover:not(:disabled) {
@@ -1040,8 +1117,8 @@ a {
 }
 
 .analysis-share button[data-copied="true"] {
-  border-color: var(--signal);
-  background: var(--signal);
+  border-color: var(--signal-text);
+  background: var(--signal-text);
   color: #fff;
 }
 
@@ -1377,7 +1454,7 @@ a {
 }
 
 .evidence-state.computed {
-  color: var(--signal);
+  color: var(--signal-text);
   background: rgba(23, 163, 74, 0.08);
 }
 
@@ -1818,6 +1895,39 @@ a {
   to {
     transform: rotate(360deg);
   }
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes score-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.candidate-workspace,
+.candidate-export,
+.analysis-share,
+.analysis-context,
+.source-scope {
+  animation: fade-rise 0.4s ease both;
+}
+
+.candidate-score-bar > span {
+  transform-origin: left center;
+  animation: score-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .access-note {
@@ -2428,6 +2538,17 @@ a {
   *,
   *::before,
   *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line: rgba(18, 49, 42, 0.34);
+    --line-strong: rgba(18, 49, 42, 0.55);
+    --muted: #3d4b46;
   }
 }

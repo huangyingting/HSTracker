@@ -429,7 +429,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     ) ?? null;
 
   return (
-    <section className="analysis-workspace" aria-labelledby="workspace-title">
+    <section
+      className="analysis-workspace"
+      id="discovery"
+      tabIndex={-1}
+      aria-labelledby="workspace-title"
+    >
       <div className="workspace-intro">
         <p>{messages.eyebrow}</p>
         <h2 id="workspace-title">{messages.title}</h2>
@@ -494,6 +499,17 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               onClick={() => void analyzeCandidateMarkets()}
             >
               {messages.analyze}
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
             </button>
           </div>
           <SourceScope
