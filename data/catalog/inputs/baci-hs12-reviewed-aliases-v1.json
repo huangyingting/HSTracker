@@ -30,6 +30,105 @@
       "reviewer": "project:hs-tracker-catalog-review"
     },
     {
+      "code": "844331",
+      "locale": "en",
+      "alias": "copier",
+      "normalizedSearchText": "copier",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844331",
+      "locale": "en",
+      "alias": "photocopier",
+      "normalizedSearchText": "photocopier",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844331",
+      "locale": "en",
+      "alias": "printer",
+      "normalizedSearchText": "printer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844331",
+      "locale": "zh-Hans",
+      "alias": "打印机",
+      "normalizedSearchText": "打印机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844332",
+      "locale": "en",
+      "alias": "printer",
+      "normalizedSearchText": "printer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844332",
+      "locale": "zh-Hans",
+      "alias": "打印机",
+      "normalizedSearchText": "打印机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844339",
+      "locale": "en",
+      "alias": "copier",
+      "normalizedSearchText": "copier",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844339",
+      "locale": "en",
+      "alias": "photocopier",
+      "normalizedSearchText": "photocopier",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844339",
+      "locale": "en",
+      "alias": "printer",
+      "normalizedSearchText": "printer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "844339",
+      "locale": "zh-Hans",
+      "alias": "打印机",
+      "normalizedSearchText": "打印机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "en",
+      "alias": "computer",
+      "normalizedSearchText": "computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
       "code": "847130",
       "locale": "en",
       "alias": "laptop",
@@ -49,9 +148,225 @@
     },
     {
       "code": "847130",
+      "locale": "en",
+      "alias": "tablet",
+      "normalizedSearchText": "tablet",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "en",
+      "alias": "tablet computer",
+      "normalizedSearchText": "tablet computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "zh-Hans",
+      "alias": "平板电脑",
+      "normalizedSearchText": "平板电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "zh-Hans",
+      "alias": "电脑",
+      "normalizedSearchText": "电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
       "locale": "zh-Hans",
       "alias": "笔记本电脑",
       "normalizedSearchText": "笔记本电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847130",
+      "locale": "zh-Hans",
+      "alias": "计算机",
+      "normalizedSearchText": "计算机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847141",
+      "locale": "en",
+      "alias": "computer",
+      "normalizedSearchText": "computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847141",
+      "locale": "en",
+      "alias": "desktop",
+      "normalizedSearchText": "desktop",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847141",
+      "locale": "en",
+      "alias": "desktop computer",
+      "normalizedSearchText": "desktop computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847141",
+      "locale": "zh-Hans",
+      "alias": "电脑",
+      "normalizedSearchText": "电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847141",
+      "locale": "zh-Hans",
+      "alias": "计算机",
+      "normalizedSearchText": "计算机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847149",
+      "locale": "en",
+      "alias": "computer",
+      "normalizedSearchText": "computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847149",
+      "locale": "en",
+      "alias": "desktop",
+      "normalizedSearchText": "desktop",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847149",
+      "locale": "en",
+      "alias": "desktop computer",
+      "normalizedSearchText": "desktop computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847149",
+      "locale": "zh-Hans",
+      "alias": "电脑",
+      "normalizedSearchText": "电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847149",
+      "locale": "zh-Hans",
+      "alias": "计算机",
+      "normalizedSearchText": "计算机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847150",
+      "locale": "en",
+      "alias": "computer",
+      "normalizedSearchText": "computer",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847150",
+      "locale": "en",
+      "alias": "processing unit",
+      "normalizedSearchText": "processing unit",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847150",
+      "locale": "en",
+      "alias": "server",
+      "normalizedSearchText": "server",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847150",
+      "locale": "zh-Hans",
+      "alias": "电脑",
+      "normalizedSearchText": "电脑",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847150",
+      "locale": "zh-Hans",
+      "alias": "计算机",
+      "normalizedSearchText": "计算机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847160",
+      "locale": "en",
+      "alias": "computer mouse",
+      "normalizedSearchText": "computer mouse",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847160",
+      "locale": "en",
+      "alias": "keyboard",
+      "normalizedSearchText": "keyboard",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847170",
+      "locale": "en",
+      "alias": "hard drive",
+      "normalizedSearchText": "hard drive",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "847170",
+      "locale": "en",
+      "alias": "storage unit",
+      "normalizedSearchText": "storage unit",
       "aliasKind": "common-language",
       "reviewStatus": "reviewed",
       "reviewer": "project:hs-tracker-catalog-review"
@@ -86,15 +401,6 @@
     {
       "code": "851712",
       "locale": "zh-Hans",
-      "alias": "蜂窝网络或其他无线网络用电话机",
-      "normalizedSearchText": "蜂窝网络或其他无线网络用电话机",
-      "aliasKind": "nomenclature-synonym",
-      "reviewStatus": "reviewed",
-      "reviewer": "project:hs-tracker-catalog-review"
-    },
-    {
-      "code": "851712",
-      "locale": "zh-Hans",
       "alias": "手机",
       "normalizedSearchText": "手机",
       "aliasKind": "common-language",
@@ -106,6 +412,249 @@
       "locale": "zh-Hans",
       "alias": "智能手机",
       "normalizedSearchText": "智能手机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "851712",
+      "locale": "zh-Hans",
+      "alias": "蜂窝网络或其他无线网络用电话机",
+      "normalizedSearchText": "蜂窝网络或其他无线网络用电话机",
+      "aliasKind": "nomenclature-synonym",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852580",
+      "locale": "en",
+      "alias": "camera",
+      "normalizedSearchText": "camera",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852580",
+      "locale": "en",
+      "alias": "digital camera",
+      "normalizedSearchText": "digital camera",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852580",
+      "locale": "zh-Hans",
+      "alias": "数码相机",
+      "normalizedSearchText": "数码相机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852580",
+      "locale": "zh-Hans",
+      "alias": "相机",
+      "normalizedSearchText": "相机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852851",
+      "locale": "en",
+      "alias": "computer monitor",
+      "normalizedSearchText": "computer monitor",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852851",
+      "locale": "en",
+      "alias": "monitor",
+      "normalizedSearchText": "monitor",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852851",
+      "locale": "zh-Hans",
+      "alias": "显示器",
+      "normalizedSearchText": "显示器",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852859",
+      "locale": "en",
+      "alias": "computer monitor",
+      "normalizedSearchText": "computer monitor",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852859",
+      "locale": "en",
+      "alias": "monitor",
+      "normalizedSearchText": "monitor",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852859",
+      "locale": "zh-Hans",
+      "alias": "显示器",
+      "normalizedSearchText": "显示器",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852861",
+      "locale": "en",
+      "alias": "projector",
+      "normalizedSearchText": "projector",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852861",
+      "locale": "zh-Hans",
+      "alias": "投影仪",
+      "normalizedSearchText": "投影仪",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852869",
+      "locale": "en",
+      "alias": "projector",
+      "normalizedSearchText": "projector",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852869",
+      "locale": "zh-Hans",
+      "alias": "投影仪",
+      "normalizedSearchText": "投影仪",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852871",
+      "locale": "en",
+      "alias": "television",
+      "normalizedSearchText": "television",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852871",
+      "locale": "en",
+      "alias": "tv",
+      "normalizedSearchText": "tv",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852871",
+      "locale": "zh-Hans",
+      "alias": "电视",
+      "normalizedSearchText": "电视",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852871",
+      "locale": "zh-Hans",
+      "alias": "电视机",
+      "normalizedSearchText": "电视机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852872",
+      "locale": "en",
+      "alias": "television",
+      "normalizedSearchText": "television",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852872",
+      "locale": "en",
+      "alias": "tv",
+      "normalizedSearchText": "tv",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852872",
+      "locale": "zh-Hans",
+      "alias": "电视",
+      "normalizedSearchText": "电视",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852872",
+      "locale": "zh-Hans",
+      "alias": "电视机",
+      "normalizedSearchText": "电视机",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852873",
+      "locale": "en",
+      "alias": "television",
+      "normalizedSearchText": "television",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852873",
+      "locale": "en",
+      "alias": "tv",
+      "normalizedSearchText": "tv",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852873",
+      "locale": "zh-Hans",
+      "alias": "电视",
+      "normalizedSearchText": "电视",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "852873",
+      "locale": "zh-Hans",
+      "alias": "电视机",
+      "normalizedSearchText": "电视机",
       "aliasKind": "common-language",
       "reviewStatus": "reviewed",
       "reviewer": "project:hs-tracker-catalog-review"
@@ -151,6 +700,321 @@
       "locale": "zh-Hans",
       "alias": "太阳能板",
       "normalizedSearchText": "太阳能板",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870321",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870321",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870321",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870321",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870321",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870322",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870322",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870322",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870322",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870322",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870323",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870323",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870323",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870323",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870323",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870324",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870324",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870324",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870324",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870324",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870331",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870331",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870331",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870331",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870331",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870332",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870332",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870332",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870332",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870332",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870333",
+      "locale": "en",
+      "alias": "automobile",
+      "normalizedSearchText": "automobile",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870333",
+      "locale": "en",
+      "alias": "car",
+      "normalizedSearchText": "car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870333",
+      "locale": "en",
+      "alias": "passenger car",
+      "normalizedSearchText": "passenger car",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870333",
+      "locale": "zh-Hans",
+      "alias": "汽车",
+      "normalizedSearchText": "汽车",
+      "aliasKind": "common-language",
+      "reviewStatus": "reviewed",
+      "reviewer": "project:hs-tracker-catalog-review"
+    },
+    {
+      "code": "870333",
+      "locale": "zh-Hans",
+      "alias": "轿车",
+      "normalizedSearchText": "轿车",
       "aliasKind": "common-language",
       "reviewStatus": "reviewed",
       "reviewer": "project:hs-tracker-catalog-review"

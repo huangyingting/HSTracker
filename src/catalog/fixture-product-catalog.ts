@@ -1,4 +1,9 @@
 import { ACCEPTANCE_PRODUCT_ALIASES } from "../../test/fixtures/acceptance/v1/catalog/aliases";
+import {
+  DEMO_PRODUCT_ALIASES,
+  DEMO_PRODUCT_RECORDS,
+  DEMO_PRODUCT_TRANSLATIONS,
+} from "../../test/fixtures/acceptance/v1/catalog/demo-products";
 import { ACCEPTANCE_PRODUCT_RECORDS } from "../../test/fixtures/acceptance/v1/catalog/products";
 import { ACCEPTANCE_TRADITIONAL_TO_SIMPLIFIED } from "../../test/fixtures/acceptance/v1/catalog/traditional-to-simplified";
 import { ACCEPTANCE_PRODUCT_TRANSLATIONS } from "../../test/fixtures/acceptance/v1/catalog/translations";
@@ -22,9 +27,26 @@ import {
 import { normalizeProductSearchQuery } from "./product-search-normalization";
 import { validateProductSearchQuery } from "./validate-product-search-query";
 
+// The fixture (development and end-to-end) runtime layers a curated set of
+// recognizable real HS12 products on top of the minimal acceptance catalog so
+// everyday searches such as "computer" or "car" resolve. The acceptance fixture
+// inputs stay pristine, preserving their content-addressed promotion identity.
+const catalogRecords = [
+  ...ACCEPTANCE_PRODUCT_RECORDS,
+  ...DEMO_PRODUCT_RECORDS,
+];
+const catalogTranslations = [
+  ...ACCEPTANCE_PRODUCT_TRANSLATIONS,
+  ...DEMO_PRODUCT_TRANSLATIONS,
+];
+const catalogAliases = [
+  ...ACCEPTANCE_PRODUCT_ALIASES,
+  ...DEMO_PRODUCT_ALIASES,
+];
+
 const products: readonly ProductSearchProduct[] =
-  ACCEPTANCE_PRODUCT_RECORDS.map((product) => {
-    const translation = ACCEPTANCE_PRODUCT_TRANSLATIONS.find(
+  catalogRecords.map((product) => {
+    const translation = catalogTranslations.find(
       (candidate) => candidate.code === product.code,
     );
     if (translation === undefined) {
@@ -40,7 +62,7 @@ const products: readonly ProductSearchProduct[] =
   });
 const searchIndex = indexProductSearchCatalog(
   products,
-  ACCEPTANCE_PRODUCT_ALIASES,
+  catalogAliases,
 );
 
 class FixtureProductCatalog implements ProductCatalog {

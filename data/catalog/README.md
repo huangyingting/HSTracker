@@ -21,6 +21,14 @@ the BACI aggregates `271000` and `999999`. The offline translation build retains
 source chemical formulas and Latin names verbatim, while every reviewed alias
 stores the exact normalized search text published in the immutable index.
 
+`baci-hs12-reviewed-aliases-v1.json` carries curated common-language discovery
+aliases (for example `computer`, `television`, `car`, and their Simplified
+Chinese equivalents) that map everyday search terms onto the formal HS12
+nomenclature. Alias edits take effect only after the runtime product-catalog
+artifact is rebuilt from the raw BACI source with `npm run build:product-catalog`;
+`tests/integration/reviewed-aliases.test.ts` validates the curated input against
+the current source products so the expansion is verifiable before that rebuild.
+
 Build the translation input by passing all independently versioned correction
 catalogs:
 

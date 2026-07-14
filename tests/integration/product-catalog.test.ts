@@ -402,6 +402,16 @@ describe("ProductCatalog", () => {
         class: "ALIAS_PREFIX",
         matchedText: "wireless purebred horse telephone",
       },
+      {
+        code: "220421",
+        class: "LATIN_TYPO",
+        matchedText: "wine",
+      },
+      {
+        code: "401110",
+        class: "LATIN_TYPO",
+        matchedText: "tire",
+      },
     ]);
   });
 

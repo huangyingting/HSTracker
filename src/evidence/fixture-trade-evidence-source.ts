@@ -16,6 +16,10 @@ import {
   PROVISIONAL_MUTATION_INPUT,
   QUANTITY_ZERO_INPUT,
 } from "../../test/fixtures/acceptance/v1/evidence/core-current";
+import {
+  generateDemoAnalysisInput,
+  isDemoAnalysisProduct,
+} from "../../test/fixtures/acceptance/v1/evidence/demo-analysis";
 import { MICRO_FIXTURE_INPUTS } from "../../test/fixtures/acceptance/v1/evidence/microfixtures";
 import {
   ACCEPTANCE_FIXTURE_BUILD_IDS,
@@ -77,11 +81,18 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
     const input = FIXTURE_INPUTS.get(
       fixtureKey(query.analysisBuildId, query.productCode),
     );
-    if (input === undefined) {
-      throw unknownProduct(query.productCode);
+    if (input !== undefined) {
+      return input;
     }
 
-    return input;
+    if (
+      query.analysisBuildId === ACCEPTANCE_FIXTURE_BUILD_IDS.core &&
+      isDemoAnalysisProduct(query.productCode)
+    ) {
+      return generateDemoAnalysisInput(query.productCode);
+    }
+
+    throw unknownProduct(query.productCode);
   }
 }
 
