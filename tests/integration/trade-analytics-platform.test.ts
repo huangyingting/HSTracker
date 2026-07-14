@@ -5,8 +5,8 @@ import { CandidateMarketTradeAnalyticsPlatform } from "../../src/domain/trade-an
 import { FixtureTradeEvidenceSource } from "../../src/evidence/fixture-trade-evidence-source";
 import { createFixtureApplicationRuntime } from "../../src/runtime/application-runtime";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
-import { CORE_CURRENT_INPUT } from "../../test/fixtures/acceptance/v1/evidence/core-current";
-import { CORE_CANDIDATE_SUMMARY } from "../../test/fixtures/acceptance/v1/expected/core-analysis";
+import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
+import { CORE_CANDIDATE_SUMMARY } from "../../fixtures/acceptance/v1/expected/core-analysis";
 
 describe("TradeAnalyticsPlatform", () => {
   it("returns the accepted 13-market Candidate Market v1 oracle", async () => {
