@@ -3,6 +3,11 @@ import { createFixtureProductCatalog } from "../catalog/fixture-product-catalog"
 import type { CandidateMarketAnalysis } from "../domain/candidate-market/analyze-candidate-markets";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
+import {
+  CandidateMarketTradeAnalyticsPlatform,
+  type AnalysisOperationObservation,
+  type TradeAnalyticsPlatform,
+} from "../domain/trade-analytics/trade-analytics-platform";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import { createFixtureEconomyDirectory } from "../economy/fixture-economy-directory";
 import { createFixtureCandidateMarketAnalysis } from "../evidence/fixture-trade-evidence-source";
@@ -20,12 +25,7 @@ export type RuntimeRequestOptions = Readonly<{
   cachePartitionKey?: string;
 }>;
 
-export type RuntimeOperationObservation = Readonly<{
-  cacheState: "hit" | "coalesced" | "miss";
-  queueWaitMs: number | null;
-  queryMs: number | null;
-  resultBytes: number;
-}>;
+export type RuntimeOperationObservation = AnalysisOperationObservation;
 
 export type ApplicationRuntimeResources = Readonly<{
   analysisExecution: {
@@ -52,6 +52,7 @@ export type ApplicationRuntimeResources = Readonly<{
 }>;
 
 export interface ApplicationRuntime {
+  readonly tradeAnalytics: TradeAnalyticsPlatform;
   currentAnalysis(): CurrentAnalysisManifest;
   currentAnalysisSnapshot(): {
     manifest: CurrentAnalysisManifest;
@@ -123,6 +124,9 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
   const productCatalog = createFixtureProductCatalog();
   const economyDirectory = createFixtureEconomyDirectory();
   return {
+    tradeAnalytics: new CandidateMarketTradeAnalyticsPlatform(
+      analysis.analyze.bind(analysis),
+    ),
     currentAnalysis: resolveFixtureCurrentAnalysisManifest,
     currentAnalysisSnapshot() {
       return {

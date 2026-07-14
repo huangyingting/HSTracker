@@ -7,6 +7,10 @@ import {
 } from "../domain/candidate-market/analyze-candidate-markets";
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
+import {
+  CandidateMarketTradeAnalyticsPlatform,
+  type TradeAnalyticsPlatform,
+} from "../domain/trade-analytics/trade-analytics-platform";
 import { resolveReleaseRevisionComparisonIdentity } from "../domain/release/release-revision";
 import {
   evaluateSourceFreshness,
@@ -45,6 +49,8 @@ type VerifiedReleaseRuntimeInput = {
 };
 
 export class VerifiedReleaseRuntime {
+  readonly tradeAnalytics: TradeAnalyticsPlatform;
+
   private constructor(
     private readonly hydrated: HydratedRelease,
     private readonly manifest: AnalysisArtifactManifest,
@@ -57,6 +63,9 @@ export class VerifiedReleaseRuntime {
     private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
   ) {
+    this.tradeAnalytics = new CandidateMarketTradeAnalyticsPlatform(
+      analysis.analyze.bind(analysis),
+    );
     this.retainedSourceStatuses.set(
       sourceStatus.sourceStatusSnapshotId,
       sourceStatus,

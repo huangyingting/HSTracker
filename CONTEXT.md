@@ -44,6 +44,34 @@ _Avoid_: Live status, real-time data, data age
 The source release, analysis build, selected export economy, HS product identity, and one Candidate Market that together identify the scope for adjacent evidence. It identifies an analytical context, not a buyer-supplier relationship.
 _Avoid_: Trade lane customer, company market, buyer market
 
+**Analysis Recipe**:
+A fixed, versioned analytical method that defines its semantic inputs, required evidence, interpretation rules, and result meaning. Changing its formula, window, missingness treatment, quality rules, or ordering creates a new version.
+_Avoid_: User-authored formula, arbitrary query, mutable analysis
+
+**Dataset Package**:
+An immutable, content-addressed publication of source evidence, identity, coverage, quality, attribution, and versioned analytical capabilities. Missing observations within a supported capability are distinct from a capability the package does not provide.
+_Avoid_: Live dataset, mutable database, universal nullable dataset
+
+**Analysis Identity**:
+The deterministic identity of one Analysis Recipe version applied to one exact Dataset Package and normalized semantic inputs. Locale, execution time, cache state, request origin, and presentation choices do not change it.
+_Avoid_: Request ID, page URL, cache key
+
+**Analysis Request**:
+A typed request to apply one Analysis Recipe to explicit semantic inputs and an eligible current or pinned analytical context. It expresses analytical intent, not storage, query-language, or presentation instructions.
+_Avoid_: SQL query, report configuration, free-form prompt
+
+**Analysis Outcome**:
+The complete typed result of an Analysis Request, distinguishing successful evidence, empty evidence, invalid input, incompatibility, retirement, resource rejection, and temporary unavailability. Expected non-success states are evidence about the request or serving context, not analytical values.
+_Avoid_: Untyped response, generic failure, partial result
+
+**Recommended Dataset Mapping**:
+An immutable published association between an Analysis Recipe version, one reviewed Dataset Package, and compatible discovery catalogs. A running deployment fixes one mapping rather than choosing evidence heuristically.
+_Avoid_: Latest-dataset lookup, runtime package selection, mutable recommendation
+
+**Trade Analysis Context**:
+The Analysis Recipe, Dataset Package, normalized semantic inputs, and Analysis Identity that establish the reproducible scope of a trade analysis. Candidate Market Context is its Candidate Market-specific form, additionally focused on one Candidate Market.
+_Avoid_: Browser session, user project, hidden account state
+
 **Candidate Market Result Export**:
 An immutable tabular snapshot of the complete ranked Candidate Market cohort for one export economy and HS Product under explicit analysis, product-catalog, and freshness identities. It carries derived evidence and provenance for follow-up, not raw trade records or company evidence.
 _Avoid_: BACI export, raw-data extract, buyer list

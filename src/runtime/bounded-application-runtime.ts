@@ -1,5 +1,6 @@
 import { validateProductSearchQuery } from "../catalog/validate-product-search-query";
 import { validateCandidateMarketAnalysisQuery } from "../domain/candidate-market/analyze-candidate-markets";
+import { CandidateMarketTradeAnalyticsPlatform } from "../domain/trade-analytics/trade-analytics-platform";
 import { normalizeEconomyQuery } from "../economy/economy-search";
 import { validateEconomySearchQuery } from "../economy/economy-search";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
@@ -161,7 +162,87 @@ export function createBoundedApplicationRuntime(
     );
   }
 
+  function analyze(
+    query: AnalysisQuery,
+    requestOptions?: RuntimeRequestOptions,
+  ): AnalysisPromise {
+    if (requestOptions?.signal?.aborted) {
+      return Promise.reject(abortError());
+    }
+    try {
+      validateCandidateMarketAnalysisQuery(query);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+
+    const activeDeployment = synchronizeActiveDeployment();
+    if (query.analysisBuildId !== activeDeployment.analysisBuildId) {
+      return inner.analyze(query, requestOptions);
+    }
+
+    const key = analysisKey(
+      query,
+      requestOptions?.cachePartitionKey,
+    );
+    const cached = analysisCache.lookup(key);
+    if (cached !== undefined) {
+      requestOptions?.observe?.({
+        cacheState: "hit",
+        queueWaitMs: null,
+        queryMs: null,
+        resultBytes: cached.resultBytes,
+      });
+      return Promise.resolve(cached.value);
+    }
+
+    let shared = analyses.get(key);
+    let cacheState: "coalesced" | "miss" = "coalesced";
+    if (!shared) {
+      cacheState = "miss";
+      const generation = cacheGeneration;
+      const timing = operationTiming();
+      shared = startSharedOperation(
+        (controller) =>
+          execution.run(
+            controller,
+            () =>
+              inner.analyze(query, {
+                signal: controller.signal,
+              }),
+            timing,
+          ),
+        (result, resultBytes) => {
+          if (cacheGeneration === generation) {
+            analysisCache.set(
+              key,
+              result,
+              resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
+            );
+          }
+        },
+        () => {
+          if (analyses.get(key) === shared) {
+            analyses.delete(key);
+          }
+        },
+        timing,
+      );
+      analyses.set(key, shared);
+    }
+
+    return waitForSharedOperation(
+      shared,
+      requestOptions,
+      cacheState,
+    );
+  }
+
+  const tradeAnalytics = new CandidateMarketTradeAnalyticsPlatform(
+    analyze,
+  );
+
   return {
+    tradeAnalytics,
     currentAnalysis: () => inner.currentAnalysis(),
     currentAnalysisSnapshot: () => inner.currentAnalysisSnapshot(),
     resolveFreshnessStatus: (freshnessStatusId) =>
@@ -245,70 +326,7 @@ export function createBoundedApplicationRuntime(
         toCacheValue: (value) => ({ kind: "economy", value }),
       });
     },
-    analyze(query, options) {
-      if (options?.signal?.aborted) {
-        return Promise.reject(abortError());
-      }
-      try {
-        validateCandidateMarketAnalysisQuery(query);
-      } catch (error) {
-        return Promise.reject(error);
-      }
-
-      const activeDeployment = synchronizeActiveDeployment();
-      if (query.analysisBuildId !== activeDeployment.analysisBuildId) {
-        return inner.analyze(query, options);
-      }
-
-      const key = analysisKey(query, options?.cachePartitionKey);
-      const cached = analysisCache.lookup(key);
-      if (cached !== undefined) {
-        options?.observe?.({
-          cacheState: "hit",
-          queueWaitMs: null,
-          queryMs: null,
-          resultBytes: cached.resultBytes,
-        });
-        return Promise.resolve(cached.value);
-      }
-
-      let shared = analyses.get(key);
-      let cacheState: "coalesced" | "miss" = "coalesced";
-      if (!shared) {
-        cacheState = "miss";
-        const generation = cacheGeneration;
-        const timing = operationTiming();
-        shared = startSharedOperation(
-          (controller) =>
-            execution.run(
-              controller,
-              () =>
-                inner.analyze(query, {
-                  signal: controller.signal,
-                }),
-              timing,
-            ),
-          (result, resultBytes) => {
-            if (cacheGeneration === generation) {
-              analysisCache.set(
-                key,
-                result,
-                resultBytes + CACHE_ENTRY_OVERHEAD_BYTES,
-              );
-            }
-          },
-          () => {
-            if (analyses.get(key) === shared) {
-              analyses.delete(key);
-            }
-          },
-          timing,
-        );
-        analyses.set(key, shared);
-      }
-
-      return waitForSharedOperation(shared, options, cacheState);
-    },
+    analyze,
   };
 }
 
