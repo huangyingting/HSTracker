@@ -6,7 +6,7 @@ import type {
 export const CANDIDATE_MARKET_SCORE_FORMULA =
   "round_half_up(0.30*market_size_percentile+0.25*market_growth_percentile+0.25*recorded_foothold_percentile+0.20*supplier_diversity_percentile)";
 
-export type CandidateMarketAnalysisQuery = {
+export type CandidateMarketV1RecipeInput = {
   analysisBuildId: string;
   exporterCode: string;
   productCode: string;

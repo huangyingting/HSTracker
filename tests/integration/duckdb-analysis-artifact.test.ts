@@ -16,7 +16,11 @@ import { promisify } from "node:util";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
+import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import {
+  createCandidateMarketDatasetPackageFromArtifacts,
+  readAnalysisArtifactManifest,
+} from "../../src/evidence/analysis-artifact-manifest";
 import { DuckDbTradeEvidenceSource } from "../../src/evidence/duckdb-trade-evidence-source";
 import type {
   CmsV1Inputs,
@@ -55,57 +59,57 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       schemaVersion: "candidate-market-artifact-manifest-v1",
       baciRelease: "VTEST001",
       sourceSha256:
-        "e29a37b682f465e6be73a283d456fc5a5ff04426dccbefea9dae3d24bfa39346",
+        "b058b1ee6e128559db7b8768e14594cad216b670bf4d2c5882da0c877d8d2d15",
       artifact: {
         schemaVersion: "candidate-market-artifact-v1",
         bytes: expect.any(Number),
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       },
       tableRowCounts: {
-        bilateral_year: 5,
-        market_year: 5,
-        product_year: 4,
+        bilateral_year: 14,
+        market_year: 14,
+        product_year: 13,
         economy: 3,
         product: 2,
       },
       benchmarkQueries: [
         {
           role: "sparse",
-          productCode: "851712",
-          exporterCode: "276",
-          completeRowCount: 2,
-          primaryWindowRowCount: 1,
-          candidateCount: 1,
-          resultBytes: expect.any(Number),
-          selectionAlgorithm: "complete-bilateral-row-count-v1",
-        },
-        {
-          role: "median",
-          productCode: "851712",
-          exporterCode: "276",
-          completeRowCount: 2,
-          primaryWindowRowCount: 1,
-          candidateCount: 1,
-          resultBytes: expect.any(Number),
-          selectionAlgorithm: "complete-bilateral-row-count-v1",
-        },
-        {
-          role: "upper-quartile",
-          productCode: "851712",
-          exporterCode: "276",
-          completeRowCount: 2,
-          primaryWindowRowCount: 1,
-          candidateCount: 1,
-          resultBytes: expect.any(Number),
-          selectionAlgorithm: "complete-bilateral-row-count-v1",
-        },
-        {
-          role: "maximum-row",
           productCode: "010121",
           exporterCode: "156",
           completeRowCount: 3,
           primaryWindowRowCount: 2,
           candidateCount: 2,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "complete-bilateral-row-count-v1",
+        },
+        {
+          role: "median",
+          productCode: "010121",
+          exporterCode: "156",
+          completeRowCount: 3,
+          primaryWindowRowCount: 2,
+          candidateCount: 2,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "complete-bilateral-row-count-v1",
+        },
+        {
+          role: "upper-quartile",
+          productCode: "010121",
+          exporterCode: "156",
+          completeRowCount: 3,
+          primaryWindowRowCount: 2,
+          candidateCount: 2,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "complete-bilateral-row-count-v1",
+        },
+        {
+          role: "maximum-row",
+          productCode: "851712",
+          exporterCode: "276",
+          completeRowCount: 11,
+          primaryWindowRowCount: 5,
+          candidateCount: 1,
           resultBytes: expect.any(Number),
           selectionAlgorithm: "complete-bilateral-row-count-v1",
         },
@@ -116,52 +120,52 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       status: "accepted",
       artifactManifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       reconciliation: {
-        sourceRows: 5,
-        bilateralRows: 5,
-        sourceValueTotalKusd: "49.000",
-        bilateralValueTotalKusd: "49.000",
-        sourceQuantityPresentCount: 3,
-        marketQuantityPresentCount: 3,
-        sourceQuantityTotalTons: "3.375",
-        marketQuantityTotalTons: "3.375",
-        annual: [
-          {
-            year: 2023,
-            sourceRows: 3,
-            bilateralRows: 3,
-            sourceValueTotalKusd: "33.375",
-            bilateralValueTotalKusd: "33.375",
-            marketValueTotalKusd: "33.375",
-            productValueTotalKusd: "33.375",
-            sourceQuantityPresentCount: 2,
-            marketQuantityPresentCount: 2,
-            sourceQuantityTotalTons: "1.625",
-            marketQuantityTotalTons: "1.625",
-          },
-          {
-            year: 2024,
-            sourceRows: 2,
-            bilateralRows: 2,
-            sourceValueTotalKusd: "15.625",
-            bilateralValueTotalKusd: "15.625",
-            marketValueTotalKusd: "15.625",
-            productValueTotalKusd: "15.625",
-            sourceQuantityPresentCount: 1,
-            marketQuantityPresentCount: 1,
-            sourceQuantityTotalTons: "1.750",
-            marketQuantityTotalTons: "1.750",
-          },
-        ],
+        sourceRows: 14,
+        bilateralRows: 14,
+        sourceValueTotalKusd: "140.125",
+        bilateralValueTotalKusd: "140.125",
+        sourceQuantityPresentCount: 12,
+        marketQuantityPresentCount: 12,
+        sourceQuantityTotalTons: "16.875",
+        marketQuantityTotalTons: "16.875",
       },
       maximumRowSmokeResult: {
         status: "accepted",
-        productCode: "010121",
-        exporterCode: "156",
-        candidateCount: 2,
+        productCode: "851712",
+        exporterCode: "276",
+        candidateCount: 1,
         resultBytes: expect.any(Number),
         resultSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       },
     });
+    expect(report.reconciliation.annual.slice(-2)).toEqual([
+      {
+        year: 2023,
+        sourceRows: 3,
+        bilateralRows: 3,
+        sourceValueTotalKusd: "33.375",
+        bilateralValueTotalKusd: "33.375",
+        marketValueTotalKusd: "33.375",
+        productValueTotalKusd: "33.375",
+        sourceQuantityPresentCount: 2,
+        marketQuantityPresentCount: 2,
+        sourceQuantityTotalTons: "1.625",
+        marketQuantityTotalTons: "1.625",
+      },
+      {
+        year: 2024,
+        sourceRows: 2,
+        bilateralRows: 2,
+        sourceValueTotalKusd: "15.625",
+        bilateralValueTotalKusd: "15.625",
+        marketValueTotalKusd: "15.625",
+        productValueTotalKusd: "15.625",
+        sourceQuantityPresentCount: 1,
+        marketQuantityPresentCount: 1,
+        sourceQuantityTotalTons: "1.750",
+        marketQuantityTotalTons: "1.750",
+      },
+    ]);
     expect(report.benchmarkQueries).toEqual(manifest.benchmarkQueries);
     expect(report.artifactManifest).toEqual(manifest);
     expect(report.artifactManifestSha256).toBe(
@@ -223,6 +227,69 @@ describe("immutable DuckDB analysis artifact CLI", () => {
           exporter_code: 156,
           importer_code: 276,
           value_kusd: "11.125",
+        },
+        {
+          year: 2014,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2015,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2016,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2017,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2018,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2019,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2020,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2021,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
+        },
+        {
+          year: 2022,
+          product_id: 2,
+          exporter_code: 276,
+          importer_code: 842,
+          value_kusd: "10.125",
         },
         {
           year: 2023,
@@ -290,7 +357,7 @@ describe("immutable DuckDB analysis artifact CLI", () => {
         baciRelease: "VTEST001",
         sourceUpdateDate: "2026-01-22",
         hsRevision: "HS12",
-        ingestedYears: { start: 2023, end: 2024 },
+        ingestedYears: { start: 2014, end: 2024 },
         finalizedCutoffYear: 2023,
         provisionalYear: 2024,
       },
@@ -385,17 +452,38 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       await expect(
         source.loadCmsV1Inputs({ ...query, productCode: "999999" }),
       ).rejects.toMatchObject({ code: "UNKNOWN_PRODUCT" });
-      const productionAnalysis = new CmsV1CandidateMarketAnalysis(source);
       const fixtureSource: TradeEvidenceSource = {
         async loadCmsV1Inputs() {
           return expected;
         },
       };
-      const fixtureAnalysis = new CmsV1CandidateMarketAnalysis(fixtureSource);
-
-      await expect(productionAnalysis.analyze(query)).resolves.toEqual(
-        await fixtureAnalysis.analyze(query),
+      const manifest = await readAnalysisArtifactManifest(
+        outcome.artifactManifestPath,
       );
+      const datasetPackage =
+        createCandidateMarketDatasetPackageFromArtifacts({
+          manifest,
+          analysisReleaseCatalogSha256:
+            expected.analysisReleaseCatalogSha256,
+          previousManifest: null,
+        });
+      const platform = (evidenceSource: TradeEvidenceSource) =>
+        createCandidateMarketV1TradeAnalyticsPlatform({
+          evidenceSource,
+          datasetPackages: new Map([
+            [query.analysisBuildId, datasetPackage],
+          ]),
+        });
+      const request = {
+        recipe: "candidate-market-v1",
+        ...query,
+      } as const;
+      const [productionOutcome, fixtureOutcome] = await Promise.all([
+        platform(source).execute(request),
+        platform(fixtureSource).execute(request),
+      ]);
+
+      expect(productionOutcome).toEqual(fixtureOutcome);
     } finally {
       source.close();
     }
@@ -446,11 +534,13 @@ async function stageSafeFixture(
       "stage:baci",
       "--",
       "--descriptor",
-      resolve("fixtures/pipeline/v1/safe-source.json"),
+      resolve("fixtures/pipeline/v1/analysis-safe-source.json"),
       "--approval",
-      resolve("fixtures/pipeline/v1/safe-coverage-approval.json"),
+      resolve(
+        "fixtures/pipeline/v1/analysis-safe-coverage-approval.json",
+      ),
       "--archive",
-      resolve("fixtures/pipeline/v1/archives/safe-baci.zip"),
+      resolve("fixtures/pipeline/v1/archives/analysis-safe-baci.zip"),
       "--workspace",
       workspace,
       "--report",

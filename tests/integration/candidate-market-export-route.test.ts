@@ -6,7 +6,10 @@ import {
 } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets.csv/route";
 import { GET as getCandidateMarkets } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
 import { resolveCurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
-import { CandidateMarketTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import type {
+  AnalysisOutcome,
+  TradeAnalyticsPlatform,
+} from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
   FIXTURE_CURRENT_AS_OF,
@@ -17,7 +20,6 @@ import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,
 } from "../../src/runtime/application-runtime";
-import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { serializeCandidateMarketCsv } from "../../src/export/candidate-market-csv";
 import {
@@ -168,8 +170,17 @@ describe("versioned Candidate Market CSV route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      tradeAnalytics: fixturePlatform(fixture).withExecution(async () => {
-        throw new AnalysisCapacityExceededError("queue-timeout");
+      tradeAnalytics: platformReturning({
+        state: "capacity",
+        recipe: "candidate-market-v1",
+        analysisIdentity: null,
+        datasetPackageIdentity: null,
+        normalizedInputs: null,
+        error: {
+          code: "ANALYSIS_CAPACITY_EXCEEDED",
+          reason: "queue-timeout",
+          retryAfterSeconds: 2,
+        },
       }),
     });
 
@@ -198,17 +209,7 @@ describe("versioned Candidate Market CSV route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      tradeAnalytics: fixturePlatform(fixture).withExecution(
-        (_query, options) => {
-          return new Promise((_resolve, reject) => {
-            options?.signal?.addEventListener(
-              "abort",
-              () => reject(options.signal?.reason),
-              { once: true },
-            );
-          });
-        },
-      ),
+      tradeAnalytics: rejectingOnAbortPlatform(),
     });
 
     try {
@@ -401,16 +402,28 @@ describe("versioned Candidate Market CSV route", () => {
   });
 });
 
-function fixturePlatform(
-  runtime: ReturnType<typeof createFixtureApplicationRuntime>,
-): CandidateMarketTradeAnalyticsPlatform {
-  if (
-    runtime.tradeAnalytics instanceof
-    CandidateMarketTradeAnalyticsPlatform
-  ) {
-    return runtime.tradeAnalytics;
-  }
-  throw new TypeError("Fixture runtime must use the Candidate Market platform.");
+function platformReturning(
+  outcome: AnalysisOutcome<"candidate-market-v1">,
+): TradeAnalyticsPlatform {
+  return {
+    async execute() {
+      return outcome;
+    },
+  };
+}
+
+function rejectingOnAbortPlatform(): TradeAnalyticsPlatform {
+  return {
+    execute(_request, options) {
+      return new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          "abort",
+          () => reject(options.signal?.reason),
+          { once: true },
+        );
+      });
+    },
+  };
 }
 
 function exportUrl(

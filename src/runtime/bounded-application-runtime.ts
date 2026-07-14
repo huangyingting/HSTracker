@@ -1,6 +1,12 @@
 import { validateProductSearchQuery } from "../catalog/validate-product-search-query";
-import { validateCandidateMarketAnalysisQuery } from "../domain/candidate-market/analyze-candidate-markets";
-import { CandidateMarketTradeAnalyticsPlatform } from "../domain/trade-analytics/trade-analytics-platform";
+import { isCandidateMarketAnalysisError } from "../domain/candidate-market/errors";
+import { validateCandidateMarketV1Request } from "../domain/trade-analytics/candidate-market-v1-request";
+import type {
+  AnalysisExecutionOptions,
+  AnalysisOutcome,
+  CandidateMarketV1AnalysisRequest,
+  TradeAnalyticsPlatform,
+} from "../domain/trade-analytics/trade-analytics-platform";
 import { normalizeEconomyQuery } from "../economy/economy-search";
 import { validateEconomySearchQuery } from "../economy/economy-search";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
@@ -8,15 +14,18 @@ import type {
   ApplicationRuntime,
   RuntimeRequestOptions,
 } from "./application-runtime";
-import { AnalysisCapacityExceededError } from "./analysis-capacity-error";
+import {
+  AnalysisCapacityExceededError,
+  isAnalysisCapacityExceededError,
+} from "./analysis-capacity-error";
 import { ByteWeightedLru } from "./byte-weighted-lru";
 import {
   CACHE_ENTRY_OVERHEAD_BYTES,
   serializedBytes,
 } from "./serialized-size";
 
-type AnalysisQuery = Parameters<ApplicationRuntime["analyze"]>[0];
-type AnalysisPromise = ReturnType<ApplicationRuntime["analyze"]>;
+type AnalysisQuery = CandidateMarketV1AnalysisRequest;
+type AnalysisPromise = Promise<AnalysisOutcome<"candidate-market-v1">>;
 type AnalysisResult = Awaited<AnalysisPromise>;
 type ProductSearchQuery = Parameters<
   ApplicationRuntime["searchProducts"]
@@ -56,8 +65,9 @@ type OperationTiming = {
   queryMs: number | null;
   resultBytes: number;
 };
-type SharedOperationOptions = {
+type SharedOperationOptions<Result> = {
   measureQueryTiming?: boolean;
+  resultBytes?: (result: Result) => number;
 };
 
 type SharedAnalysis = SharedOperation<AnalysisResult>;
@@ -162,22 +172,25 @@ export function createBoundedApplicationRuntime(
     );
   }
 
-  function analyze(
+  function executeAnalysis(
     query: AnalysisQuery,
-    requestOptions?: RuntimeRequestOptions,
+    requestOptions?: AnalysisExecutionOptions,
   ): AnalysisPromise {
     if (requestOptions?.signal?.aborted) {
       return Promise.reject(abortError());
     }
     try {
-      validateCandidateMarketAnalysisQuery(query);
+      validateCandidateMarketV1Request(query);
     } catch (error) {
-      return Promise.reject(error);
+      if (!isCandidateMarketAnalysisError(error)) {
+        return Promise.reject(error);
+      }
+      return inner.tradeAnalytics.execute(query, requestOptions);
     }
 
     const activeDeployment = synchronizeActiveDeployment();
     if (query.analysisBuildId !== activeDeployment.analysisBuildId) {
-      return inner.analyze(query, requestOptions);
+      return inner.tradeAnalytics.execute(query, requestOptions);
     }
 
     const key = analysisKey(
@@ -206,13 +219,16 @@ export function createBoundedApplicationRuntime(
           execution.run(
             controller,
             () =>
-              inner.analyze(query, {
+              inner.tradeAnalytics.execute(query, {
                 signal: controller.signal,
               }),
             timing,
           ),
         (result, resultBytes) => {
-          if (cacheGeneration === generation) {
+          if (
+            cacheGeneration === generation &&
+            isCompletedAnalysis(result)
+          ) {
             analysisCache.set(
               key,
               result,
@@ -226,28 +242,24 @@ export function createBoundedApplicationRuntime(
           }
         },
         timing,
+        { resultBytes: analysisResultBytes },
       );
       analyses.set(key, shared);
     }
 
-    return waitForSharedOperation(
-      shared,
-      requestOptions,
-      cacheState,
+    return waitForSharedOperation(shared, requestOptions, cacheState).catch(
+      (error: unknown) => {
+        if (!isAnalysisCapacityExceededError(error)) {
+          throw error;
+        }
+        return capacityOutcome(query, error);
+      },
     );
   }
 
-  if (
-    !(
-      inner.tradeAnalytics instanceof
-      CandidateMarketTradeAnalyticsPlatform
-    )
-  ) {
-    throw new TypeError(
-      "Bounded runtime requires the Candidate Market platform implementation.",
-    );
-  }
-  const tradeAnalytics = inner.tradeAnalytics.withExecution(analyze);
+  const tradeAnalytics: TradeAnalyticsPlatform = {
+    execute: executeAnalysis,
+  };
 
   return {
     tradeAnalytics,
@@ -334,7 +346,6 @@ export function createBoundedApplicationRuntime(
         toCacheValue: (value) => ({ kind: "economy", value }),
       });
     },
-    analyze,
   };
 }
 
@@ -343,7 +354,7 @@ function startSharedOperation<Result>(
   admitResult: (result: Result, resultBytes: number) => void,
   remove: () => void,
   timing: OperationTiming,
-  options: SharedOperationOptions = {},
+  options: SharedOperationOptions<Result> = {},
 ): SharedOperation<Result> {
   const controller = new AbortController();
   let settled = false;
@@ -363,7 +374,8 @@ function startSharedOperation<Result>(
     .then(
       (result) => {
         finishMeasuredQuery();
-        timing.resultBytes = serializedBytes(result);
+        timing.resultBytes =
+          options.resultBytes?.(result) ?? serializedBytes(result);
         if (!controller.signal.aborted) {
           admitResult(result, timing.resultBytes);
         }
@@ -479,6 +491,36 @@ function analysisKey(
     query.productCode,
     cachePartitionKey ?? "",
   ].join("\u0000");
+}
+
+function isCompletedAnalysis(
+  outcome: AnalysisResult,
+): outcome is Extract<AnalysisResult, { state: "success" | "empty" }> {
+  return outcome.state === "success" || outcome.state === "empty";
+}
+
+function analysisResultBytes(outcome: AnalysisResult): number {
+  return serializedBytes(
+    isCompletedAnalysis(outcome) ? outcome.payload : outcome,
+  );
+}
+
+function capacityOutcome(
+  request: AnalysisQuery,
+  error: AnalysisCapacityExceededError,
+): AnalysisOutcome<"candidate-market-v1"> {
+  return {
+    state: "capacity",
+    recipe: request.recipe,
+    analysisIdentity: null,
+    datasetPackageIdentity: null,
+    normalizedInputs: null,
+    error: {
+      code: error.code,
+      reason: error.reason,
+      retryAfterSeconds: error.retryAfterSeconds,
+    },
+  };
 }
 
 function deploymentIdentity(

@@ -590,8 +590,9 @@ describe("verified release runtime", () => {
     runtimes.push(runtime);
     const startupReads = reader.readCount;
 
-    const [analysis, search] = await Promise.all([
-      runtime.analyze({
+    const [analysisOutcome, search] = await Promise.all([
+      runtime.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
         analysisBuildId: published.analysisBuildId,
         exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
         productCode: RUNTIME_RELEASE_FIXTURE.productCode,
@@ -603,6 +604,12 @@ describe("verified release runtime", () => {
         limit: 20,
       }),
     ]);
+    if (analysisOutcome.state !== "success") {
+      throw new TypeError(
+        `Expected success, received ${analysisOutcome.state}.`,
+      );
+    }
+    const analysis = analysisOutcome.payload;
 
     expect({
       analysisBuildId: analysis.analysisBuildId,
@@ -627,14 +634,15 @@ describe("verified release runtime", () => {
     });
 
     await expect(
-      runtime.analyze({
+      runtime.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
         analysisBuildId: "analysis-build-v1-ffffffffffffffff",
         exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
         productCode: RUNTIME_RELEASE_FIXTURE.productCode,
       }),
-    ).rejects.toMatchObject({
-      code: "ANALYSIS_BUILD_RETIRED",
-      status: 410,
+    ).resolves.toMatchObject({
+      state: "retired",
+      error: { code: "ANALYSIS_BUILD_RETIRED" },
     });
     await expect(
       runtime.searchProducts({
@@ -815,11 +823,16 @@ describe("verified release runtime", () => {
     });
     runtimes.push(runtime);
 
-    const result = await runtime.analyze({
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
       analysisBuildId: published.analysisBuildId,
       exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
       productCode: RUNTIME_RELEASE_FIXTURE.productCode,
     });
+    if (outcome.state !== "success") {
+      throw new TypeError(`Expected success, received ${outcome.state}.`);
+    }
+    const result = outcome.payload;
 
     expect({
       current: runtime.currentAnalysis().revisionComparison,

@@ -45,13 +45,14 @@ describe("Next.js runtime startup", () => {
     });
     stops.push(started.stop);
     const query = {
+      recipe: "candidate-market-v1" as const,
       analysisBuildId: "acceptance-fixtures-v1",
       exporterCode: "156",
       productCode: "010121",
     };
 
-    const first = await started.runtime.analyze(query);
-    const second = await started.runtime.analyze(query);
+    const first = await started.runtime.tradeAnalytics.execute(query);
+    const second = await started.runtime.tradeAnalytics.execute(query);
 
     expect(second).toBe(first);
   });

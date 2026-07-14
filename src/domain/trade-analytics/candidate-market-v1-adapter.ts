@@ -6,18 +6,18 @@ import {
   unknownProduct,
 } from "../candidate-market/errors";
 import type {
-  CandidateMarketAnalysisQuery,
   CandidateMarketResult,
 } from "../candidate-market/result";
 import { AnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
 import type {
   AnalysisExecutionOptions,
+  CandidateMarketV1AnalysisRequest,
   TradeAnalyticsPlatform,
 } from "./trade-analytics-platform";
 
 export async function executeCandidateMarketV1(
   platform: TradeAnalyticsPlatform,
-  request: CandidateMarketAnalysisQuery,
+  request: Omit<CandidateMarketV1AnalysisRequest, "recipe">,
   options?: AnalysisExecutionOptions,
 ): Promise<CandidateMarketResult> {
   const outcome = await platform.execute(

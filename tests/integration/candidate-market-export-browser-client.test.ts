@@ -4,8 +4,8 @@ import {
   CandidateMarketExportPreparationError,
   prepareCandidateMarketExport,
 } from "../../src/app/candidate-market-export-client";
-import { createFixtureCandidateMarketAnalysis } from "../../src/evidence/fixture-trade-evidence-source";
 import { resolveFixtureCurrentAnalysisManifest } from "../../src/release/fixture-current-analysis";
+import { createFixtureApplicationRuntime } from "../../src/runtime/application-runtime";
 
 describe("Candidate Market export browser client", () => {
   it("revalidates current context before creating the exact immutable URL", async () => {
@@ -72,9 +72,15 @@ describe("Candidate Market export browser client", () => {
 });
 
 async function fixtureResult() {
-  return createFixtureCandidateMarketAnalysis().analyze({
-    analysisBuildId: "acceptance-fixtures-v1",
-    exporterCode: "156",
-    productCode: "010121",
-  });
+  const outcome =
+    await createFixtureApplicationRuntime().tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      exporterCode: "156",
+      productCode: "010121",
+    });
+  if (outcome.state !== "success") {
+    throw new TypeError(`Expected success, received ${outcome.state}.`);
+  }
+  return outcome.payload;
 }

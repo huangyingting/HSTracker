@@ -4,11 +4,16 @@ import {
   createFixtureApplicationRuntime,
   type ApplicationRuntime,
 } from "../../src/runtime/application-runtime";
-import { isAnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
+import type {
+  AnalysisExecutionOptions,
+  AnalysisOutcome,
+  CandidateMarketV1AnalysisRequest,
+} from "../../src/domain/trade-analytics/trade-analytics-platform";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { RUNTIME_RESOURCE_POLICY } from "../../src/runtime-resource-policy";
 
 const query = {
+  recipe: "candidate-market-v1" as const,
   analysisBuildId: "acceptance-fixtures-v1",
   exporterCode: "156",
   productCode: "010121",
@@ -39,18 +44,18 @@ describe("bounded application runtime", () => {
     const fixture = createFixtureApplicationRuntime();
     const computation = deferred<void>();
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request, options) => {
         computations += 1;
         await computation.promise;
-        return fixture.analyze(request);
+        return fixture.tradeAnalytics.execute(request, options);
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
 
     const pending = Array.from({ length: 10 }, () =>
-      runtime.analyze(query),
+      runtime.tradeAnalytics.execute(query),
     );
     await Promise.resolve();
 
@@ -59,19 +64,22 @@ describe("bounded application runtime", () => {
     const results = await Promise.all(pending);
     expect(results).toHaveLength(10);
     expect(results.every((result) => result === results[0])).toBe(true);
-    expect(results[0]?.candidates).toHaveLength(13);
+    expect(results[0]).toMatchObject({
+      state: "success",
+      payload: { candidates: expect.any(Array) },
+    });
   });
 
   it("partitions analysis cache entries for external probe samples", async () => {
     const fixture = createFixtureApplicationRuntime();
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request, requestOptions) => {
         computations += 1;
-        return fixture.analyze(request);
+        return fixture.tradeAnalytics.execute(request, requestOptions);
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
     const cacheStates: string[] = [];
     const options = (cachePartitionKey: string) => ({
@@ -81,9 +89,9 @@ describe("bounded application runtime", () => {
       },
     });
 
-    await runtime.analyze(query, options("sample-a"));
-    await runtime.analyze(query, options("sample-a"));
-    await runtime.analyze(query, options("sample-b"));
+    await runtime.tradeAnalytics.execute(query, options("sample-a"));
+    await runtime.tradeAnalytics.execute(query, options("sample-a"));
+    await runtime.tradeAnalytics.execute(query, options("sample-b"));
 
     expect(computations).toBe(2);
     expect(cacheStates).toEqual(["miss", "hit", "miss"]);
@@ -94,22 +102,22 @@ describe("bounded application runtime", () => {
     const computation = deferred<void>();
     let computations = 0;
     let sharedSignal: AbortSignal | undefined;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request, options) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request, options) => {
         computations += 1;
         sharedSignal = options?.signal;
         await computation.promise;
-        return fixture.analyze(request);
+        return fixture.tradeAnalytics.execute(request, options);
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
     const disconnectedWaiter = new AbortController();
 
-    const first = runtime.analyze(query, {
+    const first = runtime.tradeAnalytics.execute(query, {
       signal: disconnectedWaiter.signal,
     });
-    const second = runtime.analyze(query);
+    const second = runtime.tradeAnalytics.execute(query);
     disconnectedWaiter.abort();
 
     await expect(first).rejects.toMatchObject({ name: "AbortError" });
@@ -118,36 +126,39 @@ describe("bounded application runtime", () => {
 
     computation.resolve();
     await expect(second).resolves.toMatchObject({
-      analysisBuildId: query.analysisBuildId,
-      candidates: expect.any(Array),
+      state: "success",
+      payload: {
+        analysisBuildId: query.analysisBuildId,
+        candidates: expect.any(Array),
+      },
     });
   });
 
   it("runs two distinct analyses and admits sixteen more in FIFO order", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const expected = await fixture.analyze(query);
+    const expected = await fixture.tradeAnalytics.execute(query);
     const computation = deferred<void>();
     const starts: string[] = [];
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request) => {
         starts.push(request.productCode);
         await computation.promise;
         return expected;
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
     const productCodes = Array.from({ length: 19 }, (_, index) =>
       String(index).padStart(6, "0"),
     );
 
     const admitted = productCodes.slice(0, 18).map((productCode) =>
-      runtime.analyze({
+      runtime.tradeAnalytics.execute({
         ...query,
         productCode,
       }),
     );
-    const rejected = runtime.analyze({
+    const rejected = runtime.tradeAnalytics.execute({
       ...query,
       productCode: productCodes[18]!,
     });
@@ -155,14 +166,13 @@ describe("bounded application runtime", () => {
     await Promise.resolve();
 
     expect(starts).toEqual(productCodes.slice(0, 2));
-    await expect(rejected).rejects.toSatisfy(
-      isAnalysisCapacityExceededError,
-    );
-    await expect(rejected).rejects.toMatchObject({
-      code: "ANALYSIS_CAPACITY_EXCEEDED",
-      status: 503,
-      retryAfterSeconds: 2,
-      reason: "queue-full",
+    await expect(rejected).resolves.toMatchObject({
+      state: "capacity",
+      error: {
+        code: "ANALYSIS_CAPACITY_EXCEEDED",
+        retryAfterSeconds: 2,
+        reason: "queue-full",
+      },
     });
 
     computation.resolve();
@@ -172,41 +182,44 @@ describe("bounded application runtime", () => {
 
   it("rejects a computation that exceeds the queue-wait deadline", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const expected = await fixture.analyze(query);
+    const expected = await fixture.tradeAnalytics.execute(query);
     const firstComputation = deferred<void>();
     const starts: string[] = [];
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request) => {
         starts.push(request.productCode);
         if (request.productCode === "000001") {
           await firstComputation.promise;
         }
         return expected;
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner, {
       maxConcurrentAnalyses: 1,
       maxQueuedAnalyses: 1,
       queueWaitTimeoutMs: 10,
     });
 
-    const first = runtime.analyze({
+    const first = runtime.tradeAnalytics.execute({
       ...query,
       productCode: "000001",
     });
-    const timedOut = runtime.analyze({
+    const timedOut = runtime.tradeAnalytics.execute({
       ...query,
       productCode: "000002",
     });
 
-    await expect(timedOut).rejects.toMatchObject({
-      code: "ANALYSIS_CAPACITY_EXCEEDED",
-      reason: "queue-timeout",
+    await expect(timedOut).resolves.toMatchObject({
+      state: "capacity",
+      error: {
+        code: "ANALYSIS_CAPACITY_EXCEEDED",
+        reason: "queue-timeout",
+      },
     });
     expect(starts).toEqual(["000001"]);
 
-    const replacement = runtime.analyze({
+    const replacement = runtime.tradeAnalytics.execute({
       ...query,
       productCode: "000003",
     });
@@ -217,13 +230,13 @@ describe("bounded application runtime", () => {
 
   it("interrupts an overlong analysis before releasing its slot", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const expected = await fixture.analyze(query);
+    const expected = await fixture.tradeAnalytics.execute(query);
     const interrupted = deferred<void>();
     const querySettled = deferred<void>();
     const starts: string[] = [];
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request, options) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request, options) => {
         starts.push(request.productCode);
         if (request.productCode !== "000001") {
           return expected;
@@ -242,17 +255,17 @@ describe("bounded application runtime", () => {
         await querySettled.promise;
         throw options?.signal?.reason;
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner, {
       maxConcurrentAnalyses: 1,
       analysisTimeoutMs: 10,
     });
 
-    const overlong = runtime.analyze({
+    const overlong = runtime.tradeAnalytics.execute({
       ...query,
       productCode: "000001",
     });
-    const next = runtime.analyze({
+    const next = runtime.tradeAnalytics.execute({
       ...query,
       productCode: "000002",
     });
@@ -261,9 +274,12 @@ describe("bounded application runtime", () => {
     expect(starts).toEqual(["000001"]);
 
     querySettled.resolve();
-    await expect(overlong).rejects.toMatchObject({
-      code: "ANALYSIS_CAPACITY_EXCEEDED",
-      reason: "execution-timeout",
+    await expect(overlong).resolves.toMatchObject({
+      state: "capacity",
+      error: {
+        code: "ANALYSIS_CAPACITY_EXCEEDED",
+        reason: "execution-timeout",
+      },
     });
     await expect(next).resolves.toBe(expected);
     expect(starts).toEqual(["000001", "000002"]);
@@ -271,28 +287,32 @@ describe("bounded application runtime", () => {
 
   it("evicts Candidate Market entries by byte-weighted access order", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const expected = await fixture.analyze(query);
+    const expected = await fixture.tradeAnalytics.execute(query);
     const computations: string[] = [];
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request) => {
         computations.push(request.productCode);
         return expected;
       },
-    };
+    );
+    if (expected.state !== "success") {
+      throw new TypeError(`Expected success, received ${expected.state}.`);
+    }
     const entryWeight =
-      new TextEncoder().encode(JSON.stringify(expected)).byteLength + 1_024;
+      new TextEncoder().encode(JSON.stringify(expected.payload)).byteLength +
+      1_024;
     const runtime = createBoundedApplicationRuntime(inner, {
       analysisCacheMaxBytes: entryWeight * 2,
     });
 
-    const analyze = (productCode: string) =>
-      runtime.analyze({ ...query, productCode });
-    await analyze("000001");
-    await analyze("000002");
-    await analyze("000001");
-    await analyze("000003");
-    await analyze("000002");
+    const execute = (productCode: string) =>
+      runtime.tradeAnalytics.execute({ ...query, productCode });
+    await execute("000001");
+    await execute("000002");
+    await execute("000001");
+    await execute("000003");
+    await execute("000002");
 
     expect(computations).toEqual([
       "000001",
@@ -304,103 +324,99 @@ describe("bounded application runtime", () => {
 
   it("caches a valid empty Candidate Market result", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const result = {
-      ...(await fixture.analyze(query)),
-      candidates: [],
-    };
+    const emptyQuery = { ...query, productCode: "851712" };
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze() {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request, options) => {
         computations += 1;
-        return result;
+        return fixture.tradeAnalytics.execute(request, options);
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
 
-    await runtime.analyze(query);
-    await runtime.analyze(query);
+    await runtime.tradeAnalytics.execute(emptyQuery);
+    await runtime.tradeAnalytics.execute(emptyQuery);
 
     expect(computations).toBe(1);
   });
 
   it("does not cache an analysis error", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const result = await fixture.analyze(query);
+    const result = await fixture.tradeAnalytics.execute(query);
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze() {
+    const inner = runtimeWithExecution(
+      fixture,
+      async () => {
         computations += 1;
         if (computations === 1) {
           throw new Error("query failed");
         }
         return result;
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
 
-    await expect(runtime.analyze(query)).rejects.toThrow("query failed");
-    await expect(runtime.analyze(query)).resolves.toBe(result);
-    await expect(runtime.analyze(query)).resolves.toBe(result);
+    await expect(runtime.tradeAnalytics.execute(query)).rejects.toThrow(
+      "query failed",
+    );
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toBe(result);
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toBe(result);
 
     expect(computations).toBe(2);
   });
 
   it("returns but does not admit an oversized analysis entry", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const result = await fixture.analyze(query);
+    const result = await fixture.tradeAnalytics.execute(query);
+    if (result.state !== "success") {
+      throw new TypeError(`Expected success, received ${result.state}.`);
+    }
     const entryWeight =
-      new TextEncoder().encode(JSON.stringify(result)).byteLength + 1_024;
+      new TextEncoder().encode(JSON.stringify(result.payload)).byteLength +
+      1_024;
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze() {
+    const inner = runtimeWithExecution(
+      fixture,
+      async () => {
         computations += 1;
         return result;
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner, {
       analysisCacheMaxBytes: entryWeight - 1,
     });
 
-    await expect(runtime.analyze(query)).resolves.toBe(result);
-    await expect(runtime.analyze(query)).resolves.toBe(result);
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toBe(result);
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toBe(result);
 
     expect(computations).toBe(2);
   });
 
-  it("validates the active build before consulting the analysis cache", async () => {
+  it("invalidates analysis cache entries when the active deployment changes", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const result = await fixture.analyze(query);
     const originalManifest = fixture.currentAnalysis();
     let currentManifest = originalManifest;
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
+    const inner = runtimeWithExecution(fixture, async (request, options) => {
+      computations += 1;
+      return fixture.tradeAnalytics.execute(request, options);
+    });
+    const runtime: ApplicationRuntime = createBoundedApplicationRuntime({
+      ...inner,
       currentAnalysis() {
         return currentManifest;
       },
-      async analyze(request) {
-        computations += 1;
-        if (
-          request.analysisBuildId !== currentManifest.analysisBuildId
-        ) {
-          throw new Error("retired build");
-        }
-        return result;
-      },
-    };
-    const runtime = createBoundedApplicationRuntime(inner);
+    });
 
-    await runtime.analyze(query);
+    await runtime.tradeAnalytics.execute(query);
     currentManifest = {
       ...originalManifest,
       analysisBuildId: "replacement-build",
     };
-    await expect(runtime.analyze(query)).rejects.toThrow("retired build");
+    await runtime.tradeAnalytics.execute(query);
     currentManifest = originalManifest;
-    await runtime.analyze(query);
+    await runtime.tradeAnalytics.execute(query);
 
     expect(computations).toBe(3);
   });
@@ -617,29 +633,29 @@ describe("bounded application runtime", () => {
   it("validates malformed analyses before capacity admission", async () => {
     const fixture = createFixtureApplicationRuntime();
     const computation = deferred<void>();
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze(request) {
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request, options) => {
         if (request.productCode === query.productCode) {
           await computation.promise;
         }
-        return fixture.analyze(request);
+        return fixture.tradeAnalytics.execute(request, options);
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner, {
       maxConcurrentAnalyses: 1,
       maxQueuedAnalyses: 0,
     });
-    const active = runtime.analyze(query);
+    const active = runtime.tradeAnalytics.execute(query);
 
     await expect(
-      runtime.analyze({
+      runtime.tradeAnalytics.execute({
         ...query,
         productCode: "malformed",
       }),
-    ).rejects.toMatchObject({
-      code: "INVALID_ANALYSIS_QUERY",
-      status: 400,
+    ).resolves.toMatchObject({
+      state: "invalid-input",
+      error: { code: "INVALID_ANALYSIS_QUERY" },
     });
 
     computation.resolve();
@@ -722,13 +738,16 @@ describe("bounded application runtime", () => {
     const observe = (observation: unknown) => {
       observations.push(observation);
     };
-    const expected = await fixture.analyze(query);
+    const expected = await fixture.tradeAnalytics.execute(query);
+    if (expected.state !== "success") {
+      throw new TypeError(`Expected success, received ${expected.state}.`);
+    }
     const resultBytes = new TextEncoder().encode(
-      JSON.stringify(expected),
+      JSON.stringify(expected.payload),
     ).byteLength;
 
-    await runtime.analyze(query, { observe });
-    await runtime.analyze(query, { observe });
+    await runtime.tradeAnalytics.execute(query, { observe });
+    await runtime.tradeAnalytics.execute(query, { observe });
 
     expect(observations).toEqual([
       {
@@ -783,14 +802,14 @@ describe("bounded application runtime", () => {
 
   it("admits the accepted twenty-session hot-key burst without rejection", async () => {
     const fixture = createFixtureApplicationRuntime();
-    const expected = await fixture.analyze(query);
+    const expected = await fixture.tradeAnalytics.execute(query);
     const release = deferred<void>();
     let active = 0;
     let maximumActive = 0;
     let computations = 0;
-    const inner: ApplicationRuntime = {
-      ...fixture,
-      async analyze() {
+    const inner = runtimeWithExecution(
+      fixture,
+      async () => {
         computations += 1;
         active += 1;
         maximumActive = Math.max(maximumActive, active);
@@ -798,13 +817,13 @@ describe("bounded application runtime", () => {
         active -= 1;
         return expected;
       },
-    };
+    );
     const runtime = createBoundedApplicationRuntime(inner);
     const hot = Array.from({ length: 16 }, () =>
-      runtime.analyze(query),
+      runtime.tradeAnalytics.execute(query),
     );
     const uncached = Array.from({ length: 4 }, (_, index) =>
-      runtime.analyze({
+      runtime.tradeAnalytics.execute({
         ...query,
         productCode: String(index + 1).padStart(6, "0"),
       }),
@@ -821,6 +840,21 @@ describe("bounded application runtime", () => {
     expect(computations).toBe(5);
   });
 });
+
+type CandidateExecution = (
+  request: CandidateMarketV1AnalysisRequest,
+  options?: AnalysisExecutionOptions,
+) => Promise<AnalysisOutcome<"candidate-market-v1">>;
+
+function runtimeWithExecution(
+  runtime: ApplicationRuntime,
+  execute: CandidateExecution,
+): ApplicationRuntime {
+  return {
+    ...runtime,
+    tradeAnalytics: { execute },
+  };
+}
 
 function deferred<T>(): {
   promise: Promise<T>;

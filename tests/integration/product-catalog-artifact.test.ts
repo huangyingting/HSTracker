@@ -1047,7 +1047,9 @@ describe("immutable bilingual product catalog CLI", () => {
     "changes only product-search identity for translation- and alias-only edits",
     async () => {
       const root = await temporaryWorkspace();
-      const fixture = await prepareValidCatalogFixture(root);
+      const fixture = await prepareValidCatalogFixture(root, {
+        candidateMarketCompatible: true,
+      });
       const analysis = await runAnalysisArtifactCli({
         stagingManifestPath: fixture.paths.stagingManifestPath,
         workspacePath: join(root, "analysis-work"),
@@ -1214,6 +1216,32 @@ async function stageSafeFixture(
   return JSON.parse(stdout);
 }
 
+async function stageAnalysisSafeFixture(
+  workspace: string,
+): Promise<{ stagingManifestPath: string }> {
+  const { stdout } = await execFileAsync(
+    "npm",
+    [
+      "run",
+      "--silent",
+      "stage:baci",
+      "--",
+      "--descriptor",
+      resolve("fixtures/pipeline/v1/analysis-safe-source.json"),
+      "--approval",
+      resolve("fixtures/pipeline/v1/analysis-safe-coverage-approval.json"),
+      "--archive",
+      resolve("fixtures/pipeline/v1/archives/analysis-safe-baci.zip"),
+      "--workspace",
+      workspace,
+      "--report",
+      join(workspace, "source-report.json"),
+    ],
+    { timeout: 60_000 },
+  );
+  return JSON.parse(stdout);
+}
+
 async function runCatalogCli({
   stagingManifestPath,
   translationsPath,
@@ -1355,7 +1383,10 @@ async function rewriteStagedProducts(
   return manifest;
 }
 
-async function prepareValidCatalogFixture(root: string): Promise<{
+async function prepareValidCatalogFixture(
+  root: string,
+  options: Readonly<{ candidateMarketCompatible?: boolean }> = {},
+): Promise<{
   paths: {
     stagingManifestPath: string;
     translationsPath: string;
@@ -1364,7 +1395,9 @@ async function prepareValidCatalogFixture(root: string): Promise<{
     reviewPath: string;
   };
 }> {
-  const staging = await stageSafeFixture(join(root, "staging-work"));
+  const staging = await (options.candidateMarketCompatible
+    ? stageAnalysisSafeFixture(join(root, "staging-work"))
+    : stageSafeFixture(join(root, "staging-work")));
   const stagingManifest = JSON.parse(
     await readFile(staging.stagingManifestPath, "utf8"),
   ) as MutableStagingManifest;

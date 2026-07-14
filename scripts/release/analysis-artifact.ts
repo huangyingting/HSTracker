@@ -18,8 +18,12 @@ import {
   type DuckDBValue,
 } from "@duckdb/node-api";
 
-import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
 import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
+import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import {
+  createCandidateMarketDatasetPackageFromArtifacts,
+  readAnalysisArtifactManifest,
+} from "../../src/evidence/analysis-artifact-manifest";
 import { DuckDbTradeEvidenceSource } from "../../src/evidence/duckdb-trade-evidence-source";
 
 const ARTIFACT_SCHEMA_VERSION = "candidate-market-artifact-v1";
@@ -954,17 +958,44 @@ async function selectBenchmarkQueries({
     }
   >();
   try {
-    const analysis = new CmsV1CandidateMarketAnalysis(evidenceSource);
+    const manifest = await readAnalysisArtifactManifest(
+      artifactManifestPath,
+    );
+    const datasetPackage =
+      createCandidateMarketDatasetPackageFromArtifacts({
+        manifest,
+        analysisReleaseCatalogSha256,
+        previousManifest: null,
+      });
+    const tradeAnalytics =
+      createCandidateMarketV1TradeAnalyticsPlatform({
+        evidenceSource,
+        datasetPackages: new Map([
+          [artifactBuildId, datasetPackage],
+        ]),
+      });
     for (const benchmark of selected) {
       const key = `${benchmark.exporterCode}:${benchmark.productCode}`;
       if (resultFacts.has(key)) {
         continue;
       }
-      const result = await analysis.analyze({
+      const outcome = await tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
         analysisBuildId: artifactBuildId,
         exporterCode: benchmark.exporterCode,
         productCode: benchmark.productCode,
       });
+      if (outcome.state !== "success" && outcome.state !== "empty") {
+        throw new AnalysisArtifactBuildError(
+          "ARTIFACT_BUILD_FAILED",
+          `Artifact benchmark analysis failed: ${outcome.state} (${outcome.error.code}${
+            "reason" in outcome.error
+              ? `: ${outcome.error.reason}`
+              : ""
+          }).`,
+        );
+      }
+      const result = outcome.payload;
       const resultBytes = Buffer.from(JSON.stringify(result), "utf8");
       resultFacts.set(key, {
         candidateCount: result.cohortSize,

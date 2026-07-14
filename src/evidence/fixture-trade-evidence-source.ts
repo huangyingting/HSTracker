@@ -4,11 +4,7 @@ import {
   unknownExporter,
   unknownProduct,
 } from "../domain/candidate-market/errors";
-import {
-  CmsV1CandidateMarketAnalysis,
-  type CandidateMarketAnalysis,
-} from "../domain/candidate-market/analyze-candidate-markets";
-import type { CandidateMarketAnalysisQuery } from "../domain/candidate-market/result";
+import type { CandidateMarketV1RecipeInput } from "../domain/candidate-market/result";
 import {
   CANDIDATE_MARKET_V1_DATASET_DECLARATION,
   createCandidateMarketDatasetPackage,
@@ -65,7 +61,7 @@ const AVAILABLE_BUILD_IDS = new Set(
 
 export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
   async loadCmsV1Inputs(
-    query: CandidateMarketAnalysisQuery,
+    query: CandidateMarketV1RecipeInput,
   ): Promise<CmsV1Inputs> {
     if (query.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.failing) {
       throw new Error("fixture adapter failure");
@@ -99,12 +95,6 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
 
     throw unknownProduct(query.productCode);
   }
-}
-
-export function createFixtureCandidateMarketAnalysis(): CandidateMarketAnalysis {
-  return new CmsV1CandidateMarketAnalysis(
-    new FixtureTradeEvidenceSource(),
-  );
 }
 
 export function createFixtureCandidateMarketDatasetPackages(

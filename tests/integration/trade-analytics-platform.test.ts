@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CmsV1CandidateMarketAnalysis } from "../../src/domain/candidate-market/analyze-candidate-markets";
-import { CandidateMarketTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createFixtureCandidateMarketDatasetPackages,
   FixtureTradeEvidenceSource,
@@ -124,9 +123,9 @@ describe("TradeAnalyticsPlatform", () => {
         baciRelease: "V202501",
       },
     };
-    const analysis = new CmsV1CandidateMarketAnalysis(
-      new FixtureTradeEvidenceSource(),
-      {
+    const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+      evidenceSource: new FixtureTradeEvidenceSource(),
+      previousRelease: {
         source: {
           async loadCmsV1Inputs() {
             return previousInput;
@@ -137,15 +136,12 @@ describe("TradeAnalyticsPlatform", () => {
         hsRevision: "HS12",
         availableYears: [2019, 2020, 2021, 2022, 2023],
       },
-    );
-    const platform = new CandidateMarketTradeAnalyticsPlatform(
-      analysis.analyze.bind(analysis),
-      createFixtureCandidateMarketDatasetPackages(
+      datasetPackages: createFixtureCandidateMarketDatasetPackages(
         new Map([
           [CORE_CURRENT_INPUT.analysisBuildId, previousInput],
         ]),
       ),
-    );
+    });
 
     const outcome = await platform.execute({
       recipe: "candidate-market-v1",

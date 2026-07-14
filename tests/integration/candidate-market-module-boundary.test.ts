@@ -19,6 +19,53 @@ async function sourceFiles(directory: string): Promise<string[]> {
 }
 
 describe("Candidate Market module boundary", () => {
+  it("exposes no obsolete Candidate Market analytical entry point", async () => {
+    const files = await sourceFiles(sourceRoot);
+    const testFiles = await sourceFiles(resolve("tests"));
+    const sources = await Promise.all(
+      files.map(async (path) => ({
+        path,
+        source: await readFile(path, "utf8"),
+      })),
+    );
+
+    expect(
+      files.map((path) => relative(sourceRoot, path)),
+    ).not.toContain("domain/candidate-market/analyze-candidate-markets.ts");
+    expect(
+      sources
+        .filter(({ source }) =>
+          source.includes("candidate-market-v1-recipe"),
+        )
+        .map(({ path }) => relative(sourceRoot, path)),
+    ).toEqual(["domain/trade-analytics/trade-analytics-platform.ts"]);
+    for (const { path, source } of sources) {
+      expect(source, relative(sourceRoot, path)).not.toMatch(
+        /\binterface\s+CandidateMarketAnalysis\b/u,
+      );
+      expect(source, relative(sourceRoot, path)).not.toMatch(
+        /\bruntime\.analyze\s*\(/u,
+      );
+    }
+
+    const applicationRuntime = sources.find(({ path }) =>
+      path.endsWith("runtime/application-runtime.ts"),
+    )?.source;
+    expect(applicationRuntime).not.toMatch(
+      /^\s*analyze\s*\(/mu,
+    );
+
+    for (const path of testFiles) {
+      if (path.endsWith("candidate-market-module-boundary.test.ts")) {
+        continue;
+      }
+      const source = await readFile(path, "utf8");
+      expect(source, relative(resolve("tests"), path)).not.toMatch(
+        /analyze-candidate-markets|\.analyze\s*\(/u,
+      );
+    }
+  });
+
   it("routes public Candidate Market representations through the platform Adapter", async () => {
     const routes = await Promise.all(
       [
@@ -35,7 +82,11 @@ describe("Candidate Market module boundary", () => {
 
   it("keeps scoring formulas out of routes, adapters, and UI code", async () => {
     const files = (await sourceFiles(sourceRoot)).filter(
-      (path) => !path.startsWith(`${candidateMarketModule}${sep}`),
+      (path) =>
+        !path.startsWith(`${candidateMarketModule}${sep}`) &&
+        !path.endsWith(
+          "domain/trade-analytics/candidate-market-v1-recipe.ts",
+        ),
     );
     const forbiddenFormulaPatterns = [
       /from\s+["'][^"']*candidate-market\/cms-v1["']/,

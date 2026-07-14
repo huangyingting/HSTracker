@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "baci-source-coverage-approval-v1",
+  "sourceSha256": "b058b1ee6e128559db7b8768e14594cad216b670bf4d2c5882da0c877d8d2d15",
+  "annualChecks": [
+    { "year": 2014, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2015, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2016, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2017, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2018, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2019, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2020, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2021, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2022, "rowCount": 1, "exporterCount": 1, "importerCount": 1, "observedProductCount": 1, "quantityPresentCount": 1, "quantityNullCount": 0, "valueTotalKusd": "10.125", "quantityTotalTons": "1.500" },
+    { "year": 2023, "rowCount": 3, "exporterCount": 2, "importerCount": 2, "observedProductCount": 2, "quantityPresentCount": 2, "quantityNullCount": 1, "valueTotalKusd": "33.375", "quantityTotalTons": "1.625" },
+    { "year": 2024, "rowCount": 2, "exporterCount": 2, "importerCount": 2, "observedProductCount": 2, "quantityPresentCount": 1, "quantityNullCount": 1, "valueTotalKusd": "15.625", "quantityTotalTons": "1.750" }
+  ],
+  "approvedBy": "fixture",
+  "approvedAt": "2026-01-22T00:00:00Z",
+  "rationale": "Known-safe synthetic fixture coverage for Candidate Market v1.",
+  "evidenceUrl": "https://example.invalid/fixture-approval"
+}

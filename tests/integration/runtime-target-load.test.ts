@@ -24,41 +24,51 @@ describe("accepted public target load", () => {
   it("serves the ten-minute mix, coordinated bursts, and 30-second burst without rejection", async () => {
     vi.useFakeTimers();
     const fixture = createFixtureApplicationRuntime();
-    const expected = await fixture.analyze({
+    const expected = await fixture.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
       analysisBuildId: "acceptance-fixtures-v1",
       exporterCode: "156",
       productCode: "010121",
     });
+    if (expected.state !== "success") {
+      throw new TypeError(`Expected success, received ${expected.state}.`);
+    }
     let activeComputations = 0;
     let maximumActiveComputations = 0;
     const runtime = createBoundedApplicationRuntime({
       ...fixture,
-      async analyze(query) {
-        activeComputations += 1;
-        maximumActiveComputations = Math.max(
-          maximumActiveComputations,
-          activeComputations,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-        activeComputations -= 1;
-        return {
-          ...expected,
-          analysisId: `${expected.analysisId}:${query.exporterCode}`,
-          query: {
-            exporter: {
-              ...expected.query.exporter,
-              code: query.exporterCode,
+      tradeAnalytics: {
+        async execute(query) {
+          activeComputations += 1;
+          maximumActiveComputations = Math.max(
+            maximumActiveComputations,
+            activeComputations,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
+          activeComputations -= 1;
+          return {
+            ...expected,
+            payload: {
+              ...expected.payload,
+              analysisId: `${expected.payload.analysisId}:${query.exporterCode}`,
+              query: {
+                exporter: {
+                  ...expected.payload.query.exporter,
+                  code: query.exporterCode,
+                },
+                product: {
+                  ...expected.payload.query.product,
+                  code: query.productCode,
+                },
+              },
             },
-            product: {
-              ...expected.query.product,
-              code: query.productCode,
-            },
-          },
-        };
+          };
+        },
       },
     });
     const warmups = HOT_ANALYSIS_KEYS.map((identity) =>
-      runtime.analyze({
+      runtime.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
         analysisBuildId: runtime.currentAnalysis().analysisBuildId,
         ...identity,
       }),

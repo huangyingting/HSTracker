@@ -9,11 +9,9 @@ import {
   installApplicationRuntime,
 } from "../../src/runtime/application-runtime";
 import {
-  CandidateMarketTradeAnalyticsPlatform,
   type AnalysisOutcome,
   type TradeAnalyticsPlatform,
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
-import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import {
   RUNTIME_PROBE_CACHE_PARTITION_HEADER,
@@ -155,9 +153,15 @@ describe("versioned Candidate Market route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      tradeAnalytics: fixturePlatform(fixture).withExecution(async () => {
-        throw new AnalysisCapacityExceededError("queue-full");
+      tradeAnalytics: platformReturning(unresolvedOutcome({
+        state: "capacity",
+        error: {
+          code: "ANALYSIS_CAPACITY_EXCEEDED",
+          reason: "queue-full",
+          retryAfterSeconds: 2,
+        },
       }),
+      ),
     });
 
     try {
@@ -262,17 +266,7 @@ describe("versioned Candidate Market route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      tradeAnalytics: fixturePlatform(fixture).withExecution(
-        (_query, options) => {
-          return new Promise((_resolve, reject) => {
-            options?.signal?.addEventListener(
-              "abort",
-              () => reject(options.signal?.reason),
-              { once: true },
-            );
-          });
-        },
-      ),
+      tradeAnalytics: rejectingOnAbortPlatform(),
     });
 
     try {
@@ -309,6 +303,7 @@ describe("versioned Candidate Market route", () => {
         | "incompatible-package"
         | "budget"
         | "rate-limit"
+        | "capacity"
         | "temporary-unavailability";
     }
   >;
@@ -343,6 +338,20 @@ describe("versioned Candidate Market route", () => {
     return {
       async execute() {
         return outcome;
+      },
+    };
+  }
+
+  function rejectingOnAbortPlatform(): TradeAnalyticsPlatform {
+    return {
+      execute(_request, options) {
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () => reject(options.signal?.reason),
+            { once: true },
+          );
+        });
       },
     };
   }
@@ -564,15 +573,4 @@ describe("versioned Candidate Market route", () => {
     });
   });
 
-  function fixturePlatform(
-    runtime: ReturnType<typeof createFixtureApplicationRuntime>,
-  ): CandidateMarketTradeAnalyticsPlatform {
-    if (
-      runtime.tradeAnalytics instanceof
-      CandidateMarketTradeAnalyticsPlatform
-    ) {
-      return runtime.tradeAnalytics;
-    }
-    throw new TypeError("Fixture runtime must use the Candidate Market platform.");
-  }
 });

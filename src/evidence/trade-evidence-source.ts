@@ -1,5 +1,5 @@
 import type {
-  CandidateMarketAnalysisQuery,
+  CandidateMarketV1RecipeInput,
   EconomyIdentity,
   ProductIdentity,
 } from "../domain/candidate-market/result";
@@ -63,7 +63,7 @@ export type TradeEvidenceLoadOptions = Readonly<{
 
 export interface TradeEvidenceSource {
   loadCmsV1Inputs(
-    query: CandidateMarketAnalysisQuery,
+    query: CandidateMarketV1RecipeInput,
     options?: TradeEvidenceLoadOptions,
   ): Promise<CmsV1Inputs>;
 }

@@ -1,27 +1,18 @@
 import {
   CandidateMarketAnalysisError,
-  invalidAnalysisQuery,
-} from "./errors";
-import { computeCmsV1 } from "./cms-v1";
+} from "../candidate-market/errors";
+import { computeCmsV1 } from "../candidate-market/cms-v1";
 import type {
-  CandidateMarketAnalysisQuery,
+  CandidateMarketV1RecipeInput,
   CandidateMarketResult,
-} from "./result";
-import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
+} from "../candidate-market/result";
+import type {
+  TradeEvidenceLoadOptions,
+  TradeEvidenceSource,
+} from "../../evidence/trade-evidence-source";
 import type { ReleaseRevisionPreviousArtifact } from "../release/release-revision";
 
-export interface CandidateMarketAnalysis {
-  analyze(
-    query: CandidateMarketAnalysisQuery,
-    options?: CandidateMarketAnalysisOptions,
-  ): Promise<CandidateMarketResult>;
-}
-
-export type CandidateMarketAnalysisOptions = Readonly<{
-  signal?: AbortSignal;
-}>;
-
-export type PreviousReleaseEvidence = {
+export type CandidateMarketV1PreviousReleaseEvidence = {
   source: TradeEvidenceSource;
   baciRelease: string;
   artifactSha256: string;
@@ -29,43 +20,41 @@ export type PreviousReleaseEvidence = {
   availableYears: readonly number[];
 };
 
-export class CmsV1CandidateMarketAnalysis implements CandidateMarketAnalysis {
-  constructor(
-    private readonly evidenceSource: TradeEvidenceSource,
-    private readonly previousRelease: PreviousReleaseEvidence | null = null,
-  ) {}
+type CandidateMarketV1RecipeExecution = (
+  query: CandidateMarketV1RecipeInput,
+  options?: TradeEvidenceLoadOptions,
+) => Promise<CandidateMarketResult>;
 
-  async analyze(
-    query: CandidateMarketAnalysisQuery,
-    options?: CandidateMarketAnalysisOptions,
-  ): Promise<CandidateMarketResult> {
-    validateCandidateMarketAnalysisQuery(query);
+export function createCandidateMarketV1RecipeExecution(
+  evidenceSource: TradeEvidenceSource,
+  previousRelease: CandidateMarketV1PreviousReleaseEvidence | null,
+): CandidateMarketV1RecipeExecution {
+  return async (query, options) => {
     options?.signal?.throwIfAborted();
-    const inputs = await this.evidenceSource.loadCmsV1Inputs(query, options);
+    const inputs = await evidenceSource.loadCmsV1Inputs(query, options);
     options?.signal?.throwIfAborted();
     const previousArtifact =
-      this.previousRelease === null
+      previousRelease === null
         ? null
-        : this.previousRelease.baciRelease ===
-            inputs.release.baciRelease
+        : previousRelease.baciRelease === inputs.release.baciRelease
           ? unrecomputedPreviousArtifact(
               inputs.release.finalizedCutoffYear,
-              this.previousRelease,
+              previousRelease,
             )
           : await loadPreviousArtifact(
               query,
               inputs.release.finalizedCutoffYear,
-              this.previousRelease,
+              previousRelease,
               options,
             );
     options?.signal?.throwIfAborted();
     return computeCmsV1(inputs, previousArtifact);
-  }
+  };
 }
 
 function unrecomputedPreviousArtifact(
   currentFinalizedCutoffYear: number,
-  previous: PreviousReleaseEvidence,
+  previous: CandidateMarketV1PreviousReleaseEvidence,
 ): ReleaseRevisionPreviousArtifact {
   return {
     baciRelease: previous.baciRelease,
@@ -82,10 +71,10 @@ function unrecomputedPreviousArtifact(
 }
 
 async function loadPreviousArtifact(
-  query: CandidateMarketAnalysisQuery,
+  query: CandidateMarketV1RecipeInput,
   currentFinalizedCutoffYear: number,
-  previous: PreviousReleaseEvidence,
-  options?: CandidateMarketAnalysisOptions,
+  previous: CandidateMarketV1PreviousReleaseEvidence,
+  options?: TradeEvidenceLoadOptions,
 ): Promise<ReleaseRevisionPreviousArtifact> {
   const scoreWindow = {
     start: currentFinalizedCutoffYear - 4,
@@ -104,8 +93,6 @@ async function loadPreviousArtifact(
         "Previous release evidence does not match its artifact identity.",
       );
     }
-    // Recompute prior-release bytes over the current finalized window only for
-    // Release Revision comparison; this never changes the current score.
     const result = computeCmsV1({
       ...inputs,
       marketYears: [
@@ -140,22 +127,4 @@ async function loadPreviousArtifact(
     scoreWindowUsed: scoreWindow,
     recomputedCandidates,
   };
-}
-
-export function validateCandidateMarketAnalysisQuery(
-  query: CandidateMarketAnalysisQuery,
-): void {
-  if (!/^[a-z0-9][a-z0-9-]{0,127}$/i.test(query.analysisBuildId)) {
-    throw invalidAnalysisQuery("analysisBuildId is malformed.");
-  }
-
-  if (!/^[0-9]{1,3}$/.test(query.exporterCode)) {
-    throw invalidAnalysisQuery("exporterCode must be a BACI economy code.");
-  }
-
-  if (!/^[0-9]{6}$/.test(query.productCode)) {
-    throw invalidAnalysisQuery(
-      "productCode must contain exactly six ASCII digits.",
-    );
-  }
 }

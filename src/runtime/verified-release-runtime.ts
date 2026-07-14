@@ -1,10 +1,5 @@
 import type { ProductCatalog } from "../catalog/product-catalog";
 import { ImmutableProductCatalog } from "../catalog/immutable-product-catalog";
-import {
-  CmsV1CandidateMarketAnalysis,
-  type CandidateMarketAnalysis,
-  type PreviousReleaseEvidence,
-} from "../domain/candidate-market/analyze-candidate-markets";
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
 import {
@@ -20,7 +15,8 @@ import {
   type RecommendedDatasetMapping,
 } from "../domain/trade-analytics/recommended-dataset-mapping";
 import {
-  CandidateMarketTradeAnalyticsPlatform,
+  createCandidateMarketV1TradeAnalyticsPlatform,
+  type CandidateMarketV1PreviousReleaseEvidence,
   type TradeAnalyticsPlatform,
 } from "../domain/trade-analytics/trade-analytics-platform";
 import { resolveReleaseRevisionComparisonIdentity } from "../domain/release/release-revision";
@@ -65,8 +61,6 @@ type VerifiedReleaseRuntimeInput = {
 };
 
 export class VerifiedReleaseRuntime {
-  readonly tradeAnalytics: TradeAnalyticsPlatform;
-
   private constructor(
     private readonly hydrated: HydratedRelease,
     private readonly manifest: AnalysisArtifactManifest,
@@ -74,17 +68,13 @@ export class VerifiedReleaseRuntime {
     private readonly deployment: CurrentAnalysisDeployment,
     private sourceStatus: SourceStatusSnapshot,
     private readonly analysisDatabase: DuckDbAnalysisDatabase,
-    private readonly analysis: CandidateMarketAnalysis,
+    readonly tradeAnalytics: TradeAnalyticsPlatform,
     private readonly productCatalog: ProductCatalog,
     private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
     datasetPackage: CandidateMarketDatasetPackage,
     readonly recommendedDatasetMapping: RecommendedDatasetMapping,
   ) {
-    this.tradeAnalytics = new CandidateMarketTradeAnalyticsPlatform(
-      analysis.analyze.bind(analysis),
-      new Map([[deployment.analysisBuildId, datasetPackage]]),
-    );
     this.retainedSourceStatuses.set(
       sourceStatus.sourceStatusSnapshotId,
       sourceStatus,
@@ -170,14 +160,18 @@ export class VerifiedReleaseRuntime {
           analysisBuildId: hydrated.deployment.analysisBuildId,
         }),
       ]);
-      const analysis = new CmsV1CandidateMarketAnalysis(
-        analysisSource,
-        previousRelease,
-      );
+      const tradeAnalytics =
+        createCandidateMarketV1TradeAnalyticsPlatform({
+          evidenceSource: analysisSource,
+          previousRelease,
+          datasetPackages: new Map([
+            [hydrated.deployment.analysisBuildId, datasetPackage],
+          ]),
+        });
       await verifyStartupSmoke(
         hydrated,
         manifest,
-        analysis,
+        tradeAnalytics,
         productCatalog,
         economyDirectory,
         runAnalyticalSmoke,
@@ -198,7 +192,7 @@ export class VerifiedReleaseRuntime {
         deployment,
         sourceStatus,
         analysisDatabase,
-        analysis,
+        tradeAnalytics,
         productCatalog,
         economyDirectory,
         input.now ?? currentUtcSecond,
@@ -351,13 +345,6 @@ export class VerifiedReleaseRuntime {
 
   normalizeProductSearchQuery(query: string): string {
     return this.productCatalog.normalizeQuery(query);
-  }
-
-  analyze(
-    query: Parameters<CandidateMarketAnalysis["analyze"]>[0],
-    options?: RuntimeRequestOptions,
-  ) {
-    return this.analysis.analyze(query, options);
   }
 
   searchProducts(
@@ -526,7 +513,7 @@ async function openPreviousRelease(
 hydrated: HydratedRelease,
 manifest: AnalysisArtifactManifest | null,
 database: DuckDbAnalysisDatabase,
-): Promise<PreviousReleaseEvidence | null> {
+): Promise<CandidateMarketV1PreviousReleaseEvidence | null> {
 if (hydrated.previousAnalysis === null || manifest === null) {
   return null;
 }
@@ -552,7 +539,7 @@ return {
 async function verifyStartupSmoke(
   hydrated: HydratedRelease,
   manifest: AnalysisArtifactManifest,
-  analysis: CandidateMarketAnalysis,
+  tradeAnalytics: TradeAnalyticsPlatform,
   productCatalog: ProductCatalog,
   economyDirectory: EconomyDirectory,
   runAnalyticalSmoke: boolean,
@@ -567,13 +554,14 @@ async function verifyStartupSmoke(
   }
   const benchmark = benchmarks[0]!;
   const analysisResultPromise = runAnalyticalSmoke
-    ? analysis.analyze({
+    ? tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
         analysisBuildId: hydrated.deployment.analysisBuildId,
         exporterCode: benchmark.exporterCode,
         productCode: benchmark.productCode,
       })
     : Promise.resolve(null);
-  const [analysisResult, productResult, economyResult] = await Promise.all([
+  const [analysisOutcome, productResult, economyResult] = await Promise.all([
     analysisResultPromise,
     productCatalog.search({
       productSearchBuildId:
@@ -588,9 +576,17 @@ async function verifyStartupSmoke(
       limit: 1,
     }),
   ]);
+  const analysisResult =
+    analysisOutcome === null
+      ? null
+      : analysisOutcome.state === "success" ||
+          analysisOutcome.state === "empty"
+        ? analysisOutcome.payload
+        : null;
   if (
-    (analysisResult !== null &&
-      (analysisResult.cohortSize !== benchmark.candidateCount ||
+    (runAnalyticalSmoke &&
+      (analysisResult === null ||
+        analysisResult.cohortSize !== benchmark.candidateCount ||
         analysisResult.provenance.baciRelease !==
           hydrated.deployment.baciRelease ||
         analysisResult.analysisReleaseCatalogSha256 !==

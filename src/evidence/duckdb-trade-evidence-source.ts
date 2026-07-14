@@ -8,7 +8,7 @@ import {
   unknownExporter,
   unknownProduct,
 } from "../domain/candidate-market/errors";
-import type { CandidateMarketAnalysisQuery } from "../domain/candidate-market/result";
+import type { CandidateMarketV1RecipeInput } from "../domain/candidate-market/result";
 import type {
   CmsV1Inputs,
   MarketYearEvidence,
@@ -101,7 +101,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   }
 
   async loadCmsV1Inputs(
-    query: CandidateMarketAnalysisQuery,
+    query: CandidateMarketV1RecipeInput,
     options?: TradeEvidenceLoadOptions,
   ): Promise<CmsV1Inputs> {
     if (this.closed) {
@@ -119,7 +119,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
 
   private async loadWithConnection(
     connection: DuckDBConnection,
-    query: CandidateMarketAnalysisQuery,
+    query: CandidateMarketV1RecipeInput,
     signal: AbortSignal | undefined,
   ): Promise<CmsV1Inputs> {
     signal?.throwIfAborted();

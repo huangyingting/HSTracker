@@ -1,18 +1,17 @@
 import type { ProductCatalog } from "../catalog/product-catalog";
 import { createFixtureProductCatalog } from "../catalog/fixture-product-catalog";
-import type { CandidateMarketAnalysis } from "../domain/candidate-market/analyze-candidate-markets";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
 import {
-  CandidateMarketTradeAnalyticsPlatform,
+  createCandidateMarketV1TradeAnalyticsPlatform,
   type AnalysisOperationObservation,
   type TradeAnalyticsPlatform,
 } from "../domain/trade-analytics/trade-analytics-platform";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import { createFixtureEconomyDirectory } from "../economy/fixture-economy-directory";
 import {
-  createFixtureCandidateMarketAnalysis,
   createFixtureCandidateMarketDatasetPackages,
+  FixtureTradeEvidenceSource,
 } from "../evidence/fixture-trade-evidence-source";
 import {
   FIXTURE_CURRENT_AS_OF,
@@ -65,10 +64,6 @@ export interface ApplicationRuntime {
     freshnessStatusId: string,
   ): EffectiveSourceFreshness | null;
   normalizeProductSearchQuery(query: string): string;
-  analyze(
-    query: Parameters<CandidateMarketAnalysis["analyze"]>[0],
-    options?: RuntimeRequestOptions,
-  ): ReturnType<CandidateMarketAnalysis["analyze"]>;
   searchProducts(
     query: Parameters<ProductCatalog["search"]>[0],
     options?: RuntimeRequestOptions,
@@ -123,14 +118,13 @@ export function installApplicationRuntime(
 }
 
 export function createFixtureApplicationRuntime(): ApplicationRuntime {
-  const analysis = createFixtureCandidateMarketAnalysis();
   const productCatalog = createFixtureProductCatalog();
   const economyDirectory = createFixtureEconomyDirectory();
   return {
-    tradeAnalytics: new CandidateMarketTradeAnalyticsPlatform(
-      analysis.analyze.bind(analysis),
-      createFixtureCandidateMarketDatasetPackages(),
-    ),
+    tradeAnalytics: createCandidateMarketV1TradeAnalyticsPlatform({
+      evidenceSource: new FixtureTradeEvidenceSource(),
+      datasetPackages: createFixtureCandidateMarketDatasetPackages(),
+    }),
     currentAnalysis: resolveFixtureCurrentAnalysisManifest,
     currentAnalysisSnapshot() {
       return {
@@ -142,7 +136,6 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
     normalizeProductSearchQuery: productCatalog.normalizeQuery.bind(
       productCatalog,
     ),
-    analyze: analysis.analyze.bind(analysis),
     searchProducts: productCatalog.search.bind(productCatalog),
     searchEconomies: economyDirectory.search.bind(economyDirectory),
     resources() {

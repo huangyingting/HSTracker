@@ -5,7 +5,7 @@ import {
   createCandidateMarketDatasetPackage,
   evaluateCandidateMarketV1DatasetPackage,
 } from "../../src/domain/trade-analytics/dataset-package";
-import { CandidateMarketTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
   parseAnalysisArtifactManifest,
@@ -116,12 +116,16 @@ describe("Candidate Market Dataset Package", () => {
       ...manifest,
       capabilities: manifest.capabilities.slice(1),
     });
-    const platform = new CandidateMarketTradeAnalyticsPlatform(
-      async () => {
-        throw new Error("Candidate Market executor must not be called.");
+    const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+      evidenceSource: {
+        async loadCmsV1Inputs() {
+          throw new Error("Candidate Market evidence must not be loaded.");
+        },
       },
-      new Map([["acceptance-fixtures-v1", datasetPackage]]),
-    );
+      datasetPackages: new Map([
+        ["acceptance-fixtures-v1", datasetPackage],
+      ]),
+    });
 
     const outcome = await platform.execute({
       recipe: "candidate-market-v1",
@@ -147,12 +151,16 @@ describe("Candidate Market Dataset Package", () => {
         index === 0 ? { ...capability, version: "2" } : capability,
       ),
     });
-    const platform = new CandidateMarketTradeAnalyticsPlatform(
-      async () => {
-        throw new Error("Candidate Market executor must not be called.");
+    const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+      evidenceSource: {
+        async loadCmsV1Inputs() {
+          throw new Error("Candidate Market evidence must not be loaded.");
+        },
       },
-      new Map([["acceptance-fixtures-v1", datasetPackage]]),
-    );
+      datasetPackages: new Map([
+        ["acceptance-fixtures-v1", datasetPackage],
+      ]),
+    });
 
     const outcome = await platform.execute({
       recipe: "candidate-market-v1",
@@ -202,12 +210,16 @@ describe("Candidate Market Dataset Package", () => {
         },
       },
     });
-    const platform = new CandidateMarketTradeAnalyticsPlatform(
-      async () => {
-        throw new Error("Candidate Market executor must not be called.");
+    const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+      evidenceSource: {
+        async loadCmsV1Inputs() {
+          throw new Error("Candidate Market evidence must not be loaded.");
+        },
       },
-      new Map([["acceptance-fixtures-v1", datasetPackage]]),
-    );
+      datasetPackages: new Map([
+        ["acceptance-fixtures-v1", datasetPackage],
+      ]),
+    });
 
     const outcome = await platform.execute({
       recipe: "candidate-market-v1",
@@ -415,14 +427,18 @@ describe("Candidate Market Dataset Package", () => {
             },
           },
         });
-      const platform = new CandidateMarketTradeAnalyticsPlatform(
-        async () => {
-          throw new Error(
-            "Candidate Market executor must not be called.",
-          );
+      const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+        evidenceSource: {
+          async loadCmsV1Inputs() {
+            throw new Error(
+              "Candidate Market evidence must not be loaded.",
+            );
+          },
         },
-        new Map([["acceptance-fixtures-v1", datasetPackage]]),
-      );
+        datasetPackages: new Map([
+          ["acceptance-fixtures-v1", datasetPackage],
+        ]),
+      });
 
       const outcome = await platform.execute({
         recipe: "candidate-market-v1",

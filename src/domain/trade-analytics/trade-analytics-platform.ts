@@ -1,12 +1,17 @@
 import { createHash } from "node:crypto";
 
-import { validateCandidateMarketAnalysisQuery } from "../candidate-market/analyze-candidate-markets";
 import { isCandidateMarketAnalysisError } from "../candidate-market/errors";
 import type {
-  CandidateMarketAnalysisQuery,
+  CandidateMarketV1RecipeInput,
   CandidateMarketResult,
 } from "../candidate-market/result";
+import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
+import {
+  createCandidateMarketV1RecipeExecution,
+  type CandidateMarketV1PreviousReleaseEvidence,
+} from "./candidate-market-v1-recipe";
+import { validateCandidateMarketV1Request } from "./candidate-market-v1-request";
 import {
   evaluateCandidateMarketV1DatasetPackage,
   type CandidateMarketDatasetPackage,
@@ -171,12 +176,36 @@ export interface TradeAnalyticsPlatform {
   ): Promise<AnalysisOutcome<Request["recipe"]>>;
 }
 
+export type CandidateMarketV1PlatformInput = Readonly<{
+  evidenceSource: TradeEvidenceSource;
+  previousRelease?: CandidateMarketV1PreviousReleaseEvidence | null;
+  datasetPackages: ReadonlyMap<string, CandidateMarketDatasetPackage>;
+}>;
+
+export type {
+  CandidateMarketV1PreviousReleaseEvidence,
+} from "./candidate-market-v1-recipe";
+
+export function createCandidateMarketV1TradeAnalyticsPlatform({
+  evidenceSource,
+  previousRelease = null,
+  datasetPackages,
+}: CandidateMarketV1PlatformInput): TradeAnalyticsPlatform {
+  return new CandidateMarketTradeAnalyticsPlatform(
+    createCandidateMarketV1RecipeExecution(
+      evidenceSource,
+      previousRelease,
+    ),
+    datasetPackages,
+  );
+}
+
 type CandidateMarketExecution = (
-  request: CandidateMarketAnalysisQuery,
+  request: CandidateMarketV1RecipeInput,
   options?: AnalysisExecutionOptions,
 ) => Promise<CandidateMarketResult>;
 
-export class CandidateMarketTradeAnalyticsPlatform
+class CandidateMarketTradeAnalyticsPlatform
   implements TradeAnalyticsPlatform
 {
   constructor(
@@ -187,29 +216,17 @@ export class CandidateMarketTradeAnalyticsPlatform
     >,
   ) {}
 
-  withExecution(
-    executeCandidateMarket: CandidateMarketExecution,
-  ): CandidateMarketTradeAnalyticsPlatform {
-    return new CandidateMarketTradeAnalyticsPlatform(
-      executeCandidateMarket,
-      this.datasetPackages,
-    );
-  }
-
   async execute(
     request: CandidateMarketV1AnalysisRequest,
     options?: AnalysisExecutionOptions,
   ): Promise<AnalysisOutcome<"candidate-market-v1">> {
     try {
-      validateCandidateMarketAnalysisQuery({
-        analysisBuildId: request.analysisBuildId,
-        exporterCode: request.exporterCode,
-        productCode: request.productCode,
-      });
+      validateCandidateMarketV1Request(request);
     } catch (error) {
       if (!isCandidateMarketAnalysisError(error)) {
         throw error;
       }
+
       return expectedCandidateMarketFailure(request, error.code);
     }
     const datasetPackage = this.datasetPackages.get(

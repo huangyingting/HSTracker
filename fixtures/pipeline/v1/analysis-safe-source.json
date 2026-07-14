@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "baci-source-descriptor-v1",
+  "baciRelease": "VTEST001",
+  "sourceUrl": "https://example.invalid/BACI_HS12_VTEST001.zip",
+  "archiveFilename": "BACI_HS12_VTEST001.zip",
+  "expectedBytes": 2637,
+  "expectedSha256": "b058b1ee6e128559db7b8768e14594cad216b670bf4d2c5882da0c877d8d2d15",
+  "sourceUpdateDate": "2026-01-22",
+  "hsRevision": "HS12",
+  "ingestedYears": [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+  "finalizedYears": [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+  "provisionalYears": [2024],
+  "scoreWindow": {
+    "start": 2019,
+    "end": 2023
+  },
+  "members": {
+    "trade": [
+      { "year": 2014, "path": "BACI_HS12_Y2014_VTEST001.csv" },
+      { "year": 2015, "path": "BACI_HS12_Y2015_VTEST001.csv" },
+      { "year": 2016, "path": "BACI_HS12_Y2016_VTEST001.csv" },
+      { "year": 2017, "path": "BACI_HS12_Y2017_VTEST001.csv" },
+      { "year": 2018, "path": "BACI_HS12_Y2018_VTEST001.csv" },
+      { "year": 2019, "path": "BACI_HS12_Y2019_VTEST001.csv" },
+      { "year": 2020, "path": "BACI_HS12_Y2020_VTEST001.csv" },
+      { "year": 2021, "path": "BACI_HS12_Y2021_VTEST001.csv" },
+      { "year": 2022, "path": "BACI_HS12_Y2022_VTEST001.csv" },
+      { "year": 2023, "path": "BACI_HS12_Y2023_VTEST001.csv" },
+      { "year": 2024, "path": "BACI_HS12_Y2024_VTEST001.csv" }
+    ],
+    "products": {
+      "path": "product_codes_HS12_VTEST001.csv",
+      "header": "code,description"
+    },
+    "economies": {
+      "path": "country_codes_VTEST001.csv",
+      "header": "country_code,country_name,country_iso2,country_iso3"
+    },
+    "documentation": {
+      "path": "Readme.txt"
+    }
+  },
+  "expectedDimensions": {
+    "products": 2,
+    "economies": 3
+  },
+  "license": {
+    "name": "Etalab Open Licence 2.0",
+    "url": "https://www.etalab.gouv.fr/wp-content/uploads/2018/11/open-licence.pdf"
+  },
+  "attribution": "Source: synthetic BACI-shaped fixture, HS 2012, VTEST001 (updated 2026-01-22).",
+  "pinApproval": {
+    "approvedBy": "fixture",
+    "approvedAt": "2026-01-22T00:00:00Z",
+    "evidenceUrl": "https://example.invalid/fixture-approval"
+  }
+}

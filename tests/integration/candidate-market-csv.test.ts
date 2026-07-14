@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createFixtureProductCatalog } from "../../src/catalog/fixture-product-catalog";
-import { createFixtureCandidateMarketAnalysis } from "../../src/evidence/fixture-trade-evidence-source";
+import { createFixtureApplicationRuntime } from "../../src/runtime/application-runtime";
 import {
   CANDIDATE_MARKETS_CSV_COLUMNS,
   CandidateMarketCsvRepresentationError,
@@ -678,11 +678,17 @@ describe("candidate-markets-csv-v1 serializer", () => {
 });
 
 async function fixtureExportInput(productCode: string) {
-  const result = await createFixtureCandidateMarketAnalysis().analyze({
-    analysisBuildId: "acceptance-fixtures-v1",
-    exporterCode: "156",
-    productCode,
-  });
+  const outcome =
+    await createFixtureApplicationRuntime().tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      exporterCode: "156",
+      productCode,
+    });
+  if (outcome.state !== "success" && outcome.state !== "empty") {
+    throw new TypeError(`Expected a completed analysis, received ${outcome.state}.`);
+  }
+  const result = outcome.payload;
   const productSearch = await createFixtureProductCatalog().search({
     productSearchBuildId: "acceptance-product-search-v3",
     query: productCode,
