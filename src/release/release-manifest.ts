@@ -41,6 +41,11 @@ export type ProductCatalogReference = {
   manifest: ReleaseObjectReference;
 };
 
+export type RecommendedDatasetMappingReference = {
+  identity: string;
+  manifest: ReleaseObjectReference;
+};
+
 export type DeploymentPairingManifest = {
   schemaVersion: "deployment-pairing-manifest-v1";
   deploymentPairingId: string;
@@ -54,6 +59,9 @@ export type DeploymentPairingManifest = {
     releaseCatalog: ReleaseObjectReference;
   };
   productSearch: ProductCatalogReference;
+  recommendedDatasetMapping:
+    | RecommendedDatasetMappingReference
+    | null;
 };
 
 export type AnalysisReleaseCatalog = {
@@ -82,6 +90,7 @@ export type PublishedDeployment = {
   sourceStatusFallback: SourceStatusSnapshot;
   activatedAt: string;
   previousDeploymentPairingId: string | null;
+  recommendedDatasetMappingIdentity: string | null;
 };
 
 export function parseActiveDeploymentPointer(
@@ -163,8 +172,18 @@ export function parseDeploymentPairingManifest(
       productSearch,
       "deployment product search",
     ),
+    recommendedDatasetMapping:
+      deployment.recommendedDatasetMapping === undefined ||
+      deployment.recommendedDatasetMapping === null
+        ? null
+        : recommendedDatasetMappingReference(
+            deployment.recommendedDatasetMapping,
+          ),
   };
-  validateDeploymentPairingManifest(parsed);
+  validateDeploymentPairingManifest(
+    parsed,
+    deployment.recommendedDatasetMapping === undefined,
+  );
   return parsed;
 }
 
@@ -297,6 +316,8 @@ export function publishedDeployment(
       pointer.previous === null
         ? null
         : deploymentPairingIdFromKey(pointer.previous.key),
+    recommendedDatasetMappingIdentity:
+      deployment.recommendedDatasetMapping?.identity ?? null,
   };
 }
 
@@ -382,6 +403,35 @@ function productCatalogReference(
   };
 }
 
+function recommendedDatasetMappingReference(
+  value: unknown,
+): RecommendedDatasetMappingReference {
+  const mapping = record(
+    value,
+    "recommended Dataset Mapping reference",
+  );
+  const identity = string(
+    mapping.identity,
+    "recommended Dataset Mapping identity",
+  );
+  if (
+    !/^recommended-dataset-mapping-v1-[a-f0-9]{64}$/u.test(
+      identity,
+    )
+  ) {
+    throw new Error(
+      "Recommended Dataset Mapping identity is malformed.",
+    );
+  }
+  return {
+    identity,
+    manifest: objectReference(
+      mapping.manifest,
+      "recommended Dataset Mapping manifest",
+    ),
+  };
+}
+
 function objectReference(
   value: unknown,
   label: string,
@@ -396,6 +446,7 @@ function objectReference(
 
 function validateDeploymentPairingManifest(
   deployment: DeploymentPairingManifest,
+  legacyWithoutRecommendedDatasetMapping = false,
 ): void {
   const analysis = deployment.analysis.artifact;
   const productSearch = deployment.productSearch;
@@ -428,7 +479,12 @@ function validateDeploymentPairingManifest(
   }
   const pairingIdentity = Object.fromEntries(
     Object.entries(deployment).filter(
-      ([key]) => key !== "deploymentPairingId",
+      ([key]) =>
+        key !== "deploymentPairingId" &&
+        !(
+          legacyWithoutRecommendedDatasetMapping &&
+          key === "recommendedDatasetMapping"
+        ),
     ),
   );
   if (

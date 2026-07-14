@@ -14,9 +14,19 @@ import {
   CANDIDATE_MARKET_V1_DATASET_DECLARATION,
 } from "../../src/domain/trade-analytics/dataset-package";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
+import {
+  ACTIVE_DEPLOYMENT_POINTER_KEY,
+  contentAddressedId,
+  parseActiveDeploymentPointer,
+  releaseJsonBytes,
+} from "../../src/release/release-manifest";
 import type {
   ReleaseObject,
   ReleaseObjectReader,
+} from "../../src/release/release-object-store";
+import {
+  releaseObjectIdentity,
+  singleChunk,
 } from "../../src/release/release-object-store";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { VerifiedReleaseRuntime } from "../../src/runtime/verified-release-runtime";
@@ -117,7 +127,7 @@ describe("verified release runtime", () => {
     });
   }, 20_000);
 
-  it("skips analytical startup smoke and returns typed package incompatibility", async () => {
+  it("rejects package incompatibility before promotion smoke or activation", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
     const failingAnalyticalSmokeOracle = 999;
@@ -133,31 +143,17 @@ describe("verified release runtime", () => {
       },
     );
     const objectStore = new InMemoryReleaseObjectStore();
-    const published = await new ReleasePublisher(objectStore).promote({
-      ...candidate,
-      activatedAt: "2026-07-12T02:00:00Z",
-    });
+    const publisher = new ReleasePublisher(objectStore);
 
-    const runtime = await VerifiedReleaseRuntime.load({
-      objectStore,
-      volumePath: join(root, "volume"),
-      now: () => "2026-07-12T02:00:00Z",
+    await expect(
+      publisher.promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toMatchObject({
+      code: "PAIRING_INCOMPATIBLE",
     });
-    runtimes.push(runtime);
-    const outcome = await runtime.tradeAnalytics.execute({
-      recipe: "candidate-market-v1",
-      analysisBuildId: published.analysisBuildId,
-      exporterCode: "156",
-      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
-    });
-
-    expect(outcome).toMatchObject({
-      state: "incompatible-package",
-      error: {
-        code: "NO_COMPATIBLE_DATASET_PACKAGE",
-        reason: "MISSING_REQUIRED_CAPABILITY",
-      },
-    });
+    await expect(publisher.current()).resolves.toBeNull();
   }, 20_000);
 
   it("normalizes and serves an accepted legacy cms-v1 artifact manifest", async () => {
@@ -174,7 +170,8 @@ describe("verified release runtime", () => {
     });
 
     const runtime = await VerifiedReleaseRuntime.load({
-      objectStore,
+      objectStore:
+        await LegacyDeploymentReader.create(objectStore),
       volumePath: join(root, "volume"),
       now: () => "2026-07-12T02:00:00Z",
     });
@@ -393,7 +390,7 @@ describe("verified release runtime", () => {
     );
   }, 20_000);
 
-  it("keeps the prior resident activation when a newly hydrated release fails smoke validation", async () => {
+  it("keeps the prior resident activation when promotion smoke fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
     const firstCandidate = await writeRuntimeReleaseCandidate(
@@ -418,18 +415,13 @@ describe("verified release runtime", () => {
       volumePath,
     });
     initial.close();
-    await publisher.promote({
-      ...invalidCandidate,
-      activatedAt: "2026-07-12T02:00:00Z",
-    });
     await expect(
-      VerifiedReleaseRuntime.load({
-        objectStore,
-        volumePath,
+      publisher.promote({
+        ...invalidCandidate,
+        activatedAt: "2026-07-12T02:00:00Z",
       }),
-    ).rejects.toThrow(
-      "Verified release startup smoke validation failed.",
-    );
+    ).rejects.toMatchObject({ code: "SMOKE_FAILED" });
+    await expect(publisher.current()).resolves.toEqual(first);
 
     const recovered = await VerifiedReleaseRuntime.load({
       objectStore: {
@@ -846,6 +838,87 @@ describe("verified release runtime", () => {
       },
     });
   }, 20_000);
+
+  it.each([
+    {
+      unavailablePrefix: "recommended-dataset-mappings/",
+      label: "missing mapping",
+    },
+    {
+      unavailablePrefix: "dataset-packages/",
+      label: "partially available mapping",
+    },
+  ])("fails before readiness for a $label", async ({ unavailablePrefix }) => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    await expect(
+      VerifiedReleaseRuntime.load({
+        objectStore: new UnavailableObjectReader(
+          objectStore,
+          unavailablePrefix,
+        ),
+        volumePath: join(root, "volume"),
+      }),
+    ).rejects.toThrow("deployment object is unavailable");
+  }, 20_000);
+
+  it("keeps its startup mapping fixed until a controlled restart", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const running = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "first-volume"),
+    });
+    runtimes.push(running);
+    const startupMapping =
+      running.currentAnalysis().recommendation.mappingIdentity;
+
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    expect(running.currentAnalysis()).toMatchObject({
+      analysisBuildId: first.analysisBuildId,
+      recommendation: { mappingIdentity: startupMapping },
+    });
+    const restarted = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "second-volume"),
+    });
+    runtimes.push(restarted);
+    expect(restarted.currentAnalysis()).toMatchObject({
+      analysisBuildId: second.analysisBuildId,
+      recommendation: {
+        mappingIdentity: second.recommendedDatasetMappingIdentity,
+      },
+    });
+    expect(
+      restarted.currentAnalysis().recommendation.mappingIdentity,
+    ).not.toBe(startupMapping);
+  }, 20_000);
 });
 
 class ResidentReleaseReader implements ReleaseObjectReader {
@@ -863,4 +936,96 @@ class ResidentReleaseReader implements ReleaseObjectReader {
     }
     return this.delegate.getObject(key);
   }
+}
+
+class UnavailableObjectReader implements ReleaseObjectReader {
+  constructor(
+    private readonly delegate: ReleaseObjectReader,
+    private readonly unavailablePrefix: string,
+  ) {}
+
+  async getObject(key: string): Promise<ReleaseObject | null> {
+    return key.startsWith(this.unavailablePrefix)
+      ? null
+      : this.delegate.getObject(key);
+  }
+}
+
+class LegacyDeploymentReader implements ReleaseObjectReader {
+  private constructor(
+    private readonly delegate: ReleaseObjectReader,
+    private readonly deploymentKey: string,
+    private readonly deploymentBytes: Buffer,
+    private readonly pointerBytes: Buffer,
+  ) {}
+
+  static async create(
+    delegate: ReleaseObjectReader,
+  ): Promise<LegacyDeploymentReader> {
+    const pointerObject = await delegate.getObject(
+      ACTIVE_DEPLOYMENT_POINTER_KEY,
+    );
+    if (pointerObject === null) {
+      throw new Error("Expected an active deployment.");
+    }
+    const pointer = parseActiveDeploymentPointer(
+      JSON.parse(
+        (await collectObject(pointerObject)).toString("utf8"),
+      ),
+    );
+    const deploymentObject = await delegate.getObject(
+      pointer.current.key,
+    );
+    if (deploymentObject === null) {
+      throw new Error("Expected an active deployment manifest.");
+    }
+    const legacyBase = JSON.parse(
+      (await collectObject(deploymentObject)).toString("utf8"),
+    ) as Record<string, unknown>;
+    delete legacyBase.deploymentPairingId;
+    delete legacyBase.recommendedDatasetMapping;
+    const deploymentPairingId = contentAddressedId(
+      "deployment-pairing-v1",
+      legacyBase,
+    );
+    const deploymentBytes = releaseJsonBytes({
+      ...legacyBase,
+      deploymentPairingId,
+    });
+    const deploymentKey =
+      `deployment-pairings/${deploymentPairingId}.json`;
+    const pointerBytes = releaseJsonBytes({
+      ...pointer,
+      current: {
+        key: deploymentKey,
+        ...releaseObjectIdentity(deploymentBytes),
+      },
+    });
+    return new LegacyDeploymentReader(
+      delegate,
+      deploymentKey,
+      deploymentBytes,
+      pointerBytes,
+    );
+  }
+
+  async getObject(key: string): Promise<ReleaseObject | null> {
+    const bytes =
+      key === ACTIVE_DEPLOYMENT_POINTER_KEY
+        ? this.pointerBytes
+        : key === this.deploymentKey
+          ? this.deploymentBytes
+          : null;
+    return bytes === null
+      ? this.delegate.getObject(key)
+      : { body: singleChunk(bytes), version: "legacy-fixture-v1" };
+  }
+}
+
+async function collectObject(object: ReleaseObject): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of object.body) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }

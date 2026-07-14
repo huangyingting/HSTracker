@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { ACCEPTANCE_PRODUCT_ALIASES } from "../../fixtures/acceptance/v1/catalog/aliases";
 import {
   DEMO_PRODUCT_ALIASES,
@@ -24,8 +26,13 @@ import {
   indexProductSearchCatalog,
   searchProductIndex,
 } from "./product-search";
-import { normalizeProductSearchQuery } from "./product-search-normalization";
+import {
+  normalizeProductSearchQuery,
+  normalizeProductSearchText,
+  PRODUCT_SEARCH_ALGORITHM_VERSION,
+} from "./product-search-normalization";
 import { validateProductSearchQuery } from "./validate-product-search-query";
+import { releaseJsonBytes } from "../release/release-manifest";
 
 // The fixture (development and end-to-end) runtime layers a curated set of
 // recognizable real HS12 products on top of the minimal acceptance catalog so
@@ -64,6 +71,35 @@ const searchIndex = indexProductSearchCatalog(
   products,
   catalogAliases,
 );
+
+export const FIXTURE_PRODUCT_CATALOG_ARTIFACT_BYTES =
+  releaseJsonBytes({
+    schemaVersion: "product-catalog-artifact-v1",
+    productSearchBuildId:
+      ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
+    searchAlgorithmVersion: PRODUCT_SEARCH_ALGORITHM_VERSION,
+    searchResponseSchemaVersion: "product-search-result-v1",
+    translationAttribution:
+      "Acceptance and demo fixture auxiliary translations.",
+    products: products.map((product) => ({
+      ...product,
+      sourceDescriptionSha256: createHash("sha256")
+        .update(product.sourceDescriptionEn, "utf8")
+        .digest("hex"),
+      normalizedSourceDescriptionEn:
+        normalizeProductSearchText(product.sourceDescriptionEn),
+      normalizedAuxiliaryDescriptionZhHans:
+        normalizeProductSearchText(
+          product.auxiliaryDescriptionZhHans,
+        ),
+    })),
+    aliases: catalogAliases.map((alias) => ({
+      ...alias,
+      normalizedSearchText: normalizeProductSearchText(alias.alias),
+    })),
+    traditionalToSimplified:
+      ACCEPTANCE_TRADITIONAL_TO_SIMPLIFIED,
+  });
 
 class FixtureProductCatalog implements ProductCatalog {
   normalizeQuery(query: string): string {

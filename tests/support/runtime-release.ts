@@ -33,6 +33,14 @@ export async function writeRuntimeReleaseCandidate(
     benchmarkCandidateCount?: number;
     datasetPackage?: CandidateMarketDatasetCapabilityDeclaration;
     legacyDatasetPackageManifest?: boolean;
+    sourceSha256?: string;
+    sourceUpdateDate?: string;
+    builtAt?: string;
+    analysisArtifactBuildId?: string;
+    productSearchBuildId?: string;
+    productSourceArchiveSha256?: string;
+    productCatalogVersion?: string;
+    productManifestCatalogSchemaVersion?: string;
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -53,6 +61,11 @@ export async function writeRuntimeReleaseCandidate(
   const finalizedCutoffYear =
     options.finalizedCutoffYear ?? 2023;
   const valueOffset = options.valueOffset ?? 0;
+  const sourceSha256 = options.sourceSha256 ?? SOURCE_SHA256;
+  const sourceUpdateDate =
+    options.sourceUpdateDate ?? "2026-01-22";
+  const productSearchBuildId =
+    options.productSearchBuildId ?? PRODUCT_SEARCH_BUILD_ID;
   const ingestedYears = Array.from(
     { length: 11 },
     (_, index) => finalizedCutoffYear - 9 + index,
@@ -64,6 +77,7 @@ export async function writeRuntimeReleaseCandidate(
     baciRelease,
     valueOffset,
     finalizedCutoffYear,
+    sourceUpdateDate,
   );
   const artifactBytes = await readFile(artifactPath);
   const artifactIdentity = releaseObjectIdentity(artifactBytes);
@@ -74,8 +88,8 @@ export async function writeRuntimeReleaseCandidate(
     baciRelease,
     sourceUrl: `https://fixtures.invalid/${baciRelease}.zip`,
     sourceBytes: 0,
-    sourceSha256: SOURCE_SHA256,
-    sourceUpdateDate: "2026-01-22",
+    sourceSha256,
+    sourceUpdateDate,
     license: {
       name: "Test fixture",
       url: "https://fixtures.invalid/license",
@@ -101,12 +115,12 @@ export async function writeRuntimeReleaseCandidate(
       valueTotalKusd: `${100 + valueOffset + index * 10}.000`,
       quantityTotalTons: "1.000",
     })),
-    stagingManifestSha256: SOURCE_SHA256,
-    coverageApprovalSha256: SOURCE_SHA256,
+    stagingManifestSha256: sourceSha256,
+    coverageApprovalSha256: sourceSha256,
     ...(options.legacyDatasetPackageManifest === true
       ? {}
       : {
-          sourceReportSha256: SOURCE_SHA256,
+          sourceReportSha256: sourceSha256,
           datasetPackage:
             options.datasetPackage ??
             CANDIDATE_MARKET_V1_DATASET_DECLARATION,
@@ -114,11 +128,12 @@ export async function writeRuntimeReleaseCandidate(
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
-      buildId: artifactBuildId,
+      buildId:
+        options.analysisArtifactBuildId ?? artifactBuildId,
       relativePath: "candidate-market.duckdb",
       ...artifactIdentity,
     },
-    builtAt: "2026-07-12T01:00:00Z",
+    builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
     benchmarkQueries: [
       {
         role: "maximum-row",
@@ -144,10 +159,11 @@ export async function writeRuntimeReleaseCandidate(
 
   const productCatalog = {
     schemaVersion: "product-catalog-artifact-v1",
-    productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+    productSearchBuildId,
     searchAlgorithmVersion: "deterministic-lexical-product-search-v3",
     searchResponseSchemaVersion: "product-search-result-v1",
-    translationAttribution: "Runtime fixture auxiliary translation.",
+    translationAttribution:
+      `Runtime fixture auxiliary translation ${options.productCatalogVersion ?? "v1"}.`,
     products: [
       {
         hsRevision: "HS12",
@@ -172,15 +188,18 @@ export async function writeRuntimeReleaseCandidate(
   const catalogManifest = {
     schemaVersion: "product-catalog-manifest-v1",
     baciRelease,
-    sourceArchiveSha256: SOURCE_SHA256,
+    sourceArchiveSha256:
+      options.productSourceArchiveSha256 ?? sourceSha256,
     hsRevision: "HS12",
-    productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
+    productSearchBuildId,
     catalog: {
-      schemaVersion: "product-catalog-artifact-v1",
+      schemaVersion:
+        options.productManifestCatalogSchemaVersion ??
+        "product-catalog-artifact-v1",
       relativePath: "product-catalog.json",
       ...catalogIdentity,
     },
-    builtAt: "2026-07-12T01:00:00Z",
+    builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
   };
   const catalogManifestBytes = releaseJsonBytes(catalogManifest);
   const catalogReport = {
@@ -222,6 +241,7 @@ async function writeRuntimeDuckDb(
   baciRelease: string,
   valueOffset: number,
   finalizedCutoffYear: number,
+  sourceUpdateDate: string,
 ): Promise<void> {
   const instance = await DuckDBInstance.create(path);
   const connection = await instance.connect();
@@ -261,7 +281,7 @@ async function writeRuntimeDuckDb(
       baci_release: baciRelease,
       finalized_cutoff_year: String(finalizedCutoffYear),
       hs_revision: "HS12",
-      source_update_date: "2026-01-22",
+      source_update_date: sourceUpdateDate,
     };
     for (const [key, value] of Object.entries(metadata)) {
       await connection.run(

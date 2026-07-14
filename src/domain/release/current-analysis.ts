@@ -6,6 +6,12 @@ import {
 } from "./source-freshness";
 import type { AnalysisArtifactBenchmarkQuery } from "../../evidence/analysis-artifact-manifest";
 import type { ReleaseRevisionComparisonIdentity } from "./release-revision";
+import type {
+  RecommendedDatasetMappingIdentity,
+  RecommendedEconomyCatalogIdentity,
+  RecommendedProductCatalogIdentity,
+} from "../trade-analytics/recommended-dataset-mapping";
+import type { DatasetPackageIdentity } from "../trade-analytics/dataset-package";
 
 export type CurrentAnalysisDeployment = {
   analysisBuildId: string;
@@ -33,6 +39,13 @@ export type CurrentAnalysisDeployment = {
     };
   };
   revisionComparison: ReleaseRevisionComparisonIdentity;
+  recommendation: {
+    recipe: "candidate-market-v1";
+    mappingIdentity: RecommendedDatasetMappingIdentity;
+    datasetPackageIdentity: DatasetPackageIdentity;
+    productCatalogIdentity: RecommendedProductCatalogIdentity;
+    economyCatalogIdentity: RecommendedEconomyCatalogIdentity;
+  };
 };
 
 export type CurrentAnalysisManifest = CurrentAnalysisDeployment & {

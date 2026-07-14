@@ -365,10 +365,22 @@ describe("S3 release object store", () => {
       hydrated.deploymentManifest.sourceStatusFallback,
     );
     await expect(
-      readFile(hydrated.analysisArtifactPath, "utf8"),
-    ).resolves.toBe("fixture DuckDB artifact v1");
-    await expect(readFile(hydrated.productCatalogPath, "utf8")).resolves.toBe(
-      "fixture product catalog v1",
+      readFile(hydrated.analysisArtifactPath),
+    ).resolves.toEqual(
+      await readFile(
+        join(
+          firstCandidate.analysisDirectoryPath,
+          "candidate-market.duckdb",
+        ),
+      ),
+    );
+    await expect(readFile(hydrated.productCatalogPath)).resolves.toEqual(
+      await readFile(
+        join(
+          firstCandidate.productCatalogDirectoryPath,
+          "product-catalog.json",
+        ),
+      ),
     );
 
     const publicMetadata = await activePublicMetadata();

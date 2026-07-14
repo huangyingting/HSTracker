@@ -35,6 +35,12 @@ import {
 } from "./release-manifest";
 import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import {
+  createCandidateMarketDatasetPackage,
+} from "../domain/trade-analytics/dataset-package";
+import {
+  createRecommendedDatasetMapping,
+} from "../domain/trade-analytics/recommended-dataset-mapping";
+import {
   releaseObjectIdentity,
   singleChunk,
   type ReleaseObject,
@@ -61,6 +67,8 @@ export type HydratedRelease = {
   analysisReleaseCatalogPath: string;
   productCatalogPath: string;
   productCatalogManifestPath: string;
+  recommendedDatasetMappingPath: string | null;
+  datasetPackageManifestPath: string | null;
   deploymentManifestPath: string;
   previousAnalysis: {
     reference: AnalysisArtifactReference;
@@ -146,6 +154,8 @@ export class ReleaseHydrator {
         JSON.parse(releaseCatalogBytes.toString("utf8")),
       );
       assertDeploymentReleaseCatalog(deployment, releaseCatalog);
+      const mappingObjects =
+        await this.readRecommendedDatasetMapping(deployment);
       const partialPath = join(
         /* turbopackIgnore: true */ volumePath,
         `.${deployment.deploymentPairingId}-${process.pid}.partial`,
@@ -218,6 +228,30 @@ export class ReleaseHydrator {
             pointer.current,
           ),
         ];
+        if (mappingObjects !== null) {
+          downloads.push(
+            this.materializeVerified(
+              volumePath,
+              deployment.recommendedDatasetMapping!.manifest,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "recommended-dataset-mapping.json",
+              ),
+              ["recommended-dataset-mapping.json"],
+              mappingObjects.mappingBytes,
+            ),
+            this.materializeVerified(
+              volumePath,
+              mappingObjects.packageReference,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "dataset-package-manifest.json",
+              ),
+              ["dataset-package-manifest.json"],
+              mappingObjects.packageBytes,
+            ),
+          );
+        }
         if (releaseCatalog.previous !== null) {
           downloads.push(
             this.materializeVerified(
@@ -432,11 +466,56 @@ export class ReleaseHydrator {
     if (stored === null) {
       throw new Error("A deployment object is unavailable.");
     }
+
     const bytes = await readReleaseMetadata(
       deploymentAvailabilityStream(stored.body),
     );
     verifyIdentity(releaseObjectIdentity(bytes), reference);
     return bytes;
+  }
+
+  private async readRecommendedDatasetMapping(
+    deployment: DeploymentPairingManifest,
+  ): Promise<{
+    mappingBytes: Buffer;
+    packageBytes: Buffer;
+    packageReference: ReleaseObjectReference;
+  } | null> {
+    if (deployment.recommendedDatasetMapping === null) {
+      return null;
+    }
+    const mappingBytes = await this.readVerifiedObject(
+      deployment.recommendedDatasetMapping.manifest,
+    );
+    const mapping = createRecommendedDatasetMapping(
+      JSON.parse(mappingBytes.toString("utf8")),
+    );
+    if (
+      mapping.identity !==
+      deployment.recommendedDatasetMapping.identity
+    ) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Recommended Dataset Mapping identity does not match.",
+      );
+    }
+    const packageReference =
+      mapping.manifest.datasetPackage.manifest;
+    const packageBytes =
+      await this.readVerifiedObject(packageReference);
+    const datasetPackage = createCandidateMarketDatasetPackage(
+      JSON.parse(packageBytes.toString("utf8")),
+    );
+    if (
+      datasetPackage.identity !==
+      mapping.manifest.datasetPackage.identity
+    ) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Dataset Package identity does not match.",
+      );
+    }
+    return { mappingBytes, packageBytes, packageReference };
   }
 
   private async downloadVerified(
@@ -683,7 +762,60 @@ async function verifyResidentReleaseBase(
       ),
       releaseObjectIdentity(deploymentBytes),
     ),
+    verifyResidentRecommendedDatasetMapping(
+      rootPath,
+      deployment,
+    ),
   ]);
+}
+
+async function verifyResidentRecommendedDatasetMapping(
+  rootPath: string,
+  deployment: DeploymentPairingManifest,
+): Promise<void> {
+  if (deployment.recommendedDatasetMapping === null) {
+    return;
+  }
+  const mappingPath = join(
+    /* turbopackIgnore: true */ rootPath,
+    "recommended-dataset-mapping.json",
+  );
+  await verifyFile(
+    mappingPath,
+    deployment.recommendedDatasetMapping.manifest,
+  );
+  const mapping = createRecommendedDatasetMapping(
+    JSON.parse(await readRuntimeFile(mappingPath, "utf8")),
+  );
+  if (
+    mapping.identity !==
+    deployment.recommendedDatasetMapping.identity
+  ) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Recommended Dataset Mapping identity does not match.",
+    );
+  }
+  const packagePath = join(
+    /* turbopackIgnore: true */ rootPath,
+    "dataset-package-manifest.json",
+  );
+  await verifyFile(
+    packagePath,
+    mapping.manifest.datasetPackage.manifest,
+  );
+  const datasetPackage = createCandidateMarketDatasetPackage(
+    JSON.parse(await readRuntimeFile(packagePath, "utf8")),
+  );
+  if (
+    datasetPackage.identity !==
+    mapping.manifest.datasetPackage.identity
+  ) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Dataset Package identity does not match.",
+    );
+  }
 }
 
 async function verifyResidentPreviousAnalysis(
@@ -777,6 +909,20 @@ function hydratedRelease(
       /* turbopackIgnore: true */ rootPath,
       "catalog-manifest.json",
     ),
+    recommendedDatasetMappingPath:
+      deployment.recommendedDatasetMapping === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "recommended-dataset-mapping.json",
+          ),
+    datasetPackageManifestPath:
+      deployment.recommendedDatasetMapping === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "dataset-package-manifest.json",
+          ),
     deploymentManifestPath: join(
       /* turbopackIgnore: true */ rootPath,
       "deployment-manifest.json",

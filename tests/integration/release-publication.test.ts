@@ -3,6 +3,7 @@ import {
   readFile,
   readdir,
   stat,
+  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,14 +11,24 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
+import {
+  ACTIVE_DEPLOYMENT_POINTER_KEY,
+  contentAddressedId,
+  releaseJsonBytes,
+} from "../../src/release/release-manifest";
 import type {
   ReleaseObject,
   ReleaseObjectIdentity,
   ReleaseObjectStore,
 } from "../../src/release/release-object-store";
+import {
+  releaseObjectIdentity,
+  singleChunk,
+} from "../../src/release/release-object-store";
 import { ReleaseHydrator } from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { writeAcceptedReleaseCandidate } from "../support/release-candidate";
+import { writeRuntimeReleaseCandidate } from "../support/runtime-release";
 
 describe("immutable release publication", () => {
   it("publishes and activates one exact compatible pairing", async () => {
@@ -44,6 +55,9 @@ describe("immutable release publication", () => {
       baciRelease: "VTEST001",
       activatedAt: "2026-07-12T02:00:00Z",
       previousDeploymentPairingId: null,
+      recommendedDatasetMappingIdentity: expect.stringMatching(
+        /^recommended-dataset-mapping-v1-[a-f0-9]{64}$/u,
+      ),
     });
     expect(await publisher.current()).toEqual(published);
   });
@@ -207,6 +221,7 @@ describe("immutable release publication", () => {
       ...firstCandidate,
       activatedAt: "2026-07-12T02:00:00Z",
     });
+
     const second = await publisher.promote({
       ...secondCandidate,
       activatedAt: "2026-07-12T03:00:00Z",
@@ -241,6 +256,98 @@ describe("immutable release publication", () => {
     );
     expect(hydrated.sourceStatusFallback.rollbackActive).toBe(true);
   });
+
+  it("keeps the active pointer when rollback target validation fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const firstCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "first"),
+    );
+    const secondCandidate = await writeAcceptedReleaseCandidate(
+      join(root, "second"),
+      {
+        productCatalogVersion: "v2",
+        productSearchBuildId: "product-search-v1-3333333333333333",
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    await activateLegacyDeploymentProjection(objectStore);
+    const active = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    await expect(
+      new ReleasePublisher(
+        new CorruptingReadbackStore(
+          objectStore,
+          "candidate-market.duckdb",
+        ),
+      ).rollback({
+        activatedAt: "2026-07-12T03:00:00Z",
+      }),
+    ).rejects.toMatchObject({
+      code: "OBJECT_READBACK_MISMATCH",
+    });
+    await expect(publisher.current()).resolves.toEqual(active);
+  }, 20_000);
+
+  it.each([
+    {
+      target: "HEAD-era explicit-capability",
+      legacyDatasetPackageManifest: false,
+    },
+    {
+      target: "older narrowly normalized legacy",
+      legacyDatasetPackageManifest: true,
+    },
+  ])("upgrades and smokes a mapping-less $target rollback target", async ({
+    legacyDatasetPackageManifest,
+  }) => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+      {
+        baciRelease: "VTEST001",
+        legacyDatasetPackageManifest,
+      },
+    );
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      {
+        baciRelease: "VTEST001",
+        valueOffset: 25,
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    await activateLegacyDeploymentProjection(objectStore);
+    const active = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const rolledBack = await publisher.rollback({
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+
+    expect(rolledBack).toMatchObject({
+      baciRelease: "VTEST001",
+      previousDeploymentPairingId: active.deploymentPairingId,
+      recommendedDatasetMappingIdentity: expect.stringMatching(
+        /^recommended-dataset-mapping-v1-[a-f0-9]{64}$/u,
+      ),
+    });
+    await expect(publisher.current()).resolves.toEqual(rolledBack);
+  }, 30_000);
 
   it("keeps the active pairing when uploaded bytes fail read-back verification", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
@@ -312,6 +419,25 @@ describe("immutable release publication", () => {
     expect(await publisher.current()).toEqual(first);
   });
 
+  it("rejects a product manifest with a non-v1 artifact schema before activation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const candidate = await writeAcceptedReleaseCandidate(root, {
+      productManifestCatalogSchemaVersion:
+        "product-catalog-artifact-v2",
+    });
+    const publisher = new ReleasePublisher(
+      new InMemoryReleaseObjectStore(),
+    );
+
+    await expect(
+      publisher.promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toThrow("Product catalog schema is incompatible");
+    await expect(publisher.current()).resolves.toBeNull();
+  });
+
   it("keeps the active pairing when atomic activation fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
     const firstCandidate = await writeAcceptedReleaseCandidate(
@@ -330,6 +456,7 @@ describe("immutable release publication", () => {
       ...firstCandidate,
       activatedAt: "2026-07-12T02:00:00Z",
     });
+
     const failingPublisher = new ReleasePublisher(
       new RejectingActivationStore(objectStore),
     );
@@ -345,6 +472,66 @@ describe("immutable release publication", () => {
     });
     expect(await publisher.current()).toEqual(first);
   });
+
+  it("keeps the active pointer when promotion smoke analysis fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const accepted = await writeAcceptedReleaseCandidate(
+      join(root, "accepted"),
+    );
+    const badSmoke = await writeRuntimeReleaseCandidate(
+      join(root, "bad-smoke"),
+      {
+        baciRelease: "VTEST001",
+        valueOffset: 25,
+        benchmarkCandidateCount: 999,
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const active = await publisher.promote({
+      ...accepted,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+
+    await expect(
+      publisher.promote({
+        ...badSmoke,
+        activatedAt: "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toMatchObject({ code: "SMOKE_FAILED" });
+    await expect(publisher.current()).resolves.toEqual(active);
+  });
+
+  it("smokes immutable stored bytes after candidate files are replaced", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const candidate = await writeAcceptedReleaseCandidate(root);
+    const artifactPath = join(
+      candidate.analysisDirectoryPath,
+      "candidate-market.duckdb",
+    );
+    const originalArtifact = await readFile(artifactPath);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(
+      new ReplacingCandidateStore(objectStore, artifactPath),
+    );
+
+    const published = await publisher.promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    expect(await readFile(artifactPath, "utf8")).toBe(
+      "replaced candidate bytes",
+    );
+    const hydrated = await new ReleaseHydrator(
+      objectStore,
+    ).hydrateCurrent({
+      volumePath: join(root, "volume"),
+    });
+    expect(hydrated.deployment).toEqual(published);
+    await expect(
+      readFile(hydrated.analysisArtifactPath),
+    ).resolves.toEqual(originalArtifact);
+  }, 20_000);
 
   it("rejects rollback until a previous pairing has been retained", async () => {
     const publisher = new ReleasePublisher(
@@ -390,16 +577,26 @@ describe("immutable release publication", () => {
       rollbackActive: false,
       publishedAt: "2026-07-12T02:00:00Z",
     });
-    await expect(readFile(hydrated.analysisArtifactPath, "utf8")).resolves.toBe(
-      "fixture DuckDB artifact v1",
+    await expect(readFile(hydrated.analysisArtifactPath)).resolves.toEqual(
+      await readFile(
+        join(
+          candidate.analysisDirectoryPath,
+          "candidate-market.duckdb",
+        ),
+      ),
     );
-    await expect(readFile(hydrated.productCatalogPath, "utf8")).resolves.toBe(
-      "fixture product catalog v1",
+    await expect(readFile(hydrated.productCatalogPath)).resolves.toEqual(
+      await readFile(
+        join(
+          candidate.productCatalogDirectoryPath,
+          "product-catalog.json",
+        ),
+      ),
     );
     expect(await readdir(volumePath)).toEqual([
       published.deploymentPairingId,
     ]);
-  });
+  }, 20_000);
 
   it("reuses unchanged analysis bytes and prunes retired pairing directories", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
@@ -575,6 +772,108 @@ class RejectingActivationStore implements ReleaseObjectStore {
   async compareAndSwap(): Promise<string> {
     throw new Error("fixture activation failure");
   }
+}
+
+class ReplacingCandidateStore implements ReleaseObjectStore {
+  private replaced = false;
+
+  constructor(
+    private readonly delegate: ReleaseObjectStore,
+    private readonly artifactPath: string,
+  ) {}
+
+  async getObject(key: string): Promise<ReleaseObject | null> {
+    return this.delegate.getObject(key);
+  }
+
+  async putImmutable(
+    key: string,
+    body: AsyncIterable<Uint8Array>,
+    identity: ReleaseObjectIdentity,
+  ): Promise<void> {
+    await this.delegate.putImmutable(key, body, identity);
+    if (
+      !this.replaced &&
+      key.startsWith("recommended-dataset-mappings/")
+    ) {
+      this.replaced = true;
+      await writeFile(
+        this.artifactPath,
+        "replaced candidate bytes",
+      );
+    }
+  }
+
+  async compareAndSwap(
+    key: string,
+    expectedVersion: string | null,
+    body: Uint8Array,
+  ): Promise<string> {
+    return this.delegate.compareAndSwap(key, expectedVersion, body);
+  }
+}
+
+async function activateLegacyDeploymentProjection(
+  objectStore: InMemoryReleaseObjectStore,
+): Promise<void> {
+  const storedPointer = await objectStore.getObject(
+    ACTIVE_DEPLOYMENT_POINTER_KEY,
+  );
+  if (storedPointer === null) {
+    throw new Error("Expected an active deployment pointer.");
+  }
+  const pointer = JSON.parse(
+    (await collectReleaseObject(storedPointer)).toString("utf8"),
+  ) as {
+    current: { key: string };
+    [key: string]: unknown;
+  };
+  const storedDeployment = await objectStore.getObject(
+    pointer.current.key,
+  );
+  if (storedDeployment === null) {
+    throw new Error("Expected an active deployment.");
+  }
+  const legacyBase = JSON.parse(
+    (await collectReleaseObject(storedDeployment)).toString("utf8"),
+  ) as Record<string, unknown>;
+  delete legacyBase.deploymentPairingId;
+  delete legacyBase.recommendedDatasetMapping;
+  const deploymentPairingId = contentAddressedId(
+    "deployment-pairing-v1",
+    legacyBase,
+  );
+  const deploymentBytes = releaseJsonBytes({
+    ...legacyBase,
+    deploymentPairingId,
+  });
+  const deploymentReference = {
+    key: `deployment-pairings/${deploymentPairingId}.json`,
+    ...releaseObjectIdentity(deploymentBytes),
+  };
+  await objectStore.putImmutable(
+    deploymentReference.key,
+    singleChunk(deploymentBytes),
+    deploymentReference,
+  );
+  await objectStore.compareAndSwap(
+    ACTIVE_DEPLOYMENT_POINTER_KEY,
+    storedPointer.version,
+    releaseJsonBytes({
+      ...pointer,
+      current: deploymentReference,
+    }),
+  );
+}
+
+async function collectReleaseObject(
+  object: ReleaseObject,
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of object.body) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }
 
 async function* oneChunk(bytes: Buffer): AsyncIterable<Uint8Array> {

@@ -8,9 +8,17 @@ import {
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
 import {
+  createCandidateMarketDatasetPackage,
   evaluateCandidateMarketV1DatasetPackage,
   type CandidateMarketDatasetPackage,
 } from "../domain/trade-analytics/dataset-package";
+import {
+  createRecommendedDatasetMapping,
+  recommendedEconomyCatalogIdentity,
+  recommendedProductCatalogIdentity,
+  validateRecommendedDatasetMapping,
+  type RecommendedDatasetMapping,
+} from "../domain/trade-analytics/recommended-dataset-mapping";
 import {
   CandidateMarketTradeAnalyticsPlatform,
   type TradeAnalyticsPlatform,
@@ -37,7 +45,10 @@ import {
   ReleaseHydrator,
   type HydratedRelease,
 } from "../release/release-hydration";
-import type { ReleaseObjectReader } from "../release/release-object-store";
+import {
+  releaseObjectIdentity,
+  type ReleaseObjectReader,
+} from "../release/release-object-store";
 import { readRuntimeFile } from "../runtime-file-access";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
 import type {
@@ -68,6 +79,7 @@ export class VerifiedReleaseRuntime {
     private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
     datasetPackage: CandidateMarketDatasetPackage,
+    readonly recommendedDatasetMapping: RecommendedDatasetMapping,
   ) {
     this.tradeAnalytics = new CandidateMarketTradeAnalyticsPlatform(
       analysis.analyze.bind(analysis),
@@ -118,6 +130,11 @@ export class VerifiedReleaseRuntime {
           hydrated.deployment.analysisReleaseCatalogSha256,
         previousManifest,
       });
+    const recommendedDatasetMapping =
+      await loadRecommendedDatasetMapping(
+        hydrated,
+        datasetPackage,
+      );
     const runAnalyticalSmoke =
       evaluateCandidateMarketV1DatasetPackage(datasetPackage)
         .compatible;
@@ -169,6 +186,7 @@ export class VerifiedReleaseRuntime {
         hydrated,
         manifest,
         previousManifest,
+        recommendedDatasetMapping,
       );
       const sourceStatus = hydrated.sourceStatusFallback;
       assertStatusMicroCacheBudget(deployment, [sourceStatus]);
@@ -185,6 +203,7 @@ export class VerifiedReleaseRuntime {
         economyDirectory,
         input.now ?? currentUtcSecond,
         datasetPackage,
+        recommendedDatasetMapping,
       );
     } catch (error) {
       analysisDatabase?.close();
@@ -589,6 +608,7 @@ function currentAnalysisDeployment(
   hydrated: HydratedRelease,
   manifest: AnalysisArtifactManifest,
   previousManifest: AnalysisArtifactManifest | null,
+  mapping: RecommendedDatasetMapping,
 ): CurrentAnalysisDeployment {
   const cutoff = manifest.finalizedCutoffYear;
   return {
@@ -597,6 +617,16 @@ function currentAnalysisDeployment(
     analysisReleaseCatalogSha256:
       hydrated.deployment.analysisReleaseCatalogSha256,
     benchmarkQueries: manifest.benchmarkQueries,
+    recommendation: {
+      recipe: "candidate-market-v1",
+      mappingIdentity: mapping.identity,
+      datasetPackageIdentity:
+        mapping.manifest.datasetPackage.identity,
+      productCatalogIdentity:
+        mapping.manifest.productCatalog.identity,
+      economyCatalogIdentity:
+        mapping.manifest.economyCatalog.identity,
+    },
     source: {
       baciRelease: manifest.baciRelease,
       sourceUpdateDate: manifest.sourceUpdateDate,
@@ -641,6 +671,110 @@ function currentAnalysisDeployment(
               scoreWindowUsed: manifest.scoreWindow,
             },
     }),
+  };
+}
+
+async function loadRecommendedDatasetMapping(
+  hydrated: HydratedRelease,
+  expectedPackage: CandidateMarketDatasetPackage,
+): Promise<RecommendedDatasetMapping> {
+  const catalogs = recommendedCatalogs(hydrated);
+  let mapping: RecommendedDatasetMapping;
+  if (
+    hydrated.recommendedDatasetMappingPath !== null &&
+    hydrated.datasetPackageManifestPath !== null
+  ) {
+    mapping = createRecommendedDatasetMapping(
+      await readJson(hydrated.recommendedDatasetMappingPath),
+    );
+    const publishedPackage = createCandidateMarketDatasetPackage(
+      await readJson(hydrated.datasetPackageManifestPath),
+    );
+    if (publishedPackage.identity !== expectedPackage.identity) {
+      throw new TypeError(
+        "Recommended Dataset Mapping selected a different Dataset Package.",
+      );
+    }
+  } else {
+    const rawManifest = object(
+      await readJson(hydrated.analysisArtifactManifestPath),
+      "legacy analysis artifact manifest",
+    );
+    if (
+      rawManifest.sourceReportSha256 !== undefined ||
+      rawManifest.datasetPackage !== undefined
+    ) {
+      throw new TypeError(
+        "Active deployment is missing its Recommended Dataset Mapping.",
+      );
+    }
+    const packageBytes = Buffer.from(
+      expectedPackage.serializedManifest,
+      "utf8",
+    );
+    mapping = createRecommendedDatasetMapping({
+      schemaVersion:
+        "recommended-dataset-mapping-manifest-v1",
+      recipe: "candidate-market-v1",
+      datasetPackage: {
+        identity: expectedPackage.identity,
+        manifest: {
+          key: `legacy-normalized-dataset-packages/${expectedPackage.identity}.json`,
+          ...releaseObjectIdentity(packageBytes),
+        },
+      },
+      productCatalog: {
+        identity: recommendedProductCatalogIdentity(
+          catalogs.productCatalog,
+        ),
+        ...catalogs.productCatalog,
+      },
+      economyCatalog: {
+        identity: recommendedEconomyCatalogIdentity(
+          catalogs.economyCatalog,
+        ),
+        ...catalogs.economyCatalog,
+      },
+    });
+  }
+  validateRecommendedDatasetMapping({
+    mapping,
+    datasetPackage: expectedPackage,
+    productCatalog: catalogs.productCatalog,
+    economyCatalog: catalogs.economyCatalog,
+  });
+  if (
+    hydrated.deploymentManifest.recommendedDatasetMapping !== null &&
+    mapping.identity !==
+      hydrated.deploymentManifest.recommendedDatasetMapping.identity
+  ) {
+    throw new TypeError(
+      "Active deployment references a different Recommended Dataset Mapping.",
+    );
+  }
+  return mapping;
+}
+
+function recommendedCatalogs(hydrated: HydratedRelease) {
+  const productCatalog = {
+    productSearchBuildId:
+      hydrated.deployment.productSearchBuildId,
+    schemaVersion: "product-catalog-artifact-v1" as const,
+    catalog: hydrated.deploymentManifest.productSearch.catalog,
+    manifest:
+      hydrated.deploymentManifest.productSearch.manifest,
+  };
+  const economyCatalog = {
+    analysisBuildId: hydrated.deployment.analysisBuildId,
+    schemaVersion: "candidate-market-artifact-v1" as const,
+    artifact:
+      hydrated.deploymentManifest.analysis.artifact.artifact,
+    manifest:
+      hydrated.deploymentManifest.analysis.artifact.manifest,
+  };
+  return {
+    productCatalog,
+    economyCatalog,
   };
 }
 

@@ -1,10 +1,13 @@
 import { ACCEPTANCE_ECONOMIES } from "../../fixtures/acceptance/v1/economies/core";
 import { ACCEPTANCE_ECONOMY_CAP_RECORDS } from "../../fixtures/acceptance/v1/economies/cap";
+import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
 import {
+  ACCEPTANCE_FIXTURE_ARTIFACT,
   ACCEPTANCE_FIXTURE_BUILD_IDS,
   ECONOMY_DIRECTORY_FIXTURE_BUILD_IDS,
   FIXTURE_ADAPTER_TEST_BUILD_IDS,
 } from "../../fixtures/acceptance/v1/metadata";
+import { releaseJsonBytes } from "../release/release-manifest";
 import type {
   EconomyDirectory,
   EconomySearchResult,
@@ -18,6 +21,15 @@ import {
   searchEconomies,
   validateEconomySearchQuery,
 } from "./economy-search";
+
+export const FIXTURE_ECONOMY_CATALOG_ARTIFACT_BYTES =
+  releaseJsonBytes({
+    schemaVersion: "candidate-market-artifact-v1",
+    analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+    declaredAnalysisArtifact: ACCEPTANCE_FIXTURE_ARTIFACT,
+    economies: ACCEPTANCE_ECONOMIES,
+    analysisEvidence: CORE_CURRENT_INPUT,
+  });
 
 class FixtureEconomyDirectory implements EconomyDirectory {
   async search(

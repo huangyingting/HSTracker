@@ -4,9 +4,26 @@ import { join, resolve } from "node:path";
 
 import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
 import {
+  evaluateCandidateMarketV1DatasetPackage,
+  type CandidateMarketDatasetPackage,
+} from "../domain/trade-analytics/dataset-package";
+import {
+  createRecommendedDatasetMapping,
+  recommendedEconomyCatalogIdentity,
+  recommendedProductCatalogIdentity,
+  type RecommendedDatasetMapping,
+} from "../domain/trade-analytics/recommended-dataset-mapping";
+import {
+  createCandidateMarketDatasetPackageFromArtifacts,
+  parseAnalysisArtifactManifest,
+  type AnalysisArtifactManifest,
+} from "../evidence/analysis-artifact-manifest";
+import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
+  assertDeploymentReleaseCatalog,
   contentAddressedId,
   parseActiveDeploymentPointer,
+  parseAnalysisReleaseCatalog,
   parseDeploymentPairingManifest,
   parseSourceStatusSnapshot,
   publishedDeployment,
@@ -31,6 +48,7 @@ import {
   createPublishedSourceStatusSnapshot,
   sourceStatusSnapshot,
 } from "./source-status-publication";
+import { validateDeploymentActivation } from "./deployment-activation-validation";
 import {
   count,
   hs12,
@@ -68,7 +86,8 @@ export class ReleasePublicationError extends Error {
       | "ACTIVATION_PRECONDITION_FAILED"
       | "NO_PREVIOUS_DEPLOYMENT"
       | "OBJECT_READBACK_MISMATCH"
-      | "PAIRING_INCOMPATIBLE",
+      | "PAIRING_INCOMPATIBLE"
+      | "SMOKE_FAILED",
     message: string,
     options?: ErrorOptions,
   ) {
@@ -91,9 +110,11 @@ type ValidatedAnalysisCandidate = {
   artifactSchemaVersion: string;
   builtAt: string;
   artifactPath: string;
+  manifestPath: string;
   artifactIdentity: ReleaseObjectIdentity;
   manifestBytes: Buffer;
   manifestIdentity: ReleaseObjectIdentity;
+  manifest: AnalysisArtifactManifest;
 };
 
 type ValidatedProductCandidate = {
@@ -103,6 +124,7 @@ type ValidatedProductCandidate = {
   productSearchBuildId: string;
   catalogSchemaVersion: string;
   catalogPath: string;
+  manifestPath: string;
   catalogIdentity: ReleaseObjectIdentity;
   manifestBytes: Buffer;
   manifestIdentity: ReleaseObjectIdentity;
@@ -168,8 +190,43 @@ export class ReleasePublisher {
             releaseCatalogSha256:
               current.deployment.analysisReleaseCatalogSha256,
             analysisBuildId: current.deployment.analysisBuildId,
+            previousArtifact: await previousArtifactReference(
+              this.objectStore,
+              current.deployment.analysis.releaseCatalog,
+            ),
           }
         : await this.publishChangedAnalysis(analysis, current);
+    await Promise.all([
+      verifyStoredObject(
+        this.objectStore,
+        analysisPublication.artifact.artifact.key,
+        analysisPublication.artifact.artifact,
+      ),
+      verifyStoredObject(
+        this.objectStore,
+        analysisPublication.artifact.manifest.key,
+        analysisPublication.artifact.manifest,
+      ),
+      verifyStoredObject(
+        this.objectStore,
+        analysisPublication.releaseCatalog.key,
+        analysisPublication.releaseCatalog,
+      ),
+    ]);
+    const datasetPackage = await this.createAndPublishDatasetPackage(
+      analysis,
+      analysisPublication.releaseCatalogSha256,
+      analysisPublication.previousArtifact,
+    );
+    const recommendedDatasetMapping =
+      await this.createAndPublishMapping({
+        datasetPackage,
+        analysisBuildId: analysisPublication.analysisBuildId,
+        artifact: analysisPublication.artifact,
+        productCatalogBuildId:
+          productCatalog.productSearchBuildId,
+        productCatalog: productCatalogReference,
+      });
     const pairingBase = {
       schemaVersion: "deployment-pairing-manifest-v1",
       baciRelease: analysis.baciRelease,
@@ -183,6 +240,7 @@ export class ReleasePublisher {
         releaseCatalog: analysisPublication.releaseCatalog,
       },
       productSearch: productCatalogReference,
+      recommendedDatasetMapping,
     } as const;
     const deploymentPairingId = contentAddressedId(
       "deployment-pairing-v1",
@@ -197,11 +255,17 @@ export class ReleasePublisher {
       `deployment-pairings/${deploymentPairingId}.json`,
       deploymentBytes,
     );
+    const validatedDeployment =
+      await this.validateForActivation(
+        deploymentReference,
+        input.activatedAt,
+      );
     const pointer: ActiveDeploymentPointer = {
       schemaVersion: "active-deployment-pointer-v1",
       current: deploymentReference,
       previous: current?.pointer.current ?? null,
-      sourceStatusFallback: deployment.sourceStatusFallback,
+      sourceStatusFallback:
+        validatedDeployment.sourceStatusFallback,
       activatedAt: input.activatedAt,
     };
     await this.activatePointer(
@@ -209,7 +273,7 @@ export class ReleasePublisher {
       pointer,
     );
 
-    return publishedDeployment(pointer, deployment);
+    return publishedDeployment(pointer, validatedDeployment);
   }
 
   async rollback(input: RollbackReleaseInput): Promise<PublishedDeployment> {
@@ -254,6 +318,9 @@ export class ReleasePublisher {
         "Rollback Source Freshness Status does not match the target deployment.",
       );
     }
+    const recommendedDatasetMapping =
+      previous.recommendedDatasetMapping ??
+      (await this.createAndPublishRollbackMapping(previous));
     const pairingBase = {
       schemaVersion: "deployment-pairing-manifest-v1",
       baciRelease: previous.baciRelease,
@@ -264,6 +331,7 @@ export class ReleasePublisher {
       sourceStatusFallback,
       analysis: previous.analysis,
       productSearch: previous.productSearch,
+      recommendedDatasetMapping,
     } as const;
     const deployment: DeploymentPairingManifest = {
       ...pairingBase,
@@ -276,6 +344,11 @@ export class ReleasePublisher {
       `deployment-pairings/${deployment.deploymentPairingId}.json`,
       releaseJsonBytes(deployment),
     );
+    const validatedDeployment =
+      await this.validateForActivation(
+        deploymentReference,
+        input.activatedAt,
+      );
     const pointer: ActiveDeploymentPointer = {
       schemaVersion: "active-deployment-pointer-v1",
       current: deploymentReference,
@@ -284,7 +357,7 @@ export class ReleasePublisher {
       activatedAt: input.activatedAt,
     };
     await this.activatePointer(current.pointerVersion, pointer);
-    return publishedDeployment(pointer, deployment);
+    return publishedDeployment(pointer, validatedDeployment);
   }
 
   async current(): Promise<PublishedDeployment | null> {
@@ -302,6 +375,7 @@ export class ReleasePublisher {
     releaseCatalog: ReleaseObjectReference;
     releaseCatalogSha256: string;
     analysisBuildId: string;
+    previousArtifact: AnalysisArtifactReference | null;
   }> {
     const artifact = await this.publishAnalysis(candidate);
     const releaseCatalogBytes = releaseJsonBytes({
@@ -327,7 +401,171 @@ export class ReleasePublisher {
         scoreVersion: SCORE_VERSION,
         resultSchemaVersion: RESULT_SCHEMA_VERSION,
       }),
+      previousArtifact:
+        current?.deployment.analysis.artifact ?? null,
     };
+  }
+
+  private async createAndPublishDatasetPackage(
+    analysis: ValidatedAnalysisCandidate,
+    analysisReleaseCatalogSha256: string,
+    previousArtifact: AnalysisArtifactReference | null,
+  ): Promise<{
+    package: CandidateMarketDatasetPackage;
+    reference: ReleaseObjectReference;
+  }> {
+    const previousManifest =
+      previousArtifact === null
+        ? null
+        : await this.readPreviousAnalysisManifest(
+            previousArtifact,
+          );
+    return this.createAndPublishDatasetPackageFromManifests({
+      manifest: analysis.manifest,
+      analysisReleaseCatalogSha256,
+      previousManifest,
+    });
+  }
+
+  private async createAndPublishDatasetPackageFromManifests(input: {
+    manifest: AnalysisArtifactManifest;
+    analysisReleaseCatalogSha256: string;
+    previousManifest: AnalysisArtifactManifest | null;
+  }): Promise<{
+    package: CandidateMarketDatasetPackage;
+    reference: ReleaseObjectReference;
+  }> {
+    const datasetPackage =
+      createCandidateMarketDatasetPackageFromArtifacts(input);
+    const compatibility =
+      evaluateCandidateMarketV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      throw new ReleasePublicationError(
+        "PAIRING_INCOMPATIBLE",
+        `Candidate Market Dataset Package is incompatible: ${compatibility.reason}.`,
+      );
+    }
+    const reference = await this.publishBytes(
+      `dataset-packages/${datasetPackage.identity}.json`,
+      Buffer.from(datasetPackage.serializedManifest, "utf8"),
+    );
+    return { package: datasetPackage, reference };
+  }
+
+  private async createAndPublishRollbackMapping(
+    target: DeploymentPairingManifest,
+  ) {
+    const releaseCatalog = parseAnalysisReleaseCatalog(
+      JSON.parse(
+        (
+          await readVerifiedReference(
+            this.objectStore,
+            target.analysis.releaseCatalog,
+          )
+        ).toString("utf8"),
+      ),
+    );
+    assertDeploymentReleaseCatalog(target, releaseCatalog);
+    const [manifest, previousManifest] = await Promise.all([
+      this.readAnalysisArtifactManifest(
+        releaseCatalog.current,
+      ),
+      releaseCatalog.previous === null
+        ? Promise.resolve(null)
+        : this.readAnalysisArtifactManifest(
+            releaseCatalog.previous,
+          ),
+    ]);
+    const datasetPackage =
+      await this.createAndPublishDatasetPackageFromManifests({
+        manifest,
+        analysisReleaseCatalogSha256:
+          target.analysisReleaseCatalogSha256,
+        previousManifest,
+      });
+    return this.createAndPublishMapping({
+      datasetPackage,
+      analysisBuildId: target.analysisBuildId,
+      artifact: target.analysis.artifact,
+      productCatalogBuildId:
+        target.productSearchBuildId,
+      productCatalog: target.productSearch,
+    });
+  }
+
+  private async readPreviousAnalysisManifest(
+    previousArtifact: AnalysisArtifactReference,
+  ): Promise<AnalysisArtifactManifest> {
+    return this.readAnalysisArtifactManifest(previousArtifact);
+  }
+
+  private async readAnalysisArtifactManifest(
+    artifact: AnalysisArtifactReference,
+  ): Promise<AnalysisArtifactManifest> {
+    await verifyStoredObject(
+      this.objectStore,
+      artifact.artifact.key,
+      artifact.artifact,
+    );
+    return parseAnalysisArtifactManifest(
+      JSON.parse(
+        (
+          await readVerifiedReference(
+            this.objectStore,
+            artifact.manifest,
+          )
+        ).toString("utf8"),
+      ),
+    );
+  }
+
+  private async createAndPublishMapping(input: {
+    datasetPackage: {
+      package: CandidateMarketDatasetPackage;
+      reference: ReleaseObjectReference;
+    };
+    analysisBuildId: string;
+    artifact: AnalysisArtifactReference;
+    productCatalogBuildId: string;
+    productCatalog: ProductCatalogReference;
+  }) {
+    const productCatalog = {
+      productSearchBuildId: input.productCatalogBuildId,
+      schemaVersion: "product-catalog-artifact-v1" as const,
+      catalog: input.productCatalog.catalog,
+      manifest: input.productCatalog.manifest,
+    };
+    const economyCatalog = {
+      analysisBuildId: input.analysisBuildId,
+      schemaVersion: "candidate-market-artifact-v1" as const,
+      artifact: input.artifact.artifact,
+      manifest: input.artifact.manifest,
+    };
+    const mapping: RecommendedDatasetMapping =
+      createRecommendedDatasetMapping({
+        schemaVersion:
+          "recommended-dataset-mapping-manifest-v1",
+        recipe: "candidate-market-v1",
+        datasetPackage: {
+          identity: input.datasetPackage.package.identity,
+          manifest: input.datasetPackage.reference,
+        },
+        productCatalog: {
+          identity:
+            recommendedProductCatalogIdentity(productCatalog),
+          ...productCatalog,
+        },
+        economyCatalog: {
+          identity:
+            recommendedEconomyCatalogIdentity(economyCatalog),
+          ...economyCatalog,
+        },
+      });
+    const manifest = await this.publishBytes(
+      `recommended-dataset-mappings/${mapping.identity}.json`,
+      Buffer.from(mapping.serializedManifest, "utf8"),
+    );
+    return { identity: mapping.identity, manifest };
   }
 
   private async publishAnalysis(
@@ -463,6 +701,31 @@ export class ReleasePublisher {
       );
     }
   }
+
+  private async validateForActivation(
+    deploymentReference: ReleaseObjectReference,
+    activatedAt: string,
+  ): Promise<DeploymentPairingManifest> {
+    try {
+      return await validateDeploymentActivation({
+        objectStore: this.objectStore,
+        deploymentReference,
+        activatedAt,
+      });
+    } catch (error) {
+      const smokeFailure =
+        error instanceof Error && /smoke/u.test(error.message);
+      throw new ReleasePublicationError(
+        smokeFailure
+          ? "SMOKE_FAILED"
+          : "PAIRING_INCOMPATIBLE",
+        smokeFailure
+          ? "Deployment activation smoke analysis failed."
+          : "Deployment activation validation failed.",
+        { cause: error },
+      );
+    }
+  }
 }
 
 async function validateAnalysisCandidate(
@@ -478,6 +741,7 @@ async function validateAnalysisCandidate(
   ]);
   const manifestIdentity = releaseObjectIdentity(manifestBytes);
   const manifest = record(JSON.parse(manifestBytes.toString("utf8")), "artifact manifest");
+  const parsedManifest = parseAnalysisArtifactManifest(manifest);
   const report = record(JSON.parse(reportBytes.toString("utf8")), "artifact build report");
   if (
     manifest.schemaVersion !== "candidate-market-artifact-manifest-v1" ||
@@ -521,9 +785,11 @@ async function validateAnalysisCandidate(
     ),
     builtAt: utcTimestamp(manifest.builtAt, "analysis build time"),
     artifactPath,
+    manifestPath,
     artifactIdentity,
     manifestBytes,
     manifestIdentity,
+    manifest: parsedManifest,
   };
 }
 
@@ -579,8 +845,9 @@ async function validateProductCandidate(
   const catalogPath = join(directoryPath, "product-catalog.json");
   const manifestPath = join(directoryPath, "catalog-manifest.json");
   const reportPath = join(directoryPath, "catalog-build-report.json");
-  const [catalogIdentity, manifestBytes, reportBytes] = await Promise.all([
+  const [catalogIdentity, catalogBytes, manifestBytes, reportBytes] = await Promise.all([
     fileIdentity(catalogPath),
+    readFile(catalogPath),
     readFile(manifestPath),
     readFile(reportPath),
   ]);
@@ -602,14 +869,23 @@ async function validateProductCandidate(
     throw new Error("Catalog build report does not match its manifest.");
   }
   const catalog = record(manifest.catalog, "product catalog identity");
+  const catalogArtifact = record(
+    JSON.parse(catalogBytes.toString("utf8")),
+    "product catalog artifact",
+  );
   if (
+    catalog.schemaVersion !== "product-catalog-artifact-v1" ||
+    catalogArtifact.schemaVersion !==
+      "product-catalog-artifact-v1" ||
     string(catalog.relativePath, "product catalog relative path") !==
       "product-catalog.json" ||
     count(catalog.bytes, "product catalog bytes") !== catalogIdentity.bytes ||
     sha256String(catalog.sha256, "product catalog SHA-256") !==
       catalogIdentity.sha256
   ) {
-    throw new Error("Product catalog does not match its manifest.");
+    throw new Error(
+      "Product catalog schema is incompatible or does not match its manifest.",
+    );
   }
   return {
     baciRelease: string(manifest.baciRelease, "catalog BACI Release"),
@@ -628,6 +904,7 @@ async function validateProductCandidate(
       "product catalog schema version",
     ),
     catalogPath,
+    manifestPath,
     catalogIdentity,
     manifestBytes,
     manifestIdentity,
@@ -656,6 +933,7 @@ function candidateMatchesDeployment(
   deployment: DeploymentPairingManifest,
 ): boolean {
   return (
+    deployment.recommendedDatasetMapping !== null &&
     analysisCandidateMatchesDeployment(analysis, deployment) &&
     productCandidateMatchesDeployment(catalog, deployment)
   );
@@ -702,6 +980,22 @@ function sameIdentity(
     published.bytes === candidate.bytes &&
     published.sha256 === candidate.sha256
   );
+}
+
+async function previousArtifactReference(
+  objectStore: ReleaseObjectStore,
+  releaseCatalog: ReleaseObjectReference,
+): Promise<AnalysisArtifactReference | null> {
+  return parseAnalysisReleaseCatalog(
+    JSON.parse(
+      (
+        await readVerifiedReference(
+          objectStore,
+          releaseCatalog,
+        )
+      ).toString("utf8"),
+    ),
+  ).previous;
 }
 
 async function verifyStoredObject(

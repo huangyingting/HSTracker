@@ -1,12 +1,4 @@
-import {
-  mkdir,
-  writeFile,
-} from "node:fs/promises";
-import { join } from "node:path";
-
-import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
-import { releaseJsonBytes } from "../../src/release/release-manifest";
-import { releaseObjectIdentity } from "../../src/release/release-object-store";
+import { writeRuntimeReleaseCandidate } from "./runtime-release";
 
 export type AcceptedReleaseCandidateOptions = {
   baciRelease?: string;
@@ -18,6 +10,7 @@ export type AcceptedReleaseCandidateOptions = {
   productCatalogVersion?: string;
   productSearchBuildId?: string;
   productSourceArchiveSha256?: string;
+  productManifestCatalogSchemaVersion?: string;
 };
 
 export async function writeAcceptedReleaseCandidate(
@@ -27,125 +20,19 @@ export async function writeAcceptedReleaseCandidate(
   analysisDirectoryPath: string;
   productCatalogDirectoryPath: string;
 }> {
-  const analysisDirectoryPath = join(root, "analysis");
-  const productCatalogDirectoryPath = join(root, "product-catalog");
-  await Promise.all([
-    mkdir(analysisDirectoryPath, { recursive: true }),
-    mkdir(productCatalogDirectoryPath, { recursive: true }),
-  ]);
-
-  const analysisArtifact = Buffer.from(
-    `fixture DuckDB artifact ${options.analysisArtifactVersion ?? "v1"}`,
-    "utf8",
-  );
-  const baciRelease = options.baciRelease ?? "VTEST001";
-  const analysisArtifactIdentity = releaseObjectIdentity(analysisArtifact);
-  const analysisManifest = {
-    schemaVersion: "candidate-market-artifact-manifest-v1",
-    baciRelease,
-    sourceUrl: `https://fixtures.invalid/${baciRelease}.zip`,
-    sourceBytes: 0,
-    sourceSha256: options.sourceSha256 ?? "a".repeat(64),
-    sourceUpdateDate: options.sourceUpdateDate ?? "2026-01-22",
-    license: {
-      name: "Test fixture",
-      url: "https://fixtures.invalid/license",
-    },
-    attribution: "Release fixture with CEPII BACI semantics.",
-    hsRevision: "HS12",
-    ingestedYears: [
-      2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
-      2023, 2024,
-    ],
-    finalizedYears: [
-      2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
-      2023,
-    ],
-    provisionalYears: [2024],
-    finalizedCutoffYear: 2023,
-    scoreWindow: { start: 2019, end: 2023 },
-    stagingManifestSha256: "b".repeat(64),
-    coverageApprovalSha256: "c".repeat(64),
-    sourceReportSha256: "d".repeat(64),
-    datasetPackage: CANDIDATE_MARKET_V1_DATASET_DECLARATION,
-    scoreVersionsSupported: ["cms-v1"],
-    artifact: {
-      schemaVersion: "candidate-market-artifact-v1",
-      buildId:
-        options.analysisArtifactBuildId ??
-        "candidate-market-artifact-v1-2222222222222222",
-      relativePath: "candidate-market.duckdb",
-      ...analysisArtifactIdentity,
-    },
-    builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
-  };
-  const analysisManifestBytes = releaseJsonBytes(analysisManifest);
-  const analysisReport = {
-    schemaVersion: "candidate-market-artifact-build-report-v1",
-    status: "accepted",
-    artifactManifestSha256:
-      releaseObjectIdentity(analysisManifestBytes).sha256,
-    artifactManifest: analysisManifest,
-    artifact: analysisManifest.artifact,
-  };
-
-  const productCatalog = Buffer.from(
-    `fixture product catalog ${options.productCatalogVersion ?? "v1"}`,
-    "utf8",
-  );
-  const productCatalogIdentity = releaseObjectIdentity(productCatalog);
-  const catalogManifest = {
-    schemaVersion: "product-catalog-manifest-v1",
-    baciRelease,
-    sourceArchiveSha256:
-      options.productSourceArchiveSha256 ??
-      options.sourceSha256 ??
-      "a".repeat(64),
-    hsRevision: "HS12",
-    productSearchBuildId:
-      options.productSearchBuildId ?? "product-search-v1-1111111111111111",
-    catalog: {
-      schemaVersion: "product-catalog-artifact-v1",
-      relativePath: "product-catalog.json",
-      ...productCatalogIdentity,
-    },
-    builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
-  };
-  const catalogManifestBytes = releaseJsonBytes(catalogManifest);
-  const catalogReport = {
-    schemaVersion: "product-catalog-build-report-v1",
-    status: "accepted",
-    catalogManifestSha256:
-      releaseObjectIdentity(catalogManifestBytes).sha256,
-    catalogManifest,
-  };
-
-  await Promise.all([
-    writeFile(
-      join(analysisDirectoryPath, "candidate-market.duckdb"),
-      analysisArtifact,
-    ),
-    writeFile(
-      join(analysisDirectoryPath, "artifact-manifest.json"),
-      analysisManifestBytes,
-    ),
-    writeFile(
-      join(analysisDirectoryPath, "artifact-build-report.json"),
-      releaseJsonBytes(analysisReport),
-    ),
-    writeFile(
-      join(productCatalogDirectoryPath, "product-catalog.json"),
-      productCatalog,
-    ),
-    writeFile(
-      join(productCatalogDirectoryPath, "catalog-manifest.json"),
-      catalogManifestBytes,
-    ),
-    writeFile(
-      join(productCatalogDirectoryPath, "catalog-build-report.json"),
-      releaseJsonBytes(catalogReport),
-    ),
-  ]);
-
-  return { analysisDirectoryPath, productCatalogDirectoryPath };
+  return writeRuntimeReleaseCandidate(root, {
+    baciRelease: options.baciRelease ?? "VTEST001",
+    sourceSha256: options.sourceSha256,
+    sourceUpdateDate: options.sourceUpdateDate,
+    builtAt: options.builtAt,
+    analysisArtifactBuildId: options.analysisArtifactBuildId,
+    valueOffset:
+      options.analysisArtifactVersion === "v2" ? 1 : 0,
+    productCatalogVersion: options.productCatalogVersion,
+    productSearchBuildId: options.productSearchBuildId,
+    productSourceArchiveSha256:
+      options.productSourceArchiveSha256,
+    productManifestCatalogSchemaVersion:
+      options.productManifestCatalogSchemaVersion,
+  });
 }
