@@ -15,6 +15,7 @@ import type {
 } from "../domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EconomyRecord } from "../economy/economy-directory";
+import { AnalysisShareLink } from "./analysis-share-link";
 import {
   CandidateMarketComparison,
   MAX_COMPARISON_CANDIDATES,
@@ -511,11 +512,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       ) : null}
 
       {(status === "success" || status === "empty") && result !== null ? (
-        <CandidateMarketExportAction
-          result={result}
-          locale={locale}
-          onManifestRevalidated={setCurrentManifest}
-        />
+        <>
+          <CandidateMarketExportAction
+            result={result}
+            locale={locale}
+            onManifestRevalidated={setCurrentManifest}
+          />
+          <AnalysisShareLink locale={locale} />
+        </>
       ) : null}
 
       {status === "success" && result !== null && selectedCandidate !== null ? (
@@ -556,6 +560,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                             locale,
                           )}
                         </small>
+                        <span
+                          className="candidate-score-bar"
+                          aria-hidden="true"
+                        >
+                          <span style={{ width: `${candidate.score}%` }} />
+                        </span>
                       </span>
                       <span className="candidate-score">
                         {candidate.score}
