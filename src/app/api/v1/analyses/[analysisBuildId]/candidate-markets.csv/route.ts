@@ -4,6 +4,7 @@ import {
   invalidAnalysisQuery,
   isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
+import { executeCandidateMarketV1 } from "../../../../../../domain/trade-analytics/candidate-market-v1-adapter";
 import {
   CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
   CandidateMarketCsvRepresentationError,
@@ -112,7 +113,8 @@ const candidateMarketCsvRoute =
         );
       }
 
-      const result = await runtime.analyze(
+      const result = await executeCandidateMarketV1(
+        runtime.tradeAnalytics,
         {
           analysisBuildId: identity.analysisBuildId,
           exporterCode: identity.exporterCode,

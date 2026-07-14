@@ -19,6 +19,20 @@ async function sourceFiles(directory: string): Promise<string[]> {
 }
 
 describe("Candidate Market module boundary", () => {
+  it("routes public Candidate Market representations through the platform Adapter", async () => {
+    const routes = await Promise.all(
+      [
+        "src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route.ts",
+        "src/app/api/v1/analyses/[analysisBuildId]/candidate-markets.csv/route.ts",
+      ].map((path) => readFile(resolve(path), "utf8")),
+    );
+
+    for (const route of routes) {
+      expect(route).toMatch(/executeCandidateMarketV1/u);
+      expect(route).not.toMatch(/runtime\.analyze\s*\(/u);
+    }
+  });
+
   it("keeps scoring formulas out of routes, adapters, and UI code", async () => {
     const files = (await sourceFiles(sourceRoot)).filter(
       (path) => !path.startsWith(`${candidateMarketModule}${sep}`),

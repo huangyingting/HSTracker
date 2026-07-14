@@ -6,6 +6,7 @@ import {
 } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets.csv/route";
 import { GET as getCandidateMarkets } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
 import { resolveCurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
+import { CandidateMarketTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
   FIXTURE_CURRENT_AS_OF,
@@ -18,6 +19,11 @@ import {
 } from "../../src/runtime/application-runtime";
 import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
+import { serializeCandidateMarketCsv } from "../../src/export/candidate-market-csv";
+import {
+  subscribeRuntimeMetrics,
+  type RuntimeRequestMetric,
+} from "../../src/runtime/runtime-metrics";
 
 const manifest = resolveCurrentAnalysisManifest(
   FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT,
@@ -31,6 +37,36 @@ const routeContext = (analysisBuildId: string) => ({
 describe("versioned Candidate Market CSV route", () => {
   it("serves matching deterministic GET, conditional GET, and HEAD metadata", async () => {
     const url = exportUrl();
+    const fixture = createFixtureApplicationRuntime();
+    const platformOutcome = await fixture.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: manifest.analysisBuildId,
+      exporterCode: "156",
+      productCode: "010121",
+    });
+    if (platformOutcome.state !== "success") {
+      throw new TypeError("Expected the fixture platform oracle to succeed.");
+    }
+    const freshness = fixture.resolveFreshnessStatus(
+      manifest.freshness.freshnessStatusId,
+    );
+    const productSearch = await fixture.searchProducts({
+      productSearchBuildId: manifest.productSearchBuildId,
+      query: "010121",
+      locale: "en",
+      limit: 1,
+    });
+    const product = productSearch.matches.find(
+      (match) => match.product.code === "010121",
+    )?.product;
+    if (freshness === null || product === undefined) {
+      throw new TypeError("Expected the fixture export dependencies.");
+    }
+    const platformCsv = serializeCandidateMarketCsv({
+      result: platformOutcome.payload,
+      product,
+      manifest: { ...manifest, freshness },
+    });
     const first = await GET(
       new Request(url),
       routeContext(manifest.analysisBuildId),
@@ -52,6 +88,7 @@ describe("versioned Candidate Market CSV route", () => {
     );
     expect(first.headers.get("x-content-type-options")).toBe("nosniff");
     expect(first.headers.get("vary")).toBe("Accept-Encoding");
+    expect(bytes).toEqual(platformCsv.bytes);
     expect(bytes.slice(0, 3)).toEqual(Uint8Array.from([0xef, 0xbb, 0xbf]));
     expect(new TextDecoder().decode(bytes).match(/\r\n/g)).toHaveLength(14);
 
@@ -96,15 +133,12 @@ describe("versioned Candidate Market CSV route", () => {
 
   it("reuses the JSON Candidate Market computation for CSV serialization", async () => {
     const fixture = createFixtureApplicationRuntime();
-    let computations = 0;
-    const runtime = createBoundedApplicationRuntime({
-      ...fixture,
-      async analyze(query, options) {
-        computations += 1;
-        return fixture.analyze(query, options);
-      },
-    });
+    const runtime = createBoundedApplicationRuntime(fixture);
     const restore = installApplicationRuntime(runtime);
+    const metrics: RuntimeRequestMetric[] = [];
+    const unsubscribe = subscribeRuntimeMetrics((metric) => {
+      metrics.push(metric);
+    });
 
     try {
       const json = await getCandidateMarkets(
@@ -120,8 +154,12 @@ describe("versioned Candidate Market CSV route", () => {
 
       expect(json.status).toBe(200);
       expect(csv.status).toBe(200);
-      expect(computations).toBe(1);
+      expect(metrics.map((metric) => metric.cacheState)).toEqual([
+        "miss",
+        "hit",
+      ]);
     } finally {
+      unsubscribe();
       restore();
     }
   });
@@ -130,9 +168,9 @@ describe("versioned Candidate Market CSV route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      async analyze() {
+      tradeAnalytics: fixturePlatform(fixture).withExecution(async () => {
         throw new AnalysisCapacityExceededError("queue-timeout");
-      },
+      }),
     });
 
     try {
@@ -160,15 +198,17 @@ describe("versioned Candidate Market CSV route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      analyze(_query, options) {
-        return new Promise((_resolve, reject) => {
-          options?.signal?.addEventListener(
-            "abort",
-            () => reject(options.signal?.reason),
-            { once: true },
-          );
-        });
-      },
+      tradeAnalytics: fixturePlatform(fixture).withExecution(
+        (_query, options) => {
+          return new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener(
+              "abort",
+              () => reject(options.signal?.reason),
+              { once: true },
+            );
+          });
+        },
+      ),
     });
 
     try {
@@ -360,6 +400,18 @@ describe("versioned Candidate Market CSV route", () => {
     vi.restoreAllMocks();
   });
 });
+
+function fixturePlatform(
+  runtime: ReturnType<typeof createFixtureApplicationRuntime>,
+): CandidateMarketTradeAnalyticsPlatform {
+  if (
+    runtime.tradeAnalytics instanceof
+    CandidateMarketTradeAnalyticsPlatform
+  ) {
+    return runtime.tradeAnalytics;
+  }
+  throw new TypeError("Fixture runtime must use the Candidate Market platform.");
+}
 
 function exportUrl(
   overrides: Partial<{

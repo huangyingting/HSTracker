@@ -4,6 +4,7 @@ import {
   invalidAnalysisQuery,
   isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
+import { executeCandidateMarketV1 } from "../../../../../../domain/trade-analytics/candidate-market-v1-adapter";
 import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import {
@@ -54,7 +55,8 @@ const candidateMarketRoute =
       const url = new URL(request.url);
       validateSearchParameters(url.searchParams);
       const { analysisBuildId } = await context.params;
-      const result = await runtime.analyze(
+      const result = await executeCandidateMarketV1(
+        runtime.tradeAnalytics,
         {
           analysisBuildId,
           exporterCode: url.searchParams.get("exporter") ?? "",

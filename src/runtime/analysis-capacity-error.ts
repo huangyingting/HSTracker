@@ -13,11 +13,13 @@ export type AnalysisCapacityReason =
 export class AnalysisCapacityExceededError extends Error {
   readonly code = "ANALYSIS_CAPACITY_EXCEEDED";
   readonly status = 503;
-  readonly retryAfterSeconds = 2;
   readonly publicMessage =
     "Candidate Market analysis is temporarily at capacity.";
 
-  constructor(readonly reason: AnalysisCapacityReason) {
+  constructor(
+    readonly reason: AnalysisCapacityReason,
+    readonly retryAfterSeconds = 2,
+  ) {
     super(`Candidate Market analysis capacity exceeded: ${reason}.`);
     this.name = "AnalysisCapacityExceededError";
     brandCrossBundleError(this, ERROR_BRAND);

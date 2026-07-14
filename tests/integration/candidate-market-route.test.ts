@@ -8,6 +8,11 @@ import {
   createFixtureApplicationRuntime,
   installApplicationRuntime,
 } from "../../src/runtime/application-runtime";
+import {
+  CandidateMarketTradeAnalyticsPlatform,
+  type AnalysisOutcome,
+  type TradeAnalyticsPlatform,
+} from "../../src/domain/trade-analytics/trade-analytics-platform";
 import { AnalysisCapacityExceededError } from "../../src/runtime/analysis-capacity-error";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import {
@@ -32,6 +37,16 @@ describe("versioned Candidate Market route", () => {
   it("serves deterministic immutable GET and HEAD representations", async () => {
     const url =
       "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121";
+    const fixture = createFixtureApplicationRuntime();
+    const platformOutcome = await fixture.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      exporterCode: "156",
+      productCode: "010121",
+    });
+    if (platformOutcome.state !== "success") {
+      throw new TypeError("Expected the fixture platform oracle to succeed.");
+    }
 
     const first = await GET(
       new Request(url),
@@ -53,6 +68,7 @@ describe("versioned Candidate Market route", () => {
     );
     expect(first.headers.get("vary")).toBe("Accept-Encoding");
     expect(first.headers.get("etag")).toMatch(/^W\/"[a-f0-9]{64}"$/);
+    expect(firstBody).toBe(JSON.stringify(platformOutcome.payload));
     expect(secondBody).toBe(firstBody);
     expect(second.headers.get("etag")).toBe(first.headers.get("etag"));
     expect(JSON.parse(firstBody)).toMatchObject({
@@ -139,9 +155,9 @@ describe("versioned Candidate Market route", () => {
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      async analyze() {
+      tradeAnalytics: fixturePlatform(fixture).withExecution(async () => {
         throw new AnalysisCapacityExceededError("queue-full");
-      },
+      }),
     });
 
     try {
@@ -166,20 +182,97 @@ describe("versioned Candidate Market route", () => {
     }
   });
 
+  it.each([
+    {
+      name: "an incompatible Dataset Package",
+      outcome: unresolvedOutcome({
+        state: "incompatible-package",
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: "MISSING_REQUIRED_CAPABILITY",
+        },
+      }),
+      code: "ANALYSIS_UNAVAILABLE",
+      retryAfter: null,
+    },
+    {
+      name: "an exceeded execution budget",
+      outcome: unresolvedOutcome({
+        state: "budget",
+        error: {
+          code: "ANALYSIS_BUDGET_EXCEEDED",
+          budget: "EXECUTION_DEADLINE",
+        },
+      }),
+      code: "ANALYSIS_UNAVAILABLE",
+      retryAfter: null,
+    },
+    {
+      name: "a platform rate limit",
+      outcome: unresolvedOutcome({
+        state: "rate-limit",
+        error: {
+          code: "ANALYSIS_RATE_LIMITED",
+          retryAfterSeconds: 7,
+        },
+      }),
+      code: "ANALYSIS_CAPACITY_EXCEEDED",
+      retryAfter: "7",
+    },
+    {
+      name: "temporary platform unavailability",
+      outcome: unresolvedOutcome({
+        state: "temporary-unavailability",
+        error: { code: "ANALYSIS_UNAVAILABLE" },
+      }),
+      code: "ANALYSIS_UNAVAILABLE",
+      retryAfter: null,
+    },
+  ])(
+    "preserves the public v1 error contract for $name",
+    async ({ outcome, code, retryAfter }) => {
+      const fixture = createFixtureApplicationRuntime();
+      const restore = installApplicationRuntime({
+        ...fixture,
+        tradeAnalytics: platformReturning(outcome),
+      });
+
+      try {
+        const response = await GET(
+          new Request(
+            "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+          ),
+          routeContext("acceptance-fixtures-v1"),
+        );
+
+        expect(response.status).toBe(503);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(response.headers.get("retry-after")).toBe(retryAfter);
+        await expect(response.json()).resolves.toMatchObject({
+          error: { code },
+        });
+      } finally {
+        restore();
+      }
+    },
+  );
+
   it("cancels Candidate Market work at the twelve-second route deadline", async () => {
     vi.useFakeTimers();
     const fixture = createFixtureApplicationRuntime();
     const restore = installApplicationRuntime({
       ...fixture,
-      analyze(_query, options) {
-        return new Promise((_resolve, reject) => {
-          options?.signal?.addEventListener(
-            "abort",
-            () => reject(options.signal?.reason),
-            { once: true },
-          );
-        });
-      },
+      tradeAnalytics: fixturePlatform(fixture).withExecution(
+        (_query, options) => {
+          return new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener(
+              "abort",
+              () => reject(options.signal?.reason),
+              { once: true },
+            );
+          });
+        },
+      ),
     });
 
     try {
@@ -208,6 +301,51 @@ describe("versioned Candidate Market route", () => {
       restore();
     }
   });
+
+  type AdapterFailureOutcome = Extract<
+    AnalysisOutcome<"candidate-market-v1">,
+    {
+      state:
+        | "incompatible-package"
+        | "budget"
+        | "rate-limit"
+        | "temporary-unavailability";
+    }
+  >;
+  type AdapterFailureInput =
+    AdapterFailureOutcome extends infer Failure
+      ? Failure extends AdapterFailureOutcome
+        ? Pick<Failure, "state" | "error">
+        : never
+      : never;
+  type UnresolvedOutcomeMetadata = Readonly<{
+    recipe: "candidate-market-v1";
+    analysisIdentity: null;
+    datasetPackageIdentity: null;
+    normalizedInputs: null;
+  }>;
+
+  function unresolvedOutcome<Outcome extends AdapterFailureInput>(
+    outcome: Outcome,
+  ): Outcome & UnresolvedOutcomeMetadata {
+    return {
+      recipe: "candidate-market-v1",
+      analysisIdentity: null,
+      datasetPackageIdentity: null,
+      normalizedInputs: null,
+      ...outcome,
+    };
+  }
+
+  function platformReturning(
+    outcome: AnalysisOutcome<"candidate-market-v1">,
+  ): TradeAnalyticsPlatform {
+    return {
+      async execute() {
+        return outcome;
+      },
+    };
+  }
 
   it("records route, cache, queue, query, serialization, and byte metrics", async () => {
     const runtime = createBoundedApplicationRuntime(
@@ -425,4 +563,16 @@ describe("versioned Candidate Market route", () => {
       error: { name: "Error", message: expect.any(String) },
     });
   });
+
+  function fixturePlatform(
+    runtime: ReturnType<typeof createFixtureApplicationRuntime>,
+  ): CandidateMarketTradeAnalyticsPlatform {
+    if (
+      runtime.tradeAnalytics instanceof
+      CandidateMarketTradeAnalyticsPlatform
+    ) {
+      return runtime.tradeAnalytics;
+    }
+    throw new TypeError("Fixture runtime must use the Candidate Market platform.");
+  }
 });

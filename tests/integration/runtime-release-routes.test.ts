@@ -10,6 +10,7 @@ import { GET as getCandidateMarketsCsv } from "../../src/app/api/v1/analyses/[an
 import { GET as getEconomies } from "../../src/app/api/v1/analyses/[analysisBuildId]/economies/route";
 import { GET as getProducts } from "../../src/app/api/v1/product-catalogs/[productSearchBuildId]/products/route";
 import { GET as getHealth } from "../../src/app/healthz/route";
+import { serializeCandidateMarketCsv } from "../../src/export/candidate-market-csv";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { installApplicationRuntime } from "../../src/runtime/application-runtime";
@@ -59,6 +60,15 @@ describe("verified release route integration", () => {
     runtimes.push(runtime);
     cleanups.push(installApplicationRuntime(runtime));
     const startupReads = reader.readCount;
+    const platformOutcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: published.analysisBuildId,
+      exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+    if (platformOutcome.state !== "success") {
+      throw new TypeError("Expected the verified-release platform to succeed.");
+    }
 
     const current = await getCurrent(
       new Request("http://localhost/api/v1/analyses/current"),
@@ -73,6 +83,7 @@ describe("verified release route integration", () => {
       ),
       routeContext("analysisBuildId", published.analysisBuildId),
     );
+    const analysisBody = await analysis.text();
     const products = await getProducts(
       new Request(
         `http://localhost/api/v1/product-catalogs/${published.productSearchBuildId}/products` +
@@ -113,7 +124,32 @@ describe("verified release route integration", () => {
       new Request(csvUrl),
       routeContext("analysisBuildId", published.analysisBuildId),
     );
-    const csvBody = await csv.text();
+    const csvBytes = new Uint8Array(await csv.arrayBuffer());
+    const csvBody = new TextDecoder().decode(csvBytes);
+    const freshness = runtime.resolveFreshnessStatus(
+      currentBody.freshness.freshnessStatusId,
+    );
+    const productSearch = await runtime.searchProducts({
+      productSearchBuildId: published.productSearchBuildId,
+      query: RUNTIME_RELEASE_FIXTURE.productCode,
+      locale: "en",
+      limit: 1,
+    });
+    const product = productSearch.matches.find(
+      (match) =>
+        match.product.code === RUNTIME_RELEASE_FIXTURE.productCode,
+    )?.product;
+    if (freshness === null || product === undefined) {
+      throw new TypeError("Expected verified export dependencies.");
+    }
+    const platformCsv = serializeCandidateMarketCsv({
+      result: platformOutcome.payload,
+      product,
+      manifest: {
+        ...runtime.currentAnalysis(),
+        freshness,
+      },
+    });
     const retiredAnalysisBuildId =
       "analysis-build-v1-ffffffffffffffff";
     const retiredProductSearchBuildId =
@@ -140,7 +176,7 @@ describe("verified release route integration", () => {
     expect({
       current: currentBody,
       health: await health.json(),
-      analysis: await analysis.json(),
+      analysis: JSON.parse(analysisBody),
       products: await products.json(),
       economies: await economies.json(),
       csv: {
@@ -210,6 +246,8 @@ describe("verified release route integration", () => {
       },
       requestTimeObjectReads: 0,
     });
+    expect(analysisBody).toBe(JSON.stringify(platformOutcome.payload));
+    expect(csvBytes).toEqual(platformCsv.bytes);
   }, 20_000);
 });
 
