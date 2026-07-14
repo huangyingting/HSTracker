@@ -21,6 +21,13 @@ export type RuntimeRequestMetric = Readonly<{
   synthetic: boolean;
   status: number;
   cacheState: RuntimeOperationObservation["cacheState"] | "bypass";
+  recipeVersion: "candidate-market-v1" | "not-applicable";
+  outcomeState:
+    | NonNullable<RuntimeOperationObservation["outcomeState"]>
+    | "not-applicable";
+  rejectionReason:
+    | NonNullable<RuntimeOperationObservation["rejectionReason"]>
+    | "none";
   activeAnalysisBuildId: string;
   baciRelease: string;
   correlationId: string;
@@ -160,6 +167,9 @@ function startRuntimeMeasurement(
         synthetic: classification.synthetic,
         status,
         cacheState: operation?.cacheState ?? "bypass",
+        recipeVersion: operation?.recipeVersion ?? "not-applicable",
+        outcomeState: operation?.outcomeState ?? "not-applicable",
+        rejectionReason: operation?.rejectionReason ?? "none",
         activeAnalysisBuildId: manifest.analysisBuildId,
         baciRelease: manifest.source.baciRelease,
         correlationId,

@@ -7,6 +7,7 @@ import type {
 } from "../candidate-market/result";
 import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
+import type { AnonymousSourceIdentity } from "../../runtime/anonymous-source";
 import {
   createCandidateMarketV1RecipeExecution,
   type CandidateMarketV1PreviousReleaseEvidence,
@@ -46,13 +47,29 @@ export type AnalysisExecutionOptions = Readonly<{
   signal?: AbortSignal;
   observe?: (observation: AnalysisOperationObservation) => void;
   cachePartitionKey?: string;
+  anonymousSource?: AnonymousSourceIdentity;
 }>;
 
 export type AnalysisOperationObservation = Readonly<{
-  cacheState: "hit" | "coalesced" | "miss";
+  cacheState: "hit" | "coalesced" | "miss" | "bypass";
   queueWaitMs: number | null;
   queryMs: number | null;
   resultBytes: number;
+  recipeVersion?: "candidate-market-v1";
+  outcomeState?: AnalysisOutcome<"candidate-market-v1">["state"];
+  rejectionReason?:
+    | "INPUT_CARDINALITY"
+    | "SCAN"
+    | "RESULT_ROWS"
+    | "RESULT_BYTES"
+    | "MEMORY"
+    | "EXECUTION_DEADLINE"
+    | "EXPORT"
+    | "SOURCE_REQUEST_LIMIT"
+    | "queue-full"
+    | "queue-timeout"
+    | "execution-timeout"
+    | null;
 }>;
 
 type AnalysisRecipeContracts = {

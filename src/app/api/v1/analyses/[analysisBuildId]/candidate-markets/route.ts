@@ -5,6 +5,7 @@ import {
   isCandidateMarketAnalysisError,
 } from "../../../../../../domain/candidate-market/errors";
 import { executeCandidateMarketV1 } from "../../../../../../domain/trade-analytics/candidate-market-v1-adapter";
+import { createAnonymousSourceHttpAdapter } from "../../../../../../http/anonymous-source-adapter";
 import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import {
@@ -14,7 +15,10 @@ import {
 import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runtime-route";
 import { writeStructuredErrorLog } from "../../../../../../operations/structured-log";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
+import { isAnalysisBudgetExceededError } from "../../../../../../runtime/analysis-budget-error";
+import { isAnalysisRateLimitedError } from "../../../../../../runtime/analysis-rate-limit-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
+import { RUNTIME_RESOURCE_POLICY } from "../../../../../../runtime-resource-policy";
 import { runtimeProbeCachePartition } from "../../../../../../runtime/runtime-metrics";
 import { utf8ByteLength } from "../../../../../../runtime/serialized-size";
 
@@ -66,6 +70,7 @@ const candidateMarketRoute =
           signal,
           observe: measurement.observeOperation,
           cachePartitionKey: runtimeProbeCachePartition(request),
+          ...anonymousSourceAdapter.executionOptions(request),
         },
       );
       const body = measurement.measureSerialization(
@@ -99,6 +104,16 @@ const candidateMarketRoute =
           { "Retry-After": String(error.retryAfterSeconds) },
         );
       }
+      if (isAnalysisRateLimitedError(error)) {
+        return jsonErrorResponseFor(
+          error,
+          undefined,
+          { "Retry-After": String(error.retryAfterSeconds) },
+        );
+      }
+      if (isAnalysisBudgetExceededError(error)) {
+        return jsonErrorResponseFor(error);
+      }
       if (isCandidateMarketAnalysisError(error)) {
         return jsonErrorResponse(
           error.status,
@@ -121,6 +136,10 @@ const candidateMarketRoute =
       );
     },
   });
+
+const anonymousSourceAdapter = createAnonymousSourceHttpAdapter({
+  trustedProxy: RUNTIME_RESOURCE_POLICY.trustedProxy,
+});
 
 function validateSearchParameters(searchParameters: URLSearchParams) {
   const keys = [...searchParameters.keys()];

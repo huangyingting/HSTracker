@@ -58,6 +58,10 @@ const copy = {
       "These analysis inputs are invalid. Check the selected export economy and HS Product.",
     stale:
       "This analysis build has retired. Refresh the current fixture context.",
+    rateLimit:
+      "Candidate Market requests are temporarily limited. Wait a moment before retrying.",
+    budget:
+      "This Candidate Market request exceeds the complete-result size limit. Choose a different export economy or HS Product.",
     capacity:
       "Analysis capacity is temporarily busy. The complete result was not loaded.",
     unavailable: "The compatible analysis artifact is temporarily unavailable.",
@@ -95,6 +99,9 @@ const copy = {
     emptyBody: "所选输入有效，但计分定稿窗口内没有候选市场具备足够证据。",
     malformed: "该分析情境无效。请检查所选出口经济体和产品。",
     stale: "该分析构建已停用。请刷新当前测试情境。",
+    rateLimit: "候选市场请求暂时受限。请稍候再试。",
+    budget:
+      "该候选市场请求超出完整结果大小限制。请选择其他出口经济体或 HS 产品。",
     capacity: "分析容量暂时繁忙。尚未加载完整结果。",
     unavailable: "兼容的分析工件暂时不可用。",
     fatal: "无法完成分析。",
@@ -119,6 +126,8 @@ type AnalysisStatus =
   | "empty"
   | "malformed"
   | "stale"
+  | "rateLimit"
+  | "budget"
   | "capacity"
   | "unavailable"
   | "fatal";
@@ -296,7 +305,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         return;
       }
       if (!response.ok) {
-        setStatus(analysisErrorStatus(response.status));
+        setStatus(
+          analysisErrorStatus(
+            response.status,
+            analysisErrorCode(await response.json()),
+          ),
+        );
         return;
       }
       const completeResult = (await response.json()) as CandidateMarketResult;
@@ -629,7 +643,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       {isErrorStatus(status) ? (
         <div className="analysis-state analysis-error" role="alert">
           <p>{messages[status]}</p>
-          {status === "stale" || status === "capacity" ? (
+          {status === "stale" ||
+          status === "rateLimit" ||
+          status === "capacity" ? (
             <button
               type="button"
               onClick={() => {
@@ -651,7 +667,19 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   );
 }
 
-function analysisErrorStatus(status: number): AnalysisStatus {
+function analysisErrorStatus(
+  status: number,
+  code: string | null,
+): AnalysisStatus {
+  if (code === "ANALYSIS_RATE_LIMITED") {
+    return "rateLimit";
+  }
+  if (code === "ANALYSIS_BUDGET_EXCEEDED") {
+    return "budget";
+  }
+  if (code === "ANALYSIS_CAPACITY_EXCEEDED") {
+    return "capacity";
+  }
   if (status === 400 || status === 404) {
     return "malformed";
   }
@@ -667,12 +695,36 @@ function analysisErrorStatus(status: number): AnalysisStatus {
   return "fatal";
 }
 
+function analysisErrorCode(value: unknown): string | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("error" in value) ||
+    typeof value.error !== "object" ||
+    value.error === null ||
+    !("code" in value.error) ||
+    typeof value.error.code !== "string"
+  ) {
+    return null;
+  }
+  return value.error.code;
+}
+
 function isErrorStatus(
   status: AnalysisStatus,
-): status is "malformed" | "stale" | "capacity" | "unavailable" | "fatal" {
+): status is
+  | "malformed"
+  | "stale"
+  | "rateLimit"
+  | "budget"
+  | "capacity"
+  | "unavailable"
+  | "fatal" {
   return (
     status === "malformed" ||
     status === "stale" ||
+    status === "rateLimit" ||
+    status === "budget" ||
     status === "capacity" ||
     status === "unavailable" ||
     status === "fatal"

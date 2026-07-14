@@ -18,6 +18,9 @@ describe("runtime Prometheus metrics", () => {
       ...metric(),
       status: 503,
       cacheState: "miss",
+      recipeVersion: "candidate-market-v1",
+      outcomeState: "capacity",
+      rejectionReason: "queue-full",
       correlationId: "must-not-be-exported",
       routeMs: 2_500,
       queueWaitMs: 1_200,
@@ -26,19 +29,19 @@ describe("runtime Prometheus metrics", () => {
     const output = registry.render();
 
     expect(output).toContain(
-      'hs_tracker_http_requests_total{route_family="candidate-market",method="GET",synthetic="false",status="200",cache_state="hit",analysis_build_id="analysis-build-v1-test",baci_release="V202601"} 1',
+      'hs_tracker_http_requests_total{route_family="candidate-market",method="GET",synthetic="false",status="200",cache_state="hit",recipe_version="candidate-market-v1",outcome_state="success",rejection_reason="none",analysis_build_id="analysis-build-v1-test",baci_release="V202601"} 1',
     );
     expect(output).toContain(
-      'hs_tracker_http_requests_total{route_family="candidate-market",method="GET",synthetic="false",status="503",cache_state="miss",analysis_build_id="analysis-build-v1-test",baci_release="V202601"} 1',
+      'hs_tracker_http_requests_total{route_family="candidate-market",method="GET",synthetic="false",status="503",cache_state="miss",recipe_version="candidate-market-v1",outcome_state="capacity",rejection_reason="queue-full",analysis_build_id="analysis-build-v1-test",baci_release="V202601"} 1',
     );
     expect(output).toContain(
-      'hs_tracker_route_duration_seconds_bucket{route_family="candidate-market",cache_state="miss",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="3"} 1',
+      'hs_tracker_route_duration_seconds_bucket{route_family="candidate-market",cache_state="miss",recipe_version="candidate-market-v1",outcome_state="capacity",rejection_reason="queue-full",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="3"} 1',
     );
     expect(output).toContain(
-      'hs_tracker_serialization_duration_seconds_bucket{route_family="candidate-market",cache_state="hit",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="0.01"} 1',
+      'hs_tracker_serialization_duration_seconds_bucket{route_family="candidate-market",cache_state="hit",recipe_version="candidate-market-v1",outcome_state="success",rejection_reason="none",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="0.01"} 1',
     );
     expect(output).toContain(
-      'hs_tracker_result_bytes_bucket{route_family="candidate-market",cache_state="hit",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="1024"} 1',
+      'hs_tracker_result_bytes_bucket{route_family="candidate-market",cache_state="hit",recipe_version="candidate-market-v1",outcome_state="success",rejection_reason="none",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="1024"} 1',
     );
     expect(output).toContain(
       'hs_tracker_analysis_queue_depth{analysis_build_id="analysis-build-v1-test",baci_release="V202601"} 3',
@@ -113,6 +116,9 @@ function metric(): RuntimeRequestMetric {
     synthetic: false,
     status: 200,
     cacheState: "hit",
+    recipeVersion: "candidate-market-v1",
+    outcomeState: "success",
+    rejectionReason: "none",
     activeAnalysisBuildId: "analysis-build-v1-test",
     baciRelease: "V202601",
     correlationId: "correlation-id",

@@ -11,6 +11,7 @@ import {
   serializeCandidateMarketCsv,
 } from "../../../../../../export/candidate-market-csv";
 import type { CandidateMarketCsvIdentity } from "../../../../../../export/candidate-market-csv-contract";
+import { createAnonymousSourceHttpAdapter } from "../../../../../../http/anonymous-source-adapter";
 import { IMMUTABLE_VERSIONED_RESPONSE_CACHE_CONTROL } from "../../../../../../http/cache-policy";
 import { matchesIfNoneMatch } from "../../../../../../http/conditional-request";
 import {
@@ -21,7 +22,10 @@ import { createMeasuredRuntimeRoute } from "../../../../../../http/measured-runt
 import { writeStructuredErrorLog } from "../../../../../../operations/structured-log";
 import type { ApplicationRuntime } from "../../../../../../runtime/application-runtime";
 import { isAnalysisCapacityExceededError } from "../../../../../../runtime/analysis-capacity-error";
+import { isAnalysisBudgetExceededError } from "../../../../../../runtime/analysis-budget-error";
+import { isAnalysisRateLimitedError } from "../../../../../../runtime/analysis-rate-limit-error";
 import { ROUTE_DEADLINE_MS } from "../../../../../../runtime/request-deadline";
+import { RUNTIME_RESOURCE_POLICY } from "../../../../../../runtime-resource-policy";
 import { runtimeProbeCachePartition } from "../../../../../../runtime/runtime-metrics";
 
 export const runtime = "nodejs";
@@ -124,6 +128,7 @@ const candidateMarketCsvRoute =
           signal,
           observe: measurement.observeOperation,
           cachePartitionKey: runtimeProbeCachePartition(request),
+          ...anonymousSourceAdapter.executionOptions(request),
         },
       );
       if (result.analysisBuildId !== manifest.analysisBuildId) {
@@ -189,6 +194,16 @@ const candidateMarketCsvRoute =
           { "Retry-After": String(error.retryAfterSeconds) },
         );
       }
+      if (isAnalysisRateLimitedError(error)) {
+        return jsonErrorResponseFor(
+          error,
+          undefined,
+          { "Retry-After": String(error.retryAfterSeconds) },
+        );
+      }
+      if (isAnalysisBudgetExceededError(error)) {
+        return jsonErrorResponseFor(error);
+      }
       if (error instanceof CandidateMarketExportRouteError) {
         return jsonErrorResponse(
           error.status,
@@ -234,6 +249,10 @@ const candidateMarketCsvRoute =
       );
     },
   });
+
+const anonymousSourceAdapter = createAnonymousSourceHttpAdapter({
+  trustedProxy: RUNTIME_RESOURCE_POLICY.trustedProxy,
+});
 
 function validateSearchParameters(
   searchParameters: URLSearchParams,

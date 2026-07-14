@@ -11,6 +11,7 @@ import type {
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { RUNTIME_RESOURCE_POLICY } from "../../src/runtime-resource-policy";
+import { createAnonymousSourceHttpAdapter } from "../../src/http/anonymous-source-adapter";
 
 const query = {
   recipe: "candidate-market-v1" as const,
@@ -18,6 +19,21 @@ const query = {
   exporterCode: "156",
   productCode: "010121",
 };
+const anonymousSourceAdapter = createAnonymousSourceHttpAdapter({
+  trustedProxy: {
+    clientAddressHeader: "x-hs-tracker-client-address",
+    trustedProxyHops: 0,
+  },
+  secret: "bounded-runtime-test-source",
+});
+
+function anonymousSource(address: string) {
+  return anonymousSourceAdapter.executionOptions(
+    new Request("http://localhost", {
+      headers: { "X-HS-Tracker-Client-Address": address },
+    }),
+  ).anonymousSource;
+}
 
 describe("bounded application runtime", () => {
   it("reserves the accepted 128-MiB process-cache allocation", () => {
@@ -662,6 +678,205 @@ describe("bounded application runtime", () => {
     await active;
   });
 
+  it("rejects canonical input over budget before it can acquire analytical capacity", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+      {
+        analysisBudget: { maxInputBytes: 1 },
+        maxConcurrentAnalyses: 0,
+        maxQueuedAnalyses: 0,
+      },
+    );
+
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "INPUT_CARDINALITY",
+      },
+    });
+    expect(computations).toBe(0);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 0,
+      queued: 0,
+    });
+  });
+
+  it("classifies oversized canonical input as a budget rejection before validation can load evidence", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+      {
+        maxConcurrentAnalyses: 0,
+        maxQueuedAnalyses: 0,
+      },
+    );
+
+    await expect(
+      runtime.tradeAnalytics.execute({
+        ...query,
+        analysisBuildId: "x".repeat(257),
+      }),
+    ).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "INPUT_CARDINALITY",
+      },
+    });
+    expect(computations).toBe(0);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 0,
+      queued: 0,
+    });
+  });
+
+  it("charges every source request, including a cache hit, and recovers after refill", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    let now = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+      {
+        now: () => now,
+        anonymousSourceRateLimit: {
+          capacity: 1,
+          refillTokensPerSecond: 1,
+        },
+      },
+    );
+    const options = { anonymousSource: anonymousSource("198.51.100.18") };
+
+    await expect(runtime.tradeAnalytics.execute(query, options)).resolves.toMatchObject({
+      state: "success",
+    });
+    await expect(runtime.tradeAnalytics.execute(query, options)).resolves.toMatchObject({
+      state: "rate-limit",
+      error: {
+        code: "ANALYSIS_RATE_LIMITED",
+        retryAfterSeconds: 1,
+      },
+    });
+
+    now = 1_000;
+    await expect(runtime.tradeAnalytics.execute(query, options)).resolves.toMatchObject({
+      state: "success",
+    });
+    expect(computations).toBe(1);
+  });
+
+  it("charges coalesced source requests without duplicating their computation", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const release = deferred<void>();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        await release.promise;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+      {
+        anonymousSourceRateLimit: {
+          capacity: 2,
+          refillTokensPerSecond: 1,
+        },
+      },
+    );
+    const options = { anonymousSource: anonymousSource("198.51.100.19") };
+
+    const first = runtime.tradeAnalytics.execute(query, options);
+    const second = runtime.tradeAnalytics.execute(query, options);
+    await Promise.resolve();
+
+    expect(computations).toBe(1);
+    release.resolve();
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ state: "success" }),
+      expect.objectContaining({ state: "success" }),
+    ]);
+    await expect(runtime.tradeAnalytics.execute(query, options)).resolves.toMatchObject({
+      state: "rate-limit",
+      error: { code: "ANALYSIS_RATE_LIMITED" },
+    });
+    expect(computations).toBe(1);
+  });
+
+  it("rejects a result-row budget before caching it or admitting more analytical work", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+      {
+        analysisBudget: { maxResultRows: 12 },
+      },
+    );
+
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "RESULT_ROWS",
+      },
+    });
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "RESULT_ROWS",
+      },
+    });
+
+    expect(computations).toBe(2);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 0,
+      queued: 0,
+    });
+    expect(runtime.resources().caches.analysis.entries).toBe(0);
+  });
+
+  it("rejects an oversized serialized result before it enters the analysis cache", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const runtime = createBoundedApplicationRuntime(
+      runtimeWithExecution(fixture, async (request, options) => {
+        computations += 1;
+        return fixture.tradeAnalytics.execute(request, options);
+      }),
+      {
+        analysisBudget: { maxResultBytes: 1 },
+      },
+    );
+
+    await expect(runtime.tradeAnalytics.execute(query)).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "RESULT_BYTES",
+      },
+    });
+    expect(computations).toBe(1);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 0,
+      queued: 0,
+    });
+    expect(runtime.resources().caches.analysis.entries).toBe(0);
+  });
+
   it("validates raw search input before a normalized cache lookup", async () => {
     const fixture = createFixtureApplicationRuntime();
     const productSearchBuildId =
@@ -755,12 +970,18 @@ describe("bounded application runtime", () => {
         queueWaitMs: expect.any(Number),
         queryMs: expect.any(Number),
         resultBytes,
+        recipeVersion: "candidate-market-v1",
+        outcomeState: "success",
+        rejectionReason: null,
       },
       {
         cacheState: "hit",
         queueWaitMs: null,
         queryMs: null,
         resultBytes,
+        recipeVersion: "candidate-market-v1",
+        outcomeState: "success",
+        rejectionReason: null,
       },
     ]);
   });

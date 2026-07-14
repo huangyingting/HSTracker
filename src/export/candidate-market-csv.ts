@@ -8,6 +8,7 @@ import {
   type CaveatCode,
 } from "../domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
 import {
   CANDIDATE_MARKETS_CSV_SCHEMA_VERSION,
   type CandidateMarketCsvIdentity,
@@ -23,8 +24,10 @@ const SOURCE_DOCUMENTATION_URL =
 const SOURCE_LICENSE = "Etalab Open Licence 2.0";
 const SOURCE_LICENSE_URL =
   "https://www.etalab.gouv.fr/wp-content/uploads/2018/11/open-licence.pdf";
-const MAX_CANDIDATE_ROWS = 250;
-const MAX_ENTITY_BYTES = 5 * 1024 * 1024;
+const MAX_CANDIDATE_ROWS =
+  RUNTIME_RESOURCE_POLICY.analysisBudget.maxResultRows;
+const MAX_ENTITY_BYTES =
+  RUNTIME_RESOURCE_POLICY.analysisBudget.maxResultBytes;
 
 type CellKind =
   | "baci-release"

@@ -331,40 +331,92 @@ test("a stale analysis build can refresh the complete result", async ({
   expect(analysisRequests).toBe(2);
 });
 
-test("a capacity response exposes a retryable state without a ranking", async ({
-  page,
-}) => {
+const analysisRejectionCases = [
+  {
+    locale: "en",
+    status: 429,
+    code: "ANALYSIS_RATE_LIMITED",
+    message: "Candidate Market requests are temporarily limited. Wait a moment before retrying.",
+    retry: true,
+  },
+  {
+    locale: "zh-Hans",
+    status: 429,
+    code: "ANALYSIS_RATE_LIMITED",
+    message: "候选市场请求暂时受限。请稍候再试。",
+    retry: true,
+  },
+  {
+    locale: "en",
+    status: 413,
+    code: "ANALYSIS_BUDGET_EXCEEDED",
+    message: "This Candidate Market request exceeds the complete-result size limit. Choose a different export economy or HS Product.",
+    retry: false,
+  },
+  {
+    locale: "zh-Hans",
+    status: 413,
+    code: "ANALYSIS_BUDGET_EXCEEDED",
+    message: "该候选市场请求超出完整结果大小限制。请选择其他出口经济体或 HS 产品。",
+    retry: false,
+  },
+  {
+    locale: "en",
+    status: 503,
+    code: "ANALYSIS_CAPACITY_EXCEEDED",
+    message: "Analysis capacity is temporarily busy.",
+    retry: true,
+  },
+  {
+    locale: "zh-Hans",
+    status: 503,
+    code: "ANALYSIS_CAPACITY_EXCEEDED",
+    message: "分析容量暂时繁忙。",
+    retry: true,
+  },
+];
+
+for (const { locale, status, code, message, retry } of analysisRejectionCases) {
+  test(`a ${locale} ${code} response exposes a localized actionable state without a ranking`, async ({
+    page,
+  }) => {
   await page.route(
     (url) => url.pathname.endsWith("/candidate-markets"),
     async (route) => {
       await route.fulfill({
-        status: 429,
+        status,
         contentType: "application/problem+json",
         body: JSON.stringify({
-          code: "ANALYSIS_CAPACITY_EXCEEDED",
-          message: "Analysis capacity exceeded.",
+          error: { code, message },
         }),
       });
     },
   );
 
   await page.goto(
-    "/?locale=en&exporter=156&revision=HS12&product=010121",
+    `/?locale=${locale}&exporter=156&revision=HS12&product=010121`,
   );
+  if (locale === "zh-Hans") {
+    await page.getByRole("button", { name: "简体中文" }).click();
+  }
 
   const workspace = page.getByRole("region", {
-    name: "Define the analysis inputs.",
+    name: locale === "en" ? "Define the analysis inputs." : "定义分析输入。",
   });
-  await expect(workspace.getByRole("alert")).toContainText(
-    "Analysis capacity is temporarily busy.",
-  );
+  await expect(workspace.getByRole("alert")).toContainText(message);
   await expect(
-    workspace.getByRole("button", { name: "Retry complete analysis" }),
-  ).toBeVisible();
+    workspace.getByRole("button", {
+      name:
+        locale === "en" ? "Retry complete analysis" : "重试完整分析",
+    }),
+  ).toHaveCount(retry ? 1 : 0);
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }),
+    page.getByRole("list", {
+      name: locale === "en" ? "Candidate Markets" : "候选市场",
+    }),
   ).toHaveCount(0);
-});
+  });
+}
 
 test("an unavailable analysis artifact exposes a fatal state", async ({
   page,

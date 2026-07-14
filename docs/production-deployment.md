@@ -17,6 +17,11 @@ at Fly Proxy, routes only after `/healthz` succeeds, and restarts the Machine
 only when the process exits unsuccessfully. A failed health check removes the
 Machine from routing but does not restart it.
 
+Anonymous analysis rate limits use the `Fly-Client-IP` header that Fly Proxy
+overwrites before forwarding to the private Machine. Do not expose the
+application port through an ingress that can pass a client-supplied value for
+that header.
+
 ## Environment and secrets contract
 
 The image sets `APP_BUILD_ID` from the required Docker build argument. The

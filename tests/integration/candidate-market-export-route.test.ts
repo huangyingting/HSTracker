@@ -204,6 +204,116 @@ describe("versioned Candidate Market CSV route", () => {
     }
   });
 
+  it.each([
+    {
+      name: "rate limited",
+      outcome: {
+        state: "rate-limit" as const,
+        recipe: "candidate-market-v1" as const,
+        analysisIdentity: null,
+        datasetPackageIdentity: null,
+        normalizedInputs: null,
+        error: {
+          code: "ANALYSIS_RATE_LIMITED" as const,
+          retryAfterSeconds: 7,
+        },
+      },
+      status: 429,
+      code: "ANALYSIS_RATE_LIMITED",
+      retryAfter: "7",
+    },
+    {
+      name: "over its result budget",
+      outcome: {
+        state: "budget" as const,
+        recipe: "candidate-market-v1" as const,
+        analysisIdentity: null,
+        datasetPackageIdentity: null,
+        normalizedInputs: null,
+        error: {
+          code: "ANALYSIS_BUDGET_EXCEEDED" as const,
+          budget: "RESULT_BYTES" as const,
+        },
+      },
+      status: 413,
+      code: "ANALYSIS_BUDGET_EXCEEDED",
+      retryAfter: null,
+    },
+  ])(
+    "keeps the $name export outcome distinct from capacity",
+    async ({ outcome, status, code, retryAfter }) => {
+      const fixture = createFixtureApplicationRuntime();
+      const restore = installApplicationRuntime({
+        ...fixture,
+        tradeAnalytics: platformReturning(outcome),
+      });
+
+      try {
+        const response = await GET(
+          new Request(exportUrl()),
+          routeContext(manifest.analysisBuildId),
+        );
+
+        expect(response.status).toBe(status);
+        expect(response.headers.get("retry-after")).toBe(retryAfter);
+        await expect(response.json()).resolves.toMatchObject({
+          error: { code },
+        });
+      } finally {
+        restore();
+      }
+    },
+  );
+
+  it("preserves the dedicated CSV representation-limit contract", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const outcome = await fixture.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: manifest.analysisBuildId,
+      exporterCode: "156",
+      productCode: "010121",
+    });
+    if (outcome.state !== "success") {
+      throw new TypeError("Expected the fixture platform oracle to succeed.");
+    }
+    const candidate = outcome.payload.candidates[0]!;
+    const oversizedCandidates = Array.from(
+      { length: 251 },
+      () => candidate,
+    );
+    const restore = installApplicationRuntime({
+      ...fixture,
+      tradeAnalytics: platformReturning({
+        ...outcome,
+        payload: {
+          ...outcome.payload,
+          cohortSize: oversizedCandidates.length,
+          candidates: oversizedCandidates,
+        },
+      }),
+    });
+
+    try {
+      const response = await GET(
+        new Request(exportUrl()),
+        routeContext(manifest.analysisBuildId),
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("retry-after")).toBeNull();
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "EXPORT_REPRESENTATION_LIMIT_EXCEEDED",
+          message:
+            "The complete Candidate Market export is temporarily unavailable.",
+        },
+      });
+    } finally {
+      restore();
+    }
+  });
+
   it("cancels export work at the fifteen-second route deadline", async () => {
     vi.useFakeTimers();
     const fixture = createFixtureApplicationRuntime();

@@ -186,6 +186,76 @@ describe("versioned Candidate Market route", () => {
     }
   });
 
+  it("rate limits each anonymous HTTP request without exposing its source in metrics", async () => {
+    let now = 0;
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+      {
+        now: () => now,
+        anonymousSourceRateLimit: {
+          capacity: 1,
+          refillTokensPerSecond: 1,
+        },
+      },
+    );
+    const restore = installApplicationRuntime(runtime);
+    const metrics: RuntimeRequestMetric[] = [];
+    const unsubscribe = subscribeRuntimeMetrics((metric) => {
+      metrics.push(metric);
+    });
+    const request = (address: string) =>
+      new Request(
+        "http://localhost/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+        {
+          headers: {
+            "Fly-Client-IP": address,
+            "X-Forwarded-For": "203.0.113.99",
+          },
+        },
+      );
+
+    try {
+      await expect(
+        GET(request("198.51.100.24"), routeContext("acceptance-fixtures-v1")),
+      ).resolves.toHaveProperty("status", 200);
+      const rejected = await GET(
+        request("198.51.100.24"),
+        routeContext("acceptance-fixtures-v1"),
+      );
+
+      expect(rejected.status).toBe(429);
+      expect(rejected.headers.get("retry-after")).toBe("1");
+      await expect(rejected.json()).resolves.toMatchObject({
+        error: { code: "ANALYSIS_RATE_LIMITED" },
+      });
+      expect(metrics.at(-1)).toMatchObject({
+        recipeVersion: "candidate-market-v1",
+        outcomeState: "rate-limit",
+        rejectionReason: "SOURCE_REQUEST_LIMIT",
+      });
+      expect(JSON.stringify(metrics)).not.toContain("198.51.100.24");
+      expect(JSON.stringify(metrics)).not.toContain("203.0.113.99");
+
+      await expect(
+        GET(
+          request("198.51.100.25"),
+          routeContext("acceptance-fixtures-v1"),
+        ),
+      ).resolves.toHaveProperty("status", 200);
+
+      now = 1_000;
+      await expect(
+        GET(
+          request("198.51.100.24"),
+          routeContext("acceptance-fixtures-v1"),
+        ),
+      ).resolves.toHaveProperty("status", 200);
+    } finally {
+      unsubscribe();
+      restore();
+    }
+  });
+
   it.each([
     {
       name: "an incompatible Dataset Package",
@@ -196,6 +266,7 @@ describe("versioned Candidate Market route", () => {
           reason: "MISSING_REQUIRED_CAPABILITY",
         },
       }),
+      status: 503,
       code: "ANALYSIS_UNAVAILABLE",
       retryAfter: null,
     },
@@ -208,7 +279,8 @@ describe("versioned Candidate Market route", () => {
           budget: "EXECUTION_DEADLINE",
         },
       }),
-      code: "ANALYSIS_UNAVAILABLE",
+      status: 413,
+      code: "ANALYSIS_BUDGET_EXCEEDED",
       retryAfter: null,
     },
     {
@@ -220,7 +292,8 @@ describe("versioned Candidate Market route", () => {
           retryAfterSeconds: 7,
         },
       }),
-      code: "ANALYSIS_CAPACITY_EXCEEDED",
+      status: 429,
+      code: "ANALYSIS_RATE_LIMITED",
       retryAfter: "7",
     },
     {
@@ -229,12 +302,13 @@ describe("versioned Candidate Market route", () => {
         state: "temporary-unavailability",
         error: { code: "ANALYSIS_UNAVAILABLE" },
       }),
+      status: 503,
       code: "ANALYSIS_UNAVAILABLE",
       retryAfter: null,
     },
   ])(
     "preserves the public v1 error contract for $name",
-    async ({ outcome, code, retryAfter }) => {
+    async ({ outcome, status, code, retryAfter }) => {
       const fixture = createFixtureApplicationRuntime();
       const restore = installApplicationRuntime({
         ...fixture,
@@ -249,7 +323,7 @@ describe("versioned Candidate Market route", () => {
           routeContext("acceptance-fixtures-v1"),
         );
 
-        expect(response.status).toBe(503);
+        expect(response.status).toBe(status);
         expect(response.headers.get("cache-control")).toBe("no-store");
         expect(response.headers.get("retry-after")).toBe(retryAfter);
         await expect(response.json()).resolves.toMatchObject({
@@ -393,6 +467,9 @@ describe("versioned Candidate Market route", () => {
           synthetic: true,
           status: 200,
           cacheState: "miss",
+          recipeVersion: "candidate-market-v1",
+          outcomeState: "success",
+          rejectionReason: "none",
           activeAnalysisBuildId: "acceptance-fixtures-v1",
           baciRelease: "V202601",
           correlationId: expect.stringMatching(
@@ -430,6 +507,9 @@ describe("versioned Candidate Market route", () => {
           synthetic: true,
           status: 200,
           cacheState: "hit",
+          recipeVersion: "candidate-market-v1",
+          outcomeState: "success",
+          rejectionReason: "none",
           activeAnalysisBuildId: "acceptance-fixtures-v1",
           baciRelease: "V202601",
           correlationId: expect.stringMatching(

@@ -71,6 +71,9 @@ export class RuntimeMetricRegistry {
       synthetic: String(metric.synthetic),
       status: String(metric.status),
       cache_state: metric.cacheState,
+      recipe_version: metric.recipeVersion,
+      outcome_state: metric.outcomeState,
+      rejection_reason: metric.rejectionReason ?? "none",
       analysis_build_id: metric.activeAnalysisBuildId,
       baci_release: metric.baciRelease,
     };
@@ -79,6 +82,9 @@ export class RuntimeMetricRegistry {
     const operationLabels = {
       route_family: metric.routeFamily,
       cache_state: metric.cacheState,
+      recipe_version: metric.recipeVersion,
+      outcome_state: metric.outcomeState,
+      rejection_reason: metric.rejectionReason ?? "none",
       analysis_build_id: metric.activeAnalysisBuildId,
       baci_release: metric.baciRelease,
     };

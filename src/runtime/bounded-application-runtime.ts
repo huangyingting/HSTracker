@@ -3,6 +3,7 @@ import { isCandidateMarketAnalysisError } from "../domain/candidate-market/error
 import { validateCandidateMarketV1Request } from "../domain/trade-analytics/candidate-market-v1-request";
 import type {
   AnalysisExecutionOptions,
+  AnalysisOperationObservation,
   AnalysisOutcome,
   CandidateMarketV1AnalysisRequest,
   TradeAnalyticsPlatform,
@@ -22,6 +23,7 @@ import { ByteWeightedLru } from "./byte-weighted-lru";
 import {
   CACHE_ENTRY_OVERHEAD_BYTES,
   serializedBytes,
+  utf8ByteLength,
 } from "./serialized-size";
 
 type AnalysisQuery = CandidateMarketV1AnalysisRequest;
@@ -49,6 +51,22 @@ export type BoundedApplicationRuntimeOptions = Readonly<{
   analysisTimeoutMs?: number;
   analysisCacheMaxBytes?: number;
   searchCacheMaxBytes?: number;
+  analysisBudget?: Partial<AnalysisBudgetPolicy>;
+  anonymousSourceRateLimit?: Partial<AnonymousSourceRateLimitPolicy>;
+  now?: () => number;
+}>;
+
+export type AnalysisBudgetPolicy = Readonly<{
+  maxInputBytes: number;
+  maxResultRows: number;
+  maxResultBytes: number;
+}>;
+
+export type AnonymousSourceRateLimitPolicy = Readonly<{
+  capacity: number;
+  refillTokensPerSecond: number;
+  maxTrackedSources: number;
+  inactiveSourceRetentionMs: number;
 }>;
 
 type SharedOperation<Result> = {
@@ -64,10 +82,19 @@ type OperationTiming = {
   queueWaitMs: number | null;
   queryMs: number | null;
   resultBytes: number;
+  recipeVersion?: AnalysisOperationObservation["recipeVersion"];
+  outcomeState?: AnalysisOperationObservation["outcomeState"];
+  rejectionReason?: AnalysisOperationObservation["rejectionReason"];
 };
 type SharedOperationOptions<Result> = {
   measureQueryTiming?: boolean;
   resultBytes?: (result: Result) => number;
+  analysisDetails?: (
+    result: Result,
+  ) => Pick<
+    AnalysisOperationObservation,
+    "recipeVersion" | "outcomeState" | "rejectionReason"
+  >;
 };
 
 type SharedAnalysis = SharedOperation<AnalysisResult>;
@@ -91,6 +118,11 @@ export function createBoundedApplicationRuntime(
 ): ApplicationRuntime {
   const analyses = new Map<string, SharedAnalysis>();
   const execution = new AnalysisExecutionCoordinator(options);
+  const analysisBudget = resolveAnalysisBudget(options.analysisBudget);
+  const anonymousSourceRateLimiter = new AnonymousSourceRateLimiter(
+    resolveAnonymousSourceRateLimit(options.anonymousSourceRateLimit),
+    options.now ?? Date.now,
+  );
   const analysisCache = new ByteWeightedLru<Awaited<AnalysisPromise>>(
     options.analysisCacheMaxBytes ??
       RUNTIME_RESOURCE_POLICY.analysisCacheMaxBytes,
@@ -179,18 +211,51 @@ export function createBoundedApplicationRuntime(
     if (requestOptions?.signal?.aborted) {
       return Promise.reject(abortError());
     }
+    const retryAfterSeconds =
+      requestOptions?.anonymousSource === undefined
+        ? null
+        : anonymousSourceRateLimiter.consume(
+            requestOptions.anonymousSource,
+          );
+    if (retryAfterSeconds !== null) {
+      const rejected = rateLimitOutcome(query, retryAfterSeconds);
+      requestOptions?.observe?.(
+        analysisObservation("bypass", null, null, rejected),
+      );
+      return Promise.resolve(rejected);
+    }
+    const preflightBudget = inputBudgetOutcome(query, analysisBudget);
+    if (preflightBudget !== null) {
+      requestOptions?.observe?.(
+        analysisObservation("bypass", null, null, preflightBudget),
+      );
+      return Promise.resolve(preflightBudget);
+    }
     try {
       validateCandidateMarketV1Request(query);
     } catch (error) {
       if (!isCandidateMarketAnalysisError(error)) {
         return Promise.reject(error);
       }
-      return inner.tradeAnalytics.execute(query, requestOptions);
+      return inner.tradeAnalytics.execute(query, requestOptions).then(
+        (outcome) => {
+          requestOptions?.observe?.(
+            analysisObservation("bypass", null, null, outcome),
+          );
+          return outcome;
+        },
+      );
     }
-
     const activeDeployment = synchronizeActiveDeployment();
     if (query.analysisBuildId !== activeDeployment.analysisBuildId) {
-      return inner.tradeAnalytics.execute(query, requestOptions);
+      return inner.tradeAnalytics.execute(query, requestOptions).then(
+        (outcome) => {
+          requestOptions?.observe?.(
+            analysisObservation("bypass", null, null, outcome),
+          );
+          return outcome;
+        },
+      );
     }
 
     const key = analysisKey(
@@ -199,12 +264,15 @@ export function createBoundedApplicationRuntime(
     );
     const cached = analysisCache.lookup(key);
     if (cached !== undefined) {
-      requestOptions?.observe?.({
-        cacheState: "hit",
-        queueWaitMs: null,
-        queryMs: null,
-        resultBytes: cached.resultBytes,
-      });
+      requestOptions?.observe?.(
+        analysisObservation(
+          "hit",
+          null,
+          null,
+          cached.value,
+          cached.resultBytes,
+        ),
+      );
       return Promise.resolve(cached.value);
     }
 
@@ -216,14 +284,24 @@ export function createBoundedApplicationRuntime(
       const timing = operationTiming();
       shared = startSharedOperation(
         (controller) =>
-          execution.run(
-            controller,
-            () =>
-              inner.tradeAnalytics.execute(query, {
-                signal: controller.signal,
-              }),
-            timing,
-          ),
+          execution
+            .run(
+              controller,
+              () =>
+                inner.tradeAnalytics
+                  .execute(query, {
+                    signal: controller.signal,
+                  })
+                  .then((result) =>
+                    resultBudgetOutcome(query, result, analysisBudget),
+                  ),
+              timing,
+            )
+            .catch((error: unknown) =>
+              isAnalysisCapacityExceededError(error)
+                ? capacityOutcome(query, error)
+                : Promise.reject(error),
+            ),
         (result, resultBytes) => {
           if (
             cacheGeneration === generation &&
@@ -242,19 +320,15 @@ export function createBoundedApplicationRuntime(
           }
         },
         timing,
-        { resultBytes: analysisResultBytes },
+        {
+          resultBytes: analysisResultBytes,
+          analysisDetails: analysisDetailsFor,
+        },
       );
       analyses.set(key, shared);
     }
 
-    return waitForSharedOperation(shared, requestOptions, cacheState).catch(
-      (error: unknown) => {
-        if (!isAnalysisCapacityExceededError(error)) {
-          throw error;
-        }
-        return capacityOutcome(query, error);
-      },
-    );
+    return waitForSharedOperation(shared, requestOptions, cacheState);
   }
 
   const tradeAnalytics: TradeAnalyticsPlatform = {
@@ -376,6 +450,10 @@ function startSharedOperation<Result>(
         finishMeasuredQuery();
         timing.resultBytes =
           options.resultBytes?.(result) ?? serializedBytes(result);
+        Object.assign(
+          timing,
+          options.analysisDetails?.(result) ?? {},
+        );
         if (!controller.signal.aborted) {
           admitResult(result, timing.resultBytes);
         }
@@ -419,6 +497,9 @@ function waitForSharedOperation<Result>(
         queueWaitMs: shared.timing.queueWaitMs,
         queryMs: shared.timing.queryMs,
         resultBytes: shared.timing.resultBytes,
+        recipeVersion: shared.timing.recipeVersion,
+        outcomeState: shared.timing.outcomeState,
+        rejectionReason: shared.timing.rejectionReason,
       });
     };
     const finishWaiting = () => {
@@ -499,10 +580,132 @@ function isCompletedAnalysis(
   return outcome.state === "success" || outcome.state === "empty";
 }
 
+function inputBudgetOutcome(
+  request: AnalysisQuery,
+  policy: AnalysisBudgetPolicy,
+): AnalysisResult | null {
+  const canonicalInputs = [
+    request.recipe,
+    request.analysisBuildId,
+    request.exporterCode,
+    request.productCode,
+  ];
+  if (
+    canonicalInputs.some(
+      (input) => input.length > policy.maxInputBytes,
+    )
+  ) {
+    return budgetOutcome(request, "INPUT_CARDINALITY");
+  }
+  const canonicalInputBytes = utf8ByteLength(
+    JSON.stringify(canonicalInputs),
+  );
+  return canonicalInputBytes > policy.maxInputBytes
+    ? budgetOutcome(request, "INPUT_CARDINALITY")
+    : null;
+}
+
+function resultBudgetOutcome(
+  request: AnalysisQuery,
+  outcome: AnalysisResult,
+  policy: AnalysisBudgetPolicy,
+): AnalysisResult {
+  if (!isCompletedAnalysis(outcome)) {
+    return outcome;
+  }
+  if (outcome.payload.candidates.length > policy.maxResultRows) {
+    return budgetOutcome(request, "RESULT_ROWS");
+  }
+  if (serializedBytes(outcome.payload) > policy.maxResultBytes) {
+    return budgetOutcome(request, "RESULT_BYTES");
+  }
+  return outcome;
+}
+
 function analysisResultBytes(outcome: AnalysisResult): number {
   return serializedBytes(
     isCompletedAnalysis(outcome) ? outcome.payload : outcome,
   );
+}
+
+function analysisObservation(
+  cacheState: AnalysisOperationObservation["cacheState"],
+  queueWaitMs: number | null,
+  queryMs: number | null,
+  outcome: AnalysisResult,
+  resultBytes = analysisResultBytes(outcome),
+): AnalysisOperationObservation {
+  return {
+    cacheState,
+    queueWaitMs,
+    queryMs,
+    resultBytes,
+    ...analysisDetailsFor(outcome),
+  };
+}
+
+function analysisDetailsFor(
+  outcome: AnalysisResult,
+): Pick<
+  AnalysisOperationObservation,
+  "recipeVersion" | "outcomeState" | "rejectionReason"
+> {
+  return {
+    recipeVersion: "candidate-market-v1",
+    outcomeState: outcome.state,
+    rejectionReason: rejectionReasonFor(outcome),
+  };
+}
+
+function rejectionReasonFor(
+  outcome: AnalysisResult,
+): AnalysisOperationObservation["rejectionReason"] {
+  switch (outcome.state) {
+    case "budget":
+      return outcome.error.budget;
+    case "rate-limit":
+      return "SOURCE_REQUEST_LIMIT";
+    case "capacity":
+      return outcome.error.reason;
+    case "success":
+    case "empty":
+    case "invalid-input":
+    case "incompatible-package":
+    case "retired":
+    case "temporary-unavailability":
+      return null;
+  }
+}
+
+function budgetOutcome(
+  request: AnalysisQuery,
+  budget: Extract<
+    Extract<AnalysisResult, { state: "budget" }>["error"]["budget"],
+    "INPUT_CARDINALITY" | "RESULT_ROWS" | "RESULT_BYTES"
+  >,
+): AnalysisResult {
+  return {
+    state: "budget",
+    ...unresolvedOutcome(request),
+    error: {
+      code: "ANALYSIS_BUDGET_EXCEEDED",
+      budget,
+    },
+  };
+}
+
+function rateLimitOutcome(
+  request: AnalysisQuery,
+  retryAfterSeconds: number,
+): AnalysisResult {
+  return {
+    state: "rate-limit",
+    ...unresolvedOutcome(request),
+    error: {
+      code: "ANALYSIS_RATE_LIMITED",
+      retryAfterSeconds,
+    },
+  };
 }
 
 function capacityOutcome(
@@ -521,6 +724,64 @@ function capacityOutcome(
       retryAfterSeconds: error.retryAfterSeconds,
     },
   };
+}
+
+function unresolvedOutcome(
+  request: AnalysisQuery,
+): Readonly<{
+  recipe: "candidate-market-v1";
+  analysisIdentity: null;
+  datasetPackageIdentity: null;
+  normalizedInputs: null;
+}> {
+  return {
+    recipe: request.recipe,
+    analysisIdentity: null,
+    datasetPackageIdentity: null,
+    normalizedInputs: null,
+  };
+}
+
+function resolveAnalysisBudget(
+  override: Partial<AnalysisBudgetPolicy> | undefined,
+): AnalysisBudgetPolicy {
+  const policy = {
+    ...RUNTIME_RESOURCE_POLICY.analysisBudget,
+    ...override,
+  };
+  if (
+    !Number.isSafeInteger(policy.maxInputBytes) ||
+    policy.maxInputBytes < 1 ||
+    !Number.isSafeInteger(policy.maxResultRows) ||
+    policy.maxResultRows < 0 ||
+    !Number.isSafeInteger(policy.maxResultBytes) ||
+    policy.maxResultBytes < 1
+  ) {
+    throw new TypeError("Analysis budget policy is invalid.");
+  }
+  return policy;
+}
+
+function resolveAnonymousSourceRateLimit(
+  override: Partial<AnonymousSourceRateLimitPolicy> | undefined,
+): AnonymousSourceRateLimitPolicy {
+  const policy = {
+    ...RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit,
+    ...override,
+  };
+  if (
+    !Number.isFinite(policy.capacity) ||
+    policy.capacity <= 0 ||
+    !Number.isFinite(policy.refillTokensPerSecond) ||
+    policy.refillTokensPerSecond <= 0 ||
+    !Number.isSafeInteger(policy.maxTrackedSources) ||
+    policy.maxTrackedSources < 1 ||
+    !Number.isSafeInteger(policy.inactiveSourceRetentionMs) ||
+    policy.inactiveSourceRetentionMs < 0
+  ) {
+    throw new TypeError("Anonymous source rate-limit policy is invalid.");
+  }
+  return policy;
 }
 
 function deploymentIdentity(
@@ -721,6 +982,79 @@ class AnalysisExecutionCoordinator {
         queued.onAbort,
       );
       queued.onAbort = undefined;
+    }
+  }
+}
+
+type AnonymousSourceBucket = {
+  tokens: number;
+  refilledAt: number;
+  accessedAt: number;
+};
+
+class AnonymousSourceRateLimiter {
+  private readonly buckets = new Map<string, AnonymousSourceBucket>();
+
+  constructor(
+    private readonly policy: AnonymousSourceRateLimitPolicy,
+    private readonly now: () => number,
+  ) {}
+
+  consume(source: string): number | null {
+    const now = this.now();
+    this.evictInactive(now);
+    let bucket = this.buckets.get(source);
+    if (bucket === undefined) {
+      this.evictToCapacity();
+      bucket = {
+        tokens: this.policy.capacity,
+        refilledAt: now,
+        accessedAt: now,
+      };
+      this.buckets.set(source, bucket);
+    } else {
+      const elapsedMs = Math.max(0, now - bucket.refilledAt);
+      bucket.tokens = Math.min(
+        this.policy.capacity,
+        bucket.tokens +
+          (elapsedMs * this.policy.refillTokensPerSecond) / 1_000,
+      );
+      bucket.refilledAt = now;
+      bucket.accessedAt = now;
+    }
+    if (bucket.tokens >= 1) {
+      bucket.tokens -= 1;
+      return null;
+    }
+    return Math.max(
+      1,
+      Math.ceil(
+        (1 - bucket.tokens) / this.policy.refillTokensPerSecond,
+      ),
+    );
+  }
+
+  private evictInactive(now: number): void {
+    for (const [source, bucket] of this.buckets) {
+      if (now - bucket.accessedAt > this.policy.inactiveSourceRetentionMs) {
+        this.buckets.delete(source);
+      }
+    }
+  }
+
+  private evictToCapacity(): void {
+    while (this.buckets.size >= this.policy.maxTrackedSources) {
+      const oldest = [...this.buckets.entries()].reduce(
+        (current, entry) =>
+          current === undefined || entry[1].accessedAt < current[1].accessedAt
+            ? entry
+            : current,
+        undefined as [string, AnonymousSourceBucket] | undefined,
+      );
+      if (oldest === undefined) {
+        return;
+      }
+      this.buckets.delete(oldest[0]);
     }
   }
 }

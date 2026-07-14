@@ -8,7 +8,9 @@ import {
 import type {
   CandidateMarketResult,
 } from "../candidate-market/result";
+import { AnalysisBudgetExceededError } from "../../runtime/analysis-budget-error";
 import { AnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
+import { AnalysisRateLimitedError } from "../../runtime/analysis-rate-limit-error";
 import type {
   AnalysisExecutionOptions,
   CandidateMarketV1AnalysisRequest,
@@ -54,12 +56,12 @@ export async function executeCandidateMarketV1(
         outcome.error.retryAfterSeconds,
       );
     case "rate-limit":
-      throw new AnalysisCapacityExceededError(
-        "queue-full",
+      throw new AnalysisRateLimitedError(
         outcome.error.retryAfterSeconds,
       );
-    case "incompatible-package":
     case "budget":
+      throw new AnalysisBudgetExceededError(outcome.error.budget);
+    case "incompatible-package":
     case "temporary-unavailability":
       throw unavailableAnalysisBuild(request.analysisBuildId);
     default: {
