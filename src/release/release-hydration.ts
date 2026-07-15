@@ -34,6 +34,10 @@ import {
   type ReleaseObjectReference,
 } from "./release-manifest";
 import type { SourceStatusSnapshot } from "../domain/release/source-freshness";
+import type {
+  DeploymentActivation,
+  ResidentActivationFallbackReason,
+} from "../domain/release/deployment-activation";
 import {
   createCandidateMarketDatasetPackage,
 } from "../domain/trade-analytics/dataset-package";
@@ -85,6 +89,7 @@ export type HydratedRelease = HydratedDeploymentPairing & {
   // request-time object-store hydration is needed for any of them once
   // startup completes (see issue #44).
   retained: readonly HydratedDeploymentPairing[];
+  activation: DeploymentActivation;
 };
 
 export class ReleaseHydrationError extends Error {
@@ -94,6 +99,29 @@ export class ReleaseHydrationError extends Error {
   ) {
     super(message);
     this.name = "ReleaseHydrationError";
+  }
+}
+
+// Typed failure at the remote-candidate hydration seam (see issue #45):
+// raised only while resolving the pointer or materializing/validating one
+// pointer-named candidate pairing (current or a retained predecessor), never
+// while independently reverifying an already-committed resident activation
+// (`verifyResidentPairing`/`hydrateResidentActivation`), which fails closed
+// on its own terms instead. `OBJECT_STORE_UNAVAILABLE` covers a missing
+// pointer object or any object-store read/stream failure.
+// `CURRENT_DEPLOYMENT_INVALID` covers a candidate that was reachable but
+// failed identity, schema, or semantic validation -- for example a corrupt
+// or mismatched Recommended Dataset Mapping or Dataset Package -- so a
+// broken newly pointed mapping cannot take down a known-good resident
+// deployment.
+export class RemoteCandidateActivationError extends Error {
+  constructor(
+    readonly code: ResidentActivationFallbackReason,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "RemoteCandidateActivationError";
   }
 }
 
@@ -119,7 +147,8 @@ export class ReleaseHydrator {
           current.deploymentManifest.sourceStatusFallback,
         )
       ) {
-        throw new Error(
+        throw new RemoteCandidateActivationError(
+          "CURRENT_DEPLOYMENT_INVALID",
           "Active deployment Source Freshness Status fallback is incompatible.",
         );
       }
@@ -143,9 +172,10 @@ export class ReleaseHydrator {
         deploymentPointer: pointer,
         sourceStatusFallback: current.deploymentManifest.sourceStatusFallback,
         retained: [current, ...history],
+        activation: { mode: "CURRENT" },
       };
     } catch (error) {
-      if (!(error instanceof ActiveDeploymentUnavailableError)) {
+      if (!(error instanceof RemoteCandidateActivationError)) {
         throw error;
       }
       return this.hydrateResidentActivation(volumePath, error);
@@ -159,6 +189,10 @@ export class ReleaseHydrator {
    * process-specific `.partial` directory before an atomic rename. This
    * is the sole per-pairing hydration path: `hydrateCurrent()` calls it
    * once for `pointer.current` and once per `pointer.history` entry.
+   * Remote retrieval and candidate validation sites classify only their own
+   * failures as fallback-eligible. Local filesystem and programming failures
+   * pass through unchanged and fail readiness rather than being mislabeled as
+   * a bad current deployment.
    */
   private async hydratePairing(
     volumePath: string,
@@ -167,8 +201,11 @@ export class ReleaseHydrator {
     const deploymentBytes = await this.readVerifiedObject(
       deploymentReference,
     );
-    const deployment = parseDeploymentPairingManifest(
-      JSON.parse(deploymentBytes.toString("utf8")),
+    const deployment = parseRemoteCandidateMetadata(
+      () =>
+        parseDeploymentPairingManifest(
+          JSON.parse(deploymentBytes.toString("utf8")),
+        ),
     );
     const finalPath = join(
       /* turbopackIgnore: true */ volumePath,
@@ -199,10 +236,15 @@ export class ReleaseHydrator {
     const releaseCatalogBytes = await this.readVerifiedObject(
       deployment.analysis.releaseCatalog,
     );
-    const releaseCatalog = parseAnalysisReleaseCatalog(
-      JSON.parse(releaseCatalogBytes.toString("utf8")),
+    const releaseCatalog = parseRemoteCandidateMetadata(
+      () =>
+        parseAnalysisReleaseCatalog(
+          JSON.parse(releaseCatalogBytes.toString("utf8")),
+        ),
     );
-    assertDeploymentReleaseCatalog(deployment, releaseCatalog);
+    parseRemoteCandidateMetadata(() =>
+      assertDeploymentReleaseCatalog(deployment, releaseCatalog),
+    );
     const mappingObjects =
       await this.readRecommendedDatasetMapping(deployment);
     const partialPath = join(
@@ -406,22 +448,44 @@ export class ReleaseHydrator {
       ACTIVE_DEPLOYMENT_POINTER_KEY,
     );
     if (stored === null) {
-      throw new ActiveDeploymentUnavailableError();
+      throw new RemoteCandidateActivationError(
+        "OBJECT_STORE_UNAVAILABLE",
+        "No active deployment pairing is available.",
+      );
     }
-    return parseActiveDeploymentPointer(
-      JSON.parse(
-        (
-          await readReleaseMetadata(
-            deploymentAvailabilityStream(stored.body),
-          )
-        ).toString("utf8"),
-      ),
-    );
+    try {
+      const bytes = await readReleaseMetadata(
+        deploymentAvailabilityStream(stored.body),
+      );
+      return parseActiveDeploymentPointer(JSON.parse(bytes.toString("utf8")));
+    } catch (error) {
+      if (error instanceof RemoteCandidateActivationError) {
+        throw error;
+      }
+      throw new RemoteCandidateActivationError(
+        "CURRENT_DEPLOYMENT_INVALID",
+        deepestErrorMessage(error),
+        { cause: error },
+      );
+    }
   }
 
+  /**
+   * Reactivates the entire last durably committed resident activation
+   * record -- current plus its retained history, from one atomic record
+   * written only by `commitResidentActivation` -- when the live active
+   * deployment pointer's own candidate could not be retrieved or
+   * validated (see issue #45). This method never mixes remote current
+   * with resident evidence, never writes or prunes the durable record, and
+   * independently reverifies every resident byte from its own pairing
+   * directories rather than trusting anything `hydrateCandidatePairing`
+   * already inspected, so corrupt, incomplete, incompatible, or
+   * identity-mismatched resident state still fails closed here instead of
+   * partially serving.
+   */
   private async hydrateResidentActivation(
     volumePath: string,
-    unavailable: ActiveDeploymentUnavailableError,
+    candidateFailure: RemoteCandidateActivationError,
   ): Promise<HydratedRelease> {
     let activationBytes: Buffer;
     try {
@@ -432,10 +496,8 @@ export class ReleaseHydrator {
         ),
       );
     } catch (error) {
-      throw new Error(
-        "Object storage is unavailable and no verified resident deployment is active.",
-        { cause: new AggregateError([unavailable, error]) },
-      );
+      candidateFailure.cause ??= error;
+      throw candidateFailure;
     }
     if (activationBytes.byteLength > MAX_RELEASE_METADATA_BYTES) {
       throw new Error("Resident deployment activation is oversized.");
@@ -473,6 +535,10 @@ export class ReleaseHydrator {
       deploymentPointer: pointer,
       sourceStatusFallback: current.deploymentManifest.sourceStatusFallback,
       retained: [current, ...history],
+      activation: {
+        mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        reason: candidateFailure.code,
+      },
     };
   }
 
@@ -529,14 +595,24 @@ export class ReleaseHydrator {
   ): Promise<Buffer> {
     const stored = await this.readRemoteObject(reference.key);
     if (stored === null) {
-      throw new Error("A deployment object is unavailable.");
+      throw new RemoteCandidateActivationError(
+        "OBJECT_STORE_UNAVAILABLE",
+        `A deployment object is unavailable: ${reference.key}.`,
+      );
     }
 
-    const bytes = await readReleaseMetadata(
-      deploymentAvailabilityStream(stored.body),
-    );
-    verifyIdentity(releaseObjectIdentity(bytes), reference);
-    return bytes;
+    try {
+      const bytes = await readReleaseMetadata(
+        deploymentAvailabilityStream(stored.body),
+      );
+      verifyIdentity(releaseObjectIdentity(bytes), reference);
+      return bytes;
+    } catch (error) {
+      if (error instanceof RemoteCandidateActivationError) {
+        throw error;
+      }
+      throw invalidRemoteCandidate(error);
+    }
   }
 
   private async readRecommendedDatasetMapping(
@@ -552,15 +628,18 @@ export class ReleaseHydrator {
     const mappingBytes = await this.readVerifiedObject(
       deployment.recommendedDatasetMapping.manifest,
     );
-    const mapping = createRecommendedDatasetMapping(
-      JSON.parse(mappingBytes.toString("utf8")),
+    const mapping = parseRemoteCandidateMetadata(
+      () =>
+        createRecommendedDatasetMapping(
+          JSON.parse(mappingBytes.toString("utf8")),
+        ),
     );
     if (
       mapping.identity !==
       deployment.recommendedDatasetMapping.identity
     ) {
-      throw new ReleaseHydrationError(
-        "OBJECT_IDENTITY_MISMATCH",
+      throw new RemoteCandidateActivationError(
+        "CURRENT_DEPLOYMENT_INVALID",
         "Recommended Dataset Mapping identity does not match.",
       );
     }
@@ -568,15 +647,18 @@ export class ReleaseHydrator {
       mapping.manifest.datasetPackage.manifest;
     const packageBytes =
       await this.readVerifiedObject(packageReference);
-    const datasetPackage = createCandidateMarketDatasetPackage(
-      JSON.parse(packageBytes.toString("utf8")),
+    const datasetPackage = parseRemoteCandidateMetadata(
+      () =>
+        createCandidateMarketDatasetPackage(
+          JSON.parse(packageBytes.toString("utf8")),
+        ),
     );
     if (
       datasetPackage.identity !==
       mapping.manifest.datasetPackage.identity
     ) {
-      throw new ReleaseHydrationError(
-        "OBJECT_IDENTITY_MISMATCH",
+      throw new RemoteCandidateActivationError(
+        "CURRENT_DEPLOYMENT_INVALID",
         "Dataset Package identity does not match.",
       );
     }
@@ -589,13 +671,28 @@ export class ReleaseHydrator {
   ): Promise<void> {
     const stored = await this.readRemoteObject(reference.key);
     if (stored === null) {
-      throw new Error("A deployment object is unavailable.");
+      throw new RemoteCandidateActivationError(
+        "OBJECT_STORE_UNAVAILABLE",
+        `A deployment object is unavailable: ${reference.key}.`,
+      );
     }
-    await writeVerifiedFile(
-      path,
-      deploymentAvailabilityStream(stored.body),
-      reference,
-    );
+    try {
+      await writeVerifiedFile(
+        path,
+        deploymentAvailabilityStream(stored.body),
+        reference,
+      );
+    } catch (error) {
+      if (
+        error instanceof RemoteCandidateActivationError
+      ) {
+        throw error;
+      }
+      if (error instanceof ReleaseHydrationError) {
+        throw invalidRemoteCandidate(error);
+      }
+      throw error;
+    }
   }
 
   private async readRemoteObject(
@@ -604,7 +701,11 @@ export class ReleaseHydrator {
     try {
       return await this.objectStore.getObject(key);
     } catch (error) {
-      throw new ActiveDeploymentUnavailableError({ cause: error });
+      throw new RemoteCandidateActivationError(
+        "OBJECT_STORE_UNAVAILABLE",
+        deepestErrorMessage(error),
+        { cause: error },
+      );
     }
   }
 
@@ -1073,14 +1174,45 @@ async function* deploymentAvailabilityStream(
       yield chunk;
     }
   } catch (error) {
-    throw new ActiveDeploymentUnavailableError({ cause: error });
+    throw new RemoteCandidateActivationError(
+      "OBJECT_STORE_UNAVAILABLE",
+      deepestErrorMessage(error),
+      { cause: error },
+    );
   }
 }
 
-class ActiveDeploymentUnavailableError extends Error {
-  constructor(options?: ErrorOptions) {
-    super("No active deployment pairing is available.", options);
-    this.name = "ActiveDeploymentUnavailableError";
+function deepestErrorMessage(error: unknown): string {
+  let current = error;
+  while (
+    current instanceof Error &&
+    current.cause instanceof Error
+  ) {
+    current = current.cause;
+  }
+  return current instanceof Error
+    ? current.message
+    : "The current deployment could not be validated.";
+}
+
+function invalidRemoteCandidate(
+  error: unknown,
+): RemoteCandidateActivationError {
+  return new RemoteCandidateActivationError(
+    "CURRENT_DEPLOYMENT_INVALID",
+    deepestErrorMessage(error),
+    error instanceof Error ? { cause: error } : undefined,
+  );
+}
+
+function parseRemoteCandidateMetadata<T>(parse: () => T): T {
+  try {
+    return parse();
+  } catch (error) {
+    if (error instanceof RemoteCandidateActivationError) {
+      throw error;
+    }
+    throw invalidRemoteCandidate(error);
   }
 }
 

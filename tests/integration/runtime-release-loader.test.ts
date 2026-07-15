@@ -1,5 +1,6 @@
 import {
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -76,6 +77,7 @@ describe("verified release runtime", () => {
       status: "ok",
       readiness: "ready",
       buildId: "runtime-test-build",
+      activation: { mode: "CURRENT", fallbackReason: null },
       deployment: {
         deploymentPairingId: published.deploymentPairingId,
         baciRelease: "V202601",
@@ -99,10 +101,15 @@ describe("verified release runtime", () => {
         ),
         freshnessStatusId: expect.stringMatching(/^freshness:/u),
         state: "LATEST_KNOWN",
+        deploymentActivation: {
+          mode: "CURRENT",
+          fallbackReason: null,
+        },
         degraded: false,
         polling: null,
       },
     });
+    expect(runtime.activation()).toEqual({ mode: "CURRENT" });
     expect(runtime.resources()).toMatchObject({
       analysisExecution: {
         active: 0,
@@ -458,6 +465,27 @@ describe("verified release runtime", () => {
       freshness: {
         servedBaciRelease: "V202601",
         state: "CHECK_OVERDUE",
+        deploymentActivation: {
+          mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+          fallbackReason: "OBJECT_STORE_UNAVAILABLE",
+        },
+      },
+    });
+    expect(runtime.activation()).toEqual({
+      mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+      reason: "OBJECT_STORE_UNAVAILABLE",
+    });
+    expect(runtime.health("runtime-test-build")).toMatchObject({
+      readiness: "ready",
+      activation: {
+        mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        fallbackReason: "OBJECT_STORE_UNAVAILABLE",
+      },
+      freshness: {
+        deploymentActivation: {
+          mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+          fallbackReason: "OBJECT_STORE_UNAVAILABLE",
+        },
       },
     });
   }, 20_000);
@@ -573,6 +601,278 @@ describe("verified release runtime", () => {
     });
   }, 20_000);
 
+  it("falls back to the last verified resident deployment when the newly pointed Recommended Dataset Mapping is corrupt, never partially serving the broken candidate", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T01:00:00Z",
+    });
+    initial.close();
+
+    // A second, remote-only deployment now names a Recommended Dataset
+    // Mapping that reads back corrupt -- the newly pointed candidate that
+    // must never take down the known-good resident deployment (see issue
+    // #45).
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore: new TamperedObjectReader(
+        objectStore,
+        "recommended-dataset-mappings/",
+      ),
+      volumePath,
+      now: () => "2026-07-12T03:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.currentAnalysis().analysisBuildId).toBe(
+      first.analysisBuildId,
+    );
+    expect(runtime.activation()).toEqual({
+      mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+      reason: "CURRENT_DEPLOYMENT_INVALID",
+    });
+    expect(runtime.health("runtime-test-build")).toMatchObject({
+      readiness: "ready",
+      activation: {
+        mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        fallbackReason: "CURRENT_DEPLOYMENT_INVALID",
+      },
+      deployment: { deploymentPairingId: first.deploymentPairingId },
+    });
+    // The broken candidate never created any sibling directory (its
+    // Recommended Dataset Mapping fetch fails before any download
+    // starts), and fallback never commits or prunes: only the already
+    // durable first pairing, its DuckDB spill directory, and the
+    // unchanged activation record remain.
+    expect(
+      await readFile(join(volumePath, "active-deployment.json"), "utf8"),
+    ).toContain(first.deploymentPairingId);
+    expect((await readdir(volumePath)).sort()).toEqual(
+      ["active-deployment.json", first.deploymentPairingId, "spill"].sort(),
+    );
+    expect(second.deploymentPairingId).not.toBe(first.deploymentPairingId);
+    // Truthful readiness in verified fallback still serves a real,
+    // successful analysis through the closed execute seam -- the same
+    // shape an external availability probe exercises via `/healthz` and
+    // `/api/v1/analyses/current` (see issue #45 "documented SLI
+    // contract"); only the distinct `activation` field, never the
+    // analytical payload, marks it as degraded control-plane state.
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: first.analysisBuildId,
+      exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+    expect(outcome.state).toBe("success");
+  }, 20_000);
+
+  it("keeps the durable resident activation record byte-identical and serves the exact same fallback deployment across a repeated outage", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T01:00:00Z",
+    });
+    initial.close();
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const tamperedReader = () =>
+      new TamperedObjectReader(
+        objectStore,
+        "recommended-dataset-mappings/",
+      );
+
+    const outage1 = await VerifiedReleaseRuntime.load({
+      objectStore: tamperedReader(),
+      volumePath,
+      now: () => "2026-07-12T03:00:00Z",
+    });
+    const activationBytesAfterFirstOutage = await readFile(
+      join(volumePath, "active-deployment.json"),
+    );
+    const firstOutcome = await outage1.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: first.analysisBuildId,
+      exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+    outage1.close();
+
+    const outage2 = await VerifiedReleaseRuntime.load({
+      objectStore: tamperedReader(),
+      volumePath,
+      now: () => "2026-07-12T04:00:00Z",
+    });
+    runtimes.push(outage2);
+    const activationBytesAfterSecondOutage = await readFile(
+      join(volumePath, "active-deployment.json"),
+    );
+
+    expect(outage2.currentAnalysis().analysisBuildId).toBe(
+      first.analysisBuildId,
+    );
+    expect(outage2.activation()).toEqual({
+      mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+      reason: "CURRENT_DEPLOYMENT_INVALID",
+    });
+    expect(activationBytesAfterSecondOutage.equals(
+      activationBytesAfterFirstOutage,
+    )).toBe(true);
+    expect(
+      await outage2.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
+        analysisBuildId: first.analysisBuildId,
+        exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+        productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+      }),
+    ).toEqual(firstOutcome);
+  }, 20_000);
+
+  it("activates a previously broken mapping's fixed replacement only after a controlled restart, keeping the fallback pairing as retained history", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T01:00:00Z",
+    });
+    initial.close();
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const outage = await VerifiedReleaseRuntime.load({
+      objectStore: new TamperedObjectReader(
+        objectStore,
+        "recommended-dataset-mappings/",
+      ),
+      volumePath,
+      now: () => "2026-07-12T03:00:00Z",
+    });
+    expect(outage.currentAnalysis().analysisBuildId).toBe(
+      first.analysisBuildId,
+    );
+    outage.close();
+
+    // Object-store recovery never hot-swaps the already-running fallback
+    // process; only this controlled restart, against the now-healthy
+    // object store, may activate the fixed mapping (see issue #45).
+    const recovered = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T04:00:00Z",
+    });
+    runtimes.push(recovered);
+    expect(recovered.currentAnalysis().analysisBuildId).toBe(
+      second.analysisBuildId,
+    );
+    expect(recovered.activation()).toEqual({ mode: "CURRENT" });
+    expect(
+      recovered.resolveAnalysisManifest(first.analysisBuildId)
+        ?.analysisBuildId,
+    ).toBe(first.analysisBuildId);
+  }, 20_000);
+
+  it("fails readiness instead of misclassifying a local resident-path error as fallback-eligible", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "first"),
+    );
+    await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T01:00:00Z",
+    });
+    initial.close();
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "second"),
+      { valueOffset: 25 },
+    );
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    await writeFile(
+      join(volumePath, second.deploymentPairingId),
+      "not a resident directory",
+    );
+
+    let failure: unknown;
+    try {
+      await VerifiedReleaseRuntime.load({
+        objectStore,
+        volumePath,
+        now: () => "2026-07-12T03:00:00Z",
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({ code: "ENOTDIR" });
+    expect(failure).not.toMatchObject({
+      name: "RemoteCandidateActivationError",
+    });
+  }, 20_000);
+
+
   it("fails closed during a cold object-store outage", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
@@ -588,9 +888,11 @@ describe("verified release runtime", () => {
         },
         volumePath: join(root, "volume"),
       }),
-    ).rejects.toThrow(
-      "Object storage is unavailable and no verified resident deployment is active.",
-    );
+    ).rejects.toMatchObject({
+      name: "RemoteCandidateActivationError",
+      code: "OBJECT_STORE_UNAVAILABLE",
+      message: "object storage unavailable",
+    });
   });
 
   it("fails closed when the resident activation is corrupt during an outage", async () => {
@@ -1589,6 +1891,29 @@ class UnavailableObjectReader implements ReleaseObjectReader {
     return key.startsWith(this.unavailablePrefix)
       ? null
       : this.delegate.getObject(key);
+  }
+}
+
+// Returns tampered bytes for any key under the given prefix (for example
+// `recommended-dataset-mappings/`), simulating a newly pointed candidate
+// whose Recommended Dataset Mapping fails identity/schema verification
+// while every other object -- including an already-resident pairing's own
+// local files -- stays exactly as published (see issue #45).
+class TamperedObjectReader implements ReleaseObjectReader {
+  constructor(
+    private readonly delegate: ReleaseObjectReader,
+    private readonly tamperedPrefix: string,
+  ) {}
+
+  async getObject(key: string): Promise<ReleaseObject | null> {
+    const stored = await this.delegate.getObject(key);
+    if (stored === null || !key.startsWith(this.tamperedPrefix)) {
+      return stored;
+    }
+    return {
+      body: singleChunk(Buffer.from("tampered bytes", "utf8")),
+      version: stored.version,
+    };
   }
 }
 

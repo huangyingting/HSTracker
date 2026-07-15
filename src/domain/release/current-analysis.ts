@@ -12,6 +12,7 @@ import type {
   RecommendedProductCatalogIdentity,
 } from "../trade-analytics/recommended-dataset-mapping";
 import type { DatasetPackageIdentity } from "../trade-analytics/dataset-package";
+import type { DeploymentActivation } from "./deployment-activation";
 
 export type DeploymentWindowAnalysisIdentity = {
   analysisBuildId: string;
@@ -91,8 +92,13 @@ export function resolveCurrentAnalysisManifest(
   deployment: CurrentAnalysisDeployment,
   sourceStatusSnapshot: SourceStatusSnapshot,
   asOf: string,
+  activation: DeploymentActivation = { mode: "CURRENT" },
 ): CurrentAnalysisManifest {
-  const freshness = evaluateSourceFreshness(sourceStatusSnapshot, asOf);
+  const freshness = evaluateSourceFreshness(
+    sourceStatusSnapshot,
+    asOf,
+    activation,
+  );
   if (freshness.servedBaciRelease !== deployment.source.baciRelease) {
     throw new TypeError(
       "The freshness snapshot does not describe the deployed BACI Release.",

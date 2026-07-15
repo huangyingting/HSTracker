@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
 
+import {
+  publicDeploymentActivation,
+  type DeploymentActivation,
+  type PublicDeploymentActivation,
+} from "./deployment-activation";
+
 export const SOURCE_FRESHNESS_STATES = [
   "LATEST_KNOWN",
   "UPDATE_IN_PROGRESS",
@@ -32,6 +38,11 @@ export type EffectiveSourceFreshness = {
   refreshDueAt: string | null;
   state: SourceFreshnessState;
   effectiveAt: string;
+  // Deployment Activation Mode is reported with Source Freshness Status so
+  // fallback is truthful. It is excluded from freshnessStatusId because a
+  // control-plane outage never changes source-release freshness identity or
+  // pinned analytical values.
+  deploymentActivation: PublicDeploymentActivation;
 };
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000;
@@ -39,6 +50,7 @@ const DAY_MILLISECONDS = 24 * 60 * 60 * 1000;
 export function evaluateSourceFreshness(
   snapshot: SourceStatusSnapshot,
   asOf: string,
+  activation: DeploymentActivation = { mode: "CURRENT" },
 ): EffectiveSourceFreshness {
   const checkedAt = parseUtcInstant(snapshot.checkedAt);
   const checkOverdueAt = new Date(checkedAt.getTime() + 14 * DAY_MILLISECONDS);
@@ -104,6 +116,7 @@ export function evaluateSourceFreshness(
       encodeURIComponent(effectiveAt),
       digest,
     ].join(":"),
+    deploymentActivation: publicDeploymentActivation(activation),
   };
 }
 

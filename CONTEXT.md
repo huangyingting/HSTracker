@@ -37,7 +37,7 @@ A difference in same-period BACI evidence between two BACI Releases associated w
 _Avoid_: Historical growth, year-over-year trend, cross-deployment comparison
 
 **Source Freshness Status**:
-The checked relationship between the BACI Release currently served and the latest release known to HS Tracker. It does not describe the age, completeness, or immutability of an individual trade year.
+The checked relationship between the BACI Release currently served and the latest release known to HS Tracker. Its derived runtime representation also reports the process's distinct Deployment Activation Mode so a Last Verified Resident Fallback is visible without changing freshness identity or analytical values. It does not describe the age, completeness, or immutability of an individual trade year.
 _Avoid_: Live status, real-time data, data age
 
 **Candidate Market Context**:
@@ -83,6 +83,10 @@ _Avoid_: Stale cache, expired session, silent fallback to latest
 **Deployment Retention Window**:
 The current published platform deployment plus its two preceding compatible complete deployments, each binding one deployment pairing, analysis release catalog, current artifact, Recommended Dataset Mapping, product catalog, and source/freshness provenance without mixing recipe, data, or catalog generations. All three are immutable, checksum-verified, and made resident at startup so each replays without any request-time object-storage access; publication and rollback keep this window's current/history order coherent and fail closed rather than exceed it.
 _Avoid_: Cache generation, version history, backup snapshot
+
+**Current** / **Last Verified Resident Fallback** (Deployment Activation Mode):
+The runtime's own truthful, machine-readable record of how a process reached readiness, fixed for that process's entire lifetime. Current when startup hydrated and verified the live active deployment pointer's own candidate. Last Verified Resident Fallback when that pointer's current Recommended Dataset Mapping could not be retrieved or validated, so startup instead atomically reactivated the entire last durably committed resident deployment -- current plus its retained history, from one verified activation record -- never mixing remote current with resident evidence. Object-store recovery never hot-swaps a running process; only a controlled restart can activate a different mapping. It is a distinct runtime concept from Source Freshness Status, which continues to describe BACI Release currency rather than control-plane serving provenance, and is never inferred ad hoc from a caught exception.
+_Avoid_: Rollback state, degraded mode with no distinct field, silent fallback
 
 **Explicit Current Refresh**:
 The deliberate user action that discards a Canonical Task Link's existing pin and resolves its Trade Analysis Context again against the current Recommended Dataset Mapping, producing a distinct Canonical Task Link and Analysis Identity. It never happens automatically and never substitutes current evidence under an old pin.

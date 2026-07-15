@@ -20,6 +20,7 @@ import {
   resolveFixtureCurrentAnalysisManifest,
   resolveFixtureExportFreshnessStatus,
 } from "../release/fixture-current-analysis";
+import type { DeploymentActivation } from "../domain/release/deployment-activation";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
 import { serializedWeight } from "./serialized-size";
 
@@ -83,6 +84,13 @@ export interface ApplicationRuntime {
   ): ReturnType<EconomyDirectory["search"]>;
   resources(): ApplicationRuntimeResources;
   health(buildId: string): object;
+  // Runtime activation provenance (see issue #45): `CURRENT` for a
+  // process that hydrated and verified the live active deployment
+  // pointer at startup, or `LAST_VERIFIED_RESIDENT_FALLBACK` when the
+  // current mapping could not be retrieved or validated and startup
+  // instead reactivated the last durably committed resident deployment.
+  // Fixed for the process's lifetime; never recomputed while running.
+  activation(): DeploymentActivation;
 }
 
 type RuntimeGlobal = typeof globalThis & {
@@ -187,6 +195,9 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
     },
     health(buildId: string) {
       return { status: "ok", buildId };
+    },
+    activation() {
+      return { mode: "CURRENT" };
     },
   };
 }

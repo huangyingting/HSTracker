@@ -26,7 +26,10 @@ import {
   releaseObjectIdentity,
   singleChunk,
 } from "../../src/release/release-object-store";
-import { ReleaseHydrator } from "../../src/release/release-hydration";
+import {
+  ReleaseHydrator,
+  RemoteCandidateActivationError,
+} from "../../src/release/release-hydration";
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { writeAcceptedReleaseCandidate } from "../support/release-candidate";
 import { writeRuntimeReleaseCandidate } from "../support/runtime-release";
@@ -753,11 +756,17 @@ describe("immutable release publication", () => {
       new CorruptingReadbackStore(objectStore, "candidate-market.duckdb"),
     );
 
-    await expect(
-      hydrator.hydrateCurrent({ volumePath }),
-    ).rejects.toMatchObject({
-      name: "ReleaseHydrationError",
-      code: "OBJECT_IDENTITY_MISMATCH",
+    // A corrupt current candidate is fallback-eligible (see issue #45), but
+    // there is no last verified resident deployment on a brand-new volume,
+    // so hydration still fails closed and reports exactly why -- never
+    // falling back when no verified record exists.
+    await expect(hydrator.hydrateCurrent({ volumePath })).rejects.toMatchObject({
+      name: RemoteCandidateActivationError.name,
+      code: "CURRENT_DEPLOYMENT_INVALID",
+      cause: {
+        name: "ReleaseHydrationError",
+        code: "OBJECT_IDENTITY_MISMATCH",
+      },
     });
     expect(await readdir(volumePath)).toEqual([]);
   });

@@ -145,10 +145,12 @@ curl --fail --silent --show-error \
 ```
 
 Health must report `status: "ok"`, `readiness: "ready"`, the deployed
-`APP_BUILD_ID`, and the exact deployment, analysis, catalog, artifact, and
-Source Freshness Status identities. The analysis smoke must return a nonempty
-complete cohort. Also verify HTTP redirects to HTTPS, `HEAD /healthz` has no
-body, and public responses contain none of:
+`APP_BUILD_ID`, the exact deployment, analysis, catalog, artifact, and Source
+Freshness Status identities, and `activation.mode: "CURRENT"` for a normal
+deployment (see "Resident fallback rehearsal" below for the fallback case).
+The analysis smoke must return a nonempty complete cohort. Also verify HTTP
+redirects to HTTPS, `HEAD /healthz` has no body, and public responses contain
+none of:
 
 ```text
 HS_TRACKER_RELEASE_
@@ -176,6 +178,41 @@ The restarted process must fully reverify resident bytes, become ready, and
 report the same deployment pairing and artifact identities. Record elapsed
 time, Machine ID, image digest, health JSON, and logs.
 
+## Resident fallback rehearsal
+
+Unlike "Cold restore" below, this drill exercises a *control-plane* outage --
+object storage unavailable or the current Recommended Dataset Mapping
+invalid -- while the volume and host stay intact. Restarting the Machine
+during a simulated outage (for example a temporarily revoked read key, or a
+promotion that activated a target proven bad only after activation) must
+reactivate the last verified resident deployment rather than fail closed,
+because a durable resident activation record already exists from a prior
+successful startup:
+
+```bash
+fly machine restart --app "${APP}"
+curl --fail --silent --show-error "${ORIGIN}/healthz" | jq .
+```
+
+Confirm `readiness` is `ready`, `activation.mode` is
+`LAST_VERIFIED_RESIDENT_FALLBACK`, `activation.fallbackReason` names the
+bounded category, and `deployment`/`analysisArtifact` name the exact
+pre-outage pairing and artifact identities -- never a partially hydrated
+newer candidate. Confirm `/api/v1/analyses/current` reports the same mode and
+reason under `freshness.deploymentActivation` while preserving its prior
+`freshnessStatusId`, and confirm the pinned analysis
+smoke still return the exact pre-outage payload and identities: fallback
+never mixes remote current with resident evidence and never changes a pinned
+analytical value. Restart again while the outage persists (repeated outage)
+and confirm the identical result and an unchanged `active-deployment.json`
+(fallback never rewrites or prunes the durable record). Only after resolving
+the outage does a further controlled restart activate the fixed mapping as
+`current`, with the previously served fallback pairing now its immediate
+retained predecessor; confirm this with one more `fly machine restart` once
+the read key or mapping is fixed. Object-store recovery alone, without a
+restart, must not change what the already-running Machine serves. Retain
+health JSON, logs, and elapsed time for each restart.
+
 ## Cold restore
 
 The Fly Volume is a reconstructible serving cache, not the durable source of
@@ -197,7 +234,9 @@ truth. If the volume or host is lost:
 
 Never restore release truth from a volume snapshot alone. Object storage holds
 the immutable accepted objects and has RPO 0; a snapshot is only an optional
-cache-recovery aid.
+cache-recovery aid. An empty or corrupt volume with no durable resident
+activation record still fails closed rather than falling back, since there is
+nothing verified yet to fall back to.
 
 ## Rollback rehearsal
 

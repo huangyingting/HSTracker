@@ -25,6 +25,7 @@ describe("production observability dashboard", () => {
       "Process cache bytes",
       "Source freshness polling and alerts",
       "Spill, volume, and CPU throttling",
+      "Deployment activation mode",
     ]);
 
     const expressions = dashboard.panels.flatMap((panel) =>
@@ -42,6 +43,10 @@ describe("production observability dashboard", () => {
       'baci_release=~"$baci_release"',
     );
     expect(dashboard.time).toEqual({ from: "now/M", to: "now" });
+    expect(expressions).toContain("hs_tracker_deployment_activation_mode");
+    expect(expressions).toContain(
+      "hs_tracker_deployment_activation_fallback_reason",
+    );
     expect(JSON.stringify(dashboard)).not.toContain("correlation_id");
     expect(JSON.stringify(dashboard)).not.toContain("normalized_query");
   });

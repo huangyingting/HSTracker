@@ -53,6 +53,10 @@ import {
   type HydratedDeploymentPairing,
 } from "../release/release-hydration";
 import {
+  publicDeploymentActivation,
+  type DeploymentActivation,
+} from "../domain/release/deployment-activation";
+import {
   releaseObjectIdentity,
   type ReleaseObjectReader,
 } from "../release/release-object-store";
@@ -131,6 +135,11 @@ export class VerifiedReleaseRuntime {
     readonly tradeAnalytics: TradeAnalyticsPlatform,
     private readonly now: () => string,
     readonly recommendedDatasetMapping: RecommendedDatasetMapping,
+    // Fixed for this process's entire lifetime: set once from what
+    // `ReleaseHydrator.hydrateCurrent()` returned at startup, and never
+    // recomputed while running (see issue #45 "object-store recovery
+    // never hot-swaps a running process").
+    private readonly deploymentActivation: DeploymentActivation,
   ) {
     this.retainedSourceStatuses.set(
       sourceStatus.sourceStatusSnapshotId,
@@ -268,7 +277,15 @@ export class VerifiedReleaseRuntime {
       const current = bundles[0]!;
       const sourceStatus = hydrated.sourceStatusFallback;
       assertStatusMicroCacheBudget(current.deployment, [sourceStatus]);
-      await hydrator.commitResidentActivation(hydrated);
+      // Only an authoritative current startup commits the durable
+      // resident activation record. A verified fallback reactivates the
+      // last committed record as-is and must not rewrite or prune it --
+      // any immutable sibling directory a failed remote candidate left
+      // behind stays on disk, untouched, until the next successful
+      // current commit prunes it (see issue #45).
+      if (hydrated.activation.mode === "CURRENT") {
+        await hydrator.commitResidentActivation(hydrated);
+      }
       return new VerifiedReleaseRuntime(
         bundles,
         hydrated.deployment,
@@ -277,6 +294,7 @@ export class VerifiedReleaseRuntime {
         tradeAnalytics,
         input.now ?? currentUtcSecond,
         current.recommendedDatasetMapping,
+        hydrated.activation,
       );
     } catch (error) {
       for (const bundle of bundles) {
@@ -286,6 +304,10 @@ export class VerifiedReleaseRuntime {
     }
   }
 
+  activation(): DeploymentActivation {
+    return this.deploymentActivation;
+  }
+
   health(buildId: string) {
     const freshness = this.currentAnalysis().freshness;
     const polling = this.sourceStatusDiagnostics?.() ?? null;
@@ -293,6 +315,17 @@ export class VerifiedReleaseRuntime {
       status: "ok" as const,
       readiness: "ready" as const,
       buildId,
+      // Stable, machine-readable, bounded-cardinality runtime activation
+      // provenance (see issue #45): `CURRENT` when this process hydrated
+      // and verified the live active deployment pointer at startup,
+      // `LAST_VERIFIED_RESIDENT_FALLBACK` when the current mapping could
+      // not be retrieved or validated and startup instead reactivated the
+      // last durably committed resident deployment. `fallbackReason`
+      // stays `null` outside fallback and never carries a raw error
+      // message, so it is safe to expose without leaking diagnostics.
+      // `deployment` below already names the exact resident pointer
+      // identity being served in either mode.
+      activation: publicDeploymentActivation(this.deploymentActivation),
       deployment: {
         deploymentPairingId:
           this.publishedDeployment.deploymentPairingId,
@@ -323,6 +356,7 @@ export class VerifiedReleaseRuntime {
         sourceStatusSnapshotId: freshness.sourceStatusSnapshotId,
         freshnessStatusId: freshness.freshnessStatusId,
         state: freshness.state,
+        deploymentActivation: freshness.deploymentActivation,
         degraded:
           freshness.state !== "LATEST_KNOWN" ||
           (polling?.consecutiveFailures ?? 0) > 0,
@@ -343,6 +377,7 @@ export class VerifiedReleaseRuntime {
         this.deployment,
         this.sourceStatus,
         asOf,
+        this.deploymentActivation,
       ),
     };
   }
@@ -373,6 +408,7 @@ export class VerifiedReleaseRuntime {
       bundle.deployment,
       bundle.pairing.deploymentManifest.sourceStatusFallback,
       this.now(),
+      this.deploymentActivation,
     );
   }
 
@@ -380,7 +416,11 @@ export class VerifiedReleaseRuntime {
     const now = this.now();
     for (const snapshot of this.retainedSourceStatuses.values()) {
       for (const asOf of freshnessTransitionTimes(snapshot, now)) {
-        const freshness = evaluateSourceFreshness(snapshot, asOf);
+        const freshness = evaluateSourceFreshness(
+          snapshot,
+          asOf,
+          this.deploymentActivation,
+        );
         if (freshness.freshnessStatusId === freshnessStatusId) {
           return freshness;
         }
@@ -395,7 +435,11 @@ export class VerifiedReleaseRuntime {
     for (const bundle of this.bundles.slice(1)) {
       const snapshot = bundle.pairing.deploymentManifest.sourceStatusFallback;
       for (const asOf of freshnessTransitionTimes(snapshot, now)) {
-        const freshness = evaluateSourceFreshness(snapshot, asOf);
+        const freshness = evaluateSourceFreshness(
+          snapshot,
+          asOf,
+          this.deploymentActivation,
+        );
         if (freshness.freshnessStatusId === freshnessStatusId) {
           return freshness;
         }

@@ -191,7 +191,18 @@ success, excludes expected `400`, `404`, `409`, and `410` outcomes, counts
 timeouts and other statuses as failures, and excludes synthetic probes. The
 probe SLI requires one identity-bound current-manifest plus pinned-analysis
 result for every exact UTC minute in its declared window; missing, duplicate,
-or non-minute intervals are rejected.
+or non-minute intervals are rejected. Verified resident fallback (see
+"Resident fallback activation" in
+[`release-publication.md`](release-publication.md#resident-fallback-activation))
+serves the exact same identity-bound current-manifest and pinned-analysis
+result as an authoritative current startup -- readiness stays `ready` and the
+served analysis/search/artifact identities are the last verified ones -- so
+both SLIs count it exactly like any other truthful, successful response under
+this same contract with no code change. Nothing in either SLI's arithmetic is
+activation-mode-aware; degraded control-plane state is identified separately
+by the `hs_tracker_deployment_activation_mode` and
+`hs_tracker_deployment_activation_fallback_reason` gauges below, never by
+excluding or discounting successful fallback responses.
 
 Alert arithmetic and thresholds are implemented in
 `src/operations/service-levels.ts`. The dashboard exposes route latency,
@@ -199,3 +210,14 @@ Alert arithmetic and thresholds are implemented in
 source polling/freshness, spill, volume headroom, and CPU throttling. Keep the
 existing zero-cost basic-monitoring assumption unless a paid notification
 transport is approved in the cost forecast.
+
+`hs_tracker_deployment_activation_mode{mode="current"|"last_verified_resident_fallback"}`
+is a startup-fixed gauge (never recomputed while the process runs) reporting
+exactly one label value as `1`. When it reports
+`last_verified_resident_fallback`,
+`hs_tracker_deployment_activation_fallback_reason{reason=...}` names the
+bounded category (`object_store_unavailable` or
+`current_deployment_invalid`) the same way, and `/healthz`'s `activation`
+field and the one `application-runtime-ready` structured log (`warn` level in
+fallback, `info` otherwise) report the identical mode/reason. None of these
+ever carry a raw error message or any other unbounded value as a label.

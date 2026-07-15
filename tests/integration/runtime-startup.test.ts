@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import {
@@ -18,6 +18,7 @@ import {
 import { ReleasePublisher } from "../../src/release/release-publication";
 import { SourceStatusPublisher } from "../../src/release/source-status-publication";
 import { getApplicationRuntime } from "../../src/runtime/application-runtime";
+import { runtimeMetricRegistry } from "../../src/operations/runtime-prometheus-metrics";
 import { startApplicationRuntime } from "../../src/runtime/runtime-startup";
 import { writeRuntimeReleaseCandidate } from "../support/runtime-release";
 
@@ -365,6 +366,117 @@ describe("Next.js runtime startup", () => {
     },
     20_000,
   );
+
+  it("starts up in verified resident fallback, reporting it through health, logs, and metrics, when the current deployment is tampered after a known-good startup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-startup-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const environment = {
+      NODE_ENV: "production",
+      APP_BUILD_ID: "runtime-test-build",
+      HS_TRACKER_RUNTIME_MODE: "release",
+      HS_TRACKER_RELEASE_VOLUME_PATH: join(root, "volume"),
+    };
+    const first = await startApplicationRuntime({
+      environment,
+      objectStore,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    first.stop();
+
+    // Tampers the *newly pointed* current deployment (never the durable
+    // resident activation on disk) so the object store still answers
+    // with a coherent, identity-consistent pointer -- exactly the "a
+    // broken newly pointed mapping" case that must not take down the
+    // known-good resident deployment (see issue #45).
+    await activateTamperedDeployment(
+      objectStore,
+      (deployment) => {
+        deployment.baciRelease = "V202501";
+      },
+      false,
+    );
+
+    const infoSpy = vi
+      .spyOn(console, "info")
+      .mockImplementation(() => undefined);
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    let started: Awaited<ReturnType<typeof startApplicationRuntime>>;
+    try {
+      started = await startApplicationRuntime({
+        environment,
+        objectStore,
+        now: () => "2026-07-12T03:00:00Z",
+      });
+      stops.push(started.stop);
+
+      expect(started.runtime.currentAnalysis().analysisBuildId).toBe(
+        published.analysisBuildId,
+      );
+      expect(
+        started.runtime.currentAnalysis().freshness.deploymentActivation,
+      ).toEqual({
+        mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        fallbackReason: "CURRENT_DEPLOYMENT_INVALID",
+      });
+      expect(
+        (
+          started.runtime.health("runtime-test-build") as {
+            activation: {
+              mode: string;
+              fallbackReason: string | null;
+            };
+          }
+        ).activation,
+      ).toEqual({
+        mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        fallbackReason: "CURRENT_DEPLOYMENT_INVALID",
+      });
+
+      const readyLogLine = warnSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((line) => line.includes("application-runtime-ready"));
+      if (readyLogLine === undefined) {
+        throw new Error(
+          "Expected a warn-level application-runtime-ready log line.",
+        );
+      }
+      expect(JSON.parse(readyLogLine)).toMatchObject({
+        level: "warn",
+        event: "application-runtime-ready",
+        activationMode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        fallbackReason: "CURRENT_DEPLOYMENT_INVALID",
+      });
+      expect(
+        infoSpy.mock.calls.some((call) =>
+          String(call[0]).includes("application-runtime-ready"),
+        ),
+      ).toBe(false);
+
+      const metrics = runtimeMetricRegistry().render();
+      expect(metrics).toContain(
+        'hs_tracker_deployment_activation_mode{mode="last_verified_resident_fallback"} 1',
+      );
+      expect(metrics).toContain(
+        'hs_tracker_deployment_activation_mode{mode="current"} 0',
+      );
+      expect(metrics).toContain(
+        'hs_tracker_deployment_activation_fallback_reason{reason="current_deployment_invalid"} 1',
+      );
+    } finally {
+      infoSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  }, 20_000);
 });
 
 type MutableDeploymentDocument = {

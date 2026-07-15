@@ -4,6 +4,7 @@ import type { ReleaseObjectReader } from "../release/release-object-store";
 import { createRuntimeReleaseObjectReader } from "../release/release-object-storage";
 import { privateErrorDiagnostic } from "../operations/private-error-diagnostic";
 import {
+  observeDeploymentActivationMetric,
   observeSourceStatusPollMetric,
   startRuntimeMetricCollection,
 } from "../operations/runtime-prometheus-metrics";
@@ -223,15 +224,34 @@ function logRuntimeReady(
   mode: "fixture" | "release",
   buildId: string,
 ): void {
+  const activation = runtime.activation();
+  observeDeploymentActivationMetric(activation);
   if (environment.NODE_ENV !== "production") {
     return;
   }
   const current = runtime.currentAnalysis();
-  writeStructuredLog("info", "application-runtime-ready", {
+  // One bounded-cardinality startup/fallback log event (see issue #45):
+  // `activationMode`/`fallbackReason` are fixed enum values, never a raw
+  // error message, and the event name never changes -- only its level
+  // does, since a verified fallback is operationally significant but
+  // still a truthful, ready serving state.
+  const details = {
     mode,
     buildId,
     baciRelease: current.source.baciRelease,
     analysisBuildId: current.analysisBuildId,
     productSearchBuildId: current.productSearchBuildId,
-  });
+    activationMode: activation.mode,
+    fallbackReason:
+      activation.mode === "LAST_VERIFIED_RESIDENT_FALLBACK"
+        ? activation.reason
+        : null,
+  };
+  writeStructuredLog(
+    activation.mode === "LAST_VERIFIED_RESIDENT_FALLBACK"
+      ? "warn"
+      : "info",
+    "application-runtime-ready",
+    details,
+  );
 }

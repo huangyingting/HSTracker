@@ -189,6 +189,24 @@
           "legendFormat": "CPU throttled-period fraction"
         }
       ]
+    },
+    {
+      "id": 10,
+      "title": "Deployment activation mode",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 29 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hs_tracker_deployment_activation_mode",
+          "legendFormat": "mode: {{mode}}"
+        },
+        {
+          "refId": "B",
+          "expr": "hs_tracker_deployment_activation_fallback_reason",
+          "legendFormat": "fallback reason: {{reason}}"
+        }
+      ]
     }
   ],
   "refresh": "30s",

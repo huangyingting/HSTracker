@@ -1,3 +1,4 @@
+import type { DeploymentActivation } from "../domain/release/deployment-activation";
 import type { SourceStatusPollerEvent } from "../runtime/source-status-poller";
 import {
   observeRuntimeResources,
@@ -58,6 +59,17 @@ export class RuntimeMetricRegistry {
   private sourceStatusPollFailures = 0;
   private sourceStatusPollConsecutiveFailures = 0;
   private sourceFreshnessAlertLevel: "none" | "warn" | "page" = "none";
+  // Bounded-cardinality runtime activation provenance gauges (see issue
+  // #45): set once from `ReleaseHydrator.hydrateCurrent()`'s result at
+  // startup and never recomputed afterward, matching the process's own
+  // fixed activation mode for its lifetime.
+  private deploymentActivationMode:
+    | "current"
+    | "last_verified_resident_fallback" = "current";
+  private deploymentActivationFallbackReason:
+    | "object_store_unavailable"
+    | "current_deployment_invalid"
+    | "none" = "none";
 
   constructor(
     private readonly observeResources: RuntimeResourceObserver =
@@ -139,6 +151,22 @@ export class RuntimeMetricRegistry {
     this.sourceFreshnessAlertLevel = event.current.level;
   }
 
+  // Recorded once at startup from `ApplicationRuntime.activation()` (see
+  // issue #45); never updated again for this process's lifetime, since
+  // object-store recovery never hot-swaps a running process.
+  observeDeploymentActivation(activation: DeploymentActivation): void {
+    this.deploymentActivationMode =
+      activation.mode === "CURRENT"
+        ? "current"
+        : "last_verified_resident_fallback";
+    this.deploymentActivationFallbackReason =
+      activation.mode === "LAST_VERIFIED_RESIDENT_FALLBACK"
+        ? activation.reason === "OBJECT_STORE_UNAVAILABLE"
+          ? "object_store_unavailable"
+          : "current_deployment_invalid"
+        : "none";
+  }
+
   render(): string {
     const lines = [
       "# HELP hs_tracker_http_requests_total Public request outcomes.",
@@ -194,6 +222,28 @@ export class RuntimeMetricRegistry {
         (level) =>
           `hs_tracker_source_freshness_alert${labels({ level })} ${
             this.sourceFreshnessAlertLevel === level ? 1 : 0
+          }`,
+      ),
+      "# HELP hs_tracker_deployment_activation_mode Runtime deployment activation provenance: current or last-verified-resident fallback.",
+      "# TYPE hs_tracker_deployment_activation_mode gauge",
+      ...(["current", "last_verified_resident_fallback"] as const).map(
+        (mode) =>
+          `hs_tracker_deployment_activation_mode${labels({ mode })} ${
+            this.deploymentActivationMode === mode ? 1 : 0
+          }`,
+      ),
+      "# HELP hs_tracker_deployment_activation_fallback_reason Fallback reason category while serving the last verified resident deployment.",
+      "# TYPE hs_tracker_deployment_activation_fallback_reason gauge",
+      ...(
+        [
+          "object_store_unavailable",
+          "current_deployment_invalid",
+          "none",
+        ] as const
+      ).map(
+        (reason) =>
+          `hs_tracker_deployment_activation_fallback_reason${labels({ reason })} ${
+            this.deploymentActivationFallbackReason === reason ? 1 : 0
           }`,
       ),
       ...this.renderLatestRuntimeGauges(),
@@ -276,6 +326,12 @@ export function observeSourceStatusPollMetric(
   event: SourceStatusPollerEvent,
 ): void {
   runtimeMetricRegistry().observeSourceStatusPoll(event);
+}
+
+export function observeDeploymentActivationMetric(
+  activation: DeploymentActivation,
+): void {
+  runtimeMetricRegistry().observeDeploymentActivation(activation);
 }
 
 function incrementCounter(

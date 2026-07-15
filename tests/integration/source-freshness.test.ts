@@ -49,6 +49,10 @@ describe("Source Freshness Status", () => {
         refreshDueAt: null,
         state: expectedState,
         effectiveAt: expectedEffectiveAt,
+        deploymentActivation: {
+          mode: "CURRENT",
+          fallbackReason: null,
+        },
       });
       expect(status.freshnessStatusId).toMatch(
         /^freshness:source-status:fixture-check-overdue:(?:LATEST_KNOWN|CHECK_OVERDUE):[^:]+:[a-f0-9]{64}$/,
@@ -85,6 +89,27 @@ describe("Source Freshness Status", () => {
     );
 
     expect(afterDeadline.freshnessStatusId).toBe(atDeadline.freshnessStatusId);
+  });
+
+  it("reports resident fallback without changing Source Freshness Status identity", () => {
+    const current = evaluateSourceFreshness(
+      checkOverdueSnapshot,
+      "2026-03-14T00:00:00Z",
+    );
+    const fallback = evaluateSourceFreshness(
+      checkOverdueSnapshot,
+      "2026-03-14T00:00:00Z",
+      {
+        mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+        reason: "OBJECT_STORE_UNAVAILABLE",
+      },
+    );
+
+    expect(fallback.freshnessStatusId).toBe(current.freshnessStatusId);
+    expect(fallback.deploymentActivation).toEqual({
+      mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+      fallbackReason: "OBJECT_STORE_UNAVAILABLE",
+    });
   });
 
   it.each([

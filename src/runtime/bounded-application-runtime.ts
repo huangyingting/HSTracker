@@ -365,6 +365,7 @@ export function createBoundedApplicationRuntime(
     normalizeProductSearchQuery: (query) =>
       inner.normalizeProductSearchQuery(query),
     health: (buildId) => inner.health(buildId),
+    activation: () => inner.activation(),
     resources() {
       const resources = inner.resources();
       return {

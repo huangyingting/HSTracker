@@ -263,11 +263,47 @@ pairing is fully reverified before reuse. Failed hydration removes partial
 state and never installs a runtime. Only after all startup smoke checks pass
 for every retained pairing does the runtime atomically replace
 `active-deployment.json` -- which records the exact retained current/history
-order -- in the volume and prune pairing directories outside that window. If
-object storage becomes unavailable while resolving the current deployment
-later, this record selects and fully reverifies every last smoke-tested
-resident pairing (an outage restart never re-tests only current); an empty or
-corrupt volume still fails closed.
+order -- in the volume and prune pairing directories outside that window; this
+commit runs only for an authoritative current startup (see "Resident fallback
+activation" below), never for a fallback one.
+
+### Resident fallback activation
+
+Startup exposes one explicit, machine-readable **Deployment Activation Mode**
+(see CONTEXT.md): `CURRENT` when it hydrated and verified the live active
+deployment pointer's own candidate, or `LAST_VERIFIED_RESIDENT_FALLBACK` when
+that candidate could not be retrieved or validated -- object storage
+unavailable, or the pointer, deployment manifest, analysis release catalog,
+Recommended Dataset Mapping, or Dataset Package failing identity, schema, or
+semantic validation. `ReleaseHydrator` classifies every such failure through
+one typed `RemoteCandidateActivationError` (`OBJECT_STORE_UNAVAILABLE` or
+`CURRENT_DEPLOYMENT_INVALID`) at the hydration seam rather than an ad hoc
+catch, so a broken newly pointed mapping cannot take down a known-good
+resident deployment while genuinely unrelated errors -- and any corruption
+found while independently reverifying the resident activation itself -- still
+fail closed before readiness.
+
+A verified fallback reactivates the *entire* last durably committed resident
+activation record -- current plus its retained history, from one atomic
+record -- and never mixes remote current with resident mapping, package,
+catalog, or history. It never overwrites, prunes, or recommits that record,
+and never serves an immutable sibling directory a failed remote candidate may
+have left on disk; only the next authoritative current startup prunes such a
+leftover. There is no fallback when no durable resident activation record
+exists yet (a genuine cold start): startup fails closed and reports the exact
+underlying reason instead of a vague summary. Because startup never re-reads
+object storage after reaching readiness, object-store recovery never
+hot-swaps a running process -- serving the fixed mapping requires a new,
+controlled restart, which may then commit it as current.
+
+Health, the current manifest's derived Source Freshness Status, structured
+logs, and `/metrics` all expose this same bounded mode (plus a bounded
+fallback-reason category, never a raw error message). The Source Freshness
+Status keeps the same `freshnessStatusId` because Deployment Activation Mode
+is orthogonal serving provenance; it does not reuse `rollbackActive` or infer
+fallback from a caught exception. See "Runtime monitoring" in
+[`promotion-and-observability.md`](promotion-and-observability.md) for the
+exact fields.
 
 After readiness, route handlers use the installed in-process adapters. No
 analysis, product-search, economy, export, current, or health request reads
@@ -283,8 +319,15 @@ deadlines.
 
 The current route reports the exact active analysis/search identities and
 source windows. Health additionally reports the deployment pairing, current
-and previous artifact SHA-256 identities, readiness, and Source Freshness
-Status; it never reports credentials, bucket URLs, or local paths. Until the
+and previous artifact SHA-256 identities, readiness, Source Freshness Status,
+and the Deployment Activation Mode described above; it never reports
+credentials, bucket URLs, or local paths. Readiness is `ready` in verified
+fallback -- the served resident deployment is fully verified and smoke-tested,
+so an external availability probe against `/healthz` and
+`/api/v1/analyses/current` still counts it as available, while the distinct
+activation field, not the analytical payload, identifies the degraded
+control-plane state (see "Runtime monitoring" in
+[`promotion-and-observability.md`](promotion-and-observability.md)). Until the
 source monitor publishes status snapshots, the deployment pairing's embedded
 bootstrap status is content-addressed from the accepted build and activation
 fields. Its source-check age is anchored to the artifact build instant, so a
