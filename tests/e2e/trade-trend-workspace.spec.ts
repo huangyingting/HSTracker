@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test, type Page } from "@playwright/test";
 
 async function selectTrendContext(page: Page) {
@@ -60,6 +62,55 @@ test("an analyst can select Trade Trend by keyboard, share it, and change locale
   await expect(page.getByText("USD 60000", { exact: true })).toBeVisible();
   await expect(
     page.getByText("已记录的正值 · USD 200000"),
+  ).toBeVisible();
+});
+
+test("an analyst downloads the complete contextual Trade Trend CSV", async ({
+  page,
+}) => {
+  let exportUrl: URL | null = null;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/trade-trends.csv")) {
+      exportUrl = url;
+    }
+  });
+
+  await page.goto("/?task=trade-trend&importer=528&revision=HS12&product=010121");
+  await selectTrendContext(page);
+  await page.getByRole("button", { name: "Analyze Trade Trend" }).click();
+  await expect(
+    page.getByRole("table", { name: "Five Finalized Years" }),
+  ).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download complete CSV" }).click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (path === null) {
+    throw new Error("The CSV download did not produce a local file.");
+  }
+  const bytes = await readFile(path);
+  const text = bytes.toString("utf8");
+
+  expect(download.suggestedFilename()).toMatch(
+    /^hs-tracker_trade-trend_for-528_HS12-010121_V202601_ttx1-[a-f0-9]{64}\.csv$/u,
+  );
+  expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+  expect(text.match(/\r\n/g)).toHaveLength(7);
+  expect(text.match(/"FINALIZED"/g)).toHaveLength(5);
+  expect(text.match(/"PROVISIONAL"/g)).toHaveLength(1);
+  expect(text).toContain('"纯种繁殖用活马"');
+  expect(text).toContain('"200000"');
+  expect(text).toContain('"60000"');
+  expect(exportUrl).not.toBeNull();
+  expect(exportUrl!.searchParams.get("importer")).toBe("528");
+  expect(exportUrl!.searchParams.get("product")).toBe("010121");
+  expect(exportUrl!.searchParams.get("schema")).toBe("trade-trends-csv-v1");
+
+  await page.getByRole("button", { name: "简体中文" }).click();
+  await expect(
+    page.getByRole("button", { name: "下载完整 CSV" }),
   ).toBeVisible();
 });
 

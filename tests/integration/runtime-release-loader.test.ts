@@ -13,6 +13,7 @@ import {
   CANDIDATE_MARKET_V1_CAPABILITY_REQUIREMENTS,
   CANDIDATE_MARKET_V1_DATASET_DECLARATION,
 } from "../../src/domain/trade-analytics/dataset-package";
+import { TRADE_TREND_V1_CAPABILITY_REQUIREMENTS } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
@@ -154,6 +155,90 @@ describe("verified release runtime", () => {
       code: "PAIRING_INCOMPATIBLE",
     });
     await expect(publisher.current()).resolves.toBeNull();
+  }, 20_000);
+
+  it("declares and gates trade-trend-v1 on the Recommended Dataset Mapping selected at startup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.recommendedDatasetMapping.manifest.tradeTrend).toEqual({
+      recipe: "trade-trend-v1",
+      evidenceSha256:
+        runtime.recommendedDatasetMapping.manifest.economyCatalog.artifact
+          .sha256,
+    });
+    expect(
+      runtime.currentAnalysis().recommendation.tradeTrend,
+    ).toMatchObject({
+      recipe: "trade-trend-v1",
+      datasetPackageIdentity: expect.stringMatching(
+        /^dataset-package-v1-[a-f0-9]{64}$/u,
+      ),
+    });
+    expect(published.analysisBuildId).toBe(
+      runtime.currentAnalysis().analysisBuildId,
+    );
+  }, 20_000);
+
+  it("normalizes an artifact declaring incompatible Trade Trend capabilities without blocking Candidate Market", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+      {
+        tradeTrendDatasetPackage: {
+          schemaVersion: "trade-trend-dataset-capabilities-v1",
+          capabilities: TRADE_TREND_V1_CAPABILITY_REQUIREMENTS.slice(1),
+        },
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.recommendedDatasetMapping.manifest.tradeTrend).toBeNull();
+    expect(
+      runtime.currentAnalysis().recommendation.tradeTrend,
+    ).toBeNull();
+    expect(published.analysisBuildId).toBe(
+      runtime.currentAnalysis().analysisBuildId,
+    );
+
+    await expect(
+      runtime.tradeAnalytics.execute({
+        recipe: "trade-trend-v1",
+        analysisBuildId: published.analysisBuildId,
+        importerCode: "276",
+        productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+      }),
+    ).resolves.toMatchObject({
+      state: "retired",
+      error: {
+        code: "ANALYSIS_BUILD_RETIRED",
+      },
+    });
   }, 20_000);
 
   it("normalizes and serves an accepted legacy cms-v1 artifact manifest", async () => {
@@ -655,6 +740,70 @@ describe("verified release runtime", () => {
     ).rejects.toMatchObject({
       code: "PRODUCT_SEARCH_BUILD_RETIRED",
       status: 410,
+    });
+  }, 20_000);
+
+  it("serves Trade Trend from the same verified DuckDB used for Candidate Market", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    // Importer 276 has full market_year coverage for product 010121 in
+    // the runtime fixture, so every finalized year and the provisional
+    // year resolve as recorded positive from the same physical evidence
+    // used by the Candidate Market query above.
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "trade-trend-v1",
+      analysisBuildId: published.analysisBuildId,
+      importerCode: "276",
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+    if (outcome.state !== "success") {
+      throw new TypeError(`Expected success, received ${outcome.state}.`);
+    }
+
+    expect(outcome.payload.analysisBuildId).toBe(published.analysisBuildId);
+    expect(outcome.payload.provenance.baciRelease).toBe(
+      published.baciRelease,
+    );
+    expect(
+      outcome.payload.finalizedObservations.every(
+        (observation) => observation.state === "RECORDED_POSITIVE",
+      ),
+    ).toBe(true);
+    expect(outcome.payload.provisionalObservation?.state).toBe(
+      "RECORDED_POSITIVE",
+    );
+    expect(outcome.analysisIdentity).toMatch(
+      /^analysis-identity-v1-[a-f0-9]{64}$/u,
+    );
+    expect(outcome.datasetPackageIdentity).toMatch(
+      /^dataset-package-v1-[a-f0-9]{64}$/u,
+    );
+
+    await expect(
+      runtime.tradeAnalytics.execute({
+        recipe: "trade-trend-v1",
+        analysisBuildId: published.analysisBuildId,
+        importerCode: "999",
+        productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+      }),
+    ).resolves.toMatchObject({
+      state: "invalid-input",
+      error: { code: "UNKNOWN_IMPORTER" },
     });
   }, 20_000);
 

@@ -15,7 +15,7 @@ import {
   type RecommendedDatasetMapping,
 } from "../domain/trade-analytics/recommended-dataset-mapping";
 import {
-  createCandidateMarketV1TradeAnalyticsPlatform,
+  createTradeAnalyticsPlatform,
   type CandidateMarketV1PreviousReleaseEvidence,
   type TradeAnalyticsPlatform,
 } from "../domain/trade-analytics/trade-analytics-platform";
@@ -28,11 +28,14 @@ import { DuckDbEconomyDirectory } from "../economy/duckdb-economy-directory";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
+import { evaluateTradeTrendV1DatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
+import type { TradeTrendDatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import { currentUtcSecond } from "../operations/utc-clock";
 import {
   type AnalysisArtifactReference,
@@ -120,13 +123,25 @@ export class VerifiedReleaseRuntime {
           hydrated.deployment.analysisReleaseCatalogSha256,
         previousManifest,
       });
+    const tradeTrendDatasetPackage =
+      createTradeTrendDatasetPackageFromArtifacts(manifest);
     const recommendedDatasetMapping =
       await loadRecommendedDatasetMapping(
         hydrated,
         datasetPackage,
+        tradeTrendDatasetPackage,
       );
     const runAnalyticalSmoke =
       evaluateCandidateMarketV1DatasetPackage(datasetPackage)
+        .compatible;
+    // Trade Trend only runs its startup smoke when the Recommended Dataset
+    // Mapping just validated above actually declares and gates
+    // trade-trend-v1 against this exact artifact; a package that merely
+    // self-evaluates as compatible is not enough (see
+    // recommended-dataset-mapping.ts).
+    const runTradeTrendSmoke =
+      recommendedDatasetMapping.manifest.tradeTrend !== null &&
+      evaluateTradeTrendV1DatasetPackage(tradeTrendDatasetPackage)
         .compatible;
     let analysisDatabase: DuckDbAnalysisDatabase | undefined;
     try {
@@ -160,14 +175,28 @@ export class VerifiedReleaseRuntime {
           analysisBuildId: hydrated.deployment.analysisBuildId,
         }),
       ]);
-      const tradeAnalytics =
-        createCandidateMarketV1TradeAnalyticsPlatform({
+      const tradeAnalytics = createTradeAnalyticsPlatform({
+        candidateMarket: {
           evidenceSource: analysisSource,
           previousRelease,
           datasetPackages: new Map([
             [hydrated.deployment.analysisBuildId, datasetPackage],
           ]),
-        });
+        },
+        ...(recommendedDatasetMapping.manifest.tradeTrend === null
+          ? {}
+          : {
+              tradeTrend: {
+                evidenceSource: analysisSource,
+                datasetPackages: new Map([
+                  [
+                    hydrated.deployment.analysisBuildId,
+                    tradeTrendDatasetPackage,
+                  ],
+                ]),
+              },
+            }),
+      });
       await verifyStartupSmoke(
         hydrated,
         manifest,
@@ -175,12 +204,14 @@ export class VerifiedReleaseRuntime {
         productCatalog,
         economyDirectory,
         runAnalyticalSmoke,
+        runTradeTrendSmoke,
       );
       const deployment = currentAnalysisDeployment(
         hydrated,
         manifest,
         previousManifest,
         recommendedDatasetMapping,
+        tradeTrendDatasetPackage,
       );
       const sourceStatus = hydrated.sourceStatusFallback;
       assertStatusMicroCacheBudget(deployment, [sourceStatus]);
@@ -543,6 +574,7 @@ async function verifyStartupSmoke(
   productCatalog: ProductCatalog,
   economyDirectory: EconomyDirectory,
   runAnalyticalSmoke: boolean,
+  runTradeTrendSmoke: boolean,
 ): Promise<void> {
   const benchmarks = manifest.benchmarkQueries.filter(
     ({ role }) => role === "maximum-row",
@@ -553,6 +585,18 @@ async function verifyStartupSmoke(
     );
   }
   const benchmark = benchmarks[0]!;
+  const tradeTrendBenchmarks = manifest.tradeTrendBenchmarkQueries.filter(
+    ({ role }) => role === "maximum-row",
+  );
+  if (tradeTrendBenchmarks.length > 1) {
+    throw new Error(
+      "Analysis artifact must have at most one Trade Trend startup smoke query.",
+    );
+  }
+  const tradeTrendBenchmark = tradeTrendBenchmarks[0] ?? null;
+  const shouldRunTradeTrendSmoke =
+    runTradeTrendSmoke && tradeTrendBenchmark !== null;
+
   const analysisResultPromise = runAnalyticalSmoke
     ? tradeAnalytics.execute({
         recipe: "candidate-market-v1",
@@ -561,8 +605,22 @@ async function verifyStartupSmoke(
         productCode: benchmark.productCode,
       })
     : Promise.resolve(null);
-  const [analysisOutcome, productResult, economyResult] = await Promise.all([
+  const tradeTrendResultPromise = shouldRunTradeTrendSmoke
+    ? tradeAnalytics.execute({
+        recipe: "trade-trend-v1",
+        analysisBuildId: hydrated.deployment.analysisBuildId,
+        importerCode: tradeTrendBenchmark!.importerCode,
+        productCode: tradeTrendBenchmark!.productCode,
+      })
+    : Promise.resolve(null);
+  const [
+    analysisOutcome,
+    tradeTrendOutcome,
+    productResult,
+    economyResult,
+  ] = await Promise.all([
     analysisResultPromise,
+    tradeTrendResultPromise,
     productCatalog.search({
       productSearchBuildId:
         hydrated.deployment.productSearchBuildId,
@@ -583,6 +641,12 @@ async function verifyStartupSmoke(
           analysisOutcome.state === "empty"
         ? analysisOutcome.payload
         : null;
+  const tradeTrendResult =
+    tradeTrendOutcome === null
+      ? null
+      : tradeTrendOutcome.state === "success"
+        ? tradeTrendOutcome.payload
+        : null;
   if (
     (runAnalyticalSmoke &&
       (analysisResult === null ||
@@ -591,6 +655,16 @@ async function verifyStartupSmoke(
           hydrated.deployment.baciRelease ||
         analysisResult.analysisReleaseCatalogSha256 !==
           hydrated.deployment.analysisReleaseCatalogSha256)) ||
+    (shouldRunTradeTrendSmoke &&
+      (tradeTrendResult === null ||
+        tradeTrendResult.provenance.baciRelease !==
+          hydrated.deployment.baciRelease ||
+        tradeTrendResult.analysisReleaseCatalogSha256 !==
+          hydrated.deployment.analysisReleaseCatalogSha256 ||
+        tradeTrendResult.query.importer.code !==
+          tradeTrendBenchmark!.importerCode ||
+        tradeTrendResult.query.product.code !==
+          tradeTrendBenchmark!.productCode)) ||
     productResult.productSearchBuildId !==
       hydrated.deployment.productSearchBuildId ||
     productResult.matches[0]?.product.code !== benchmark.productCode ||
@@ -605,6 +679,7 @@ function currentAnalysisDeployment(
   manifest: AnalysisArtifactManifest,
   previousManifest: AnalysisArtifactManifest | null,
   mapping: RecommendedDatasetMapping,
+  tradeTrendDatasetPackage: TradeTrendDatasetPackage,
 ): CurrentAnalysisDeployment {
   const cutoff = manifest.finalizedCutoffYear;
   return {
@@ -622,6 +697,13 @@ function currentAnalysisDeployment(
         mapping.manifest.productCatalog.identity,
       economyCatalogIdentity:
         mapping.manifest.economyCatalog.identity,
+      tradeTrend:
+        mapping.manifest.tradeTrend === null
+          ? null
+          : {
+              recipe: "trade-trend-v1",
+              datasetPackageIdentity: tradeTrendDatasetPackage.identity,
+            },
     },
     source: {
       baciRelease: manifest.baciRelease,
@@ -673,6 +755,7 @@ function currentAnalysisDeployment(
 async function loadRecommendedDatasetMapping(
   hydrated: HydratedRelease,
   expectedPackage: CandidateMarketDatasetPackage,
+  expectedTradeTrendPackage: TradeTrendDatasetPackage,
 ): Promise<RecommendedDatasetMapping> {
   const catalogs = recommendedCatalogs(hydrated);
   let mapping: RecommendedDatasetMapping;
@@ -719,6 +802,11 @@ async function loadRecommendedDatasetMapping(
           ...releaseObjectIdentity(packageBytes),
         },
       },
+      // A legacy analysis artifact manifest predates capability
+      // declarations entirely, so it never went through Trade Trend review
+      // either: normalize it as Candidate-Market-only rather than deriving
+      // Trade Trend support from a default declaration it never published.
+      tradeTrend: null,
       productCatalog: {
         identity: recommendedProductCatalogIdentity(
           catalogs.productCatalog,
@@ -736,6 +824,10 @@ async function loadRecommendedDatasetMapping(
   validateRecommendedDatasetMapping({
     mapping,
     datasetPackage: expectedPackage,
+    tradeTrendDatasetPackage:
+      mapping.manifest.tradeTrend === null
+        ? null
+        : expectedTradeTrendPackage,
     productCatalog: catalogs.productCatalog,
     economyCatalog: catalogs.economyCatalog,
   });

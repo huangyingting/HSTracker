@@ -9,6 +9,10 @@ import {
   validateRecommendedDatasetMapping,
 } from "../../src/domain/trade-analytics/recommended-dataset-mapping";
 import { createCandidateMarketDatasetPackage } from "../../src/domain/trade-analytics/dataset-package";
+import {
+  createTradeTrendDatasetPackage,
+  TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
+} from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 import { createFixtureCandidateMarketDatasetPackages } from "../../src/evidence/fixture-trade-evidence-source";
 import {
   FIXTURE_RECOMMENDED_DATASET_MAPPING,
@@ -48,6 +52,7 @@ describe("Recommended Dataset Mapping", () => {
       validateRecommendedDatasetMapping({
         mapping: FIXTURE_RECOMMENDED_DATASET_MAPPING,
         datasetPackage,
+        tradeTrendDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -114,10 +119,170 @@ describe("Recommended Dataset Mapping", () => {
       validateRecommendedDatasetMapping({
         mapping,
         datasetPackage: incompatible,
+        tradeTrendDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
     ).toThrow("Recommended Dataset Mapping package is incompatible");
+  });
+
+  it("declares and gates trade-trend-v1 alongside candidate-market-v1 when its declaration is compatible", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const tradeTrendDatasetPackage = createTradeTrendDatasetPackage({
+      schemaVersion: "trade-trend-dataset-package-manifest-v1",
+      baciRelease: "V202601",
+      hsRevision: "HS12",
+      finalizedYearCount: 5,
+      evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      capabilities: TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
+    });
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      tradeTrend: {
+        recipe: "trade-trend-v1",
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).not.toThrow();
+    expect(mapping.manifest.tradeTrend).toEqual({
+      recipe: "trade-trend-v1",
+      evidenceSha256: manifest.economyCatalog.artifact.sha256,
+    });
+  });
+
+  it("rejects a caller-supplied Trade Trend package the mapping does not declare", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const tradeTrendDatasetPackage = createTradeTrendDatasetPackage({
+      schemaVersion: "trade-trend-dataset-package-manifest-v1",
+      baciRelease: "V202601",
+      hsRevision: "HS12",
+      finalizedYearCount: 5,
+      evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      capabilities: TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping: FIXTURE_RECOMMENDED_DATASET_MAPPING,
+        datasetPackage,
+        tradeTrendDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow("Recommended Dataset Mapping does not declare trade-trend-v1");
+  });
+
+  it("rejects a mapping that declares trade-trend-v1 without a compatible package", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      tradeTrend: {
+        recipe: "trade-trend-v1",
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping declares trade-trend-v1 without a package",
+    );
+  });
+
+  it("rejects a Trade Trend declaration whose evidence does not match the pinned analysis artifact", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const mismatchedEvidenceSha256 = "c".repeat(64);
+    const tradeTrendDatasetPackage = createTradeTrendDatasetPackage({
+      schemaVersion: "trade-trend-dataset-package-manifest-v1",
+      baciRelease: "V202601",
+      hsRevision: "HS12",
+      finalizedYearCount: 5,
+      evidenceSha256: mismatchedEvidenceSha256,
+      capabilities: TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
+    });
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      tradeTrend: {
+        recipe: "trade-trend-v1",
+        evidenceSha256: mismatchedEvidenceSha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow("Recommended Dataset Mapping Trade Trend evidence is incompatible");
+  });
+
+  it("rejects a Trade Trend declaration missing a required capability", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const tradeTrendDatasetPackage = createTradeTrendDatasetPackage({
+      schemaVersion: "trade-trend-dataset-package-manifest-v1",
+      baciRelease: "V202601",
+      hsRevision: "HS12",
+      finalizedYearCount: 5,
+      evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      capabilities: TRADE_TREND_V1_CAPABILITY_REQUIREMENTS.slice(1),
+    });
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      tradeTrend: {
+        recipe: "trade-trend-v1",
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping Trade Trend package is incompatible",
+    );
   });
 });
 

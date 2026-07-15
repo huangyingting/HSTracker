@@ -10,6 +10,12 @@ import {
   type DatasetSourceReconciliationEvidence,
 } from "../domain/trade-analytics/dataset-package";
 import {
+  createTradeTrendDatasetPackage,
+  parseTradeTrendDatasetCapabilityDeclaration,
+  type TradeTrendDatasetCapabilityDeclaration,
+  type TradeTrendDatasetPackage,
+} from "../domain/trade-analytics/trade-trend-v1-dataset-package";
+import {
   count,
   hs12,
   record,
@@ -24,6 +30,14 @@ export type AnalysisArtifactBenchmarkQuery = {
   productCode: string;
   exporterCode: string;
   candidateCount: number;
+};
+
+export type TradeTrendArtifactBenchmarkQuery = {
+  role: "sparse" | "median" | "upper-quartile" | "maximum-row";
+  productCode: string;
+  importerCode: string;
+  windowRowCount: number;
+  pairRowCount: number;
 };
 
 export type AnalysisArtifactManifest = {
@@ -48,6 +62,7 @@ export type AnalysisArtifactManifest = {
   coverageApprovalSha256: string;
   sourceReconciliationEvidence: DatasetSourceReconciliationEvidence;
   datasetPackage: CandidateMarketDatasetCapabilityDeclaration;
+  tradeTrendDatasetPackage: TradeTrendDatasetCapabilityDeclaration;
   scoreVersionsSupported: string[];
   artifact: {
     schemaVersion: "candidate-market-artifact-v1";
@@ -58,6 +73,7 @@ export type AnalysisArtifactManifest = {
   };
   builtAt: string;
   benchmarkQueries: AnalysisArtifactBenchmarkQuery[];
+  tradeTrendBenchmarkQueries: TradeTrendArtifactBenchmarkQuery[];
 };
 
 const LEGACY_ANNUAL_SOURCE_CHECK_KEYS = [
@@ -163,10 +179,23 @@ export function parseAnalysisArtifactManifest(
         manifest.datasetPackage,
       )
     : CANDIDATE_MARKET_V1_DATASET_DECLARATION;
+  const tradeTrendDatasetPackage =
+    manifest.tradeTrendDatasetPackage === undefined
+      ? {
+          schemaVersion: "trade-trend-dataset-capabilities-v1" as const,
+          capabilities: [],
+        }
+      : parseTradeTrendDatasetCapabilityDeclaration(
+          manifest.tradeTrendDatasetPackage,
+        );
   const benchmarkQueries = array(
     manifest.benchmarkQueries,
     "benchmark queries",
   ).map(parseBenchmarkQuery);
+  const tradeTrendBenchmarkQueries = array(
+    manifest.tradeTrendBenchmarkQueries ?? [],
+    "trade trend benchmark queries",
+  ).map(parseTradeTrendBenchmarkQuery);
   const buildId = string(artifact.buildId, "analysis artifact build ID");
   if (!/^candidate-market-artifact-v1-[a-f0-9]{16}$/u.test(buildId)) {
     throw new Error("Analysis artifact build ID is malformed.");
@@ -203,6 +232,7 @@ export function parseAnalysisArtifactManifest(
     ),
     sourceReconciliationEvidence,
     datasetPackage,
+    tradeTrendDatasetPackage,
     scoreVersionsSupported,
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
@@ -216,6 +246,7 @@ export function parseAnalysisArtifactManifest(
     },
     builtAt: utcTimestamp(manifest.builtAt, "artifact builtAt"),
     benchmarkQueries,
+    tradeTrendBenchmarkQueries,
   };
 }
 
@@ -459,6 +490,65 @@ function parseBenchmarkQuery(
       `benchmark query ${index} candidate count`,
     ),
   };
+}
+
+function parseTradeTrendBenchmarkQuery(
+  value: unknown,
+  index: number,
+): TradeTrendArtifactBenchmarkQuery {
+  const query = record(value, `trade trend benchmark query ${index}`);
+  const role = string(query.role, `trade trend benchmark query ${index} role`);
+  if (
+    role !== "sparse" &&
+    role !== "median" &&
+    role !== "upper-quartile" &&
+    role !== "maximum-row"
+  ) {
+    throw new Error(`Trade trend benchmark query ${index} role is invalid.`);
+  }
+  const productCode = string(
+    query.productCode,
+    `trade trend benchmark query ${index} product code`,
+  );
+  const importerCode = string(
+    query.importerCode,
+    `trade trend benchmark query ${index} importer code`,
+  );
+  if (!/^\d{6}$/u.test(productCode) || !/^\d{1,3}$/u.test(importerCode)) {
+    throw new Error(
+      `Trade trend benchmark query ${index} identity is malformed.`,
+    );
+  }
+  return {
+    role,
+    productCode,
+    importerCode,
+    windowRowCount: count(
+      query.windowRowCount,
+      `trade trend benchmark query ${index} window row count`,
+    ),
+    pairRowCount: count(
+      query.pairRowCount,
+      `trade trend benchmark query ${index} pair row count`,
+    ),
+  };
+}
+
+export function createTradeTrendDatasetPackageFromArtifacts(
+  manifest: AnalysisArtifactManifest,
+): TradeTrendDatasetPackage {
+  // The declared capabilities come from the published artifact manifest
+  // (manifest.tradeTrendDatasetPackage), not from a hardcoded requirements
+  // list, so evaluateTradeTrendV1DatasetPackage() below is a genuine check
+  // against reviewed, artifact-embedded evidence rather than a tautology.
+  return createTradeTrendDatasetPackage({
+    schemaVersion: "trade-trend-dataset-package-manifest-v1",
+    baciRelease: manifest.baciRelease,
+    hsRevision: manifest.hsRevision,
+    finalizedYearCount: 5,
+    evidenceSha256: manifest.artifact.sha256,
+    capabilities: manifest.tradeTrendDatasetPackage.capabilities,
+  });
 }
 
 function yearRange(

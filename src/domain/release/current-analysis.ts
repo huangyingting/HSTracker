@@ -45,6 +45,13 @@ export type CurrentAnalysisDeployment = {
     datasetPackageIdentity: DatasetPackageIdentity;
     productCatalogIdentity: RecommendedProductCatalogIdentity;
     economyCatalogIdentity: RecommendedEconomyCatalogIdentity;
+    // Populated only when the same closed Recommended Dataset Mapping also
+    // declares and gates trade-trend-v1 (see recommended-dataset-mapping.ts);
+    // null for legacy or Candidate-Market-only mappings.
+    tradeTrend: {
+      recipe: "trade-trend-v1";
+      datasetPackageIdentity: DatasetPackageIdentity;
+    } | null;
   };
 };
 

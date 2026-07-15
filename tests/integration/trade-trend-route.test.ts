@@ -46,7 +46,13 @@ describe("versioned Trade Trend route", () => {
       "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
     );
     expect(first.headers.get("etag")).toMatch(/^W\/"[a-f0-9]{64}"$/);
-    expect(firstBody).toBe(JSON.stringify(outcome.payload));
+    expect(firstBody).toBe(
+      JSON.stringify({
+        ...outcome.payload,
+        analysisIdentity: outcome.analysisIdentity,
+        datasetPackageIdentity: outcome.datasetPackageIdentity,
+      }),
+    );
     expect(await second.text()).toBe(firstBody);
 
     const notModified = await GET(

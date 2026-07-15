@@ -300,13 +300,19 @@ describe("immutable release publication", () => {
     {
       target: "HEAD-era explicit-capability",
       legacyDatasetPackageManifest: false,
+      expectedTradeTrendMapping: expect.objectContaining({
+        recipe: "trade-trend-v1",
+        evidenceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      }),
     },
     {
       target: "older narrowly normalized legacy",
       legacyDatasetPackageManifest: true,
+      expectedTradeTrendMapping: null,
     },
   ])("upgrades and smokes a mapping-less $target rollback target", async ({
     legacyDatasetPackageManifest,
+    expectedTradeTrendMapping,
   }) => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
     const firstCandidate = await writeRuntimeReleaseCandidate(
@@ -347,6 +353,20 @@ describe("immutable release publication", () => {
       ),
     });
     await expect(publisher.current()).resolves.toEqual(rolledBack);
+    if (rolledBack.recommendedDatasetMappingIdentity === null) {
+      throw new Error("Expected rollback to publish a Dataset Mapping.");
+    }
+    const storedMapping = await objectStore.getObject(
+      `recommended-dataset-mappings/${rolledBack.recommendedDatasetMappingIdentity}.json`,
+    );
+    if (storedMapping === null) {
+      throw new Error("Expected rollback Dataset Mapping bytes.");
+    }
+    expect(
+      JSON.parse(
+        (await collectReleaseObject(storedMapping)).toString("utf8"),
+      ).tradeTrend,
+    ).toEqual(expectedTradeTrendMapping);
   }, 30_000);
 
   it("keeps the active pairing when uploaded bytes fail read-back verification", async () => {

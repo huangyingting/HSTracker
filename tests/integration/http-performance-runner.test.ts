@@ -35,7 +35,7 @@ describe("origin-benchmark plan parsing", () => {
 
     expect(plan.measurementClass).toBe("candidate");
     expect(plan.origin).toBe("https://staging.example.com");
-    expect(plan.requests).toHaveLength(35);
+    expect(plan.requests).toHaveLength(51);
     expect(plan.warmupSamples).toBe(5);
   });
 
@@ -193,10 +193,10 @@ describe("runOriginBenchmark", () => {
 
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
-        // 1 health check + 35 routes * (5 warmups + timedSamples).
+        // 1 health check + 51 routes * (5 warmups + timedSamples).
         const perRoute = 5 + plan.timedSamples;
-        expect(calls.length).toBe(1 + 35 * perRoute);
-        expect(report.originBenchmarks).toHaveLength(35);
+        expect(calls.length).toBe(1 + 51 * perRoute);
+        expect(report.originBenchmarks).toHaveLength(51);
         expect(report.status).toBe("measurement-complete");
         expect(report.meetsAcceptanceEvidenceSampleSize).toBe(true);
         expect(report.firstFailure).toBeNull();
@@ -573,7 +573,7 @@ function fakeOriginCacheState(request: HttpBenchmarkRequest): string | null {
   }
   if (
     request.url.pathname.includes("-process-hit/") ||
-    request.url.pathname.includes("/csv-analysis-hit/")
+    request.url.pathname.includes("-analysis-hit/")
   ) {
     return "hit";
   }
@@ -663,12 +663,18 @@ function acceptedPlanInput(
     "candidate-analysis-process-hit",
     "csv-uncached",
     "csv-analysis-hit",
+    "trade-trend-analysis-uncached",
+    "trade-trend-analysis-process-hit",
+    "trade-trend-csv-uncached",
+    "trade-trend-csv-analysis-hit",
   ];
   const uncachedOperations = new Set([
     "economy-search-uncached",
     "product-search-uncached",
     "candidate-analysis-uncached",
     "csv-uncached",
+    "trade-trend-analysis-uncached",
+    "trade-trend-csv-uncached",
   ]);
   const roles = [
     "sparse",

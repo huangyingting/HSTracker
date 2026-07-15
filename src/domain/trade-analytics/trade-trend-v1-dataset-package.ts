@@ -8,6 +8,79 @@ export const TRADE_TREND_V1_CAPABILITY_REQUIREMENTS = [
   { id: "trade-trend/hs-product-identity", version: "1" },
 ] as const;
 
+// This is the artifact-declared counterpart of
+// CANDIDATE_MARKET_V1_DATASET_DECLARATION: the published analysis artifact
+// carries this declaration so createTradeTrendDatasetPackageFromArtifacts()
+// derives its package from reviewed, artifact-embedded capabilities instead
+// of synthesizing them from TRADE_TREND_V1_CAPABILITY_REQUIREMENTS directly.
+// evaluateTradeTrendV1DatasetPackage() still checks the declared capabilities
+// against those requirements, so a divergent declaration fails closed.
+export type TradeTrendDatasetCapabilityDeclaration = Readonly<{
+  schemaVersion: "trade-trend-dataset-capabilities-v1";
+  capabilities: readonly Readonly<{ id: string; version: string }>[];
+}>;
+
+export const TRADE_TREND_V1_DATASET_DECLARATION: TradeTrendDatasetCapabilityDeclaration =
+  {
+    schemaVersion: "trade-trend-dataset-capabilities-v1",
+    capabilities: TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
+  };
+
+export function parseTradeTrendDatasetCapabilityDeclaration(
+  value: unknown,
+): TradeTrendDatasetCapabilityDeclaration {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(
+      "Trade Trend Dataset Package capability declaration must be an object.",
+    );
+  }
+  const declaration = value as Record<string, unknown>;
+  if (
+    declaration.schemaVersion !== "trade-trend-dataset-capabilities-v1"
+  ) {
+    throw new TypeError(
+      "Trade Trend Dataset Package capability declaration schema is incompatible.",
+    );
+  }
+  if (!Array.isArray(declaration.capabilities)) {
+    throw new TypeError(
+      "Trade Trend Dataset Package capabilities must be an array.",
+    );
+  }
+  const capabilities = declaration.capabilities.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw new TypeError(
+        `Trade Trend Dataset Package capability ${index} must be an object.`,
+      );
+    }
+    const capability = entry as Record<string, unknown>;
+    if (
+      typeof capability.id !== "string" ||
+      capability.id.length === 0 ||
+      typeof capability.version !== "string" ||
+      capability.version.length === 0
+    ) {
+      throw new TypeError(
+        `Trade Trend Dataset Package capability ${index} is malformed.`,
+      );
+    }
+    return { id: capability.id, version: capability.version };
+  });
+  if (new Set(capabilities.map(({ id }) => id)).size !== capabilities.length) {
+    throw new TypeError(
+      "Trade Trend Dataset Package capability IDs must be unique.",
+    );
+  }
+  return {
+    schemaVersion: "trade-trend-dataset-capabilities-v1",
+    capabilities: [...capabilities].sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) ||
+        left.version.localeCompare(right.version),
+    ),
+  };
+}
+
 export type TradeTrendDatasetPackage = Readonly<{
   identity: DatasetPackageIdentity;
   manifest: Readonly<{

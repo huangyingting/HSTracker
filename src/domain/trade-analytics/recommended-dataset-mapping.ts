@@ -5,6 +5,8 @@ import type {
   DatasetPackageIdentity,
 } from "./dataset-package";
 import { evaluateCandidateMarketV1DatasetPackage } from "./dataset-package";
+import { evaluateTradeTrendV1DatasetPackage } from "./trade-trend-v1-dataset-package";
+import type { TradeTrendDatasetPackage } from "./trade-trend-v1-dataset-package";
 
 declare const recommendedDatasetMappingIdentityBrand: unique symbol;
 declare const recommendedProductCatalogIdentityBrand: unique symbol;
@@ -31,6 +33,17 @@ export type RecommendedMappingObjectReference = Readonly<{
   sha256: string;
 }>;
 
+// Declares that this closed mapping also gates trade-trend-v1 on the SAME
+// analysis artifact already pinned by economyCatalog below. Trade Trend has
+// no separately published Dataset Package object: evidenceSha256 binds this
+// declaration to economyCatalog.artifact.sha256, so its capabilities are
+// derived from the one already-verified, already-published artifact rather
+// than a second immutable object family.
+export type RecommendedTradeTrendMappingDeclaration = Readonly<{
+  recipe: "trade-trend-v1";
+  evidenceSha256: string;
+}>;
+
 export type RecommendedDatasetMappingManifest = Readonly<{
   schemaVersion: "recommended-dataset-mapping-manifest-v1";
   recipe: "candidate-market-v1";
@@ -38,6 +51,7 @@ export type RecommendedDatasetMappingManifest = Readonly<{
     identity: DatasetPackageIdentity;
     manifest: RecommendedMappingObjectReference;
   }>;
+  tradeTrend: RecommendedTradeTrendMappingDeclaration | null;
   productCatalog: Readonly<{
     identity: RecommendedProductCatalogIdentity;
     productSearchBuildId: string;
@@ -116,6 +130,7 @@ export function recommendedEconomyCatalogIdentity(input: {
 export function validateRecommendedDatasetMapping(input: {
   mapping: RecommendedDatasetMapping;
   datasetPackage: CandidateMarketDatasetPackage;
+  tradeTrendDatasetPackage: TradeTrendDatasetPackage | null;
   productCatalog: Readonly<{
     productSearchBuildId: string;
     schemaVersion: "product-catalog-artifact-v1";
@@ -192,6 +207,45 @@ export function validateRecommendedDatasetMapping(input: {
   ) {
     throw new TypeError(
       "Recommended Dataset Mapping package reference is incompatible.",
+    );
+  }
+
+  // Trade Trend has no separately published Dataset Package object: this
+  // mapping either declares trade-trend-v1 (manifest.tradeTrend non-null)
+  // with a compatible package derived from the SAME already-pinned
+  // economyCatalog artifact bytes, or it declares nothing at all. A caller
+  // cannot smuggle an unvalidated Trade Trend package past a legacy or
+  // Candidate-Market-only mapping, and a mapping cannot claim Trade Trend
+  // support without a compatible package to prove it.
+  if (manifest.tradeTrend === null) {
+    if (input.tradeTrendDatasetPackage !== null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping does not declare trade-trend-v1.",
+      );
+    }
+    return;
+  }
+  if (input.tradeTrendDatasetPackage === null) {
+    throw new TypeError(
+      "Recommended Dataset Mapping declares trade-trend-v1 without a package.",
+    );
+  }
+  if (
+    manifest.tradeTrend.evidenceSha256 !==
+      input.tradeTrendDatasetPackage.manifest.evidenceSha256 ||
+    manifest.tradeTrend.evidenceSha256 !==
+      manifest.economyCatalog.artifact.sha256
+  ) {
+    throw new TypeError(
+      "Recommended Dataset Mapping Trade Trend evidence is incompatible.",
+    );
+  }
+  const tradeTrendCompatibility = evaluateTradeTrendV1DatasetPackage(
+    input.tradeTrendDatasetPackage,
+  );
+  if (!tradeTrendCompatibility.compatible) {
+    throw new TypeError(
+      `Recommended Dataset Mapping Trade Trend package is incompatible: ${tradeTrendCompatibility.reason}.`,
     );
   }
 }
@@ -288,6 +342,9 @@ function parseRecommendedDatasetMappingManifest(
       "Recommended Dataset Mapping package identity is malformed.",
     );
   }
+  const tradeTrend = parseTradeTrendMappingDeclaration(
+    mapping.tradeTrend,
+  );
 
   return {
     schemaVersion: "recommended-dataset-mapping-manifest-v1",
@@ -299,6 +356,7 @@ function parseRecommendedDatasetMappingManifest(
         "Dataset Package manifest",
       ),
     },
+    tradeTrend,
     productCatalog: {
       identity: productIdentity,
       ...parsedProductCatalog,
@@ -307,6 +365,32 @@ function parseRecommendedDatasetMappingManifest(
       identity: economyIdentity,
       ...parsedEconomyCatalog,
     },
+  };
+}
+
+function parseTradeTrendMappingDeclaration(
+  value: unknown,
+): RecommendedTradeTrendMappingDeclaration | null {
+  // Absent/null is the legacy and Candidate-Market-only shape: this mapping
+  // does not declare or gate trade-trend-v1 at all.
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const declaration = object(
+    value,
+    "Recommended Dataset Mapping Trade Trend declaration",
+  );
+  if (declaration.recipe !== "trade-trend-v1") {
+    throw new TypeError(
+      "Recommended Dataset Mapping Trade Trend declaration recipe is incompatible.",
+    );
+  }
+  return {
+    recipe: "trade-trend-v1",
+    evidenceSha256: sha256(
+      declaration.evidenceSha256,
+      "Trade Trend declaration evidence SHA-256",
+    ),
   };
 }
 

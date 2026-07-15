@@ -9,8 +9,13 @@ import {
   unknownProduct,
 } from "../domain/candidate-market/errors";
 import type { CandidateMarketV1RecipeInput } from "../domain/candidate-market/result";
-import { unavailableTradeTrendAnalysisBuild } from "../domain/trade-trend/errors";
+import {
+  retiredTradeTrendAnalysisBuild,
+  unknownImporter,
+  unknownTradeTrendProduct,
+} from "../domain/trade-trend/errors";
 import type {
+  TradeTrendObservation,
   TradeTrendV1Inputs,
   TradeTrendV1RecipeInput,
 } from "../domain/trade-trend/result";
@@ -125,8 +130,155 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
 
   async loadTradeTrendV1Inputs(
     query: TradeTrendV1RecipeInput,
+    options?: TradeEvidenceLoadOptions,
   ): Promise<TradeTrendV1Inputs> {
-    throw unavailableTradeTrendAnalysisBuild(query.analysisBuildId);
+    if (this.closed) {
+      throw new Error("The DuckDB evidence source is closed.");
+    }
+
+    if (query.analysisBuildId !== this.analysisBuildId) {
+      throw retiredTradeTrendAnalysisBuild(query.analysisBuildId);
+    }
+    return this.database.withConnection(
+      options?.signal,
+      (connection) =>
+        this.loadTradeTrendWithConnection(connection, query, options?.signal),
+    );
+  }
+
+  private async loadTradeTrendWithConnection(
+    connection: DuckDBConnection,
+    query: TradeTrendV1RecipeInput,
+    signal: AbortSignal | undefined,
+  ): Promise<TradeTrendV1Inputs> {
+    signal?.throwIfAborted();
+    const importerCode = Number(query.importerCode);
+    const importer = await queryOptional(connection, `
+      SELECT
+        code,
+        display_name,
+        iso3,
+        identity_note
+      FROM ${this.tablePrefix}economy
+      WHERE code = $importer_code
+        AND kind = 'ECONOMY'
+    `, { importer_code: importerCode });
+    if (importer === undefined) {
+      throw unknownImporter(query.importerCode);
+    }
+
+    signal?.throwIfAborted();
+    const product = await queryOptional(connection, `
+      SELECT
+        product_id,
+        hs12_code,
+        source_description
+      FROM ${this.tablePrefix}product
+      WHERE hs12_code = $product_code
+    `, { product_code: query.productCode });
+    if (product === undefined) {
+      throw unknownTradeTrendProduct(query.productCode);
+    }
+    const productId = requireNumber(product.product_id, "product_id");
+
+    const provisionalYear = requireSingleProvisionalYear(this.manifest);
+    const windowStart = this.manifest.finalizedCutoffYear - 4;
+
+    signal?.throwIfAborted();
+    // Observation availability for this importer-year is established from
+    // market_year activity for ANY product, not only the requested one.
+    // BACI is compiled per reporting-country-year: a country that recorded
+    // market_year activity for other products this year did submit
+    // customs data for the year, so an absent row for THIS product is a
+    // genuine recorded zero (NO_RECORDED_POSITIVE_FLOW). A year with zero
+    // market_year rows for every product means the importer's data was
+    // never observed for that year at all (MISSING_OBSERVATION) -- there is
+    // no separate country-year reporting-coverage table, so cross-product
+    // market_year activity is the coverage signal artifact-wide. This must
+    // stay in sync with the exact same distinction asserted by the fixture
+    // evidence in fixtures/trade-trend/v1/evidence.ts.
+    const activityRows = await queryRows(connection, `
+      SELECT
+        market.year AS year,
+        MAX(
+          CASE WHEN market.product_id = $product_id
+            THEN market.world_value_kusd
+          END
+        ) AS product_value_kusd
+      FROM ${this.tablePrefix}market_year AS market
+      WHERE market.importer_code = $importer_code
+        AND (
+          market.year BETWEEN $window_start AND $finalized_cutoff_year
+          OR market.year = $provisional_year
+        )
+      GROUP BY market.year
+    `, {
+      importer_code: importerCode,
+      product_id: productId,
+      window_start: windowStart,
+      finalized_cutoff_year: this.manifest.finalizedCutoffYear,
+      provisional_year: provisionalYear,
+    });
+    const activityByYear = new Map(
+      activityRows.map((row) => [
+        requireNumber(row.year, "trade trend activity year"),
+        requireNullableString(
+          row.product_value_kusd,
+          "trade trend product value",
+        ),
+      ]),
+    );
+
+    const finalizedObservations = Array.from(
+      { length: 5 },
+      (_, index) =>
+        tradeTrendObservation(windowStart + index, activityByYear),
+    );
+    const provisionalObservation = tradeTrendObservation(
+      provisionalYear,
+      activityByYear,
+    );
+
+    return {
+      analysisBuildId: this.analysisBuildId,
+      analysisReleaseCatalogSha256: this.analysisReleaseCatalogSha256,
+      artifact: {
+        baciRelease: this.manifest.baciRelease,
+        buildId: this.manifest.artifact.buildId,
+        schemaVersion: this.manifest.artifact.schemaVersion,
+        sha256: this.manifest.artifact.sha256,
+      },
+      release: {
+        baciRelease: this.manifest.baciRelease,
+        sourceUpdateDate: this.manifest.sourceUpdateDate,
+        hsRevision: this.manifest.hsRevision,
+        ingestedYears: {
+          start: Math.min(...this.manifest.ingestedYears),
+          end: Math.max(...this.manifest.ingestedYears),
+        },
+        finalizedCutoffYear: this.manifest.finalizedCutoffYear,
+        provisionalYear,
+      },
+      importer: {
+        code: String(requireNumber(importer.code, "importer code")),
+        name: requireString(importer.display_name, "importer display_name"),
+        iso3: requireNullableString(importer.iso3, "importer iso3"),
+        identityNote: requireNullableString(
+          importer.identity_note,
+          "importer identity_note",
+        ),
+      },
+      product: {
+        hsRevision: this.manifest.hsRevision,
+        code: requireString(product.hs12_code, "product hs12_code"),
+        descriptionEn: requireString(
+          product.source_description,
+          "product source_description",
+        ),
+      },
+      finalizedObservations,
+      provisionalObservation,
+    };
   }
 
   private async loadWithConnection(
@@ -334,6 +486,42 @@ function toMarketYearEvidence(
       "quantity-present count",
     ),
   };
+}
+
+// Distinguishes MISSING_OBSERVATION (the importer has no market_year row for
+// any product this year: this importer-year was never observed at all) from
+// NO_RECORDED_POSITIVE_FLOW (the importer has market_year rows for other
+// products this year, so it was observed, but recorded none of this exact
+// product). See the query comment in loadTradeTrendWithConnection for the
+// full domain rationale.
+function tradeTrendObservation(
+  year: number,
+  activityByYear: ReadonlyMap<number, string | null>,
+): TradeTrendObservation {
+  if (!activityByYear.has(year)) {
+    return { year, state: "MISSING_OBSERVATION" };
+  }
+  const valueKusd = activityByYear.get(year) ?? null;
+  if (valueKusd === null) {
+    return { year, state: "NO_RECORDED_POSITIVE_FLOW" };
+  }
+  return {
+    year,
+    state: "RECORDED_POSITIVE",
+    valueCurrentUsd: kusdToCurrentUsd(valueKusd),
+  };
+}
+
+function kusdToCurrentUsd(valueKusd: string): string {
+  const match = /^(\d+)\.(\d{3})$/u.exec(valueKusd);
+  if (match === null) {
+    throw new Error("Market-year world value must have three decimals.");
+  }
+  const usd = BigInt(`${match[1]}${match[2]}`).toString();
+  if (usd === "0") {
+    throw new Error("A recorded Trade Trend value must be positive.");
+  }
+  return usd;
 }
 
 async function queryRows(

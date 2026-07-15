@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ProductSearchProduct } from "../catalog/product-catalog";
-import type { TradeTrendResult } from "../domain/trade-trend/result";
+import type { TradeTrendV1Payload } from "../domain/trade-analytics/trade-trend-v1-adapter";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EconomyRecord } from "../economy/economy-directory";
 import { AnalysisShareLink } from "./analysis-share-link";
@@ -11,6 +11,7 @@ import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
+import { TradeTrendExportAction } from "./trade-trend-export-action";
 
 const copy = {
   en: {
@@ -129,7 +130,7 @@ export function TradeTrendWorkspace({
   const restorePending = useRef(true);
   const [importer, setImporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
-  const [result, setResult] = useState<TradeTrendResult | null>(null);
+  const [result, setResult] = useState<TradeTrendV1Payload | null>(null);
   const [status, setStatus] = useState<TradeTrendStatus>("idle");
   const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(
     null,
@@ -220,7 +221,7 @@ export function TradeTrendWorkspace({
         );
         return;
       }
-      const trend = (await response.json()) as TradeTrendResult;
+      const trend = (await response.json()) as TradeTrendV1Payload;
       if (
         trend.analysisBuildId !== manifest.analysisBuildId ||
         trend.provenance.baciRelease !== manifest.source.baciRelease ||
@@ -348,6 +349,11 @@ export function TradeTrendWorkspace({
 
       {status === "success" && result !== null ? (
         <>
+          <TradeTrendExportAction
+            result={result}
+            locale={locale}
+            onManifestRevalidated={setManifest}
+          />
           <AnalysisShareLink locale={locale} task="trade-trend" />
           <TradeTrendEvidence result={result} locale={locale} />
         </>
@@ -378,7 +384,7 @@ function TradeTrendEvidence({
   result,
   locale,
 }: {
-  result: TradeTrendResult;
+  result: TradeTrendV1Payload;
   locale: WorkspaceLocale;
 }) {
   const messages = copy[locale];
@@ -471,7 +477,7 @@ function TrendFact({ label, value }: { label: string; value: string }) {
 }
 
 function observationText(
-  observation: TradeTrendResult["finalizedObservations"][number],
+  observation: TradeTrendV1Payload["finalizedObservations"][number],
   locale: WorkspaceLocale,
 ): string {
   const messages = copy[locale];

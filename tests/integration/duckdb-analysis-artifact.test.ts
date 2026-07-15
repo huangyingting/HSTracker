@@ -16,9 +16,13 @@ import { promisify } from "node:util";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import {
+  createCandidateMarketV1TradeAnalyticsPlatform,
+  createTradeAnalyticsPlatform,
+} from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
 } from "../../src/evidence/analysis-artifact-manifest";
 import { DuckDbTradeEvidenceSource } from "../../src/evidence/duckdb-trade-evidence-source";
@@ -26,6 +30,7 @@ import type {
   CmsV1Inputs,
   TradeEvidenceSource,
 } from "../../src/evidence/trade-evidence-source";
+import type { TradeTrendV1Inputs } from "../../src/domain/trade-trend/result";
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
@@ -114,6 +119,44 @@ describe("immutable DuckDB analysis artifact CLI", () => {
           selectionAlgorithm: "complete-bilateral-row-count-v1",
         },
       ],
+      tradeTrendBenchmarkQueries: [
+        {
+          role: "sparse",
+          productCode: "010121",
+          importerCode: "276",
+          windowRowCount: 2,
+          pairRowCount: 2,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "market-year-importer-row-count-v1",
+        },
+        {
+          role: "median",
+          productCode: "010121",
+          importerCode: "276",
+          windowRowCount: 2,
+          pairRowCount: 2,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "market-year-importer-row-count-v1",
+        },
+        {
+          role: "upper-quartile",
+          productCode: "010121",
+          importerCode: "276",
+          windowRowCount: 2,
+          pairRowCount: 2,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "market-year-importer-row-count-v1",
+        },
+        {
+          role: "maximum-row",
+          productCode: "851712",
+          importerCode: "842",
+          windowRowCount: 7,
+          pairRowCount: 6,
+          resultBytes: expect.any(Number),
+          selectionAlgorithm: "market-year-importer-row-count-v1",
+        },
+      ],
     });
     expect(report).toMatchObject({
       schemaVersion: "candidate-market-artifact-build-report-v1",
@@ -167,6 +210,9 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       },
     ]);
     expect(report.benchmarkQueries).toEqual(manifest.benchmarkQueries);
+    expect(report.tradeTrendBenchmarkQueries).toEqual(
+      manifest.tradeTrendBenchmarkQueries,
+    );
     expect(report.artifactManifest).toEqual(manifest);
     expect(report.artifactManifestSha256).toBe(
       createHash("sha256").update(manifestBytes).digest("hex"),
@@ -488,6 +534,204 @@ describe("immutable DuckDB analysis artifact CLI", () => {
       source.close();
     }
   }, 20_000);
+
+  it("matches fixture evidence and public results through the production Trade Trend adapter", async () => {
+    const root = await temporaryWorkspace();
+    const staging = await stageSafeFixture(join(root, "staging-work"));
+    const outcome = await runArtifactCli({
+      stagingManifestPath: staging.stagingManifestPath,
+      workspace: join(root, "artifact-work"),
+      reportPath: join(root, "artifact-report.json"),
+    });
+    const manifestJson = JSON.parse(
+      await readFile(outcome.artifactManifestPath, "utf8"),
+    );
+    const query = {
+      analysisBuildId: "safe-analysis-build",
+      importerCode: "842",
+      productCode: "851712",
+    };
+    const expected: TradeTrendV1Inputs = {
+      analysisBuildId: query.analysisBuildId,
+      analysisReleaseCatalogSha256: "a".repeat(64),
+      artifact: {
+        baciRelease: "VTEST001",
+        buildId: manifestJson.artifact.buildId,
+        schemaVersion: "candidate-market-artifact-v1",
+        sha256: manifestJson.artifact.sha256,
+      },
+      release: {
+        baciRelease: "VTEST001",
+        sourceUpdateDate: "2026-01-22",
+        hsRevision: "HS12",
+        ingestedYears: { start: 2014, end: 2024 },
+        finalizedCutoffYear: 2023,
+        provisionalYear: 2024,
+      },
+      importer: {
+        code: "842",
+        name: "United States of America",
+        iso3: "USA",
+        identityNote: null,
+      },
+      product: {
+        hsRevision: "HS12",
+        code: "851712",
+        descriptionEn:
+          "Telephones for cellular networks or for other wireless networks",
+      },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "10125" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "10125" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "10125" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "10125" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "3000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "4500",
+      },
+    };
+    const source = await DuckDbTradeEvidenceSource.open({
+      artifactPath: outcome.artifactPath,
+      artifactManifestPath: outcome.artifactManifestPath,
+      analysisBuildId: query.analysisBuildId,
+      analysisReleaseCatalogSha256: expected.analysisReleaseCatalogSha256,
+    });
+    try {
+      await expect(
+        source.loadTradeTrendV1Inputs!(query),
+      ).resolves.toEqual(expected);
+      await expect(
+        source.loadTradeTrendV1Inputs!({
+          ...query,
+          analysisBuildId: "retired-build",
+        }),
+      ).rejects.toMatchObject({ code: "ANALYSIS_BUILD_RETIRED" });
+      await expect(
+        source.loadTradeTrendV1Inputs!({ ...query, importerCode: "999" }),
+      ).rejects.toMatchObject({ code: "UNKNOWN_IMPORTER" });
+      await expect(
+        source.loadTradeTrendV1Inputs!({
+          ...query,
+          productCode: "999999",
+        }),
+      ).rejects.toMatchObject({ code: "UNKNOWN_PRODUCT" });
+
+      // A sparse pairing exercises MISSING_OBSERVATION and
+      // NO_RECORDED_POSITIVE_FLOW alongside RECORDED_POSITIVE, from the
+      // same production evidence.
+      const sparse = await source.loadTradeTrendV1Inputs!({
+        ...query,
+        importerCode: "276",
+        productCode: "010121",
+      });
+      expect(sparse.finalizedObservations).toEqual([
+        { year: 2019, state: "MISSING_OBSERVATION" },
+        { year: 2020, state: "MISSING_OBSERVATION" },
+        { year: 2021, state: "MISSING_OBSERVATION" },
+        { year: 2022, state: "MISSING_OBSERVATION" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "10125" },
+      ]);
+      const noFlow = await source.loadTradeTrendV1Inputs!({
+        ...query,
+        importerCode: "842",
+        productCode: "010121",
+      });
+      expect(noFlow.finalizedObservations[0]).toEqual({
+        year: 2019,
+        state: "NO_RECORDED_POSITIVE_FLOW",
+      });
+
+      const fixtureSource: TradeEvidenceSource = {
+        async loadCmsV1Inputs() {
+          throw new Error("not used");
+        },
+        async loadTradeTrendV1Inputs() {
+          return expected;
+        },
+      };
+      const manifest = await readAnalysisArtifactManifest(
+        outcome.artifactManifestPath,
+      );
+      const tradeTrendDatasetPackage =
+        createTradeTrendDatasetPackageFromArtifacts(manifest);
+      const platform = (evidenceSource: TradeEvidenceSource) =>
+        createTradeAnalyticsPlatform({
+          tradeTrend: {
+            evidenceSource,
+            datasetPackages: new Map([
+              [query.analysisBuildId, tradeTrendDatasetPackage],
+            ]),
+          },
+        });
+      const request = {
+        recipe: "trade-trend-v1",
+        ...query,
+      } as const;
+      const [productionOutcome, fixtureOutcome] = await Promise.all([
+        platform(source).execute(request),
+        platform(fixtureSource).execute(request),
+      ]);
+
+      expect(productionOutcome).toEqual(fixtureOutcome);
+    } finally {
+      source.close();
+    }
+  }, 20_000);
+
+  it(
+    "resolves every sparse/median/upper-quartile/maximum-row Trade Trend package query",
+    async () => {
+      // This is a functional completeness check only. Wall-clock timing on
+      // a shared development machine is not a valid Machine-class
+      // performance gate (see docs/research/2026-07-11-mvp-performance-and-
+      // caching-targets.md: "Developer-laptop results are smoke evidence
+      // only"). Measured, accept/block latency gates for these same four
+      // package-query identities run through the existing
+      // src/promotion/performance-gates.ts pipeline against a deployed
+      // candidate on the intended Machine class (see
+      // tests/integration/performance-gates.test.ts).
+      const root = await temporaryWorkspace();
+      const staging = await stageSafeFixture(join(root, "staging-work"));
+      const outcome = await runArtifactCli({
+        stagingManifestPath: staging.stagingManifestPath,
+        workspace: join(root, "artifact-work"),
+        reportPath: join(root, "artifact-report.json"),
+      });
+      const manifest = await readAnalysisArtifactManifest(
+        outcome.artifactManifestPath,
+      );
+      expect(manifest.tradeTrendBenchmarkQueries).toHaveLength(4);
+      expect(
+        manifest.tradeTrendBenchmarkQueries.map(({ role }) => role).sort(),
+      ).toEqual(
+        ["maximum-row", "median", "sparse", "upper-quartile"].sort(),
+      );
+
+      const source = await DuckDbTradeEvidenceSource.open({
+        artifactPath: outcome.artifactPath,
+        artifactManifestPath: outcome.artifactManifestPath,
+        analysisBuildId: "safe-analysis-build",
+        analysisReleaseCatalogSha256: "a".repeat(64),
+      });
+      try {
+        for (const benchmark of manifest.tradeTrendBenchmarkQueries) {
+          const inputs = await source.loadTradeTrendV1Inputs!({
+            analysisBuildId: "safe-analysis-build",
+            importerCode: benchmark.importerCode,
+            productCode: benchmark.productCode,
+          });
+
+          expect(inputs.finalizedObservations, `${benchmark.role} query`).toHaveLength(5);
+        }
+      } finally {
+        source.close();
+      }
+    },
+    20_000,
+  );
 
   it("fails closed before publishing from changed accepted staging", async () => {
     const root = await temporaryWorkspace();

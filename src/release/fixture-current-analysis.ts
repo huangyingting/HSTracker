@@ -171,6 +171,7 @@ export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
     economyCatalogIdentity:
       FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest
         .economyCatalog.identity,
+    tradeTrend: null,
   },
   source: {
     ...ACCEPTANCE_FIXTURE_RELEASE,

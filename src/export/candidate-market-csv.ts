@@ -14,6 +14,11 @@ import {
   type CandidateMarketCsvIdentity,
 } from "./candidate-market-csv-contract";
 import { assertCandidateMarketExportContext } from "./candidate-market-export-context";
+import {
+  encodeCsvRecord,
+  productTranslationStatus,
+  protectHumanText,
+} from "./csv-grammar";
 
 export { CANDIDATE_MARKETS_CSV_SCHEMA_VERSION };
 
@@ -297,7 +302,9 @@ function createCommonRow(
       product.translationStatus === "fallback-english"
         ? product.sourceDescriptionEn
         : product.auxiliaryDescriptionZhHans,
-    product_translation_status: translationStatus(product.translationStatus),
+    product_translation_status: productTranslationStatus(
+      product.translationStatus,
+    ),
     product_translation_attribution: PRODUCT_TRANSLATION_ATTRIBUTION,
     cohort_size: String(result.cohortSize),
     finalized_cutoff_year: String(result.provenance.finalizedCutoffYear),
@@ -505,49 +512,6 @@ function encodeRow(row: CandidateMarketsCsvRow): string {
   );
 }
 
-function protectHumanText(
-  value: string,
-  column: CandidateMarketsCsvColumn,
-  escapedColumns: Set<CandidateMarketsCsvColumn>,
-): string {
-  let inspectedIndex = 0;
-  while (
-    inspectedIndex < value.length &&
-    value[inspectedIndex] !== "\t" &&
-    value[inspectedIndex] !== "\r" &&
-    value[inspectedIndex] !== "\n" &&
-    /\p{White_Space}/u.test(value[inspectedIndex]!)
-  ) {
-    inspectedIndex += 1;
-  }
-  const trigger = value[inspectedIndex];
-
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    const allowedLeadingTrigger =
-      index === inspectedIndex &&
-      (value[index] === "\t" ||
-        value[index] === "\r" ||
-        value[index] === "\n");
-    if (code === 0x7f || (code < 0x20 && !allowedLeadingTrigger)) {
-      throw new TypeError(
-        `CSV human-text column ${column} contains a forbidden control character.`,
-      );
-    }
-  }
-
-  if (
-    trigger !== undefined &&
-    ["=", "+", "-", "@", "\t", "\r", "\n", "＝", "＋", "－", "＠"].includes(
-      trigger,
-    )
-  ) {
-    escapedColumns.add(column);
-    return `'${value}`;
-  }
-  return value;
-}
-
 function validateMachineCell(
   value: string,
   column: CandidateMarketsCsvColumn,
@@ -593,10 +557,6 @@ function validateMachineCell(
   return value;
 }
 
-function encodeCsvRecord(values: readonly string[]): string {
-  return values.map((value) => `"${value.replaceAll('"', '""')}"`).join(",");
-}
-
 function joinList(values: readonly (number | string)[]): string {
   return values.join("|");
 }
@@ -611,14 +571,6 @@ function formatCurrentUsd(value: string): string {
   return rounded.toString();
 }
 
-function translationStatus(
-  status: CandidateMarketCsvInput["product"]["translationStatus"],
-): "FALLBACK_ENGLISH" | "MACHINE_ASSISTED" | "REVIEWED" {
-  if (status === "fallback-english") {
-    return "FALLBACK_ENGLISH";
-  }
-  return status === "machine-assisted" ? "MACHINE_ASSISTED" : "REVIEWED";
-}
 
 function caveatText(code: CaveatCode): string {
   const text: Record<CaveatCode, string> = {

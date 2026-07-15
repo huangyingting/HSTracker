@@ -19,9 +19,11 @@ import {
 } from "@duckdb/node-api";
 
 import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
-import { createCandidateMarketV1TradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import { TRADE_TREND_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
+import { createTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
 } from "../../src/evidence/analysis-artifact-manifest";
 import { DuckDbTradeEvidenceSource } from "../../src/evidence/duckdb-trade-evidence-source";
@@ -132,6 +134,16 @@ type BenchmarkQuery = {
   candidateCount: number;
   resultBytes: number;
   selectionAlgorithm: "complete-bilateral-row-count-v1";
+};
+
+type TradeTrendBenchmarkQuery = {
+  role: BenchmarkRole;
+  productCode: string;
+  importerCode: string;
+  windowRowCount: number;
+  pairRowCount: number;
+  resultBytes: number;
+  selectionAlgorithm: "market-year-importer-row-count-v1";
 };
 
 type MaximumRowSmokeResult = {
@@ -306,6 +318,7 @@ export async function buildAnalysisArtifact(
     coverageApprovalSha256: stagingManifest.coverageApprovalSha256,
     sourceReportSha256: sha256(sourceReportBytes),
     datasetPackage: CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+    tradeTrendDatasetPackage: TRADE_TREND_V1_DATASET_DECLARATION,
     pipelineGitSha: options.pipelineGitSha,
     duckdbVersion,
     artifact: {
@@ -325,21 +338,27 @@ export async function buildAnalysisArtifact(
   );
   let benchmarkQueries: BenchmarkQuery[];
   let maximumRowSmokeResult: MaximumRowSmokeResult;
+  let tradeTrendBenchmarkQueries: TradeTrendBenchmarkQuery[];
   const benchmarkStarted = performance.now();
   try {
     await rm(preliminaryManifestPath, { force: true });
     await writeFile(
       preliminaryManifestPath,
-      jsonBytes({ ...artifactManifestBase, benchmarkQueries: [] }),
+      jsonBytes({
+        ...artifactManifestBase,
+        benchmarkQueries: [],
+        tradeTrendBenchmarkQueries: [],
+      }),
       { flag: "wx" },
     );
-    ({ benchmarkQueries, maximumRowSmokeResult } =
+    ({ benchmarkQueries, maximumRowSmokeResult, tradeTrendBenchmarkQueries } =
       await selectBenchmarkQueries({
         artifactPath: partialArtifactPath,
         artifactManifestPath: preliminaryManifestPath,
         artifactBuildId,
         analysisReleaseCatalogSha256: sha256(stagingManifestBytes),
         scoreWindow: stagingManifest.scoreWindow,
+        provisionalYear: stagingManifest.provisionalYears[0]!,
       }));
   } catch (error) {
     await rm(partialArtifactPath, { force: true });
@@ -357,6 +376,7 @@ export async function buildAnalysisArtifact(
   const artifactManifest = {
     ...artifactManifestBase,
     benchmarkQueries,
+    tradeTrendBenchmarkQueries,
   };
   const artifactManifestBytes = jsonBytes(artifactManifest);
   const report = {
@@ -379,6 +399,7 @@ export async function buildAnalysisArtifact(
     },
     benchmarkQueries,
     maximumRowSmokeResult,
+    tradeTrendBenchmarkQueries,
     timingsMs: {
       ...timings,
       total: elapsedMilliseconds(buildStarted),
@@ -832,15 +853,18 @@ async function selectBenchmarkQueries({
   artifactBuildId,
   analysisReleaseCatalogSha256,
   scoreWindow,
+  provisionalYear,
 }: {
   artifactPath: string;
   artifactManifestPath: string;
   artifactBuildId: string;
   analysisReleaseCatalogSha256: string;
   scoreWindow: { start: number; end: number };
+  provisionalYear: number;
 }): Promise<{
   benchmarkQueries: BenchmarkQuery[];
   maximumRowSmokeResult: MaximumRowSmokeResult;
+  tradeTrendBenchmarkQueries: TradeTrendBenchmarkQuery[];
 }> {
   const instance = await DuckDBInstance.create(artifactPath, {
     access_mode: "READ_ONLY",
@@ -853,6 +877,13 @@ async function selectBenchmarkQueries({
     exporterCode: string;
     completeRowCount: number;
     primaryWindowRowCount: number;
+  }[];
+  let selectedTradeTrend: {
+    role: BenchmarkRole;
+    importerCode: string;
+    productCode: string;
+    windowRowCount: number;
+    pairRowCount: number;
   }[];
   try {
     const products = await queryRows(
@@ -938,6 +969,85 @@ async function selectBenchmarkQueries({
         ),
       });
     }
+
+    const importers = await queryRows(
+      connection,
+      `
+        SELECT
+          market.importer_code,
+          COUNT(*)::UBIGINT AS window_row_count
+        FROM market_year AS market
+        JOIN economy
+          ON economy.code = market.importer_code
+          AND economy.kind = 'ECONOMY'
+        WHERE market.year BETWEEN $window_start AND $window_end
+           OR market.year = $provisional_year
+        GROUP BY market.importer_code
+        ORDER BY window_row_count, market.importer_code
+      `,
+      {
+        window_start: scoreWindow.start,
+        window_end: scoreWindow.end,
+        provisional_year: provisionalYear,
+      },
+    );
+    if (importers.length === 0) {
+      throw new AnalysisArtifactBuildError(
+        "ARTIFACT_BUILD_FAILED",
+        "Artifact has no benchmarkable Trade Trend importers.",
+      );
+    }
+    const tradeTrendSelectors: readonly {
+      role: BenchmarkRole;
+      index: number;
+    }[] = [
+      { role: "sparse", index: 0 },
+      { role: "median", index: Math.floor((importers.length - 1) / 2) },
+      {
+        role: "upper-quartile",
+        index: Math.floor(0.75 * (importers.length - 1)),
+      },
+      { role: "maximum-row", index: importers.length - 1 },
+    ];
+    selectedTradeTrend = [];
+    for (const selector of tradeTrendSelectors) {
+      const importer = importers[selector.index]!;
+      const importerCode = String(
+        requireQueryCount(importer, "importer_code"),
+      );
+      const pair = await queryOne(
+        connection,
+        `
+          SELECT
+            product.hs12_code,
+            COUNT(*)::UBIGINT AS pair_row_count
+          FROM market_year AS market
+          JOIN product
+            ON product.product_id = market.product_id
+          WHERE market.importer_code = $importer_code
+            AND (
+              market.year BETWEEN $window_start AND $window_end
+              OR market.year = $provisional_year
+            )
+          GROUP BY product.hs12_code
+          ORDER BY pair_row_count DESC, product.hs12_code
+          LIMIT 1
+        `,
+        {
+          importer_code: requireQueryCount(importer, "importer_code"),
+          window_start: scoreWindow.start,
+          window_end: scoreWindow.end,
+          provisional_year: provisionalYear,
+        },
+      );
+      selectedTradeTrend.push({
+        role: selector.role,
+        importerCode,
+        productCode: requireQueryString(pair, "hs12_code"),
+        windowRowCount: requireQueryCount(importer, "window_row_count"),
+        pairRowCount: requireQueryCount(pair, "pair_row_count"),
+      });
+    }
   } finally {
     connection.closeSync();
     instance.closeSync();
@@ -957,6 +1067,7 @@ async function selectBenchmarkQueries({
       resultSha256: string;
     }
   >();
+  const tradeTrendResultFacts = new Map<string, { resultBytes: number }>();
   try {
     const manifest = await readAnalysisArtifactManifest(
       artifactManifestPath,
@@ -967,13 +1078,22 @@ async function selectBenchmarkQueries({
         analysisReleaseCatalogSha256,
         previousManifest: null,
       });
-    const tradeAnalytics =
-      createCandidateMarketV1TradeAnalyticsPlatform({
+    const tradeTrendDatasetPackage =
+      createTradeTrendDatasetPackageFromArtifacts(manifest);
+    const tradeAnalytics = createTradeAnalyticsPlatform({
+      candidateMarket: {
         evidenceSource,
         datasetPackages: new Map([
           [artifactBuildId, datasetPackage],
         ]),
-      });
+      },
+      tradeTrend: {
+        evidenceSource,
+        datasetPackages: new Map([
+          [artifactBuildId, tradeTrendDatasetPackage],
+        ]),
+      },
+    });
     for (const benchmark of selected) {
       const key = `${benchmark.exporterCode}:${benchmark.productCode}`;
       if (resultFacts.has(key)) {
@@ -1003,6 +1123,35 @@ async function selectBenchmarkQueries({
         resultSha256: sha256(resultBytes),
       });
     }
+    for (const benchmark of selectedTradeTrend) {
+      const key = `${benchmark.importerCode}:${benchmark.productCode}`;
+      if (tradeTrendResultFacts.has(key)) {
+        continue;
+      }
+      const outcome = await tradeAnalytics.execute({
+        recipe: "trade-trend-v1",
+        analysisBuildId: artifactBuildId,
+        importerCode: benchmark.importerCode,
+        productCode: benchmark.productCode,
+      });
+      if (outcome.state !== "success") {
+        if (outcome.state === "empty") {
+          throw new AnalysisArtifactBuildError(
+            "ARTIFACT_BUILD_FAILED",
+            "Trade Trend benchmark analysis produced an impossible empty outcome.",
+          );
+        }
+        throw new AnalysisArtifactBuildError(
+          "ARTIFACT_BUILD_FAILED",
+          `Artifact Trade Trend benchmark analysis failed: ${outcome.state} (${outcome.error.code}).`,
+        );
+      }
+      const resultBytes = Buffer.from(
+        JSON.stringify(outcome.payload),
+        "utf8",
+      );
+      tradeTrendResultFacts.set(key, { resultBytes: resultBytes.length });
+    }
   } finally {
     evidenceSource.close();
   }
@@ -1028,6 +1177,28 @@ async function selectBenchmarkQueries({
       selectionAlgorithm: "complete-bilateral-row-count-v1",
     };
   });
+  const tradeTrendBenchmarkQueries = selectedTradeTrend.map(
+    (benchmark): TradeTrendBenchmarkQuery => {
+      const facts = tradeTrendResultFacts.get(
+        `${benchmark.importerCode}:${benchmark.productCode}`,
+      );
+      if (facts === undefined) {
+        throw new AnalysisArtifactBuildError(
+          "ARTIFACT_BUILD_FAILED",
+          "A selected Trade Trend benchmark query has no smoke result.",
+        );
+      }
+      return {
+        role: benchmark.role,
+        productCode: benchmark.productCode,
+        importerCode: benchmark.importerCode,
+        windowRowCount: benchmark.windowRowCount,
+        pairRowCount: benchmark.pairRowCount,
+        resultBytes: facts.resultBytes,
+        selectionAlgorithm: "market-year-importer-row-count-v1",
+      };
+    },
+  );
   const maximum = benchmarkQueries.find(
     ({ role }) => role === "maximum-row",
   )!;
@@ -1044,6 +1215,7 @@ async function selectBenchmarkQueries({
       resultBytes: maximum.resultBytes,
       resultSha256: maximumFacts.resultSha256,
     },
+    tradeTrendBenchmarkQueries,
   };
 }
 

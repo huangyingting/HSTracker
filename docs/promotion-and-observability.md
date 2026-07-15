@@ -47,21 +47,27 @@ analyze-to-complete-list duration must meet p75 <= 2.5 seconds and p95 <= 4
 seconds.
 
 Each uncached origin benchmark entry supplies 105 never-reused semantic
-requests: five warmups followed by 100 timed samples. Candidate-analysis and
-CSV uncached samples may not share analysis semantic keys. Cache-hit entries
-reuse their one declared request after five warmups. The origin report verifies
-the deployment-owned `X-HS-Tracker-Cache-State` header: every uncached request
-must report `miss`, and cache-hit warmups after the first request plus every
-timed cache-hit sample must report `hit`.
-The 35 route/role cases cover all four artifact-attested representative roles
-for each product operation, plus the three singleton routes.
+requests: five warmups followed by 100 timed samples. Uncached Candidate-
+analysis, Trade Trend, and CSV samples may not share analysis semantic keys.
+Cache-hit entries reuse their one declared request after five warmups. The
+origin report verifies the deployment-owned `X-HS-Tracker-Cache-State`
+header: every uncached request must report `miss`, and cache-hit warmups
+after the first request plus every timed cache-hit sample must report `hit`.
+The 51 route/role cases cover all four artifact-attested representative
+roles for each product operation -- including Trade Trend's own analysis
+and CSV operations, measured and gated the same way as Candidate Market's --
+plus the three singleton routes.
 
 Every executed Candidate-analysis and CSV sample retains the artifact-attested
 exporter/product pair for its role. Uncached samples vary only the
 `X-HS-Tracker-Cache-Partition` value, which must equal the sample's unique
 semantic key; the bounded runtime includes that partition in its process-cache
 key without changing the query sent to DuckDB. This provides real misses
-without substituting an easier, caller-selected product.
+without substituting an easier, caller-selected product. Trade Trend's own
+operations are measured and accepted/blocked by the same origin gate and
+thresholds; binding their samples to the artifact-attested importer/product
+pair the way Candidate Market's are is tracked for #48, alongside the actual
+provider execution against a deployed candidate.
 
 The candidate load plan is exact:
 

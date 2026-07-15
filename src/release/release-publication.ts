@@ -14,7 +14,12 @@ import {
   type RecommendedDatasetMapping,
 } from "../domain/trade-analytics/recommended-dataset-mapping";
 import {
+  evaluateTradeTrendV1DatasetPackage,
+  type TradeTrendDatasetPackage,
+} from "../domain/trade-analytics/trade-trend-v1-dataset-package";
+import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createTradeTrendDatasetPackageFromArtifacts,
   parseAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
@@ -413,6 +418,7 @@ export class ReleasePublisher {
   ): Promise<{
     package: CandidateMarketDatasetPackage;
     reference: ReleaseObjectReference;
+    tradeTrendPackage: TradeTrendDatasetPackage | null;
   }> {
     const previousManifest =
       previousArtifact === null
@@ -434,6 +440,7 @@ export class ReleasePublisher {
   }): Promise<{
     package: CandidateMarketDatasetPackage;
     reference: ReleaseObjectReference;
+    tradeTrendPackage: TradeTrendDatasetPackage | null;
   }> {
     const datasetPackage =
       createCandidateMarketDatasetPackageFromArtifacts(input);
@@ -449,7 +456,19 @@ export class ReleasePublisher {
       `dataset-packages/${datasetPackage.identity}.json`,
       Buffer.from(datasetPackage.serializedManifest, "utf8"),
     );
-    return { package: datasetPackage, reference };
+    // Trade Trend has no separately published Dataset Package object: its
+    // capabilities are declared inside this same analysis artifact manifest
+    // (input.manifest.tradeTrendDatasetPackage), so the mapping created from
+    // this package below only declares trade-trend-v1 when that declaration
+    // is genuinely compatible -- never synthesized after the fact.
+    const tradeTrendCandidate =
+      createTradeTrendDatasetPackageFromArtifacts(input.manifest);
+    const tradeTrendPackage = evaluateTradeTrendV1DatasetPackage(
+      tradeTrendCandidate,
+    ).compatible
+      ? tradeTrendCandidate
+      : null;
+    return { package: datasetPackage, reference, tradeTrendPackage };
   }
 
   private async createAndPublishRollbackMapping(
@@ -523,6 +542,7 @@ export class ReleasePublisher {
     datasetPackage: {
       package: CandidateMarketDatasetPackage;
       reference: ReleaseObjectReference;
+      tradeTrendPackage: TradeTrendDatasetPackage | null;
     };
     analysisBuildId: string;
     artifact: AnalysisArtifactReference;
@@ -541,6 +561,7 @@ export class ReleasePublisher {
       artifact: input.artifact.artifact,
       manifest: input.artifact.manifest,
     };
+    const tradeTrendPackage = input.datasetPackage.tradeTrendPackage;
     const mapping: RecommendedDatasetMapping =
       createRecommendedDatasetMapping({
         schemaVersion:
@@ -550,6 +571,15 @@ export class ReleasePublisher {
           identity: input.datasetPackage.package.identity,
           manifest: input.datasetPackage.reference,
         },
+        tradeTrend:
+          tradeTrendPackage === null ||
+          tradeTrendPackage.manifest.evidenceSha256 !==
+            economyCatalog.artifact.sha256
+            ? null
+            : {
+                recipe: "trade-trend-v1",
+                evidenceSha256: tradeTrendPackage.manifest.evidenceSha256,
+              },
         productCatalog: {
           identity:
             recommendedProductCatalogIdentity(productCatalog),

@@ -11,15 +11,23 @@ import { AnalysisCapacityExceededError } from "../../runtime/analysis-capacity-e
 import { AnalysisRateLimitedError } from "../../runtime/analysis-rate-limit-error";
 import type {
   AnalysisExecutionOptions,
+  AnalysisIdentity,
+  DatasetPackageIdentity,
   TradeAnalyticsPlatform,
   TradeTrendV1AnalysisRequest,
 } from "./trade-analytics-platform";
+
+export type TradeTrendV1Payload = TradeTrendResult &
+  Readonly<{
+    analysisIdentity: AnalysisIdentity;
+    datasetPackageIdentity: DatasetPackageIdentity;
+  }>;
 
 export async function executeTradeTrendV1(
   platform: TradeAnalyticsPlatform,
   request: Omit<TradeTrendV1AnalysisRequest, "recipe">,
   options?: AnalysisExecutionOptions,
-): Promise<TradeTrendResult> {
+): Promise<TradeTrendV1Payload> {
   const outcome = await platform.execute(
     {
       recipe: "trade-trend-v1",
@@ -30,7 +38,11 @@ export async function executeTradeTrendV1(
 
   switch (outcome.state) {
     case "success":
-      return outcome.payload;
+      return {
+        ...outcome.payload,
+        analysisIdentity: outcome.analysisIdentity,
+        datasetPackageIdentity: outcome.datasetPackageIdentity,
+      };
     case "invalid-input":
       switch (outcome.error.code) {
         case "INVALID_ANALYSIS_QUERY":

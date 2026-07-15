@@ -41,6 +41,17 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "candidate-analysis-process-hit",
   "csv-uncached",
   "csv-analysis-hit",
+  // Trade Trend reuses the same origin p95/p99 measurement contract as
+  // Candidate Market analysis and CSV export (docs/research/2026-07-11-mvp-
+  // performance-and-caching-targets.md does not name a separate Trade Trend
+  // budget), so its sparse/median/upper-quartile/maximum-row package
+  // queries are measured and gated the same way rather than left
+  // unmeasured. Real HTTP execution against a deployed candidate remains
+  // for #48; this module only supplies the accept/block plumbing.
+  "trade-trend-analysis-uncached",
+  "trade-trend-analysis-process-hit",
+  "trade-trend-csv-uncached",
+  "trade-trend-csv-analysis-hit",
 ] as const;
 
 const SINGLETON_BENCHMARK_OPERATIONS = [
@@ -245,6 +256,32 @@ const ORIGIN_THRESHOLDS: Record<
     payloadLimitBytes: 5 * 1024 * KIB,
   },
   "csv-analysis-hit": {
+    p95LimitMs: 250,
+    p99LimitMs: 500,
+    routeDeadlineMs: 15_000,
+    payloadLimitBytes: 5 * 1024 * KIB,
+  },
+  "trade-trend-analysis-uncached": {
+    p95LimitMs: 2_000,
+    p99LimitMs: 4_000,
+    routeDeadlineMs: 12_000,
+    payloadLimitBytes: 1_536 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "trade-trend-analysis-process-hit": {
+    p95LimitMs: 100,
+    p99LimitMs: 250,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 1_536 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "trade-trend-csv-uncached": {
+    p95LimitMs: 3_000,
+    p99LimitMs: 6_000,
+    routeDeadlineMs: 15_000,
+    payloadLimitBytes: 5 * 1024 * KIB,
+  },
+  "trade-trend-csv-analysis-hit": {
     p95LimitMs: 250,
     p99LimitMs: 500,
     routeDeadlineMs: 15_000,

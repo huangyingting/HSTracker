@@ -65,7 +65,7 @@ The complete typed result of an Analysis Request, distinguishing successful evid
 _Avoid_: Untyped response, generic failure, partial result
 
 **Recommended Dataset Mapping**:
-An immutable published association between an Analysis Recipe version, one reviewed Dataset Package, and compatible discovery catalogs. A running deployment fixes one mapping rather than choosing evidence heuristically.
+An immutable published association between one or more compatible Analysis Recipe versions, their reviewed Dataset Package evidence, and compatible discovery catalogs. A running deployment fixes one mapping rather than choosing evidence heuristically, and it activates each declared recipe only after that recipe's own capability, checksum, schema, and smoke-query validation.
 _Avoid_: Latest-dataset lookup, runtime package selection, mutable recommendation
 
 **Trade Analysis Context**:

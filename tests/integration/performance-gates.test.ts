@@ -28,7 +28,7 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 35,
+          benchmarkCount: 51,
         },
         targetLoad: {
           status: "accepted",
@@ -169,6 +169,44 @@ describe("production performance gates", () => {
     );
   });
 
+  it("requires Trade Trend sparse/median/upper-quartile/maximum-row queries the same way as Candidate Market", () => {
+    const input = acceptedInput();
+    input.originBenchmarks = input.originBenchmarks.filter(
+      (benchmark) =>
+        !(
+          benchmark.operation === "trade-trend-analysis-uncached" &&
+          benchmark.productRole === "sparse"
+        ),
+    );
+
+    expect(() => evaluatePerformanceGates(input)).toThrowError(
+      new PerformanceGateInputError(
+        "Missing origin benchmark trade-trend-analysis-uncached:sparse.",
+      ),
+    );
+  });
+
+  it("blocks a Trade Trend origin benchmark that misses its accept/block threshold", () => {
+    const input = acceptedInput();
+    const benchmark = input.originBenchmarks.find(
+      (candidate) =>
+        candidate.operation === "trade-trend-analysis-uncached" &&
+        candidate.productRole === "maximum-row",
+    )!;
+    benchmark.p95Ms = 2_001;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.gates.origin.benchmarks.find(
+        (evaluated) =>
+          evaluated.operation === "trade-trend-analysis-uncached" &&
+          evaluated.productRole === "maximum-row",
+      ),
+    ).toMatchObject({ p95Ms: 2_001, status: "blocked" });
+  });
+
   it("blocks a benchmark whose declared cache class was not observed", () => {
     const input = acceptedInput();
     input.originBenchmarks[3].cacheStatesVerified = false;
@@ -298,6 +336,10 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "candidate-analysis-process-hit",
     "csv-uncached",
     "csv-analysis-hit",
+    "trade-trend-analysis-uncached",
+    "trade-trend-analysis-process-hit",
+    "trade-trend-csv-uncached",
+    "trade-trend-csv-analysis-hit",
   ];
   const roles = [
     "sparse",
@@ -330,15 +372,20 @@ function benchmark(
     "candidate-analysis-process-hit": [100, 250, 2_000],
     "csv-uncached": [3_000, 6_000, 15_000],
     "csv-analysis-hit": [250, 500, 15_000],
+    "trade-trend-analysis-uncached": [2_000, 4_000, 12_000],
+    "trade-trend-analysis-process-hit": [100, 250, 2_000],
+    "trade-trend-csv-uncached": [3_000, 6_000, 15_000],
+    "trade-trend-csv-analysis-hit": [250, 500, 15_000],
   } as const;
   const payloadBytes =
     operation === "current-manifest"
       ? 16 * KIB
       : operation.includes("search")
         ? 64 * KIB
-        : operation.startsWith("candidate-analysis")
+        : operation.startsWith("candidate-analysis") ||
+            operation.startsWith("trade-trend-analysis")
           ? 1_536 * KIB
-          : operation.startsWith("csv")
+          : operation.startsWith("csv") || operation.startsWith("trade-trend-csv")
             ? 5 * 1024 * KIB
             : 8 * KIB;
   const [p95Ms, p99Ms, deadlineMs] = thresholds[operation];
@@ -357,8 +404,10 @@ function benchmark(
     errors: 0,
     timeouts: 0,
     payloadBytes,
-    compressedPayloadBytes: operation.startsWith("candidate-analysis")
-      ? 300 * KIB
-      : undefined,
+    compressedPayloadBytes:
+      operation.startsWith("candidate-analysis") ||
+      operation.startsWith("trade-trend-analysis")
+        ? 300 * KIB
+        : undefined,
   };
 }

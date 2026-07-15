@@ -320,12 +320,18 @@ const PRODUCT_OPERATIONS = [
   "candidate-analysis-process-hit",
   "csv-uncached",
   "csv-analysis-hit",
+  "trade-trend-analysis-uncached",
+  "trade-trend-analysis-process-hit",
+  "trade-trend-csv-uncached",
+  "trade-trend-csv-analysis-hit",
 ] as const satisfies readonly OriginBenchmarkOperation[];
 const UNCACHED_OPERATIONS = [
   "economy-search-uncached",
   "product-search-uncached",
   "candidate-analysis-uncached",
   "csv-uncached",
+  "trade-trend-analysis-uncached",
+  "trade-trend-csv-uncached",
 ] as const satisfies readonly OriginBenchmarkOperation[];
 const CACHE_STATE_HIT = "hit";
 const CACHE_STATE_MISS = "miss";
@@ -349,6 +355,10 @@ const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
   "candidate-analysis-process-hit": 2_000,
   "csv-uncached": 15_000,
   "csv-analysis-hit": 15_000,
+  "trade-trend-analysis-uncached": 12_000,
+  "trade-trend-analysis-process-hit": 2_000,
+  "trade-trend-csv-uncached": 15_000,
+  "trade-trend-csv-analysis-hit": 15_000,
 };
 
 const REQUIRED_ORIGIN_BENCHMARK_COUNT =
@@ -515,17 +525,12 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
             );
           }
           semanticKeys.add(semanticKey);
-          if (
-            operation === "candidate-analysis-uncached" ||
-            operation === "csv-uncached"
-          ) {
-            if (uncachedAnalysisSemanticKeys.has(semanticKey)) {
-              throw planError(
-                `Uncached candidate-analysis and CSV samples must not reuse analysis semantic key ${semanticKey}.`,
-              );
-            }
-            uncachedAnalysisSemanticKeys.add(semanticKey);
+          if (uncachedAnalysisSemanticKeys.has(semanticKey)) {
+            throw planError(
+              `Uncached analysis and CSV samples must not reuse analysis semantic key ${semanticKey}.`,
+            );
           }
+          uncachedAnalysisSemanticKeys.add(semanticKey);
           const request = validateRequestCase(
             sample.request,
             `${label} sample request ${sampleIndex + 1} request`,
@@ -751,6 +756,13 @@ function assertAttestedOriginBenchmarks(
   for (const requestCase of plan.requests) {
     if (
       requestCase.productRole === undefined ||
+      // Trade Trend operations are intentionally not attested here yet:
+      // the public current-analysis manifest does not expose
+      // tradeTrendBenchmarkQueries (only Candidate Market's
+      // benchmarkQueries), so there is no exporter/product pair to bind a
+      // trade-trend-* request to. This real HTTP-execution wiring is
+      // deferred to #48; performance-gates.ts already accepts/blocks a
+      // measured trade-trend-* report regardless of how it was produced.
       (requestCase.operation !== "candidate-analysis-uncached" &&
         requestCase.operation !== "candidate-analysis-process-hit" &&
         requestCase.operation !== "csv-uncached" &&
@@ -932,7 +944,8 @@ export async function runOriginBenchmark(
       }
 
       const measurementMs =
-        requestCase.operation === "csv-analysis-hit"
+        requestCase.operation === "csv-analysis-hit" ||
+        requestCase.operation === "trade-trend-csv-analysis-hit"
           ? outcome.ttfbMs
           : outcome.totalMs;
       samples.push({

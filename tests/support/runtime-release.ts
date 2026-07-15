@@ -8,6 +8,10 @@ import {
   CANDIDATE_MARKET_V1_DATASET_DECLARATION,
   type CandidateMarketDatasetCapabilityDeclaration,
 } from "../../src/domain/trade-analytics/dataset-package";
+import {
+  TRADE_TREND_V1_DATASET_DECLARATION,
+  type TradeTrendDatasetCapabilityDeclaration,
+} from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 import { releaseJsonBytes } from "../../src/release/release-manifest";
 import { releaseObjectIdentity } from "../../src/release/release-object-store";
 
@@ -24,6 +28,21 @@ export const RUNTIME_RELEASE_FIXTURE = {
   productSearchBuildId: PRODUCT_SEARCH_BUILD_ID,
 } as const;
 
+export type TradeTrendEquivalenceEconomy = {
+  code: number;
+  displayName: string;
+  iso2: string;
+  iso3: string;
+};
+
+export type TradeTrendEquivalenceRow = {
+  year: number;
+  productCode: string;
+  exporterCode: number;
+  importerCode: number;
+  valueKusd: string;
+};
+
 export async function writeRuntimeReleaseCandidate(
   root: string,
   options: {
@@ -32,6 +51,7 @@ export async function writeRuntimeReleaseCandidate(
     finalizedCutoffYear?: number;
     benchmarkCandidateCount?: number;
     datasetPackage?: CandidateMarketDatasetCapabilityDeclaration;
+    tradeTrendDatasetPackage?: TradeTrendDatasetCapabilityDeclaration;
     legacyDatasetPackageManifest?: boolean;
     sourceSha256?: string;
     sourceUpdateDate?: string;
@@ -41,6 +61,17 @@ export async function writeRuntimeReleaseCandidate(
     productSourceArchiveSha256?: string;
     productCatalogVersion?: string;
     productManifestCatalogSchemaVersion?: string;
+    // Layers extra economies/products/trade rows onto the default fixture
+    // DuckDB so a test can reproduce specific Trade Trend observation-state
+    // combinations (sparse/no-recorded-flow/missing/provisional) without a
+    // second BACI archive: see trade-trend-adapter-equivalence.test.ts.
+    additionalTradeTrendEconomies?: readonly TradeTrendEquivalenceEconomy[];
+    additionalTradeTrendProducts?: readonly Readonly<{
+      productId: number;
+      code: string;
+      description: string;
+    }>[];
+    additionalTradeTrendRows?: readonly TradeTrendEquivalenceRow[];
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -78,6 +109,9 @@ export async function writeRuntimeReleaseCandidate(
     valueOffset,
     finalizedCutoffYear,
     sourceUpdateDate,
+    options.additionalTradeTrendEconomies ?? [],
+    options.additionalTradeTrendProducts ?? [],
+    options.additionalTradeTrendRows ?? [],
   );
   const artifactBytes = await readFile(artifactPath);
   const artifactIdentity = releaseObjectIdentity(artifactBytes);
@@ -124,6 +158,9 @@ export async function writeRuntimeReleaseCandidate(
           datasetPackage:
             options.datasetPackage ??
             CANDIDATE_MARKET_V1_DATASET_DECLARATION,
+          tradeTrendDatasetPackage:
+            options.tradeTrendDatasetPackage ??
+            TRADE_TREND_V1_DATASET_DECLARATION,
         }),
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
@@ -242,6 +279,13 @@ async function writeRuntimeDuckDb(
   valueOffset: number,
   finalizedCutoffYear: number,
   sourceUpdateDate: string,
+  additionalEconomies: readonly TradeTrendEquivalenceEconomy[],
+  additionalProducts: readonly Readonly<{
+    productId: number;
+    code: string;
+    description: string;
+  }>[],
+  additionalTradeRows: readonly TradeTrendEquivalenceRow[],
 ): Promise<void> {
   const instance = await DuckDBInstance.create(path);
   const connection = await instance.connect();
@@ -261,6 +305,32 @@ async function writeRuntimeDuckDb(
         (156, 'China', 'CN', 'CHN', 'ECONOMY', FALSE, NULL, TRUE),
         (276, 'Germany', 'DE', 'DEU', 'ECONOMY', FALSE, NULL, TRUE)
     `);
+    for (const economy of additionalEconomies) {
+      await connection.run(
+        `
+          INSERT INTO economy VALUES
+            ($code, $display_name, $iso2, $iso3, 'ECONOMY', FALSE, NULL, TRUE)
+        `,
+        {
+          code: economy.code,
+          display_name: economy.displayName,
+          iso2: economy.iso2,
+          iso3: economy.iso3,
+        },
+      );
+    }
+    for (const product of additionalProducts) {
+      await connection.run(
+        `
+          INSERT INTO product VALUES ($product_id, $code, $description)
+        `,
+        {
+          product_id: product.productId,
+          code: product.code,
+          description: product.description,
+        },
+      );
+    }
     const ingestedYears = Array.from(
       { length: 11 },
       (_, index) => finalizedCutoffYear - 9 + index,
@@ -275,6 +345,48 @@ async function writeRuntimeDuckDb(
         INSERT INTO product_year VALUES
           (${year}, 1, ${value});
       `);
+    }
+    const productIdByCode = new Map<string, number>([[PRODUCT_CODE, 1]]);
+    for (const product of additionalProducts) {
+      productIdByCode.set(product.code, product.productId);
+    }
+    for (const row of additionalTradeRows) {
+      const productId = productIdByCode.get(row.productCode);
+      if (productId === undefined) {
+        throw new Error(
+          `Trade Trend equivalence row references an undeclared product ${row.productCode}.`,
+        );
+      }
+      await connection.run(
+        `
+          INSERT INTO bilateral_year VALUES
+            ($year, $product_id, $exporter_code, $importer_code,
+              CAST($value_kusd AS DECIMAL(38,3)))
+        `,
+        {
+          year: row.year,
+          product_id: productId,
+          exporter_code: row.exporterCode,
+          importer_code: row.importerCode,
+          value_kusd: row.valueKusd,
+        },
+      );
+      await connection.run(
+        `
+          INSERT INTO market_year VALUES
+            ($year, $product_id, $importer_code,
+              CAST($value_kusd AS DECIMAL(38,3)), 1,
+              CAST($value_kusd AS DECIMAL(38,3)) *
+                CAST($value_kusd AS DECIMAL(38,3)),
+              1, 1, 1.000)
+        `,
+        {
+          year: row.year,
+          product_id: productId,
+          importer_code: row.importerCode,
+          value_kusd: row.valueKusd,
+        },
+      );
     }
     const metadata = {
       artifact_schema_version: "candidate-market-artifact-v1",
