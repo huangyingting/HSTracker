@@ -5,7 +5,11 @@ import type {
   TradeExplorerArtifactBenchmarkQuery,
 } from "../evidence/analysis-artifact-manifest";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
-import type { PerformanceMeasurementIdentity } from "./performance-gates";
+import {
+  REQUIRED_PRODUCT_ROLES,
+  type PerformanceMeasurementIdentity,
+  type PerformanceProductRole,
+} from "./performance-gates";
 
 const PROBE_HEADERS = {
   Accept: "application/json",
@@ -172,12 +176,7 @@ function parseBenchmarkQueries(
   const parsed = value.map((entry, index) => {
     const query = object(entry, `benchmark query ${index}`);
     const role = stringValue(query.role, `benchmark query ${index} role`);
-    if (
-      role !== "sparse" &&
-      role !== "median" &&
-      role !== "upper-quartile" &&
-      role !== "maximum-row"
-    ) {
+    if (!isPerformanceProductRole(role)) {
       throw new RuntimeIdentityAttestationError(
         `Candidate benchmark query ${index} has an invalid role.`,
       );
@@ -204,7 +203,7 @@ function parseBenchmarkQueries(
     }
     roles.add(role);
     return {
-      role: role as AnalysisArtifactBenchmarkQuery["role"],
+      role,
       productCode,
       exporterCode,
       candidateCount: candidateCount as number,
@@ -243,10 +242,7 @@ function parseTradeExplorerBenchmarkQueries(
     const groupedRowCount = query.groupedRowCount;
     const measures = query.measures;
     if (
-      (role !== "sparse" &&
-        role !== "median" &&
-        role !== "upper-quartile" &&
-        role !== "maximum-row") ||
+      !isPerformanceProductRole(role) ||
       roles.has(role) ||
       query.shape !== "finalized-trend-v1" ||
       !Array.isArray(measures) ||
@@ -263,6 +259,7 @@ function parseTradeExplorerBenchmarkQueries(
         `Candidate Trade Explorer benchmark query ${index} is malformed or duplicated.`,
       );
     }
+
     roles.add(role);
     return {
       role,
@@ -274,6 +271,12 @@ function parseTradeExplorerBenchmarkQueries(
       groupedRowCount: groupedRowCount as number,
     };
   });
+}
+
+function isPerformanceProductRole(
+  value: string,
+): value is PerformanceProductRole {
+  return (REQUIRED_PRODUCT_ROLES as readonly string[]).includes(value);
 }
 
 async function fetchIdentityDocument(

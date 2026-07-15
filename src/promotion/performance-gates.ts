@@ -26,7 +26,7 @@ const TARGET_ROUTE_P95_MS = {
   csv: 3_000,
 } as const;
 
-const REQUIRED_PRODUCT_ROLES = [
+export const REQUIRED_PRODUCT_ROLES = [
   "sparse",
   "median",
   "upper-quartile",

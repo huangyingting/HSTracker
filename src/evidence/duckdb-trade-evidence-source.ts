@@ -913,12 +913,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
           sourceFlowCount: 1,
         };
       }
-      const isCovered =
-        dimension === "YEAR"
-          ? coverage.coveredYears.has(value)
-          : dimension === "IMPORT_ECONOMY"
-            ? coverage.coveredImporterCodes.has(value)
-            : coverage.covered;
+      const isCovered = coverage(value);
       return isCovered
         ? { state: "NO_RECORDED_POSITIVE_FLOW" as const }
         : { state: "MISSING_OBSERVATION" as const };
@@ -941,11 +936,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     fixedImporterCode: number,
     years: readonly number[],
     resolvedImportEconomies: readonly ResolvedTradeExplorerEconomy[],
-  ): Promise<{
-    coveredYears: ReadonlySet<number>;
-    coveredImporterCodes: ReadonlySet<number>;
-    covered: boolean;
-  }> {
+  ): Promise<(value: number) => boolean> {
     if (dimension === "YEAR") {
       const values: Record<string, number> = {
         importer_code: fixedImporterCode,
@@ -961,13 +952,10 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
         WHERE importer_code = $importer_code
           AND year IN (${placeholders.join(", ")})
       `, values);
-      return {
-        coveredYears: new Set(
-          rows.map((row) => requireNumber(row.year, "market coverage year")),
-        ),
-        coveredImporterCodes: new Set(),
-        covered: false,
-      };
+      const coveredYears = new Set(
+        rows.map((row) => requireNumber(row.year, "market coverage year")),
+      );
+      return (value) => coveredYears.has(value);
     }
     if (dimension === "IMPORT_ECONOMY") {
       const values: Record<string, number> = { year: years[0]! };
@@ -982,15 +970,12 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
         WHERE year = $year
           AND importer_code IN (${placeholders.join(", ")})
       `, values);
-      return {
-        coveredYears: new Set(),
-        coveredImporterCodes: new Set(
-          rows.map((row) =>
-            requireNumber(row.importer_code, "market coverage importer"),
-          ),
+      const coveredImporterCodes = new Set(
+        rows.map((row) =>
+          requireNumber(row.importer_code, "market coverage importer"),
         ),
-        covered: false,
-      };
+      );
+      return (value) => coveredImporterCodes.has(value);
     }
     const row = await queryOptional(connection, `
       SELECT 1 AS present
@@ -998,11 +983,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       WHERE importer_code = $importer_code AND year = $year
       LIMIT 1
     `, { importer_code: fixedImporterCode, year: years[0]! });
-    return {
-      coveredYears: new Set(),
-      coveredImporterCodes: new Set(),
-      covered: row !== undefined,
-    };
+    return () => row !== undefined;
   }
 
   private async loadWithConnection(

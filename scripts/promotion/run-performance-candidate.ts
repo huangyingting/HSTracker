@@ -254,7 +254,7 @@ function parseTradeExplorerEvidence(
             candidate.queueWaitMs,
             `Trade Explorer query ${index + 1} queueWaitMs`,
           ),
-          executionMs: nonnegativeNumber(
+          executionMs: positiveNumber(
             candidate.executionMs,
             `Trade Explorer query ${index + 1} executionMs`,
           ),
@@ -464,6 +464,16 @@ function nonnegativeNumber(value: unknown, label: string): number {
   }
 
   return value;
+}
+
+function positiveNumber(value: unknown, label: string): number {
+  const parsed = nonnegativeNumber(value, label);
+  if (parsed === 0) {
+    throw new PerformanceCandidateCliError(
+      `${label} must be a finite positive number.`,
+    );
+  }
+  return parsed;
 }
 
 function code(value: unknown, pattern: RegExp, label: string): string {

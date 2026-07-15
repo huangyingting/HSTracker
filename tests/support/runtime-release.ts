@@ -593,14 +593,16 @@ async function writeRuntimeDuckDb(
     }
     for (const group of marketYearGroups.values()) {
       const totalKusd = sumKusd(group.valuesKusd);
+      const valueSquareSumKusdSquared = group.valuesKusd
+        .reduce((sum, value) => sum + Number(value) ** 2, 0)
+        .toFixed(6);
       await connection.run(
         `
           INSERT INTO market_year VALUES
             ($year, $product_id, $importer_code,
               CAST($value_kusd AS DECIMAL(38,3)),
               $supplier_count,
-              CAST($value_kusd AS DECIMAL(38,3)) *
-                CAST($value_kusd AS DECIMAL(38,3)),
+              CAST($value_square_sum AS DECIMAL(38,6)),
               $supplier_count, $supplier_count, 1.000)
         `,
         {
@@ -608,6 +610,7 @@ async function writeRuntimeDuckDb(
           product_id: group.productId,
           importer_code: group.importerCode,
           value_kusd: totalKusd,
+          value_square_sum: valueSquareSumKusdSquared,
           supplier_count: group.valuesKusd.length,
         },
       );

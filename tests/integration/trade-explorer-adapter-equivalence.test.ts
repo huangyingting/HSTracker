@@ -20,21 +20,13 @@ import {
 // mirroring trade-trend-adapter-equivalence.test.ts and
 // supplier-competition-adapter-equivalence.test.ts. Trade Explorer has four
 // query shapes over the same underlying evidence, and
-// fixtures/trade-explorer/v1/evidence.ts independently authors a *different*
-// value for the same (year, product, exporter, importer) tuple depending on
-// which dimension a given MODELED_COMBOS entry groups (it is a hand-modeled
-// table, not a single consistent relation). A real relational DuckDB
-// artifact cannot hold two different values for one tuple, so only ONE
-// shape's literals can be reproduced against the fixture for any one tuple
-// at a time. finalized-trend-v1, using the (156, 528, 010121) tuple, and its
-// "all no-recorded-flow" (156, 36, 010121) sibling, are reproduced here
-// against the acceptance fixture exactly, matching
-// fixtures/trade-explorer/v1/evidence.ts's own literals for those combos.
-// importing-markets-v1, supplying-economies-v1, and product-mix-v1 are
-// instead checked against independently hand-computed literals (using fresh
-// economies/products/years never touched by the finalized-trend-v1 case),
-// still demonstrating -- and asserting exact totals/quality-warning
-// literals for -- the schema-imposed rule documented at
+// fixtures/trade-explorer/v1/evidence.ts gives finalized-trend-v1 a different
+// value for (2023, 010121, 156, 528) than its three grouped shapes, so one
+// relational artifact cannot reproduce every modeled combo simultaneously.
+// The tests therefore use one production candidate for finalized trend and a
+// second for non-conflicting representative cohorts from the other three
+// shapes. Independently-computed literals also demonstrate the schema-imposed
+// coverage rule documented at
 // DuckDbTradeEvidenceSource.tradeExplorerCoverage: a fixed EXPORT_ECONOMY or
 // HS_PRODUCT dimension shares one coverage boolean across every unrecorded
 // grouped candidate, while YEAR/IMPORT_ECONOMY-grouped shapes resolve
@@ -90,6 +82,12 @@ const ADDITIONAL_PRODUCTS = [
     productId: 4,
     code: OTHER_PRODUCT_CODE,
     description: "Synthetic other-product placeholder for Trade Explorer evidence.",
+  },
+  {
+    productId: 5,
+    code: "851712",
+    description:
+      "Telephones for cellular networks or for other wireless networks",
   },
 ] as const;
 
@@ -147,6 +145,19 @@ const ADDITIONAL_ROWS: readonly TradeExplorerEquivalenceRow[] = [
   ),
 ];
 
+const GROUPED_SHAPE_PARITY_ROWS: readonly TradeExplorerEquivalenceRow[] = [
+  row(2023, PRODUCT_CODE, EXPORTER_CODE, 528, "160.000"),
+  row(2023, PRODUCT_CODE, EXPORTER_CODE, 484, "50.000"),
+  row(2023, PRODUCT_CODE, EXPORTER_CODE, 76, "30.000"),
+  row(2023, PRODUCT_CODE, EXPORTER_CODE, 124, "20.000"),
+  row(2023, OTHER_PRODUCT_CODE, EXPORTER_CODE, 36, "1.000"),
+  row(2023, PRODUCT_CODE, 76, 528, "20.000"),
+  row(2023, PRODUCT_CODE, 124, 528, "15.000"),
+  row(2023, PRODUCT_CODE, 36, 528, "5.000"),
+  row(2023, "010129", EXPORTER_CODE, 528, "40.000"),
+  row(2023, "851712", EXPORTER_CODE, 528, "500.000"),
+];
+
 const temporaryDirectories: string[] = [];
 const runtimes: VerifiedReleaseRuntime[] = [];
 
@@ -161,17 +172,23 @@ afterEach(async () => {
   );
 });
 
-async function buildActivatedRuntime(): Promise<{
+async function buildActivatedRuntime(
+  options: {
+    rows?: readonly TradeExplorerEquivalenceRow[];
+    benchmarkCandidateCount?: number;
+  } = {},
+): Promise<{
   runtime: VerifiedReleaseRuntime;
   analysisBuildId: string;
 }> {
   const root = await mkdtemp(join(tmpdir(), "hs-tracker-trade-explorer-equiv-"));
   temporaryDirectories.push(root);
   const candidate = await writeRuntimeReleaseCandidate(join(root, "candidate"), {
-    benchmarkCandidateCount: CANDIDATE_MARKET_COHORT_SIZE,
+    benchmarkCandidateCount:
+      options.benchmarkCandidateCount ?? CANDIDATE_MARKET_COHORT_SIZE,
     additionalTradeExplorerEconomies: [...ADDITIONAL_ECONOMIES, ...BUDGET_ECONOMIES],
     additionalTradeExplorerProducts: ADDITIONAL_PRODUCTS,
-    additionalTradeExplorerRows: ADDITIONAL_ROWS,
+    additionalTradeExplorerRows: options.rows ?? ADDITIONAL_ROWS,
   });
   const objectStore = new InMemoryReleaseObjectStore();
   const published = await new ReleasePublisher(objectStore).promote({
@@ -410,6 +427,78 @@ describe("Trade Explorer fixture-vs-production adapter equivalence", () => {
         missingRowCount: 0,
       });
       expect(outcome.payload.qualityWarnings).toEqual([]);
+    }
+  }, 30_000);
+
+  it("agrees with the fixture on representative importing-market, supplying-economy, and product-mix queries", async () => {
+    const { runtime, analysisBuildId } = await buildActivatedRuntime({
+      rows: GROUPED_SHAPE_PARITY_ROWS,
+      benchmarkCandidateCount: 5,
+    });
+    const fixtureRuntime = createFixtureApplicationRuntime();
+    const fixtureBuildId = ACCEPTANCE_FIXTURE_BUILD_IDS.core;
+    const queries = [
+      {
+        shape: "importing-markets-v1" as const,
+        dimensions: ["IMPORT_ECONOMY" as const],
+        measures: ["TRADE_VALUE_USD" as const, "RECORDED_FLOW_COUNT" as const],
+        filters: {
+          year: { mode: "list" as const, years: [2023] },
+          exportEconomy: ["156"],
+          importEconomy: ["528", "484", "36", "710", "76", "124"],
+          hsProduct: [PRODUCT_CODE],
+        },
+        sort: null,
+      },
+      {
+        shape: "supplying-economies-v1" as const,
+        dimensions: ["EXPORT_ECONOMY" as const],
+        measures: ["TRADE_VALUE_USD" as const],
+        filters: {
+          year: { mode: "list" as const, years: [2023] },
+          exportEconomy: ["156", "76", "484", "124", "36"],
+          importEconomy: ["528"],
+          hsProduct: [PRODUCT_CODE],
+        },
+        sort: null,
+      },
+      {
+        shape: "product-mix-v1" as const,
+        dimensions: ["HS_PRODUCT" as const],
+        measures: ["TRADE_VALUE_USD" as const],
+        filters: {
+          year: { mode: "list" as const, years: [2023] },
+          exportEconomy: ["156"],
+          importEconomy: ["528"],
+          hsProduct: ["010121", "010129", "010130", "851712"],
+        },
+        sort: null,
+      },
+    ];
+
+    for (const query of queries) {
+      const [fixture, production] = await Promise.all([
+        fixtureRuntime.tradeAnalytics.execute({
+          recipe: "trade-explorer-v1",
+          analysisBuildId: fixtureBuildId,
+          ...query,
+        }),
+        runtime.tradeAnalytics.execute({
+          recipe: "trade-explorer-v1",
+          analysisBuildId,
+          ...query,
+        }),
+      ]);
+      if (fixture.state !== "success" || production.state !== "success") {
+        throw new TypeError(
+          `Expected ${query.shape} parity success, received ${fixture.state}/${production.state}.`,
+        );
+      }
+      expect(production.payload.rows).toEqual(fixture.payload.rows);
+      expect(production.payload.totalRow).toEqual(fixture.payload.totalRow);
+      expect(production.payload.qualityWarnings).toEqual(
+        fixture.payload.qualityWarnings,
+      );
     }
   }, 30_000);
 
