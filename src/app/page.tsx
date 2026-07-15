@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AnalysisTaskHome } from "./analysis-task-home";
+import { ThemeToggle } from "./theme-toggle";
 import {
   parseTradeAnalysisContext,
   serializeTradeAnalysisContext,
@@ -142,6 +143,7 @@ export default function Home() {
             <span aria-hidden="true" />
             {messages.publicWorkspace}
           </p>
+          <ThemeToggle locale={locale} />
           <div
             className="locale-switcher"
             role="group"

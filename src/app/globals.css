@@ -1,33 +1,147 @@
 :root {
-  --ink: #12312a;
+  color-scheme: light;
+
+  /* Foreground colour families expressed as RGB triplets so themed rgba()
+     hairlines, tints, and shadows all follow the active theme. */
+  --ink-rgb: 18, 49, 42;
+  --shadow-rgb: 16, 40, 34;
+
+  /* Text */
+  --ink: rgb(var(--ink-rgb));
   --ink-deep: #0a201b;
+  --ink-soft: #435b55;
+  --muted: #5a6b65;
+
+  /* Surfaces */
   --paper: #eaefec;
   --paper-light: #ffffff;
+  --card: #ffffff;
+  --control-surface: rgba(255, 255, 255, 0.7);
+
+  /* Feature panels — deep, always-dark surfaces that carry light text. */
+  --panel-a: #16473c;
+  --panel-b: #0c211c;
+  --panel-edge: #0a1f1a;
+  --on-panel: #ffffff;
+
+  /* Page backdrop */
+  --backdrop-glow-1: rgba(242, 84, 45, 0.08);
+  --backdrop-glow-2: rgba(23, 163, 74, 0.08);
+  --backdrop-base: linear-gradient(180deg, #f4f7f5 0%, #eaefec 100%);
+
+  /* Accent + signal */
   --accent: #bf3d1e;
   --accent-strong: #a83214;
   --accent-glow: #f2542d;
+  --accent-text: #a13e1c;
   --signal: #17a34a;
   --signal-text: #0f7a37;
   --signal-soft: #8fd39a;
-  --line: rgba(18, 49, 42, 0.12);
-  --line-strong: rgba(18, 49, 42, 0.22);
-  --muted: #5a6b65;
 
-  --card: #ffffff;
+  /* Hairlines */
+  --line: rgba(var(--ink-rgb), 0.12);
+  --line-strong: rgba(var(--ink-rgb), 0.22);
+
   --radius-sm: 10px;
   --radius: 14px;
   --radius-lg: 22px;
   --radius-pill: 999px;
-  --shadow-xs: 0 1px 2px rgba(16, 40, 34, 0.06);
-  --shadow-sm: 0 1px 2px rgba(16, 40, 34, 0.05), 0 2px 6px rgba(16, 40, 34, 0.06);
-  --shadow-md: 0 12px 32px -16px rgba(16, 40, 34, 0.28);
-  --shadow-lg: 0 34px 70px -30px rgba(16, 40, 34, 0.42);
+  --shadow-xs: 0 1px 2px rgba(var(--shadow-rgb), 0.06);
+  --shadow-sm: 0 1px 2px rgba(var(--shadow-rgb), 0.05),
+    0 2px 6px rgba(var(--shadow-rgb), 0.06);
+  --shadow-md: 0 12px 32px -16px rgba(var(--shadow-rgb), 0.28);
+  --shadow-lg: 0 34px 70px -30px rgba(var(--shadow-rgb), 0.42);
   --focus: 2px solid var(--accent);
   --ring: 0 0 0 3px rgba(191, 61, 30, 0.32);
   --font-display: "Fraunces", "Noto Serif SC", Georgia, "Times New Roman",
     serif;
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
     "Noto Sans SC", Arial, sans-serif;
+
+  /* Theme-crossfade timing; suppressed under prefers-reduced-motion. */
+  --theme-transition: background-color 0.4s ease, border-color 0.4s ease,
+    color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* Dark theme. Applied by the pre-hydration script in the document head via
+   [data-theme="dark"], and mirrored below for the no-JS system preference. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink-rgb: 226, 236, 231;
+  --shadow-rgb: 0, 0, 0;
+
+  --ink: rgb(var(--ink-rgb));
+  --ink-deep: #f4f8f5;
+  --ink-soft: #a7bcb3;
+  --muted: #8ba49a;
+
+  --paper: #0a1512;
+  --paper-light: #12211c;
+  --card: #12211c;
+  --control-surface: rgba(255, 255, 255, 0.05);
+
+  --panel-a: #1d5748;
+  --panel-b: #0e2a23;
+  --panel-edge: #0a201b;
+  --on-panel: #f4f8f5;
+
+  --backdrop-glow-1: rgba(242, 84, 45, 0.14);
+  --backdrop-glow-2: rgba(23, 163, 74, 0.12);
+  --backdrop-base: linear-gradient(180deg, #0b1714 0%, #060f0c 100%);
+
+  --accent: #f2542d;
+  --accent-strong: #ff6a45;
+  --accent-glow: #ff7a54;
+  --accent-text: #ff8a5f;
+  --signal: #2fce6c;
+  --signal-text: #57d98a;
+  --signal-soft: #2f7a52;
+
+  --line: rgba(var(--ink-rgb), 0.16);
+  --line-strong: rgba(var(--ink-rgb), 0.3);
+  --ring: 0 0 0 3px rgba(242, 84, 45, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  /* No-JS fallback: honour the OS preference until a choice is stored. */
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --ink-rgb: 226, 236, 231;
+    --shadow-rgb: 0, 0, 0;
+
+    --ink: rgb(var(--ink-rgb));
+    --ink-deep: #f4f8f5;
+    --ink-soft: #a7bcb3;
+    --muted: #8ba49a;
+
+    --paper: #0a1512;
+    --paper-light: #12211c;
+    --card: #12211c;
+    --control-surface: rgba(255, 255, 255, 0.05);
+
+    --panel-a: #1d5748;
+    --panel-b: #0e2a23;
+    --panel-edge: #0a201b;
+    --on-panel: #f4f8f5;
+
+    --backdrop-glow-1: rgba(242, 84, 45, 0.14);
+    --backdrop-glow-2: rgba(23, 163, 74, 0.12);
+    --backdrop-base: linear-gradient(180deg, #0b1714 0%, #060f0c 100%);
+
+    --accent: #f2542d;
+    --accent-strong: #ff6a45;
+    --accent-glow: #ff7a54;
+    --accent-text: #ff8a5f;
+    --signal: #2fce6c;
+    --signal-text: #57d98a;
+    --signal-soft: #2f7a52;
+
+    --line: rgba(var(--ink-rgb), 0.16);
+    --line-strong: rgba(var(--ink-rgb), 0.3);
+    --ring: 0 0 0 3px rgba(242, 84, 45, 0.4);
+  }
 }
 
 * {
@@ -48,18 +162,19 @@ body {
   background:
     radial-gradient(
       1200px 620px at 82% -8%,
-      rgba(242, 84, 45, 0.08),
+      var(--backdrop-glow-1),
       transparent 60%
     ),
     radial-gradient(
       1000px 560px at 6% 0%,
-      rgba(23, 163, 74, 0.08),
+      var(--backdrop-glow-2),
       transparent 55%
     ),
-    linear-gradient(180deg, #f4f7f5 0%, #eaefec 100%);
+    var(--backdrop-base);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-ui);
+  transition: var(--theme-transition);
 }
 
 a {
@@ -81,7 +196,7 @@ a {
   padding: 12px 18px;
   border-radius: var(--radius);
   background: var(--ink);
-  color: #fff;
+  color: var(--paper-light);
   font-size: 0.8rem;
   font-weight: 800;
   text-decoration: none;
@@ -92,7 +207,7 @@ a {
 
 .skip-link:focus-visible {
   transform: translateY(0);
-  outline: 2px solid #fff;
+  outline: 2px solid var(--paper-light);
   outline-offset: 2px;
 }
 
@@ -125,7 +240,7 @@ a {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: linear-gradient(150deg, #1c4a3f 0%, #0c211c 100%);
+  background: linear-gradient(150deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #ffffff;
   font-size: 0.72rem;
   font-weight: 800;
@@ -174,7 +289,7 @@ a {
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--control-surface);
   box-shadow: var(--shadow-xs);
   backdrop-filter: blur(6px);
 }
@@ -196,12 +311,96 @@ a {
 
 .locale-switcher button[aria-pressed="true"] {
   background: var(--ink);
-  color: #ffffff;
+  color: var(--paper-light);
   box-shadow: var(--shadow-sm);
 }
 
 .locale-switcher button:focus-visible {
   outline: none;
+  box-shadow: var(--ring);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.theme-toggle-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  place-items: center;
+  width: 62px;
+  height: 32px;
+  padding: 0 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--control-surface);
+  box-shadow: var(--shadow-xs), inset 0 1px 1px rgba(var(--shadow-rgb), 0.04);
+  backdrop-filter: blur(6px);
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  box-shadow: var(--shadow-sm);
+  transition: left 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.theme-toggle-icon {
+  position: relative;
+  z-index: 1;
+  font-size: 0.82rem;
+  line-height: 1;
+  color: var(--muted);
+  transition: color 0.24s ease;
+}
+
+/* Light active (aria-checked=false): sun rides the thumb. */
+.theme-toggle[aria-checked="false"] .theme-toggle-icon-sun {
+  color: var(--paper-light);
+}
+
+/* Dark active (aria-checked=true): thumb slides to the moon. */
+.theme-toggle[aria-checked="true"] .theme-toggle-thumb {
+  left: calc(50%);
+}
+
+.theme-toggle[aria-checked="true"] .theme-toggle-icon-moon {
+  color: var(--paper-light);
+}
+
+.theme-toggle-text {
+  min-width: 3.2em;
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.theme-toggle:hover .theme-toggle-track {
+  border-color: var(--line-strong);
+}
+
+.theme-toggle:focus-visible {
+  outline: none;
+}
+
+.theme-toggle:focus-visible .theme-toggle-track {
   box-shadow: var(--ring);
 }
 
@@ -257,7 +456,7 @@ a {
 .lede {
   max-width: 660px;
   margin: 38px 0 0;
-  color: #435b55;
+  color: var(--ink-soft);
   font-size: clamp(1.02rem, 1.4vw, 1.22rem);
   line-height: 1.65;
 }
@@ -365,7 +564,7 @@ a {
 
 .product-status-unsupported,
 .product-status-failed {
-  color: #a13e1c;
+  color: var(--accent-text);
 }
 
 .product-selection {
@@ -797,7 +996,7 @@ a {
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--ink);
-  color: #fff;
+  color: var(--paper-light);
   cursor: pointer;
   font: inherit;
   font-size: 0.72rem;
@@ -1171,7 +1370,7 @@ a {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   border-radius: var(--radius-lg);
-  background: linear-gradient(160deg, #16473c 0%, #0c211c 100%);
+  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
   box-shadow: var(--shadow-md);
   overflow: hidden;
@@ -1203,7 +1402,7 @@ a {
 .source-scope {
   margin-top: 24px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(160deg, #16473c 0%, #0c211c 100%);
+  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
   box-shadow: var(--shadow-md);
   overflow: hidden;
@@ -1421,7 +1620,7 @@ a {
   border: 0;
   border-radius: var(--radius);
   background: var(--ink);
-  color: #fff;
+  color: var(--paper-light);
   cursor: pointer;
   font: inherit;
   font-size: 0.72rem;
@@ -1523,7 +1722,7 @@ a {
 
 .analysis-share button:hover {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper-light);
 }
 
 .analysis-share button[data-copied="true"] {
@@ -1619,11 +1818,11 @@ a {
 }
 
 .candidate-ranking button:hover {
-  background: rgba(18, 49, 42, 0.05);
+  background: rgba(var(--ink-rgb), 0.05);
 }
 
 .candidate-ranking button[aria-pressed="true"] {
-  background: linear-gradient(160deg, #16473c 0%, #0c211c 100%);
+  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
   box-shadow: inset 4px 0 0 var(--accent);
 }
@@ -1652,7 +1851,7 @@ a {
   height: 5px;
   margin-top: 3px;
   border-radius: var(--radius-pill);
-  background: rgba(18, 49, 42, 0.1);
+  background: rgba(var(--ink-rgb), 0.1);
   overflow: hidden;
 }
 
@@ -1740,7 +1939,7 @@ a {
   padding: 7px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
-  background: rgba(18, 49, 42, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
   font-size: 0.7rem;
 }
 
@@ -1768,7 +1967,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 22px;
-  background: linear-gradient(160deg, #16473c 0%, #0c211c 100%);
+  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
 }
 
@@ -1878,7 +2077,7 @@ a {
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(18, 49, 42, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 
 .confidence-heading {
@@ -1912,7 +2111,7 @@ a {
   padding: 7px 12px;
   border-radius: var(--radius-pill);
   background: var(--ink);
-  color: #fff;
+  color: var(--paper-light);
   font-size: 0.7rem;
 }
 
@@ -2080,7 +2279,7 @@ a {
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(18, 49, 42, 0.03);
+  background: rgba(var(--ink-rgb), 0.03);
 }
 
 .release-revision > div:first-child {
@@ -2173,7 +2372,7 @@ a {
 .evidence-actions button[aria-pressed="true"] {
   background: var(--ink);
   border-color: var(--ink);
-  color: #fff;
+  color: var(--paper-light);
 }
 
 .evidence-actions button:disabled {
@@ -2207,7 +2406,7 @@ a {
   justify-content: space-between;
   gap: 20px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(160deg, #16473c 0%, #0c211c 100%);
+  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
 }
 
@@ -2382,7 +2581,7 @@ a {
       rgba(242, 84, 45, 0.22),
       transparent 55%
     ),
-    linear-gradient(160deg, #16473c 0%, #0a1f1a 100%);
+    linear-gradient(160deg, var(--panel-a) 0%, var(--panel-edge) 100%);
   color: #ffffff;
   box-shadow: var(--shadow-lg);
 }
@@ -2597,7 +2796,7 @@ a {
   gap: 28px;
   border: 0;
   border-radius: var(--radius);
-  background: linear-gradient(160deg, #16473c 0%, #0c211c 100%);
+  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
   cursor: pointer;
   font: inherit;
@@ -2718,7 +2917,11 @@ a {
   }
 
   .header-tools {
-    gap: 0;
+    gap: 12px;
+  }
+
+  .theme-toggle-text {
+    display: none;
   }
 
   .locale-switcher button {
@@ -2965,8 +3168,8 @@ a {
 
 @media (prefers-contrast: more) {
   :root {
-    --line: rgba(18, 49, 42, 0.34);
-    --line-strong: rgba(18, 49, 42, 0.55);
+    --line: rgba(var(--ink-rgb), 0.34);
+    --line-strong: rgba(var(--ink-rgb), 0.55);
     --muted: #3d4b46;
   }
 }
