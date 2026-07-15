@@ -53,14 +53,16 @@ analysis semantic keys. Cache-hit entries reuse their one declared request
 after five warmups. The origin report verifies the deployment-owned
 `X-HS-Tracker-Cache-State` header: every uncached request must report
 `miss`, and cache-hit warmups after the first request plus every timed
-cache-hit sample must report `hit`. The 67 route/role cases cover all four
+cache-hit sample must report `hit`. The 83 route/role cases cover all four
 artifact-attested representative roles for each product operation --
-including Trade Trend's and Supplier Competition's own analysis and CSV
-operations, measured and gated the same way as Candidate Market's -- plus
-the three singleton routes.
+including Trade Trend, Supplier Competition, and Trade Explorer analysis
+and CSV operations, measured and gated the same way as Candidate Market's
+-- plus the three singleton routes.
 
-Every executed Candidate-analysis and CSV sample retains the artifact-attested
-exporter/product pair for its role. Uncached samples vary only the
+Every executed Candidate Market or Trade Explorer analysis and CSV sample
+retains the artifact-attested exporter/product pair for its role. Trade
+Explorer binds the same identity through its `exportEconomy` and `hsProduct`
+parameters. Uncached samples vary only the
 `X-HS-Tracker-Cache-Partition` value, which must equal the sample's unique
 semantic key; the bounded runtime includes that partition in its process-cache
 key without changing the query sent to DuckDB. This provides real misses
@@ -103,6 +105,46 @@ from declaring these values themselves.
 
 ## Lifecycle evidence and combined gate
 
+Retain a `trade-explorer-measurement-v1` file from the same candidate and
+identity. Its `queries` array must contain exactly one `sparse`, `median`,
+`upper-quartile`, and `maximum-row` query. Each entry records DuckDB scan
+rows, result rows and bytes, exported bytes, peak memory and spill bytes,
+queue wait, execution time, cancellation release latency, and proof that
+cancellation did not poison cache or queue capacity
+and a successful request immediately after cancellation. Promotion blocks any
+entry above 250 scan rows, 250 result rows, 1 MiB result or export bytes,
+1 GiB memory, 4 GiB spill, 5 seconds queue wait, execution, or cancellation
+release.
+Execution time must be positive. Other zeros are valid only when the measured
+value was actually zero; all cancellation health booleans must be true.
+
+```json
+{
+  "schemaVersion": "trade-explorer-measurement-v1",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-12T16:00:00Z",
+  "identity": { "...": "same identity as every plan" },
+  "queries": [
+    {
+      "productRole": "sparse",
+      "scanRows": 12,
+      "resultRows": 5,
+      "resultBytes": 4096,
+      "exportBytes": 8192,
+      "peakMemoryBytes": 67108864,
+      "peakSpillBytes": 0,
+      "queueWaitMs": 3,
+      "executionMs": 25,
+      "cancellationReleaseMs": 12,
+      "cancellationReleased": true,
+      "cacheUnpoisoned": true,
+      "queueUnpoisoned": true,
+      "subsequentRequestSucceeded": true
+    }
+  ]
+}
+```
+
 Retain a versioned lifecycle file from the same candidate and identity:
 
 ```json
@@ -141,6 +183,7 @@ npm run --silent promotion:performance -- \
   --browser-plan <browser-plan.json> \
   --origin-plan <origin-plan.json> \
   --load-plan <load-plan.json> \
+  --trade-explorer <trade-explorer.json> \
   --lifecycle <lifecycle.json> \
   > reports/promotion/<build>.performance.json
 ```

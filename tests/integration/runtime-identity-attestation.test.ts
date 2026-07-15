@@ -29,6 +29,20 @@ const benchmarkQueries = [
   exporterCode: "156",
   candidateCount: 1,
 }));
+const tradeExplorerBenchmarkQueries = [
+  "sparse",
+  "median",
+  "upper-quartile",
+  "maximum-row",
+].map((role) => ({
+  role,
+  shape: "finalized-trend-v1",
+  measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+  exportEconomyCode: "156",
+  importEconomyCode: "276",
+  hsProductCode: "090100",
+  groupedRowCount: 5,
+}));
 
 describe("runtime identity attestation", () => {
   it("binds measurements to deployment-served build, release, artifact, and Machine identity", async () => {
@@ -157,6 +171,7 @@ function identityFetch(
           analysisBuildId: identity.analysisBuildId,
           productSearchBuildId: identity.productSearchBuildId,
           benchmarkQueries: queries,
+          tradeExplorerBenchmarkQueries,
           source: {
             baciRelease: identity.baciRelease,
             artifact: { sha256: identity.artifactSha256 },

@@ -130,6 +130,7 @@ describe("retained promotion evidence", () => {
       checks: [
         { name: "representative-fixtures", status: "accepted" },
         { name: "origin-thresholds", status: "blocked" },
+        { name: "trade-explorer-budgets", status: "accepted" },
       ],
     });
     const reportSha256 = sha256(reportBytes);
@@ -332,6 +333,7 @@ function retainedReportBytes(
       checks: overrides.checks ?? [
         { name: "representative-fixtures", status: input.status },
         { name: "origin-thresholds", status: input.status },
+        { name: "trade-explorer-budgets", status: input.status },
       ],
     })}\n`,
   );

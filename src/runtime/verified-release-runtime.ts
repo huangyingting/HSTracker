@@ -31,6 +31,7 @@ import type { EconomyDirectory } from "../economy/economy-directory";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
   createSupplierCompetitionDatasetPackageFromArtifacts,
+  createTradeExplorerDatasetPackageFromArtifacts,
   createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
@@ -40,6 +41,8 @@ import type { TradeEvidenceSource } from "../evidence/trade-evidence-source";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
 import { evaluateSupplierCompetitionV1DatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
 import type { SupplierCompetitionDatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
+import { evaluateTradeExplorerV1DatasetPackage } from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
+import type { TradeExplorerDatasetPackage } from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import { currentUtcSecond } from "../operations/utc-clock";
@@ -98,6 +101,7 @@ type RetainedRuntimeBundle = {
   datasetPackage: CandidateMarketDatasetPackage;
   tradeTrendDatasetPackage: TradeTrendDatasetPackage;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage;
+  tradeExplorerDatasetPackage: TradeExplorerDatasetPackage;
   recommendedDatasetMapping: RecommendedDatasetMapping;
   analysisDatabase: DuckDbAnalysisDatabase;
   evidenceSource: DuckDbTradeEvidenceSource;
@@ -108,6 +112,7 @@ type RetainedRuntimeBundle = {
   runAnalyticalSmoke: boolean;
   runTradeTrendSmoke: boolean;
   runSupplierCompetitionSmoke: boolean;
+  runTradeExplorerSmoke: boolean;
 };
 
 export class VerifiedReleaseRuntime {
@@ -771,6 +776,29 @@ async function verifyStartupSmoke(
     supplierCompetitionBenchmarks[0] ?? null;
   const shouldRunSupplierCompetitionSmoke =
     runSupplierCompetitionSmoke && supplierCompetitionBenchmark !== null;
+  const runTradeExplorerSmoke = bundle.runTradeExplorerSmoke;
+  if (
+    runTradeExplorerSmoke &&
+    (manifest.tradeExplorerBenchmarkQueries.length !== 4 ||
+      new Set(
+        manifest.tradeExplorerBenchmarkQueries.map(({ role }) => role),
+      ).size !== 4)
+  ) {
+    throw new Error(
+      "An activated Trade Explorer package requires one benchmark for every representative role.",
+    );
+  }
+  const tradeExplorerBenchmarks = manifest.tradeExplorerBenchmarkQueries.filter(
+    ({ role }) => role === "maximum-row",
+  );
+  if (runTradeExplorerSmoke && tradeExplorerBenchmarks.length !== 1) {
+    throw new Error(
+      "Analysis artifact has an invalid Trade Explorer startup smoke query set.",
+    );
+  }
+  const tradeExplorerBenchmark = tradeExplorerBenchmarks[0] ?? null;
+  const shouldRunTradeExplorerSmoke =
+    runTradeExplorerSmoke && tradeExplorerBenchmark !== null;
 
   const analysisResultPromise = runAnalyticalSmoke
     ? tradeAnalytics.execute({
@@ -796,16 +824,39 @@ async function verifyStartupSmoke(
         productCode: supplierCompetitionBenchmark!.productCode,
       })
     : Promise.resolve(null);
+  // The benchmark's own single implicit shape is finalized-trend-v1 grouped
+  // on YEAR (see TradeExplorerArtifactBenchmarkQuery in analysis-artifact-
+  // manifest.ts): an empty year list expands to the full five-year
+  // finalized window (see normalizeTradeExplorerV1Request), so this smoke
+  // query exercises the whole window in one request.
+  const tradeExplorerResultPromise = shouldRunTradeExplorerSmoke
+    ? tradeAnalytics.execute({
+        recipe: "trade-explorer-v1",
+        analysisBuildId,
+        shape: "finalized-trend-v1",
+        dimensions: ["YEAR"],
+        measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        filters: {
+          year: { mode: "list", years: [] },
+          exportEconomy: [tradeExplorerBenchmark!.exportEconomyCode],
+          importEconomy: [tradeExplorerBenchmark!.importEconomyCode],
+          hsProduct: [tradeExplorerBenchmark!.hsProductCode],
+        },
+        sort: null,
+      })
+    : Promise.resolve(null);
   const [
     analysisOutcome,
     tradeTrendOutcome,
     supplierCompetitionOutcome,
+    tradeExplorerOutcome,
     productResult,
     economyResult,
   ] = await Promise.all([
     analysisResultPromise,
     tradeTrendResultPromise,
     supplierCompetitionResultPromise,
+    tradeExplorerResultPromise,
     productCatalog.search({
       productSearchBuildId,
       query: benchmark.productCode,
@@ -838,6 +889,12 @@ async function verifyStartupSmoke(
           supplierCompetitionOutcome.state === "empty"
         ? supplierCompetitionOutcome.payload
         : null;
+  const tradeExplorerResult =
+    tradeExplorerOutcome === null
+      ? null
+      : tradeExplorerOutcome.state === "success"
+        ? tradeExplorerOutcome.payload
+        : null;
   if (
     (runAnalyticalSmoke &&
       (analysisResult === null ||
@@ -863,6 +920,19 @@ async function verifyStartupSmoke(
           supplierCompetitionBenchmark!.importerCode ||
         supplierCompetitionResult.query.product.code !==
           supplierCompetitionBenchmark!.productCode)) ||
+    (shouldRunTradeExplorerSmoke &&
+      (tradeExplorerResult === null ||
+        tradeExplorerResult.provenance.baciRelease !== baciRelease ||
+        tradeExplorerResult.analysisReleaseCatalogSha256 !==
+          analysisReleaseCatalogSha256 ||
+        tradeExplorerResult.rowCount !==
+          tradeExplorerBenchmark!.groupedRowCount ||
+        tradeExplorerResult.query.exportEconomy[0] !==
+          tradeExplorerBenchmark!.exportEconomyCode ||
+        tradeExplorerResult.query.importEconomy[0] !==
+          tradeExplorerBenchmark!.importEconomyCode ||
+        tradeExplorerResult.query.hsProduct[0] !==
+          tradeExplorerBenchmark!.hsProductCode)) ||
     productResult.productSearchBuildId !== productSearchBuildId ||
     productResult.matches[0]?.product.code !== benchmark.productCode ||
     economyResult.matches[0]?.economy.code !== benchmark.exporterCode
@@ -878,6 +948,7 @@ function currentAnalysisDeployment(
   mapping: RecommendedDatasetMapping,
   tradeTrendDatasetPackage: TradeTrendDatasetPackage,
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage,
+  tradeExplorerDatasetPackage: TradeExplorerDatasetPackage,
 ): CurrentAnalysisDeployment {
   const cutoff = manifest.finalizedCutoffYear;
   return {
@@ -890,6 +961,7 @@ function currentAnalysisDeployment(
     // that patch runs.
     deploymentWindow: [],
     benchmarkQueries: manifest.benchmarkQueries,
+    tradeExplorerBenchmarkQueries: manifest.tradeExplorerBenchmarkQueries,
     recommendation: {
       recipe: "candidate-market-v1",
       mappingIdentity: mapping.identity,
@@ -914,12 +986,17 @@ function currentAnalysisDeployment(
               datasetPackageIdentity:
                 supplierCompetitionDatasetPackage.identity,
             },
-      // trade-explorer-v1 stays fixture-only until issue #47 activates a
-      // measured production Dataset Package for it: the verified runtime
-      // never declares a mapping for it, so this is always null here (see
-      // trade-analytics-platform.ts's TradeAnalyticsPlatformInput comment
-      // and CurrentAnalysisManifest.recommendation.tradeExplorer).
-      tradeExplorer: null,
+      // trade-explorer-v1 activates only when the same closed Recommended
+      // Dataset Mapping also declares and gates it (see issue #47), just
+      // like tradeTrend/supplierCompetition above; null for legacy,
+      // Candidate-Market-only, or Trade-Explorer-undeclared mappings.
+      tradeExplorer:
+        mapping.manifest.tradeExplorer === null
+          ? null
+          : {
+              recipe: "trade-explorer-v1",
+              datasetPackageIdentity: tradeExplorerDatasetPackage.identity,
+            },
     },
     source: {
       baciRelease: manifest.baciRelease,
@@ -973,6 +1050,7 @@ async function loadRecommendedDatasetMapping(
   expectedPackage: CandidateMarketDatasetPackage,
   expectedTradeTrendPackage: TradeTrendDatasetPackage,
   expectedSupplierCompetitionPackage: SupplierCompetitionDatasetPackage,
+  expectedTradeExplorerPackage: TradeExplorerDatasetPackage,
 ): Promise<RecommendedDatasetMapping> {
   const catalogs = recommendedCatalogs(hydrated);
   let mapping: RecommendedDatasetMapping;
@@ -1020,12 +1098,13 @@ async function loadRecommendedDatasetMapping(
         },
       },
       // A legacy analysis artifact manifest predates capability
-      // declarations entirely, so it never went through Trade Trend or
-      // Supplier Competition review either: normalize it as
-      // Candidate-Market-only rather than deriving support from a default
-      // declaration it never published.
+      // declarations entirely, so it never went through Trade Trend,
+      // Supplier Competition, or Trade Explorer review either: normalize
+      // it as Candidate-Market-only rather than deriving support from a
+      // default declaration it never published.
       tradeTrend: null,
       supplierCompetition: null,
+      tradeExplorer: null,
       productCatalog: {
         identity: recommendedProductCatalogIdentity(
           catalogs.productCatalog,
@@ -1051,6 +1130,10 @@ async function loadRecommendedDatasetMapping(
       mapping.manifest.supplierCompetition === null
         ? null
         : expectedSupplierCompetitionPackage,
+    tradeExplorerDatasetPackage:
+      mapping.manifest.tradeExplorer === null
+        ? null
+        : expectedTradeExplorerPackage,
     productCatalog: catalogs.productCatalog,
     economyCatalog: catalogs.economyCatalog,
   });
@@ -1134,11 +1217,14 @@ async function openRetainedBundle(
     createTradeTrendDatasetPackageFromArtifacts(manifest);
   const supplierCompetitionDatasetPackage =
     createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
+  const tradeExplorerDatasetPackage =
+    createTradeExplorerDatasetPackageFromArtifacts(manifest);
   const recommendedDatasetMapping = await loadRecommendedDatasetMapping(
     pairing,
     datasetPackage,
     tradeTrendDatasetPackage,
     supplierCompetitionDatasetPackage,
+    tradeExplorerDatasetPackage,
   );
   const runAnalyticalSmoke =
     evaluateCandidateMarketV1DatasetPackage(datasetPackage).compatible;
@@ -1149,6 +1235,11 @@ async function openRetainedBundle(
     recommendedDatasetMapping.manifest.supplierCompetition !== null &&
     evaluateSupplierCompetitionV1DatasetPackage(
       supplierCompetitionDatasetPackage,
+    ).compatible;
+  const runTradeExplorerSmoke =
+    recommendedDatasetMapping.manifest.tradeExplorer !== null &&
+    evaluateTradeExplorerV1DatasetPackage(
+      tradeExplorerDatasetPackage,
     ).compatible;
 
   const analysisDatabase = await DuckDbAnalysisDatabase.open({
@@ -1188,6 +1279,7 @@ async function openRetainedBundle(
       recommendedDatasetMapping,
       tradeTrendDatasetPackage,
       supplierCompetitionDatasetPackage,
+      tradeExplorerDatasetPackage,
     );
     return {
       pairing,
@@ -1196,6 +1288,7 @@ async function openRetainedBundle(
       datasetPackage,
       tradeTrendDatasetPackage,
       supplierCompetitionDatasetPackage,
+      tradeExplorerDatasetPackage,
       recommendedDatasetMapping,
       analysisDatabase,
       evidenceSource,
@@ -1206,6 +1299,7 @@ async function openRetainedBundle(
       runAnalyticalSmoke,
       runTradeTrendSmoke,
       runSupplierCompetitionSmoke,
+      runTradeExplorerSmoke,
     };
   } catch (error) {
     analysisDatabase.close();
@@ -1242,6 +1336,11 @@ function buildPlatformInput(
     string,
     SupplierCompetitionDatasetPackage
   >();
+  const tradeExplorerEvidence = new Map<string, TradeEvidenceSource>();
+  const tradeExplorerPackages = new Map<
+    string,
+    TradeExplorerDatasetPackage
+  >();
 
   for (const bundle of bundles) {
     const buildId = bundle.pairing.deploymentManifest.analysisBuildId;
@@ -1262,6 +1361,10 @@ function buildPlatformInput(
         buildId,
         bundle.supplierCompetitionDatasetPackage,
       );
+    }
+    if (bundle.recommendedDatasetMapping.manifest.tradeExplorer !== null) {
+      tradeExplorerEvidence.set(buildId, bundle.evidenceSource);
+      tradeExplorerPackages.set(buildId, bundle.tradeExplorerDatasetPackage);
     }
   }
 
@@ -1285,6 +1388,14 @@ function buildPlatformInput(
           supplierCompetition: {
             evidenceSource: supplierCompetitionEvidence,
             datasetPackages: supplierCompetitionPackages,
+          },
+        }),
+    ...(tradeExplorerPackages.size === 0
+      ? {}
+      : {
+          tradeExplorer: {
+            evidenceSource: tradeExplorerEvidence,
+            datasetPackages: tradeExplorerPackages,
           },
         }),
   };

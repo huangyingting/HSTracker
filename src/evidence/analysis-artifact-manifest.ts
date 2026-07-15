@@ -16,6 +16,11 @@ import {
   type SupplierCompetitionDatasetPackage,
 } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
 import {
+  createTradeExplorerDatasetPackage,
+  type TradeExplorerDatasetCapabilityDeclaration,
+  type TradeExplorerDatasetPackage,
+} from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
+import {
   createTradeTrendDatasetPackage,
   parseTradeTrendDatasetCapabilityDeclaration,
   type TradeTrendDatasetCapabilityDeclaration,
@@ -54,6 +59,22 @@ export type SupplierCompetitionArtifactBenchmarkQuery = {
   distinctSupplierCount: number;
 };
 
+// Trade Explorer v1's own startup smoke benchmark: a "finalized trend"
+// query with explicit shape and measures, grouped on YEAR and fixed at one
+// export/import economy and one HS12
+// product, over the full five-year finalized window. Fields name public
+// semantic filter/shape vocabulary and a row-count assertion -- never SQL,
+// a table, or a column.
+export type TradeExplorerArtifactBenchmarkQuery = {
+  role: "sparse" | "median" | "upper-quartile" | "maximum-row";
+  shape: "finalized-trend-v1";
+  measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"];
+  exportEconomyCode: string;
+  importEconomyCode: string;
+  hsProductCode: string;
+  groupedRowCount: number;
+};
+
 export type AnalysisArtifactManifest = {
   schemaVersion: "candidate-market-artifact-manifest-v1";
   baciRelease: string;
@@ -78,6 +99,7 @@ export type AnalysisArtifactManifest = {
   datasetPackage: CandidateMarketDatasetCapabilityDeclaration;
   tradeTrendDatasetPackage: TradeTrendDatasetCapabilityDeclaration;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetCapabilityDeclaration;
+  tradeExplorerDatasetPackage: TradeExplorerDatasetCapabilityDeclaration;
   scoreVersionsSupported: string[];
   artifact: {
     schemaVersion: "candidate-market-artifact-v1";
@@ -90,6 +112,7 @@ export type AnalysisArtifactManifest = {
   benchmarkQueries: AnalysisArtifactBenchmarkQuery[];
   tradeTrendBenchmarkQueries: TradeTrendArtifactBenchmarkQuery[];
   supplierCompetitionBenchmarkQueries: SupplierCompetitionArtifactBenchmarkQuery[];
+  tradeExplorerBenchmarkQueries: TradeExplorerArtifactBenchmarkQuery[];
 };
 
 const LEGACY_ANNUAL_SOURCE_CHECK_KEYS = [
@@ -214,6 +237,15 @@ export function parseAnalysisArtifactManifest(
       : parseSupplierCompetitionDatasetCapabilityDeclaration(
           manifest.supplierCompetitionDatasetPackage,
         );
+  const tradeExplorerDatasetPackage =
+    manifest.tradeExplorerDatasetPackage === undefined
+      ? {
+          schemaVersion: "trade-explorer-dataset-capabilities-v1" as const,
+          capabilities: [],
+        }
+      : parseTradeExplorerDatasetCapabilityDeclaration(
+          manifest.tradeExplorerDatasetPackage,
+        );
   const benchmarkQueries = array(
     manifest.benchmarkQueries,
     "benchmark queries",
@@ -226,6 +258,10 @@ export function parseAnalysisArtifactManifest(
     manifest.supplierCompetitionBenchmarkQueries ?? [],
     "supplier competition benchmark queries",
   ).map(parseSupplierCompetitionBenchmarkQuery);
+  const tradeExplorerBenchmarkQueries = array(
+    manifest.tradeExplorerBenchmarkQueries ?? [],
+    "trade explorer benchmark queries",
+  ).map(parseTradeExplorerBenchmarkQuery);
   const buildId = string(artifact.buildId, "analysis artifact build ID");
   if (!/^candidate-market-artifact-v1-[a-f0-9]{16}$/u.test(buildId)) {
     throw new Error("Analysis artifact build ID is malformed.");
@@ -264,6 +300,7 @@ export function parseAnalysisArtifactManifest(
     datasetPackage,
     tradeTrendDatasetPackage,
     supplierCompetitionDatasetPackage,
+    tradeExplorerDatasetPackage,
     scoreVersionsSupported,
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
@@ -279,6 +316,7 @@ export function parseAnalysisArtifactManifest(
     benchmarkQueries,
     tradeTrendBenchmarkQueries,
     supplierCompetitionBenchmarkQueries,
+    tradeExplorerBenchmarkQueries,
   };
 }
 
@@ -648,6 +686,147 @@ export function createSupplierCompetitionDatasetPackageFromArtifacts(
     finalizedYearCount: 5,
     evidenceSha256: manifest.artifact.sha256,
     capabilities: manifest.supplierCompetitionDatasetPackage.capabilities,
+  });
+}
+
+// trade-explorer-v1-dataset-package.ts (unowned by #47's evidence-source
+// slice) does not export a capability-declaration parser counterpart to
+// parseTradeTrendDatasetCapabilityDeclaration /
+// parseSupplierCompetitionDatasetCapabilityDeclaration above, so this
+// mirrors that exact pattern locally instead of editing that file.
+function parseTradeExplorerDatasetCapabilityDeclaration(
+  value: unknown,
+): TradeExplorerDatasetCapabilityDeclaration {
+  const declaration = record(
+    value,
+    "Trade Explorer Dataset Package capability declaration",
+  );
+  if (declaration.schemaVersion !== "trade-explorer-dataset-capabilities-v1") {
+    throw new Error(
+      "Trade Explorer Dataset Package capability declaration schema is incompatible.",
+    );
+  }
+  if (!Array.isArray(declaration.capabilities)) {
+    throw new Error(
+      "Trade Explorer Dataset Package capabilities must be an array.",
+    );
+  }
+  const capabilities = declaration.capabilities.map((entry, index) => {
+    const capability = record(
+      entry,
+      `Trade Explorer Dataset Package capability ${index}`,
+    );
+    return {
+      id: string(
+        capability.id,
+        `Trade Explorer Dataset Package capability ${index} id`,
+      ),
+      version: string(
+        capability.version,
+        `Trade Explorer Dataset Package capability ${index} version`,
+      ),
+    };
+  });
+  if (new Set(capabilities.map(({ id }) => id)).size !== capabilities.length) {
+    throw new Error(
+      "Trade Explorer Dataset Package capability IDs must be unique.",
+    );
+  }
+  return {
+    schemaVersion: "trade-explorer-dataset-capabilities-v1",
+    capabilities: [...capabilities].sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) ||
+        left.version.localeCompare(right.version),
+    ),
+  };
+}
+
+function parseTradeExplorerBenchmarkQuery(
+  value: unknown,
+  index: number,
+): TradeExplorerArtifactBenchmarkQuery {
+  const query = record(value, `trade explorer benchmark query ${index}`);
+  const role = string(
+    query.role,
+    `trade explorer benchmark query ${index} role`,
+  );
+  if (
+    role !== "sparse" &&
+    role !== "median" &&
+    role !== "upper-quartile" &&
+    role !== "maximum-row"
+  ) {
+    throw new Error(
+      `Trade explorer benchmark query ${index} role is invalid.`,
+    );
+  }
+  if (query.shape !== "finalized-trend-v1") {
+    throw new Error(
+      `Trade explorer benchmark query ${index} shape is invalid.`,
+    );
+  }
+  if (
+    !Array.isArray(query.measures) ||
+    query.measures.length !== 2 ||
+    query.measures[0] !== "TRADE_VALUE_USD" ||
+    query.measures[1] !== "RECORDED_FLOW_COUNT"
+  ) {
+    throw new Error(
+      `Trade explorer benchmark query ${index} measures are invalid.`,
+    );
+  }
+  const exportEconomyCode = string(
+    query.exportEconomyCode,
+    `trade explorer benchmark query ${index} export economy code`,
+  );
+  const importEconomyCode = string(
+    query.importEconomyCode,
+    `trade explorer benchmark query ${index} import economy code`,
+  );
+  const hsProductCode = string(
+    query.hsProductCode,
+    `trade explorer benchmark query ${index} HS product code`,
+  );
+  if (
+    !/^\d{1,3}$/u.test(exportEconomyCode) ||
+    !/^\d{1,3}$/u.test(importEconomyCode) ||
+    !/^\d{6}$/u.test(hsProductCode)
+  ) {
+    throw new Error(
+      `Trade explorer benchmark query ${index} identity is malformed.`,
+    );
+  }
+  return {
+    role,
+    shape: "finalized-trend-v1",
+    measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+    exportEconomyCode,
+    importEconomyCode,
+    hsProductCode,
+    groupedRowCount: count(
+      query.groupedRowCount,
+      `trade explorer benchmark query ${index} grouped row count`,
+    ),
+  };
+}
+
+export function createTradeExplorerDatasetPackageFromArtifacts(
+  manifest: AnalysisArtifactManifest,
+): TradeExplorerDatasetPackage {
+  // The declared capabilities come from the published artifact manifest
+  // (manifest.tradeExplorerDatasetPackage), not from a hardcoded
+  // requirements list, so evaluateTradeExplorerV1DatasetPackage() below is
+  // a genuine check against reviewed, artifact-embedded evidence rather
+  // than a tautology.
+  return createTradeExplorerDatasetPackage({
+    schemaVersion: "trade-explorer-dataset-package-manifest-v1",
+    baciRelease: manifest.baciRelease,
+    hsRevision: manifest.hsRevision,
+    finalizedYearCount: 5,
+    finalizedCutoffYear: manifest.finalizedCutoffYear,
+    evidenceSha256: manifest.artifact.sha256,
+    capabilities: manifest.tradeExplorerDatasetPackage.capabilities,
   });
 }
 

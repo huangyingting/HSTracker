@@ -35,7 +35,7 @@ describe("origin-benchmark plan parsing", () => {
 
     expect(plan.measurementClass).toBe("candidate");
     expect(plan.origin).toBe("https://staging.example.com");
-    expect(plan.requests).toHaveLength(67);
+    expect(plan.requests).toHaveLength(83);
     expect(plan.warmupSamples).toBe(5);
   });
 
@@ -193,10 +193,10 @@ describe("runOriginBenchmark", () => {
 
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
-        // 1 health check + 67 routes * (5 warmups + timedSamples).
+        // 1 health check + 83 routes * (5 warmups + timedSamples).
         const perRoute = 5 + plan.timedSamples;
-        expect(calls.length).toBe(1 + 67 * perRoute);
-        expect(report.originBenchmarks).toHaveLength(67);
+        expect(calls.length).toBe(1 + 83 * perRoute);
+        expect(report.originBenchmarks).toHaveLength(83);
         expect(report.status).toBe("measurement-complete");
         expect(report.meetsAcceptanceEvidenceSampleSize).toBe(true);
         expect(report.firstFailure).toBeNull();
@@ -230,9 +230,16 @@ describe("runOriginBenchmark", () => {
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
         const csvHit = requireBenchmark(report, "csv-analysis-hit", "median");
+        const tradeExplorerCsvHit = requireBenchmark(
+          report,
+          "trade-explorer-csv-analysis-hit",
+          "median",
+        );
         const csvUncached = requireBenchmark(report, "csv-uncached", "median");
         expect(csvHit.p50Ms).toBe(5);
         expect(csvHit.maximumRouteMs).toBe(400);
+        expect(tradeExplorerCsvHit.p50Ms).toBe(5);
+        expect(tradeExplorerCsvHit.maximumRouteMs).toBe(400);
         expect(csvUncached.p50Ms).toBe(40);
       },
     );
@@ -386,6 +393,35 @@ describe("runOriginBenchmark", () => {
       ),
     ).rejects.toThrow(
       "candidate-analysis-uncached:maximum-row sample",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("binds Trade Explorer samples to the artifact-attested role query", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const requestCase = input.requests.find(
+      (request) =>
+        request.operation === "trade-explorer-analysis-uncached" &&
+        request.productRole === "maximum-row",
+    );
+    if (requestCase?.sampleRequests === undefined) {
+      throw new Error("Expected maximum-row Trade Explorer samples.");
+    }
+    requestCase.sampleRequests[0].request.path =
+      "/api/v1/analyses/test/trade-explorer?shape=importing-markets-v1&measures=TRADE_VALUE_USD&years=2023&exportEconomy=156&hsProduct=000001";
+    const plan = parseOriginBenchmarkPlan(input);
+    const calls: HttpBenchmarkRequest[] = [];
+
+    await expect(
+      runOriginBenchmark(
+        plan,
+        fakeExecutor(calls, () => {
+          throw new Error("must not execute");
+        }),
+        originRunnerDependencies(),
+      ),
+    ).rejects.toThrow(
+      "trade-explorer-analysis-uncached:maximum-row sample",
     );
     expect(calls).toHaveLength(0);
   });
@@ -671,6 +707,10 @@ function acceptedPlanInput(
     "supplier-competition-analysis-process-hit",
     "supplier-competition-csv-uncached",
     "supplier-competition-csv-analysis-hit",
+    "trade-explorer-analysis-uncached",
+    "trade-explorer-analysis-process-hit",
+    "trade-explorer-csv-uncached",
+    "trade-explorer-csv-analysis-hit",
   ];
   const uncachedOperations = new Set([
     "economy-search-uncached",
@@ -681,6 +721,8 @@ function acceptedPlanInput(
     "trade-trend-csv-uncached",
     "supplier-competition-analysis-uncached",
     "supplier-competition-csv-uncached",
+    "trade-explorer-analysis-uncached",
+    "trade-explorer-csv-uncached",
   ]);
   const roles = [
     "sparse",
@@ -702,14 +744,18 @@ function acceptedPlanInput(
         const attestedRequest = {
           method: "GET",
           path:
-            operation.startsWith("candidate-analysis") ||
-            operation.startsWith("csv-")
+            operation.startsWith("trade-explorer")
+              ? `/api/v1/${operation}/${role}?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct=${roleProductCodes[role]}`
+              : operation.startsWith("candidate-analysis") ||
+                  operation.startsWith("csv-")
               ? `/api/v1/${operation}/${role}?exporter=156&product=${roleProductCodes[role]}`
               : `/api/v1/${operation}/${role}`,
         };
         const attestedUncachedOperation =
           operation === "candidate-analysis-uncached" ||
-          operation === "csv-uncached";
+          operation === "csv-uncached" ||
+          operation === "trade-explorer-analysis-uncached" ||
+          operation === "trade-explorer-csv-uncached";
         return {
           operation,
           productRole: role,
@@ -786,6 +832,14 @@ const MIXED_LOAD_DISTINCT_KEYS = [
   "max-row-key",
   ...Array.from({ length: 339 }, (_, index) => `dk-${index + 1}`),
 ];
+const CANDIDATE_MIXED_LOAD_HOT_KEYS = Array.from(
+  { length: 5 },
+  (_, index) => String(800001 + index),
+);
+const CANDIDATE_MIXED_LOAD_DISTINCT_KEYS = [
+  "851712",
+  ...Array.from({ length: 339 }, (_, index) => String(900001 + index)),
+];
 
 type MixedLoadPlanOverrides = {
   measurementClass?: string;
@@ -804,6 +858,7 @@ type MixedLoadPlanOverrides = {
 
 function acceptedMixedLoadPlanInput(overrides: MixedLoadPlanOverrides = {}) {
   const measurementClass = overrides.measurementClass ?? "local-smoke";
+  const candidate = measurementClass === "candidate";
   const includeObservations =
     measurementClass !== "candidate" ||
     Object.prototype.hasOwnProperty.call(overrides, "observations");
@@ -829,17 +884,28 @@ function acceptedMixedLoadPlanInput(overrides: MixedLoadPlanOverrides = {}) {
       search: { method: "GET", pathTemplate: "/api/v1/product-search" },
       analysis: {
         method: "GET",
-        pathTemplate: "/api/v1/analyses/{analysisKey}",
+        pathTemplate: candidate
+          ? `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/trade-explorer?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}`
+          : "/api/v1/analyses/{analysisKey}",
       },
       csv: {
         method: "GET",
-        pathTemplate: "/api/v1/analyses/{analysisKey}/export.csv",
+        pathTemplate: candidate
+          ? `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/trade-explorer.csv?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}`
+          : "/api/v1/analyses/{analysisKey}/export.csv",
       },
     },
-    analysisHotKeys: overrides.analysisHotKeys ?? MIXED_LOAD_HOT_KEYS,
+    analysisHotKeys:
+      overrides.analysisHotKeys ??
+      (candidate ? CANDIDATE_MIXED_LOAD_HOT_KEYS : MIXED_LOAD_HOT_KEYS),
     analysisDistinctKeys:
-      overrides.analysisDistinctKeys ?? MIXED_LOAD_DISTINCT_KEYS,
-    maximumRowAnalysisKey: overrides.maximumRowAnalysisKey ?? "max-row-key",
+      overrides.analysisDistinctKeys ??
+      (candidate
+        ? CANDIDATE_MIXED_LOAD_DISTINCT_KEYS
+        : MIXED_LOAD_DISTINCT_KEYS),
+    maximumRowAnalysisKey:
+      overrides.maximumRowAnalysisKey ??
+      (candidate ? "851712" : "max-row-key"),
     ...(includeObservations
       ? {
           observations:
@@ -964,9 +1030,27 @@ describe("mixed-load plan parsing", () => {
     expect(plan.sustainedSeconds).toBe(600);
   });
 
+  it("rejects candidate mixed load that does not exercise Trade Explorer analysis and CSV", () => {
+    const input = acceptedMixedLoadPlanInput({
+      measurementClass: "candidate",
+      origin: "https://staging.example.com",
+      sustainedRequestsPerSecond: 4,
+      sustainedSeconds: 600,
+      burstRequestsPerSecond: 10,
+      burstSeconds: 30,
+      coordinatedBurstIntervalSeconds: 60,
+    });
+    input.routeTemplates.analysis.pathTemplate =
+      "/api/v1/analyses/{analysisKey}/candidate-markets";
+
+    expect(() => parseMixedLoadPlan(input)).toThrow(
+      "Candidate mixed-load analysis template must execute",
+    );
+  });
+
   it("requires all 337 never-reused candidate analysis keys", () => {
     const analysisDistinctKeys = [
-      "max-row-key",
+      "851712",
       ...Array.from({ length: 335 }, (_, index) => `candidate-${index}`),
     ];
     expect(() =>
@@ -1339,6 +1423,44 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
       candidateCount: 1,
     },
   ],
+  tradeExplorerBenchmarkQueries: [
+    {
+      role: "sparse",
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+      exportEconomyCode: "156",
+      importEconomyCode: "276",
+      hsProductCode: "010121",
+      groupedRowCount: 5,
+    },
+    {
+      role: "median",
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+      exportEconomyCode: "156",
+      importEconomyCode: "276",
+      hsProductCode: "851712",
+      groupedRowCount: 5,
+    },
+    {
+      role: "upper-quartile",
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+      exportEconomyCode: "156",
+      importEconomyCode: "276",
+      hsProductCode: "010121",
+      groupedRowCount: 5,
+    },
+    {
+      role: "maximum-row",
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+      exportEconomyCode: "156",
+      importEconomyCode: "276",
+      hsProductCode: "851712",
+      groupedRowCount: 5,
+    },
+  ],
   health: { path: "/healthz", bodySha256: "c".repeat(64) },
   currentManifest: {
     path: "/api/v1/analyses/current",
@@ -1429,6 +1551,7 @@ describe("mixed-load runner", () => {
       expect(report.targetLoad.timeouts).toBe(0);
       expect(report.targetLoad.cacheStatesVerified).toBe(true);
       expect(report.targetLoad.includesMaximumRowProduct).toBe(true);
+      expect(report.targetLoad.includesTradeExplorer).toBe(false);
     });
   });
 

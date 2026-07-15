@@ -312,17 +312,23 @@ describe("immutable release publication", () => {
         recipe: "supplier-competition-v1",
         evidenceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       }),
+      expectedTradeExplorerMapping: expect.objectContaining({
+        recipe: "trade-explorer-v1",
+        evidenceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      }),
     },
     {
       target: "older narrowly normalized legacy",
       legacyDatasetPackageManifest: true,
       expectedTradeTrendMapping: null,
       expectedSupplierCompetitionMapping: null,
+      expectedTradeExplorerMapping: null,
     },
   ])("upgrades and smokes a mapping-less $target rollback target", async ({
     legacyDatasetPackageManifest,
     expectedTradeTrendMapping,
     expectedSupplierCompetitionMapping,
+    expectedTradeExplorerMapping,
   }) => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
     const firstCandidate = await writeRuntimeReleaseCandidate(
@@ -378,6 +384,9 @@ describe("immutable release publication", () => {
     expect(storedMappingJson.tradeTrend).toEqual(expectedTradeTrendMapping);
     expect(storedMappingJson.supplierCompetition).toEqual(
       expectedSupplierCompetitionMapping,
+    );
+    expect(storedMappingJson.tradeExplorer).toEqual(
+      expectedTradeExplorerMapping,
     );
   }, 30_000);
 

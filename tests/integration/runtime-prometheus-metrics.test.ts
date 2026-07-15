@@ -44,6 +44,12 @@ describe("runtime Prometheus metrics", () => {
       'hs_tracker_result_bytes_bucket{route_family="candidate-market",cache_state="hit",recipe_version="candidate-market-v1",outcome_state="success",rejection_reason="none",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="1024"} 1',
     );
     expect(output).toContain(
+      'hs_tracker_analysis_scan_rows_bucket{route_family="candidate-market",cache_state="hit",recipe_version="candidate-market-v1",outcome_state="success",rejection_reason="none",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="50"} 1',
+    );
+    expect(output).toContain(
+      'hs_tracker_analysis_result_rows_bucket{route_family="candidate-market",cache_state="hit",recipe_version="candidate-market-v1",outcome_state="success",rejection_reason="none",analysis_build_id="analysis-build-v1-test",baci_release="V202601",le="25"} 1',
+    );
+    expect(output).toContain(
       'hs_tracker_analysis_queue_depth{analysis_build_id="analysis-build-v1-test",baci_release="V202601"} 3',
     );
     expect(output).toContain(
@@ -127,6 +133,8 @@ function metric(): RuntimeRequestMetric {
     queryMs: 20,
     serializationMs: 5,
     resultBytes: 1_024,
+    scanRows: 42,
+    resultRows: 13,
     resources: {
       analysisExecution: {
         active: 2,

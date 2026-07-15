@@ -22,6 +22,7 @@ import {
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createTradeExplorerDatasetPackageFromArtifacts,
   createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
 } from "../../src/evidence/analysis-artifact-manifest";
@@ -786,6 +787,84 @@ describe("immutable DuckDB analysis artifact CLI", () => {
               `${benchmark.role} query supplier ${supplier.economy.code}`,
             ).toHaveLength(5);
           }
+        }
+      } finally {
+        source.close();
+      }
+    },
+    20_000,
+  );
+
+  it(
+    "publishes every sparse/median/upper-quartile/maximum-row Trade Explorer package query",
+    async () => {
+      const root = await temporaryWorkspace();
+      const staging = await stageSafeFixture(join(root, "staging-work"));
+      const outcome = await runArtifactCli({
+        stagingManifestPath: staging.stagingManifestPath,
+        workspace: join(root, "artifact-work"),
+        reportPath: join(root, "artifact-report.json"),
+      });
+      const manifest = await readAnalysisArtifactManifest(
+        outcome.artifactManifestPath,
+      );
+      expect(manifest.tradeExplorerDatasetPackage).toEqual({
+        schemaVersion: "trade-explorer-dataset-capabilities-v1",
+        capabilities: expect.arrayContaining([
+          {
+            id: "trade-explorer/bilateral-annual-value",
+            version: "1",
+          },
+        ]),
+      });
+      expect(manifest.tradeExplorerBenchmarkQueries).toHaveLength(4);
+      expect(
+        manifest.tradeExplorerBenchmarkQueries.map(({ role }) => role).sort(),
+      ).toEqual(
+        ["maximum-row", "median", "sparse", "upper-quartile"].sort(),
+      );
+
+      const source = await DuckDbTradeEvidenceSource.open({
+        artifactPath: outcome.artifactPath,
+        artifactManifestPath: outcome.artifactManifestPath,
+        analysisBuildId: "safe-analysis-build",
+        analysisReleaseCatalogSha256: "a".repeat(64),
+      });
+      try {
+        const platform = createTradeAnalyticsPlatform({
+          tradeExplorer: {
+            evidenceSource: source,
+            datasetPackages: new Map([
+              [
+                "safe-analysis-build",
+                createTradeExplorerDatasetPackageFromArtifacts(manifest),
+              ],
+            ]),
+          },
+        });
+        for (const benchmark of manifest.tradeExplorerBenchmarkQueries) {
+          const outcome = await platform.execute({
+            recipe: "trade-explorer-v1",
+            analysisBuildId: "safe-analysis-build",
+            shape: benchmark.shape,
+            dimensions: ["YEAR"],
+            measures: benchmark.measures,
+            filters: {
+              year: { mode: "list", years: [] },
+              exportEconomy: [benchmark.exportEconomyCode],
+              importEconomy: [benchmark.importEconomyCode],
+              hsProduct: [benchmark.hsProductCode],
+            },
+            sort: null,
+          });
+
+          expect(outcome.state, `${benchmark.role} query`).toBe("success");
+          if (outcome.state !== "success") {
+            throw new Error(`${benchmark.role} query did not succeed.`);
+          }
+          expect(outcome.payload.rowCount, `${benchmark.role} query`).toBe(
+            benchmark.groupedRowCount,
+          );
         }
       } finally {
         source.close();

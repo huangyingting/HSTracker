@@ -7,6 +7,8 @@ import type {
 import { evaluateCandidateMarketV1DatasetPackage } from "./dataset-package";
 import { evaluateSupplierCompetitionV1DatasetPackage } from "./supplier-competition-v1-dataset-package";
 import type { SupplierCompetitionDatasetPackage } from "./supplier-competition-v1-dataset-package";
+import { evaluateTradeExplorerV1DatasetPackage } from "./trade-explorer-v1-dataset-package";
+import type { TradeExplorerDatasetPackage } from "./trade-explorer-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "./trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "./trade-trend-v1-dataset-package";
 
@@ -57,6 +59,19 @@ export type RecommendedSupplierCompetitionMappingDeclaration = Readonly<{
   evidenceSha256: string;
 }>;
 
+// Declares that this closed mapping also gates trade-explorer-v1 on the
+// SAME analysis artifact already pinned by economyCatalog below. Trade
+// Explorer's own published Dataset Package (see
+// trade-explorer-v1-dataset-package.ts) still independently pins its
+// evidenceSha256 to that identical artifact SHA-256, so this declaration
+// and the package it names bind to one and the same verified evidence,
+// exactly like RecommendedTradeTrendMappingDeclaration and
+// RecommendedSupplierCompetitionMappingDeclaration above.
+export type RecommendedTradeExplorerMappingDeclaration = Readonly<{
+  recipe: "trade-explorer-v1";
+  evidenceSha256: string;
+}>;
+
 export type RecommendedDatasetMappingManifest = Readonly<{
   schemaVersion: "recommended-dataset-mapping-manifest-v1";
   recipe: "candidate-market-v1";
@@ -66,6 +81,7 @@ export type RecommendedDatasetMappingManifest = Readonly<{
   }>;
   tradeTrend: RecommendedTradeTrendMappingDeclaration | null;
   supplierCompetition: RecommendedSupplierCompetitionMappingDeclaration | null;
+  tradeExplorer: RecommendedTradeExplorerMappingDeclaration | null;
   productCatalog: Readonly<{
     identity: RecommendedProductCatalogIdentity;
     productSearchBuildId: string;
@@ -146,6 +162,7 @@ export function validateRecommendedDatasetMapping(input: {
   datasetPackage: CandidateMarketDatasetPackage;
   tradeTrendDatasetPackage: TradeTrendDatasetPackage | null;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage | null;
+  tradeExplorerDatasetPackage: TradeExplorerDatasetPackage | null;
   productCatalog: Readonly<{
     productSearchBuildId: string;
     schemaVersion: "product-catalog-artifact-v1";
@@ -273,30 +290,66 @@ export function validateRecommendedDatasetMapping(input: {
         "Recommended Dataset Mapping does not declare supplier-competition-v1.",
       );
     }
+  } else {
+    if (input.supplierCompetitionDatasetPackage === null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping declares supplier-competition-v1 without a package.",
+      );
+    }
+    if (
+      manifest.supplierCompetition.evidenceSha256 !==
+        input.supplierCompetitionDatasetPackage.manifest.evidenceSha256 ||
+      manifest.supplierCompetition.evidenceSha256 !==
+        manifest.economyCatalog.artifact.sha256
+    ) {
+      throw new TypeError(
+        "Recommended Dataset Mapping Supplier Competition evidence is incompatible.",
+      );
+    }
+    const supplierCompetitionCompatibility =
+      evaluateSupplierCompetitionV1DatasetPackage(
+        input.supplierCompetitionDatasetPackage,
+      );
+    if (!supplierCompetitionCompatibility.compatible) {
+      throw new TypeError(
+        `Recommended Dataset Mapping Supplier Competition package is incompatible: ${supplierCompetitionCompatibility.reason}.`,
+      );
+    }
+  }
+
+  // Trade Explorer follows the identical no-separate-package-object,
+  // same-economyCatalog-artifact-SHA-256 pattern as Trade Trend and
+  // Supplier Competition above, validated independently so a mapping may
+  // declare any combination of the three recipes.
+  if (manifest.tradeExplorer === null) {
+    if (input.tradeExplorerDatasetPackage !== null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping does not declare trade-explorer-v1.",
+      );
+    }
     return;
   }
-  if (input.supplierCompetitionDatasetPackage === null) {
+  if (input.tradeExplorerDatasetPackage === null) {
     throw new TypeError(
-      "Recommended Dataset Mapping declares supplier-competition-v1 without a package.",
+      "Recommended Dataset Mapping declares trade-explorer-v1 without a package.",
     );
   }
   if (
-    manifest.supplierCompetition.evidenceSha256 !==
-      input.supplierCompetitionDatasetPackage.manifest.evidenceSha256 ||
-    manifest.supplierCompetition.evidenceSha256 !==
+    manifest.tradeExplorer.evidenceSha256 !==
+      input.tradeExplorerDatasetPackage.manifest.evidenceSha256 ||
+    manifest.tradeExplorer.evidenceSha256 !==
       manifest.economyCatalog.artifact.sha256
   ) {
     throw new TypeError(
-      "Recommended Dataset Mapping Supplier Competition evidence is incompatible.",
+      "Recommended Dataset Mapping Trade Explorer evidence is incompatible.",
     );
   }
-  const supplierCompetitionCompatibility =
-    evaluateSupplierCompetitionV1DatasetPackage(
-      input.supplierCompetitionDatasetPackage,
-    );
-  if (!supplierCompetitionCompatibility.compatible) {
+  const tradeExplorerCompatibility = evaluateTradeExplorerV1DatasetPackage(
+    input.tradeExplorerDatasetPackage,
+  );
+  if (!tradeExplorerCompatibility.compatible) {
     throw new TypeError(
-      `Recommended Dataset Mapping Supplier Competition package is incompatible: ${supplierCompetitionCompatibility.reason}.`,
+      `Recommended Dataset Mapping Trade Explorer package is incompatible: ${tradeExplorerCompatibility.reason}.`,
     );
   }
 }
@@ -399,6 +452,9 @@ function parseRecommendedDatasetMappingManifest(
   const supplierCompetition = parseSupplierCompetitionMappingDeclaration(
     mapping.supplierCompetition,
   );
+  const tradeExplorer = parseTradeExplorerMappingDeclaration(
+    mapping.tradeExplorer,
+  );
 
   return {
     schemaVersion: "recommended-dataset-mapping-manifest-v1",
@@ -412,6 +468,7 @@ function parseRecommendedDatasetMappingManifest(
     },
     tradeTrend,
     supplierCompetition,
+    tradeExplorer,
     productCatalog: {
       identity: productIdentity,
       ...parsedProductCatalog,
@@ -471,6 +528,33 @@ function parseSupplierCompetitionMappingDeclaration(
     evidenceSha256: sha256(
       declaration.evidenceSha256,
       "Supplier Competition declaration evidence SHA-256",
+    ),
+  };
+}
+
+function parseTradeExplorerMappingDeclaration(
+  value: unknown,
+): RecommendedTradeExplorerMappingDeclaration | null {
+  // Absent/null is the legacy and Candidate-Market-only shape (and matches
+  // a mapping written before #47 activated Trade Explorer): this mapping
+  // does not declare or gate trade-explorer-v1 at all.
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const declaration = object(
+    value,
+    "Recommended Dataset Mapping Trade Explorer declaration",
+  );
+  if (declaration.recipe !== "trade-explorer-v1") {
+    throw new TypeError(
+      "Recommended Dataset Mapping Trade Explorer declaration recipe is incompatible.",
+    );
+  }
+  return {
+    recipe: "trade-explorer-v1",
+    evidenceSha256: sha256(
+      declaration.evidenceSha256,
+      "Trade Explorer declaration evidence SHA-256",
     ),
   };
 }

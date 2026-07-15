@@ -28,8 +28,9 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 67,
+          benchmarkCount: 83,
         },
+        tradeExplorer: { status: "accepted" },
         targetLoad: {
           status: "accepted",
           sustainedSeconds: 600,
@@ -186,6 +187,23 @@ describe("production performance gates", () => {
     );
   });
 
+  it("requires Trade Explorer origin evidence for every representative role", () => {
+    const input = acceptedInput();
+    input.originBenchmarks = input.originBenchmarks.filter(
+      (benchmark) =>
+        !(
+          benchmark.operation === "trade-explorer-csv-analysis-hit" &&
+          benchmark.productRole === "upper-quartile"
+        ),
+    );
+
+    expect(() => evaluatePerformanceGates(input)).toThrowError(
+      new PerformanceGateInputError(
+        "Missing origin benchmark trade-explorer-csv-analysis-hit:upper-quartile.",
+      ),
+    );
+  });
+
   it("blocks a Trade Trend origin benchmark that misses its accept/block threshold", () => {
     const input = acceptedInput();
     const benchmark = input.originBenchmarks.find(
@@ -205,6 +223,77 @@ describe("production performance gates", () => {
           evaluated.productRole === "maximum-row",
       ),
     ).toMatchObject({ p95Ms: 2_001, status: "blocked" });
+  });
+
+  it("blocks a Trade Explorer query that exceeds its scan budget", () => {
+    const input = acceptedInput();
+    const maximumRow = input.tradeExplorer.queries.find(
+      (query) => query.productRole === "maximum-row",
+    )!;
+    maximumRow.scanRows = 251;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.tradeExplorer).toMatchObject({
+      status: "blocked",
+      reasons: ["maximum-row Trade Explorer scan rows 251 exceed 250."],
+    });
+  });
+
+  it.each([
+    ["resultRows", 251, "result rows 251 exceed 250"],
+    ["resultBytes", 1024 * KIB + 1, "result bytes 1048577 exceed 1048576"],
+    ["exportBytes", 1024 * KIB + 1, "export bytes 1048577 exceed 1048576"],
+    [
+      "peakMemoryBytes",
+      1024 ** 3 + 1,
+      "peak memory bytes 1073741825 exceed 1073741824",
+    ],
+    [
+      "peakSpillBytes",
+      4 * 1024 ** 3 + 1,
+      "peak spill bytes 4294967297 exceed 4294967296",
+    ],
+    ["queueWaitMs", 5_001, "queue wait milliseconds 5001 exceed 5000"],
+    ["executionMs", 5_001, "execution milliseconds 5001 exceed 5000"],
+  ] as const)(
+    "blocks a Trade Explorer %s budget violation",
+    (field, value, reason) => {
+      const input = acceptedInput();
+      input.tradeExplorer.queries[0][field] = value;
+
+      const result = evaluatePerformanceGates(input);
+
+      expect(result.gates.tradeExplorer.reasons).toContain(
+        `sparse Trade Explorer ${reason}.`,
+      );
+      expect(result.status).toBe("blocked");
+    },
+  );
+
+  it("blocks unless timed-out Trade Explorer work releases capacity", () => {
+    const input = acceptedInput();
+    const sparse = input.tradeExplorer.queries.find(
+      (query) => query.productRole === "sparse",
+    )!;
+    sparse.cancellationReleased = false;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.tradeExplorer.reasons).toContain(
+      "sparse Trade Explorer cancellation did not release capacity.",
+    );
+  });
+
+  it("rejects a zero Trade Explorer execution-time placeholder", () => {
+    const input = acceptedInput();
+    input.tradeExplorer.queries[0].executionMs = 0;
+
+    expect(() => evaluatePerformanceGates(input)).toThrow(
+      "sparse Trade Explorer execution must be a finite positive number.",
+    );
   });
 
   it("blocks a benchmark whose declared cache class was not observed", () => {
@@ -276,6 +365,29 @@ function acceptedInput(): PerformanceGateInput {
       },
     ],
     originBenchmarks: completeOriginBenchmarks(),
+    tradeExplorer: {
+      queries: ([
+        "sparse",
+        "median",
+        "upper-quartile",
+        "maximum-row",
+      ] as const).map((productRole) => ({
+        productRole,
+        scanRows: 250,
+        resultRows: 250,
+        resultBytes: 1024 * KIB,
+        exportBytes: 1024 * KIB,
+        peakMemoryBytes: 1024 ** 3,
+        peakSpillBytes: 4 * 1024 ** 3,
+        queueWaitMs: 5_000,
+        executionMs: 5_000,
+        cancellationReleaseMs: 5_000,
+        cancellationReleased: true,
+        cacheUnpoisoned: true,
+        queueUnpoisoned: true,
+        subsequentRequestSucceeded: true,
+      })),
+    },
     targetLoad: {
       sessions: 20,
       sustainedRequestsPerSecond: 4,
@@ -293,6 +405,7 @@ function acceptedInput(): PerformanceGateInput {
       coordinatedDistinctKeys: 4,
       coordinatedBurstIntervalSeconds: 60,
       includesMaximumRowProduct: true,
+      includesTradeExplorer: true,
       cacheStatesVerified: true,
       queueRejections: 0,
       unretryableErrors: 0,
@@ -344,6 +457,10 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "supplier-competition-analysis-process-hit",
     "supplier-competition-csv-uncached",
     "supplier-competition-csv-analysis-hit",
+    "trade-explorer-analysis-uncached",
+    "trade-explorer-analysis-process-hit",
+    "trade-explorer-csv-uncached",
+    "trade-explorer-csv-analysis-hit",
   ];
   const roles = [
     "sparse",
@@ -384,19 +501,27 @@ function benchmark(
     "supplier-competition-analysis-process-hit": [100, 250, 2_000],
     "supplier-competition-csv-uncached": [3_000, 6_000, 15_000],
     "supplier-competition-csv-analysis-hit": [250, 500, 15_000],
+    "trade-explorer-analysis-uncached": [2_000, 4_000, 12_000],
+    "trade-explorer-analysis-process-hit": [100, 250, 2_000],
+    "trade-explorer-csv-uncached": [3_000, 6_000, 15_000],
+    "trade-explorer-csv-analysis-hit": [250, 500, 15_000],
   } as const;
   const payloadBytes =
     operation === "current-manifest"
       ? 16 * KIB
       : operation.includes("search")
         ? 64 * KIB
+        : operation.startsWith("trade-explorer")
+          ? 1024 * KIB
         : operation.startsWith("candidate-analysis") ||
             operation.startsWith("trade-trend-analysis") ||
-            operation.startsWith("supplier-competition-analysis")
+            operation.startsWith("supplier-competition-analysis") ||
+            operation.startsWith("trade-explorer-analysis")
           ? 1_536 * KIB
           : operation.startsWith("csv") ||
               operation.startsWith("trade-trend-csv") ||
-              operation.startsWith("supplier-competition-csv")
+              operation.startsWith("supplier-competition-csv") ||
+              operation.startsWith("trade-explorer-csv")
             ? 5 * 1024 * KIB
             : 8 * KIB;
   const [p95Ms, p99Ms, deadlineMs] = thresholds[operation];
@@ -418,7 +543,8 @@ function benchmark(
     compressedPayloadBytes:
       operation.startsWith("candidate-analysis") ||
       operation.startsWith("trade-trend-analysis") ||
-      operation.startsWith("supplier-competition-analysis")
+      operation.startsWith("supplier-competition-analysis") ||
+      operation.startsWith("trade-explorer-analysis")
         ? 300 * KIB
         : undefined,
   };

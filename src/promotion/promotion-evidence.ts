@@ -25,7 +25,11 @@ export const PROMOTION_GATE_REQUIRED_CHECKS: Readonly<
   Record<PromotionEvidence["gate"], readonly string[]>
 > = {
   "source-and-domain": ["source-contract", "domain-contract"],
-  "origin-benchmarks": ["representative-fixtures", "origin-thresholds"],
+  "origin-benchmarks": [
+    "representative-fixtures",
+    "origin-thresholds",
+    "trade-explorer-budgets",
+  ],
   "browser-lab": ["mobile-profile", "browser-thresholds"],
   "target-load": ["route-mix", "load-thresholds", "cache-states"],
   "coalescing-and-capacity": ["coalescing", "capacity"],

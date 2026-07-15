@@ -22,8 +22,13 @@ import {
   type TradeTrendDatasetPackage,
 } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import {
+  evaluateTradeExplorerV1DatasetPackage,
+  type TradeExplorerDatasetPackage,
+} from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
+import {
   createCandidateMarketDatasetPackageFromArtifacts,
   createSupplierCompetitionDatasetPackageFromArtifacts,
+  createTradeExplorerDatasetPackageFromArtifacts,
   createTradeTrendDatasetPackageFromArtifacts,
   parseAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
@@ -478,6 +483,7 @@ export class ReleasePublisher {
     reference: ReleaseObjectReference;
     tradeTrendPackage: TradeTrendDatasetPackage | null;
     supplierCompetitionPackage: SupplierCompetitionDatasetPackage | null;
+    tradeExplorerPackage: TradeExplorerDatasetPackage | null;
   }> {
     const previousManifest =
       previousArtifact === null
@@ -501,6 +507,7 @@ export class ReleasePublisher {
     reference: ReleaseObjectReference;
     tradeTrendPackage: TradeTrendDatasetPackage | null;
     supplierCompetitionPackage: SupplierCompetitionDatasetPackage | null;
+    tradeExplorerPackage: TradeExplorerDatasetPackage | null;
   }> {
     const datasetPackage =
       createCandidateMarketDatasetPackageFromArtifacts(input);
@@ -537,11 +544,19 @@ export class ReleasePublisher {
         .compatible
         ? supplierCompetitionCandidate
         : null;
+    const tradeExplorerCandidate =
+      createTradeExplorerDatasetPackageFromArtifacts(input.manifest);
+    const tradeExplorerPackage = evaluateTradeExplorerV1DatasetPackage(
+      tradeExplorerCandidate,
+    ).compatible
+      ? tradeExplorerCandidate
+      : null;
     return {
       package: datasetPackage,
       reference,
       tradeTrendPackage,
       supplierCompetitionPackage,
+      tradeExplorerPackage,
     };
   }
 
@@ -618,6 +633,7 @@ export class ReleasePublisher {
       reference: ReleaseObjectReference;
       tradeTrendPackage: TradeTrendDatasetPackage | null;
       supplierCompetitionPackage: SupplierCompetitionDatasetPackage | null;
+      tradeExplorerPackage: TradeExplorerDatasetPackage | null;
     };
     analysisBuildId: string;
     artifact: AnalysisArtifactReference;
@@ -639,6 +655,7 @@ export class ReleasePublisher {
     const tradeTrendPackage = input.datasetPackage.tradeTrendPackage;
     const supplierCompetitionPackage =
       input.datasetPackage.supplierCompetitionPackage;
+    const tradeExplorerPackage = input.datasetPackage.tradeExplorerPackage;
     const mapping: RecommendedDatasetMapping =
       createRecommendedDatasetMapping({
         schemaVersion:
@@ -666,6 +683,16 @@ export class ReleasePublisher {
                 recipe: "supplier-competition-v1",
                 evidenceSha256:
                   supplierCompetitionPackage.manifest.evidenceSha256,
+              },
+        tradeExplorer:
+          tradeExplorerPackage === null ||
+          tradeExplorerPackage.manifest.evidenceSha256 !==
+            economyCatalog.artifact.sha256
+            ? null
+            : {
+                recipe: "trade-explorer-v1",
+                evidenceSha256:
+                  tradeExplorerPackage.manifest.evidenceSha256,
               },
         productCatalog: {
           identity:

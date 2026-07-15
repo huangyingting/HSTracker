@@ -25,6 +25,7 @@ const RESULT_SIZE_BUCKETS_BYTES = [
   1_024, 16 * 1_024, 64 * 1_024, 300 * 1_024, 1_536 * 1_024,
   5 * 1_024 ** 2,
 ] as const;
+const ANALYSIS_ROW_BUCKETS = [1, 5, 10, 25, 50, 100, 250] as const;
 
 type MetricLabels = Readonly<Record<string, string>>;
 
@@ -55,6 +56,8 @@ export class RuntimeMetricRegistry {
     HistogramEntry
   >();
   private readonly resultSizes = new Map<string, HistogramEntry>();
+  private readonly analysisScanRows = new Map<string, HistogramEntry>();
+  private readonly analysisResultRows = new Map<string, HistogramEntry>();
   private latestRequest: RuntimeRequestMetric | null = null;
   private sourceStatusPollFailures = 0;
   private sourceStatusPollConsecutiveFailures = 0;
@@ -134,6 +137,22 @@ export class RuntimeMetricRegistry {
       metric.resultBytes,
       RESULT_SIZE_BUCKETS_BYTES,
     );
+    if (metric.scanRows !== null) {
+      observeHistogram(
+        this.analysisScanRows,
+        operationLabels,
+        metric.scanRows,
+        ANALYSIS_ROW_BUCKETS,
+      );
+    }
+    if (metric.resultRows !== null) {
+      observeHistogram(
+        this.analysisResultRows,
+        operationLabels,
+        metric.resultRows,
+        ANALYSIS_ROW_BUCKETS,
+      );
+    }
     this.latestRequest = metric;
   }
 
@@ -209,6 +228,20 @@ export class RuntimeMetricRegistry {
         "hs_tracker_result_bytes",
         this.resultSizes,
         RESULT_SIZE_BUCKETS_BYTES,
+      ),
+      "# HELP hs_tracker_analysis_scan_rows Rows scanned by bounded analytical requests.",
+      "# TYPE hs_tracker_analysis_scan_rows histogram",
+      ...renderHistograms(
+        "hs_tracker_analysis_scan_rows",
+        this.analysisScanRows,
+        ANALYSIS_ROW_BUCKETS,
+      ),
+      "# HELP hs_tracker_analysis_result_rows Rows returned by bounded analytical requests.",
+      "# TYPE hs_tracker_analysis_result_rows histogram",
+      ...renderHistograms(
+        "hs_tracker_analysis_result_rows",
+        this.analysisResultRows,
+        ANALYSIS_ROW_BUCKETS,
       ),
       "# HELP hs_tracker_source_status_poll_failures_total Failed Source Freshness Status polls.",
       "# TYPE hs_tracker_source_status_poll_failures_total counter",

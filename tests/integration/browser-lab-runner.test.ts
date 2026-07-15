@@ -481,6 +481,7 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
       candidateCount: 1,
     },
   ],
+  tradeExplorerBenchmarkQueries: [],
   health: {
     path: "/healthz",
     bodySha256: "c".repeat(64),

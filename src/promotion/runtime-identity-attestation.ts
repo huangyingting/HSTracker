@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { AnalysisArtifactBenchmarkQuery } from "../evidence/analysis-artifact-manifest";
+import type {
+  AnalysisArtifactBenchmarkQuery,
+  TradeExplorerArtifactBenchmarkQuery,
+} from "../evidence/analysis-artifact-manifest";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 import type { PerformanceMeasurementIdentity } from "./performance-gates";
 
@@ -15,6 +18,7 @@ export type RuntimeIdentityAttestation = {
   readonly origin: string;
   readonly identity: PerformanceMeasurementIdentity;
   readonly benchmarkQueries: readonly AnalysisArtifactBenchmarkQuery[];
+  readonly tradeExplorerBenchmarkQueries: readonly TradeExplorerArtifactBenchmarkQuery[];
   readonly health: {
     readonly path: "/healthz";
     readonly bodySha256: string;
@@ -80,6 +84,9 @@ export async function attestRuntimeIdentity(
   const benchmarkQueries = parseBenchmarkQueries(
     manifestBody.benchmarkQueries,
   );
+  const tradeExplorerBenchmarkQueries = parseTradeExplorerBenchmarkQueries(
+    manifestBody.tradeExplorerBenchmarkQueries,
+  );
   const artifact = object(
     source.artifact,
     "current manifest source artifact",
@@ -138,6 +145,7 @@ export async function attestRuntimeIdentity(
     origin,
     identity: observed,
     benchmarkQueries,
+    tradeExplorerBenchmarkQueries,
     health: {
       path: "/healthz",
       bodySha256: sha256(health.body),
@@ -159,6 +167,7 @@ function parseBenchmarkQueries(
       "Candidate benchmark queries must contain the four representative roles.",
     );
   }
+
   const roles = new Set<string>();
   const parsed = value.map((entry, index) => {
     const query = object(entry, `benchmark query ${index}`);
@@ -202,6 +211,69 @@ function parseBenchmarkQueries(
     };
   });
   return parsed;
+}
+
+function parseTradeExplorerBenchmarkQueries(
+  value: unknown,
+): TradeExplorerArtifactBenchmarkQuery[] {
+  if (!Array.isArray(value) || (value.length !== 0 && value.length !== 4)) {
+    throw new RuntimeIdentityAttestationError(
+      "Candidate Trade Explorer benchmark queries must be empty or contain the four representative roles.",
+    );
+  }
+  const roles = new Set<string>();
+  return value.map((entry, index) => {
+    const query = object(entry, `Trade Explorer benchmark query ${index}`);
+    const role = stringValue(
+      query.role,
+      `Trade Explorer benchmark query ${index} role`,
+    );
+    const exportEconomyCode = stringValue(
+      query.exportEconomyCode,
+      `Trade Explorer benchmark query ${index} export economy code`,
+    );
+    const importEconomyCode = stringValue(
+      query.importEconomyCode,
+      `Trade Explorer benchmark query ${index} import economy code`,
+    );
+    const hsProductCode = stringValue(
+      query.hsProductCode,
+      `Trade Explorer benchmark query ${index} HS product code`,
+    );
+    const groupedRowCount = query.groupedRowCount;
+    const measures = query.measures;
+    if (
+      (role !== "sparse" &&
+        role !== "median" &&
+        role !== "upper-quartile" &&
+        role !== "maximum-row") ||
+      roles.has(role) ||
+      query.shape !== "finalized-trend-v1" ||
+      !Array.isArray(measures) ||
+      measures.length !== 2 ||
+      measures[0] !== "TRADE_VALUE_USD" ||
+      measures[1] !== "RECORDED_FLOW_COUNT" ||
+      !/^\d{1,3}$/u.test(exportEconomyCode) ||
+      !/^\d{1,3}$/u.test(importEconomyCode) ||
+      !/^\d{6}$/u.test(hsProductCode) ||
+      !Number.isInteger(groupedRowCount) ||
+      (groupedRowCount as number) < 0
+    ) {
+      throw new RuntimeIdentityAttestationError(
+        `Candidate Trade Explorer benchmark query ${index} is malformed or duplicated.`,
+      );
+    }
+    roles.add(role);
+    return {
+      role,
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+      exportEconomyCode,
+      importEconomyCode,
+      hsProductCode,
+      groupedRowCount: groupedRowCount as number,
+    };
+  });
 }
 
 async function fetchIdentityDocument(

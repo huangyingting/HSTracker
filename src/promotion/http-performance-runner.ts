@@ -21,6 +21,7 @@ import {
   type RuntimeIdentityAttestation,
   type RuntimeIdentityAttestor,
 } from "./runtime-identity-attestation";
+import { decodeTradeExplorerQuery } from "../domain/trade-analytics/trade-explorer-v1-query-codec";
 
 // ---------------------------------------------------------------------------
 // This module is the HTTP-origin counterpart to src/promotion/browser-lab-
@@ -328,6 +329,10 @@ const PRODUCT_OPERATIONS = [
   "supplier-competition-analysis-process-hit",
   "supplier-competition-csv-uncached",
   "supplier-competition-csv-analysis-hit",
+  "trade-explorer-analysis-uncached",
+  "trade-explorer-analysis-process-hit",
+  "trade-explorer-csv-uncached",
+  "trade-explorer-csv-analysis-hit",
 ] as const satisfies readonly OriginBenchmarkOperation[];
 const UNCACHED_OPERATIONS = [
   "economy-search-uncached",
@@ -338,6 +343,8 @@ const UNCACHED_OPERATIONS = [
   "trade-trend-csv-uncached",
   "supplier-competition-analysis-uncached",
   "supplier-competition-csv-uncached",
+  "trade-explorer-analysis-uncached",
+  "trade-explorer-csv-uncached",
 ] as const satisfies readonly OriginBenchmarkOperation[];
 const CACHE_STATE_HIT = "hit";
 const CACHE_STATE_MISS = "miss";
@@ -369,6 +376,10 @@ const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
   "supplier-competition-analysis-process-hit": 2_000,
   "supplier-competition-csv-uncached": 15_000,
   "supplier-competition-csv-analysis-hit": 15_000,
+  "trade-explorer-analysis-uncached": 12_000,
+  "trade-explorer-analysis-process-hit": 2_000,
+  "trade-explorer-csv-uncached": 15_000,
+  "trade-explorer-csv-analysis-hit": 15_000,
 };
 
 const REQUIRED_ORIGIN_BENCHMARK_COUNT =
@@ -766,46 +777,66 @@ function assertAttestedOriginBenchmarks(
   for (const requestCase of plan.requests) {
     if (
       requestCase.productRole === undefined ||
-      // Trade Trend and Supplier Competition operations are intentionally
-      // not attested here yet: the public current-analysis manifest does
-      // not expose their benchmark queries (only Candidate Market's
-      // benchmarkQueries), so there is no importer/product pair to bind a
-      // trade-trend-*/supplier-competition-* request to. This real
-      // HTTP-execution wiring is deferred to #48; performance-gates.ts
-      // already accepts/blocks a measured trade-trend-*/supplier-
-      // competition-* report regardless of how it was produced.
       (requestCase.operation !== "candidate-analysis-uncached" &&
         requestCase.operation !== "candidate-analysis-process-hit" &&
         requestCase.operation !== "csv-uncached" &&
-        requestCase.operation !== "csv-analysis-hit")
+        requestCase.operation !== "csv-analysis-hit" &&
+        requestCase.operation !== "trade-explorer-analysis-uncached" &&
+        requestCase.operation !== "trade-explorer-analysis-process-hit" &&
+        requestCase.operation !== "trade-explorer-csv-uncached" &&
+        requestCase.operation !== "trade-explorer-csv-analysis-hit")
     ) {
       continue;
     }
-    const benchmark = attestation.benchmarkQueries.find(
-      (query) => query.role === requestCase.productRole,
-    );
+    const tradeExplorer = requestCase.operation.startsWith("trade-explorer-");
+    const benchmark = (
+      tradeExplorer
+        ? attestation.tradeExplorerBenchmarkQueries
+        : attestation.benchmarkQueries
+    ).find((query) => query.role === requestCase.productRole);
     if (benchmark === undefined) {
       throw planError(
         `The deployed artifact does not attest a ${requestCase.productRole} benchmark query.`,
       );
     }
-    assertRequestMatchesBenchmark(
-      plan.origin,
-      requestCase.request,
-      benchmark,
-      `${requestCase.operation}:${requestCase.productRole}`,
-    );
+    if (tradeExplorer) {
+      assertTradeExplorerRequestMatchesBenchmark(
+        plan.origin,
+        requestCase.request,
+        benchmark as RuntimeIdentityAttestation["tradeExplorerBenchmarkQueries"][number],
+        `${requestCase.operation}:${requestCase.productRole}`,
+      );
+    } else {
+      assertRequestMatchesBenchmark(
+        plan.origin,
+        requestCase.request,
+        benchmark as RuntimeIdentityAttestation["benchmarkQueries"][number],
+        `${requestCase.operation}:${requestCase.productRole}`,
+      );
+    }
     if (
       requestCase.operation === "candidate-analysis-uncached" ||
-      requestCase.operation === "csv-uncached"
+      requestCase.operation === "csv-uncached" ||
+      requestCase.operation === "trade-explorer-analysis-uncached" ||
+      requestCase.operation === "trade-explorer-csv-uncached"
     ) {
       for (const sample of requestCase.sampleRequests ?? []) {
-        assertRequestMatchesBenchmark(
-          plan.origin,
-          sample.request,
-          benchmark,
-          `${requestCase.operation}:${requestCase.productRole} sample ${sample.semanticKey}`,
-        );
+        const label = `${requestCase.operation}:${requestCase.productRole} sample ${sample.semanticKey}`;
+        if (tradeExplorer) {
+          assertTradeExplorerRequestMatchesBenchmark(
+            plan.origin,
+            sample.request,
+            benchmark as RuntimeIdentityAttestation["tradeExplorerBenchmarkQueries"][number],
+            label,
+          );
+        } else {
+          assertRequestMatchesBenchmark(
+            plan.origin,
+            sample.request,
+            benchmark as RuntimeIdentityAttestation["benchmarkQueries"][number],
+            label,
+          );
+        }
         if (
           requestHeader(
             sample.request.headers,
@@ -834,6 +865,37 @@ function assertRequestMatchesBenchmark(
   ) {
     throw planError(
       `${label} does not match the deployed artifact benchmark query.`,
+    );
+  }
+}
+
+function assertTradeExplorerRequestMatchesBenchmark(
+  origin: string,
+  request: HttpRequestCase,
+  benchmark: RuntimeIdentityAttestation["tradeExplorerBenchmarkQueries"][number],
+  label: string,
+): void {
+  const requestUrl = resolveRequestUrl(origin, request.path);
+  const query = decodeTradeExplorerQuery(requestUrl.searchParams);
+  if (
+    query === null ||
+    query.shape !== benchmark.shape ||
+    query.measures.length !== benchmark.measures.length ||
+    query.measures.some(
+      (measure, index) => measure !== benchmark.measures[index],
+    ) ||
+    query.filters.year.mode !== "list" ||
+    query.filters.year.years.length !== 0 ||
+    query.filters.exportEconomy.length !== 1 ||
+    query.filters.exportEconomy[0] !== benchmark.exportEconomyCode ||
+    query.filters.importEconomy.length !== 1 ||
+    query.filters.importEconomy[0] !== benchmark.importEconomyCode ||
+    query.filters.hsProduct.length !== 1 ||
+    query.filters.hsProduct[0] !== benchmark.hsProductCode ||
+    query.sort !== null
+  ) {
+    throw planError(
+      `${label} does not match the deployed artifact Trade Explorer benchmark query.`,
     );
   }
 }
@@ -957,7 +1019,8 @@ export async function runOriginBenchmark(
       const measurementMs =
         requestCase.operation === "csv-analysis-hit" ||
         requestCase.operation === "trade-trend-csv-analysis-hit" ||
-        requestCase.operation === "supplier-competition-csv-analysis-hit"
+        requestCase.operation === "supplier-competition-csv-analysis-hit" ||
+        requestCase.operation === "trade-explorer-csv-analysis-hit"
           ? outcome.ttfbMs
           : outcome.totalMs;
       samples.push({
@@ -1452,6 +1515,39 @@ function validateRequestTemplate(
   };
 }
 
+function validateCandidateTradeExplorerTemplate(
+  template: HttpRequestTemplate,
+  exportCsv: boolean,
+): void {
+  const marker = "090100";
+  const requestUrl = resolveRequestUrl(
+    "https://candidate.invalid",
+    renderPathTemplate(template.pathTemplate, marker),
+  );
+  const expectedSuffix = exportCsv ? "/trade-explorer.csv" : "/trade-explorer";
+  const query = decodeTradeExplorerQuery(requestUrl.searchParams);
+  if (
+    !requestUrl.pathname.startsWith("/api/v1/analyses/") ||
+    !requestUrl.pathname.endsWith(expectedSuffix) ||
+    query === null ||
+    query.shape !== "finalized-trend-v1" ||
+    query.measures.length !== 2 ||
+    query.measures[0] !== "TRADE_VALUE_USD" ||
+    query.measures[1] !== "RECORDED_FLOW_COUNT" ||
+    query.filters.year.mode !== "list" ||
+    query.filters.year.years.length !== 0 ||
+    query.filters.exportEconomy.length !== 1 ||
+    query.filters.importEconomy.length !== 1 ||
+    query.filters.hsProduct.length !== 1 ||
+    query.filters.hsProduct[0] !== marker ||
+    query.sort !== null
+  ) {
+    throw planError(
+      `Candidate mixed-load ${exportCsv ? "CSV" : "analysis"} template must execute a full-window finalized-trend-v1 Trade Explorer query.`,
+    );
+  }
+}
+
 function validateObservationSnapshot(
   value: unknown,
 ): MixedLoadObservationSnapshot {
@@ -1552,6 +1648,10 @@ export function parseMixedLoadPlan(value: unknown): MixedLoadPlan {
       true,
     ),
   };
+  if (measurementClass === "candidate") {
+    validateCandidateTradeExplorerTemplate(routeTemplates.analysis, false);
+    validateCandidateTradeExplorerTemplate(routeTemplates.csv, true);
+  }
   const analysisHotKeys = stringArray(
     plan.analysisHotKeys,
     "mixed-load plan analysisHotKeys",
@@ -2216,6 +2316,42 @@ export async function runMixedLoad(
   const attestation = await (
     dependencies.attestIdentity ?? attestRuntimeIdentity
   )(plan.origin, plan.identity);
+  if (plan.measurementClass === "candidate") {
+    const maximumBenchmark = attestation.tradeExplorerBenchmarkQueries.find(
+      ({ role }) => role === "maximum-row",
+    );
+    if (maximumBenchmark === undefined) {
+      throw planError(
+        "The deployed artifact does not attest a maximum-row Trade Explorer benchmark query.",
+      );
+    }
+    assertTradeExplorerRequestMatchesBenchmark(
+      plan.origin,
+      {
+        method: plan.routeTemplates.analysis.method,
+        path: renderPathTemplate(
+          plan.routeTemplates.analysis.pathTemplate,
+          plan.maximumRowAnalysisKey,
+        ),
+        headers: plan.routeTemplates.analysis.headers,
+      },
+      maximumBenchmark,
+      "mixed-load maximum-row analysis template",
+    );
+    assertTradeExplorerRequestMatchesBenchmark(
+      plan.origin,
+      {
+        method: plan.routeTemplates.csv.method,
+        path: renderPathTemplate(
+          plan.routeTemplates.csv.pathTemplate,
+          plan.maximumRowAnalysisKey,
+        ),
+        headers: plan.routeTemplates.csv.headers,
+      },
+      maximumBenchmark,
+      "mixed-load maximum-row CSV template",
+    );
+  }
 
   await assertIdentity(
     plan.origin,
@@ -2369,6 +2505,10 @@ export async function runMixedLoad(
     coordinatedDistinctKeys: MINIMUM_COORDINATED_DISTINCT_KEYS,
     coordinatedBurstIntervalSeconds: plan.coordinatedBurstIntervalSeconds,
     includesMaximumRowProduct: schedule.usesMaximumRowAnalysisKey,
+    includesTradeExplorer:
+      plan.measurementClass === "candidate" ||
+      (plan.routeTemplates.analysis.pathTemplate.includes("/trade-explorer") &&
+        plan.routeTemplates.csv.pathTemplate.includes("/trade-explorer.csv")),
     cacheStatesVerified: cacheViolations.length === 0,
     queueRejections,
     unretryableErrors,

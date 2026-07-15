@@ -95,6 +95,8 @@ type OperationTiming = {
   queueWaitMs: number | null;
   queryMs: number | null;
   resultBytes: number;
+  scanRows?: number;
+  resultRows?: number;
   recipeVersion?: AnalysisOperationObservation["recipeVersion"];
   outcomeState?: AnalysisOperationObservation["outcomeState"];
   rejectionReason?: AnalysisOperationObservation["rejectionReason"];
@@ -106,7 +108,11 @@ type SharedOperationOptions<Result> = {
     result: Result,
   ) => Pick<
     AnalysisOperationObservation,
-    "recipeVersion" | "outcomeState" | "rejectionReason"
+    | "recipeVersion"
+    | "outcomeState"
+    | "rejectionReason"
+    | "scanRows"
+    | "resultRows"
   >;
 };
 
@@ -550,6 +556,8 @@ function waitForSharedOperation<Result>(
         queueWaitMs: shared.timing.queueWaitMs,
         queryMs: shared.timing.queryMs,
         resultBytes: shared.timing.resultBytes,
+        scanRows: shared.timing.scanRows,
+        resultRows: shared.timing.resultRows,
         recipeVersion: shared.timing.recipeVersion,
         outcomeState: shared.timing.outcomeState,
         rejectionReason: shared.timing.rejectionReason,
@@ -821,12 +829,22 @@ function analysisDetailsFor(
   outcome: AnalysisResult,
 ): Pick<
   AnalysisOperationObservation,
-  "recipeVersion" | "outcomeState" | "rejectionReason"
+  | "recipeVersion"
+  | "outcomeState"
+  | "rejectionReason"
+  | "scanRows"
+  | "resultRows"
 > {
+  const tradeExplorerBudget =
+    outcome.recipe === "trade-explorer-v1" && outcome.state === "success"
+      ? outcome.payload.budget.actual
+      : null;
   return {
     recipeVersion: outcome.recipe,
     outcomeState: outcome.state,
     rejectionReason: rejectionReasonFor(outcome),
+    scanRows: tradeExplorerBudget?.scanRows,
+    resultRows: tradeExplorerBudget?.resultRows,
   };
 }
 

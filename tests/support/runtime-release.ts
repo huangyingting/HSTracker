@@ -13,10 +13,16 @@ import {
   type SupplierCompetitionDatasetCapabilityDeclaration,
 } from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
 import {
+  TRADE_EXPLORER_V1_DATASET_DECLARATION,
+  type TradeExplorerDatasetCapabilityDeclaration,
+} from "../../src/domain/trade-analytics/trade-explorer-v1-dataset-package";
+import {
   TRADE_TREND_V1_DATASET_DECLARATION,
   type TradeTrendDatasetCapabilityDeclaration,
 } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
-import { releaseJsonBytes } from "../../src/release/release-manifest";
+import {
+  releaseJsonBytes,
+} from "../../src/release/release-manifest";
 import { releaseObjectIdentity } from "../../src/release/release-object-store";
 
 const BACI_RELEASE = "V202601";
@@ -55,6 +61,24 @@ export type SupplierCompetitionEquivalenceRow = TradeTrendEquivalenceRow;
 
 export type SupplierCompetitionEquivalenceEconomy = TradeTrendEquivalenceEconomy;
 
+// Trade Explorer reuses the exact same (year, product, exporter, importer,
+// value) bilateral row shape as Trade Trend/Supplier Competition: see
+// trade-explorer-adapter-equivalence.test.ts for how these combine into
+// sparse/no-flow/missing/empty/budget-edge fixtures for all four shapes.
+export type TradeExplorerEquivalenceEconomy = TradeTrendEquivalenceEconomy;
+
+export type TradeExplorerEquivalenceRow = TradeTrendEquivalenceRow;
+
+export type TradeExplorerEquivalenceBenchmarkQuery = {
+  role: "sparse" | "median" | "upper-quartile" | "maximum-row";
+  shape: "finalized-trend-v1";
+  measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"];
+  exportEconomyCode: string;
+  importEconomyCode: string;
+  hsProductCode: string;
+  groupedRowCount: number;
+};
+
 export async function writeRuntimeReleaseCandidate(
   root: string,
   options: {
@@ -65,6 +89,8 @@ export async function writeRuntimeReleaseCandidate(
     datasetPackage?: CandidateMarketDatasetCapabilityDeclaration;
     tradeTrendDatasetPackage?: TradeTrendDatasetCapabilityDeclaration;
     supplierCompetitionDatasetPackage?: SupplierCompetitionDatasetCapabilityDeclaration;
+    tradeExplorerDatasetPackage?: TradeExplorerDatasetCapabilityDeclaration;
+    tradeExplorerBenchmarkQueries?: readonly TradeExplorerEquivalenceBenchmarkQuery[];
     legacyDatasetPackageManifest?: boolean;
     sourceSha256?: string;
     sourceUpdateDate?: string;
@@ -100,6 +126,24 @@ export async function writeRuntimeReleaseCandidate(
       description: string;
     }>[];
     additionalSupplierCompetitionRows?: readonly SupplierCompetitionEquivalenceRow[];
+    // Layers extra economies/products/bilateral rows onto the default
+    // fixture DuckDB so a test can reproduce Trade Explorer's
+    // sparse/no-recorded-flow/missing/empty(non-enumerable)/budget-edge
+    // combinations across all four shapes without a second BACI archive:
+    // see trade-explorer-adapter-equivalence.test.ts. Every (year,
+    // product, importer) combination touched here also gets a matching
+    // market_year aggregate row (summed alongside any Supplier
+    // Competition rows sharing the same combination), and every economy
+    // referenced by at least one bilateral row is marked has_trade_
+    // evidence = TRUE, matching the production build script's post-hoc
+    // UPDATE (see scripts/release/analysis-artifact.ts).
+    additionalTradeExplorerEconomies?: readonly TradeExplorerEquivalenceEconomy[];
+    additionalTradeExplorerProducts?: readonly Readonly<{
+      productId: number;
+      code: string;
+      description: string;
+    }>[];
+    additionalTradeExplorerRows?: readonly TradeExplorerEquivalenceRow[];
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -140,13 +184,16 @@ export async function writeRuntimeReleaseCandidate(
     [
       ...(options.additionalTradeTrendEconomies ?? []),
       ...(options.additionalSupplierCompetitionEconomies ?? []),
+      ...(options.additionalTradeExplorerEconomies ?? []),
     ],
     [
       ...(options.additionalTradeTrendProducts ?? []),
       ...(options.additionalSupplierCompetitionProducts ?? []),
+      ...(options.additionalTradeExplorerProducts ?? []),
     ],
     options.additionalTradeTrendRows ?? [],
     options.additionalSupplierCompetitionRows ?? [],
+    options.additionalTradeExplorerRows ?? [],
   );
   const artifactBytes = await readFile(artifactPath);
   const artifactIdentity = releaseObjectIdentity(artifactBytes);
@@ -199,6 +246,9 @@ export async function writeRuntimeReleaseCandidate(
           supplierCompetitionDatasetPackage:
             options.supplierCompetitionDatasetPackage ??
             SUPPLIER_COMPETITION_V1_DATASET_DECLARATION,
+          tradeExplorerDatasetPackage:
+            options.tradeExplorerDatasetPackage ??
+            TRADE_EXPLORER_V1_DATASET_DECLARATION,
         }),
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
@@ -219,6 +269,44 @@ export async function writeRuntimeReleaseCandidate(
         candidateCount: options.benchmarkCandidateCount ?? 1,
         resultBytes: 1,
         selectionAlgorithm: "complete-bilateral-row-count-v1",
+      },
+    ],
+    tradeExplorerBenchmarkQueries: options.tradeExplorerBenchmarkQueries ?? [
+      {
+        role: "sparse",
+        shape: "finalized-trend-v1",
+        measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        exportEconomyCode: "156",
+        importEconomyCode: "276",
+        hsProductCode: PRODUCT_CODE,
+        groupedRowCount: 5,
+      },
+      {
+        role: "median",
+        shape: "finalized-trend-v1",
+        measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        exportEconomyCode: "156",
+        importEconomyCode: "276",
+        hsProductCode: PRODUCT_CODE,
+        groupedRowCount: 5,
+      },
+      {
+        role: "upper-quartile",
+        shape: "finalized-trend-v1",
+        measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        exportEconomyCode: "156",
+        importEconomyCode: "276",
+        hsProductCode: PRODUCT_CODE,
+        groupedRowCount: 5,
+      },
+      {
+        role: "maximum-row",
+        shape: "finalized-trend-v1",
+        measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        exportEconomyCode: "156",
+        importEconomyCode: "276",
+        hsProductCode: PRODUCT_CODE,
+        groupedRowCount: 5,
       },
     ],
   };
@@ -325,6 +413,7 @@ async function writeRuntimeDuckDb(
   }>[],
   additionalTradeRows: readonly TradeTrendEquivalenceRow[],
   additionalSupplierCompetitionRows: readonly SupplierCompetitionEquivalenceRow[],
+  additionalTradeExplorerRows: readonly TradeExplorerEquivalenceRow[],
 ): Promise<void> {
   const instance = await DuckDBInstance.create(path);
   const connection = await instance.connect();
@@ -339,16 +428,22 @@ async function writeRuntimeDuckDb(
       INSERT INTO product VALUES
         (1, '${PRODUCT_CODE}', '${PRODUCT_DESCRIPTION.replaceAll("'", "''")}')
     `);
+    // has_trade_evidence starts FALSE for every economy (matching the
+    // production build script's INSERT INTO economy -- see
+    // scripts/release/analysis-artifact.ts) and is only flipped TRUE
+    // below, once every bilateral_year row (default plus every layered
+    // fixture) has been inserted, by the same blanket UPDATE the
+    // production script runs.
     await connection.run(`
       INSERT INTO economy VALUES
-        (156, 'China', 'CN', 'CHN', 'ECONOMY', FALSE, NULL, TRUE),
-        (276, 'Germany', 'DE', 'DEU', 'ECONOMY', FALSE, NULL, TRUE)
+        (156, 'China', 'CN', 'CHN', 'ECONOMY', FALSE, NULL, FALSE),
+        (276, 'Germany', 'DE', 'DEU', 'ECONOMY', FALSE, NULL, FALSE)
     `);
     for (const economy of additionalEconomies) {
       await connection.run(
         `
           INSERT INTO economy VALUES
-            ($code, $display_name, $iso2, $iso3, 'ECONOMY', FALSE, NULL, TRUE)
+            ($code, $display_name, $iso2, $iso3, 'ECONOMY', FALSE, NULL, FALSE)
         `,
         {
           code: economy.code,
@@ -449,28 +544,54 @@ async function writeRuntimeDuckDb(
         },
       );
     }
-    // Supplier Competition tests need a realistic market_year aggregate
-    // (SUM of every supplier's bilateral value that year, not one row per
-    // supplier) so the Provisional Year total is properly summed instead
-    // of duplicated: this mirrors how the real production build script
-    // aggregates market_year with GROUP BY year/product/importer.
-    const supplierCompetitionGroups = new Map<
+    for (const row of additionalTradeExplorerRows) {
+      const productId = productIdByCode.get(row.productCode);
+      if (productId === undefined) {
+        throw new Error(
+          `Trade Explorer equivalence row references an undeclared product ${row.productCode}.`,
+        );
+      }
+      await connection.run(
+        `
+          INSERT INTO bilateral_year VALUES
+            ($year, $product_id, $exporter_code, $importer_code,
+              CAST($value_kusd AS DECIMAL(38,3)))
+        `,
+        {
+          year: row.year,
+          product_id: productId,
+          exporter_code: row.exporterCode,
+          importer_code: row.importerCode,
+          value_kusd: row.valueKusd,
+        },
+      );
+    }
+    // Supplier Competition and Trade Explorer rows share one market_year
+    // aggregation pass (SUM of every supplier's bilateral value that
+    // year, not one row per supplier) so a (year, product, importer)
+    // combination touched by both never gets two conflicting market_year
+    // rows: this mirrors how the real production build script aggregates
+    // market_year with GROUP BY year/product/importer.
+    const marketYearGroups = new Map<
       string,
       { year: number; productId: number; importerCode: number; valuesKusd: string[] }
     >();
-    for (const row of additionalSupplierCompetitionRows) {
+    for (const row of [
+      ...additionalSupplierCompetitionRows,
+      ...additionalTradeExplorerRows,
+    ]) {
       const productId = productIdByCode.get(row.productCode)!;
       const key = `${row.year}:${productId}:${row.importerCode}`;
-      const group = supplierCompetitionGroups.get(key) ?? {
+      const group = marketYearGroups.get(key) ?? {
         year: row.year,
         productId,
         importerCode: row.importerCode,
         valuesKusd: [],
       };
       group.valuesKusd.push(row.valueKusd);
-      supplierCompetitionGroups.set(key, group);
+      marketYearGroups.set(key, group);
     }
-    for (const group of supplierCompetitionGroups.values()) {
+    for (const group of marketYearGroups.values()) {
       const totalKusd = sumKusd(group.valuesKusd);
       await connection.run(
         `
@@ -491,6 +612,22 @@ async function writeRuntimeDuckDb(
         },
       );
     }
+    // Mirrors the production build script's post-hoc UPDATE (see
+    // scripts/release/analysis-artifact.ts): only economies actually
+    // referenced by a bilateral_year row -- default or layered -- become
+    // has_trade_evidence = TRUE. An additional economy a test never uses
+    // in any bilateral row stays FALSE, so Trade Explorer's non-
+    // enumerable-cohort semantics can be exercised with a genuine unknown
+    // -to-trade economy rather than a workaround.
+    await connection.run(`
+      UPDATE economy
+      SET has_trade_evidence = TRUE
+      WHERE code IN (
+        SELECT exporter_code FROM bilateral_year
+        UNION
+        SELECT importer_code FROM bilateral_year
+      )
+    `);
     const metadata = {
       artifact_schema_version: "candidate-market-artifact-v1",
       baci_release: baciRelease,

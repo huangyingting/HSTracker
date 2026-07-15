@@ -482,6 +482,8 @@ describe("versioned Candidate Market route", () => {
           queryMs: expect.any(Number),
           serializationMs: expect.any(Number),
           resultBytes: new TextEncoder().encode(firstBody).byteLength,
+          scanRows: null,
+          resultRows: null,
           resources: expect.objectContaining({
             analysisExecution: {
               active: 0,
@@ -522,6 +524,8 @@ describe("versioned Candidate Market route", () => {
           queryMs: null,
           serializationMs: expect.any(Number),
           resultBytes: new TextEncoder().encode(firstBody).byteLength,
+          scanRows: null,
+          resultRows: null,
           resources: expect.objectContaining({
             analysisExecution: {
               active: 0,

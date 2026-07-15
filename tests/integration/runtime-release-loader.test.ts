@@ -110,6 +110,9 @@ describe("verified release runtime", () => {
       },
     });
     expect(runtime.activation()).toEqual({ mode: "CURRENT" });
+    expect(runtime.currentAnalysis().tradeExplorerBenchmarkQueries).toHaveLength(
+      4,
+    );
     expect(runtime.resources()).toMatchObject({
       analysisExecution: {
         active: 0,
@@ -134,6 +137,39 @@ describe("verified release runtime", () => {
         maxTempDirectorySize: "4GiB",
       },
     });
+  }, 20_000);
+
+  it("rejects activated Trade Explorer without every representative benchmark role", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+      {
+        tradeExplorerBenchmarkQueries: [
+          "sparse",
+          "median",
+          "maximum-row",
+        ].map((role) => ({
+          role: role as "sparse" | "median" | "maximum-row",
+          shape: "finalized-trend-v1" as const,
+          measures: [
+            "TRADE_VALUE_USD",
+            "RECORDED_FLOW_COUNT",
+          ] as ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+          exportEconomyCode: "156",
+          importEconomyCode: "276",
+          hsProductCode: RUNTIME_RELEASE_FIXTURE.productCode,
+          groupedRowCount: 5,
+        })),
+      },
+    );
+
+    await expect(
+      new ReleasePublisher(new InMemoryReleaseObjectStore()).promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toMatchObject({ code: "PAIRING_INCOMPATIBLE" });
   }, 20_000);
 
   it("rejects package incompatibility before promotion smoke or activation", async () => {

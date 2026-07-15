@@ -10,6 +10,7 @@ import {
   installApplicationRuntime,
 } from "../../src/runtime/application-runtime";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
+import type { TradeExplorerResult } from "../../src/domain/trade-explorer/result";
 import {
   subscribeRuntimeMetrics,
   type RuntimeRequestMetric,
@@ -272,9 +273,16 @@ describe("versioned Trade Explorer route", () => {
     });
 
     try {
-      await expect(
-        GET(request, routeContext("acceptance-fixtures-v1")),
-      ).resolves.toHaveProperty("status", 200);
+      const accepted = await GET(
+        request,
+        routeContext("acceptance-fixtures-v1"),
+      );
+      expect(accepted.status).toBe(200);
+      const acceptedBody = (await accepted.json()) as TradeExplorerResult;
+      expect(metrics[0]).toMatchObject({
+        scanRows: acceptedBody.budget.actual.scanRows,
+        resultRows: acceptedBody.budget.actual.resultRows,
+      });
       const rejected = await GET(
         new Request(queryUrl, {
           headers: { "Fly-Client-IP": "198.51.100.31" },

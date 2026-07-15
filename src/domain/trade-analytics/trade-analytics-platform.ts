@@ -161,6 +161,8 @@ export type AnalysisOperationObservation = Readonly<{
   queueWaitMs: number | null;
   queryMs: number | null;
   resultBytes: number;
+  scanRows?: number;
+  resultRows?: number;
   recipeVersion?: AnalysisRecipe;
   outcomeState?: AnalysisOutcome<AnalysisRecipe>["state"];
   rejectionReason?:

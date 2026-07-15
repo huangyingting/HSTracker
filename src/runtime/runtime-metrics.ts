@@ -43,6 +43,8 @@ export type RuntimeRequestMetric = Readonly<{
   queryMs: number | null;
   serializationMs: number;
   resultBytes: number;
+  scanRows: number | null;
+  resultRows: number | null;
   resources: ApplicationRuntimeResources;
   process: {
     rssBytes: number;
@@ -186,6 +188,8 @@ function startRuntimeMeasurement(
         serializationMs,
         resultBytes:
           resultBytes === 0 ? (operation?.resultBytes ?? 0) : resultBytes,
+        scanRows: operation?.scanRows ?? null,
+        resultRows: operation?.resultRows ?? null,
         resources: runtime.resources(),
         process: {
           rssBytes: process.memoryUsage.rss(),

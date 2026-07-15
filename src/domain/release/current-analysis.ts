@@ -4,7 +4,10 @@ import {
   type EffectiveSourceFreshness,
   type SourceStatusSnapshot,
 } from "./source-freshness";
-import type { AnalysisArtifactBenchmarkQuery } from "../../evidence/analysis-artifact-manifest";
+import type {
+  AnalysisArtifactBenchmarkQuery,
+  TradeExplorerArtifactBenchmarkQuery,
+} from "../../evidence/analysis-artifact-manifest";
 import type { ReleaseRevisionComparisonIdentity } from "./release-revision";
 import type {
   RecommendedDatasetMappingIdentity,
@@ -31,6 +34,7 @@ export type CurrentAnalysisDeployment = {
   productSearchBuildId: string;
   analysisReleaseCatalogSha256: string;
   benchmarkQueries: AnalysisArtifactBenchmarkQuery[];
+  tradeExplorerBenchmarkQueries: TradeExplorerArtifactBenchmarkQuery[];
   source: {
     baciRelease: string;
     sourceUpdateDate: string;
@@ -72,11 +76,9 @@ export type CurrentAnalysisDeployment = {
       recipe: "supplier-competition-v1";
       datasetPackageIdentity: DatasetPackageIdentity;
     } | null;
-    // Populated only for the fixture deployment while trade-explorer-v1
-    // remains fixture-backed (issue #46); the production verified runtime
-    // never declares this until #47 activates a measured production
-    // Dataset Package for it (see runtime/verified-release-runtime.ts,
-    // which always supplies `null` here).
+    // Populated only when the same closed Recommended Dataset Mapping
+    // declares and gates trade-explorer-v1; null for legacy or undeclared
+    // mappings.
     tradeExplorer: {
       recipe: "trade-explorer-v1";
       datasetPackageIdentity: DatasetPackageIdentity;

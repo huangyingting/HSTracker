@@ -18,6 +18,7 @@ import {
   evaluatePerformanceGates,
   type LifecycleMeasurementInput,
   type PerformanceMeasurementIdentity,
+  type TradeExplorerMeasurementInput,
 } from "../../src/promotion/performance-gates";
 
 class PerformanceCandidateCliError extends Error {
@@ -52,16 +53,24 @@ async function main(): Promise<void> {
       originPlan: { type: "string" },
       loadPlan: { type: "string" },
       lifecycle: { type: "string" },
+      tradeExplorer: { type: "string" },
     },
     strict: true,
     allowPositionals: false,
   });
-  const [browserBytes, originBytes, loadBytes, lifecycleBytes] =
+  const [
+    browserBytes,
+    originBytes,
+    loadBytes,
+    lifecycleBytes,
+    tradeExplorerBytes,
+  ] =
     await Promise.all([
       readFile(required(values.browserPlan, "browser-plan")),
       readFile(required(values.originPlan, "origin-plan")),
       readFile(required(values.loadPlan, "load-plan")),
       readFile(required(values.lifecycle, "lifecycle")),
+      readFile(required(values.tradeExplorer, "trade-explorer")),
     ]);
   const browserPlan = validateBrowserLabPlan(
     parseJson(browserBytes, "browser plan"),
@@ -90,6 +99,11 @@ async function main(): Promise<void> {
   );
   const lifecycle = parseLifecycleEvidence(
     parseJson(lifecycleBytes, "lifecycle evidence"),
+    browserPlan.measurementClass,
+    browserPlan.identity,
+  );
+  const tradeExplorer = parseTradeExplorerEvidence(
+    parseJson(tradeExplorerBytes, "Trade Explorer evidence"),
     browserPlan.measurementClass,
     browserPlan.identity,
   );
@@ -125,6 +139,7 @@ async function main(): Promise<void> {
       failedTrialCount: product.failedTrialCount,
     })),
     originBenchmarks: [...originReport.originBenchmarks],
+    tradeExplorer: tradeExplorer.measurements,
     targetLoad: loadReport.targetLoad,
     lifecycle: lifecycle.measurements,
   });
@@ -142,11 +157,124 @@ async function main(): Promise<void> {
         originReport,
         loadReport,
         lifecycle,
+        tradeExplorer,
       },
       null,
       2,
     )}\n`,
   );
+}
+
+function parseTradeExplorerEvidence(
+  value: unknown,
+  measurementClass: "candidate" | "local-smoke",
+  identity: PerformanceMeasurementIdentity,
+): {
+  schemaVersion: "trade-explorer-measurement-v1";
+  measuredAt: string;
+  measurements: TradeExplorerMeasurementInput;
+} {
+  const evidence = object(value, "Trade Explorer evidence");
+  if (evidence.schemaVersion !== "trade-explorer-measurement-v1") {
+    throw new PerformanceCandidateCliError(
+      "Trade Explorer evidence schemaVersion must be trade-explorer-measurement-v1.",
+    );
+  }
+  if (evidence.measurementClass !== measurementClass) {
+    throw new PerformanceCandidateCliError(
+      "Trade Explorer evidence measurementClass does not match the plans.",
+    );
+  }
+  assertIdentity(
+    object(evidence.identity, "Trade Explorer identity"),
+    identity,
+  );
+  if (!Array.isArray(evidence.queries)) {
+    throw new PerformanceCandidateCliError(
+      "Trade Explorer evidence queries must be an array.",
+    );
+  }
+  return {
+    schemaVersion: "trade-explorer-measurement-v1",
+    measuredAt: utcTimestamp(
+      evidence.measuredAt,
+      "Trade Explorer measuredAt",
+    ),
+    measurements: {
+      queries: evidence.queries.map((query, index) => {
+        const candidate = object(
+          query,
+          `Trade Explorer query ${index + 1}`,
+        );
+        const productRole = candidate.productRole;
+        if (
+          productRole !== "sparse" &&
+          productRole !== "median" &&
+          productRole !== "upper-quartile" &&
+          productRole !== "maximum-row"
+        ) {
+          throw new PerformanceCandidateCliError(
+            `Trade Explorer query ${index + 1} productRole is unsupported.`,
+          );
+        }
+        return {
+          productRole,
+          scanRows: nonnegativeSafeInteger(
+            candidate.scanRows,
+            `Trade Explorer query ${index + 1} scanRows`,
+          ),
+          resultRows: nonnegativeSafeInteger(
+            candidate.resultRows,
+            `Trade Explorer query ${index + 1} resultRows`,
+          ),
+          resultBytes: nonnegativeSafeInteger(
+            candidate.resultBytes,
+            `Trade Explorer query ${index + 1} resultBytes`,
+          ),
+          exportBytes: nonnegativeSafeInteger(
+            candidate.exportBytes,
+            `Trade Explorer query ${index + 1} exportBytes`,
+          ),
+          peakMemoryBytes: nonnegativeSafeInteger(
+            candidate.peakMemoryBytes,
+            `Trade Explorer query ${index + 1} peakMemoryBytes`,
+          ),
+          peakSpillBytes: nonnegativeSafeInteger(
+            candidate.peakSpillBytes,
+            `Trade Explorer query ${index + 1} peakSpillBytes`,
+          ),
+          queueWaitMs: nonnegativeNumber(
+            candidate.queueWaitMs,
+            `Trade Explorer query ${index + 1} queueWaitMs`,
+          ),
+          executionMs: nonnegativeNumber(
+            candidate.executionMs,
+            `Trade Explorer query ${index + 1} executionMs`,
+          ),
+          cancellationReleaseMs: nonnegativeNumber(
+            candidate.cancellationReleaseMs,
+            `Trade Explorer query ${index + 1} cancellationReleaseMs`,
+          ),
+          cancellationReleased: boolean(
+            candidate.cancellationReleased,
+            `Trade Explorer query ${index + 1} cancellationReleased`,
+          ),
+          cacheUnpoisoned: boolean(
+            candidate.cacheUnpoisoned,
+            `Trade Explorer query ${index + 1} cacheUnpoisoned`,
+          ),
+          queueUnpoisoned: boolean(
+            candidate.queueUnpoisoned,
+            `Trade Explorer query ${index + 1} queueUnpoisoned`,
+          ),
+          subsequentRequestSucceeded: boolean(
+            candidate.subsequentRequestSucceeded,
+            `Trade Explorer query ${index + 1} subsequentRequestSucceeded`,
+          ),
+        };
+      }),
+    },
+  };
 }
 
 function parseLifecycleEvidence(
@@ -296,6 +424,13 @@ function nonnegativeSafeInteger(value: unknown, label: string): number {
     throw new PerformanceCandidateCliError(
       `${label} must be a nonnegative safe integer.`,
     );
+  }
+  return value;
+}
+
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new PerformanceCandidateCliError(`${label} must be a boolean.`);
   }
   return value;
 }

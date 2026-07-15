@@ -8,7 +8,11 @@ import {
   unknownExporter,
   unknownProduct,
 } from "../domain/candidate-market/errors";
-import type { CandidateMarketV1RecipeInput } from "../domain/candidate-market/result";
+import type {
+  CandidateMarketV1RecipeInput,
+  EconomyIdentity,
+  ProductIdentity,
+} from "../domain/candidate-market/result";
 import {
   retiredSupplierCompetitionAnalysisBuild,
   unknownSupplierCompetitionImporter,
@@ -21,6 +25,20 @@ import type {
   SupplierCompetitionV1RecipeInput,
   SupplierEconomyEvidence,
 } from "../domain/supplier-competition/result";
+import {
+  retiredTradeExplorerAnalysisBuild,
+  unknownTradeExplorerExportEconomy,
+  unknownTradeExplorerHsProduct,
+  unknownTradeExplorerImportEconomy,
+  type TradeExplorerAnalysisError,
+} from "../domain/trade-explorer/errors";
+import type {
+  TradeExplorerCellEvidence,
+  TradeExplorerDimension,
+  TradeExplorerV1EvidenceRequest,
+  TradeExplorerV1Inputs,
+  TradeExplorerV1NormalizedInputs,
+} from "../domain/trade-explorer/result";
 import {
   retiredTradeTrendAnalysisBuild,
   unknownImporter,
@@ -59,6 +77,20 @@ type SharedDuckDbTradeEvidenceSourceOptions =
     database: DuckDbAnalysisDatabase;
     databaseName: "current" | "previous";
   };
+
+// Trade Explorer identity resolution binds each caller-supplied economy or
+// product code to both its public identity (returned to callers) and the
+// numeric row key the later positive-value/coverage queries filter and
+// group on -- never exposing that numeric key outside this module.
+type ResolvedTradeExplorerEconomy = {
+  identity: EconomyIdentity;
+  numericCode: number;
+};
+
+type ResolvedTradeExplorerProduct = {
+  identity: ProductIdentity;
+  productId: number;
+};
 
 export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   private closed = false;
@@ -175,6 +207,28 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
         this.loadSupplierCompetitionWithConnection(
           connection,
           query,
+          options?.signal,
+        ),
+    );
+  }
+
+  async loadTradeExplorerV1Inputs(
+    request: TradeExplorerV1EvidenceRequest,
+    options?: TradeEvidenceLoadOptions,
+  ): Promise<TradeExplorerV1Inputs> {
+    if (this.closed) {
+      throw new Error("The DuckDB evidence source is closed.");
+    }
+
+    if (request.analysisBuildId !== this.analysisBuildId) {
+      throw retiredTradeExplorerAnalysisBuild(request.analysisBuildId);
+    }
+    return this.database.withConnection(
+      options?.signal,
+      (connection) =>
+        this.loadTradeExplorerWithConnection(
+          connection,
+          request,
           options?.signal,
         ),
     );
@@ -544,6 +598,410 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       suppliers,
       provisionalMarketState,
       provisionalSuppliers,
+    };
+  }
+
+  private async loadTradeExplorerWithConnection(
+    connection: DuckDBConnection,
+    request: TradeExplorerV1EvidenceRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<TradeExplorerV1Inputs> {
+    const { query } = request;
+
+    signal?.throwIfAborted();
+    const resolvedExportEconomies = await this.resolveTradeExplorerEconomies(
+      connection,
+      query.exportEconomy,
+      unknownTradeExplorerExportEconomy,
+    );
+    signal?.throwIfAborted();
+    const resolvedImportEconomies = await this.resolveTradeExplorerEconomies(
+      connection,
+      query.importEconomy,
+      unknownTradeExplorerImportEconomy,
+    );
+    signal?.throwIfAborted();
+    const resolvedProducts = await this.resolveTradeExplorerProducts(
+      connection,
+      query.hsProduct,
+    );
+
+    // Exactly one of these three is the grouped (multi-valued) dimension;
+    // the other two -- plus YEAR when it is not itself grouped -- are
+    // always fixed to exactly one code (see normalizeTradeExplorerV1Request's
+    // own fixed-dimension-cardinality invariant), so index 0 always names
+    // "the" fixed export/import economy here.
+    const fixedExportEconomy = resolvedExportEconomies[0]!;
+    const fixedImportEconomy = resolvedImportEconomies[0]!;
+
+    signal?.throwIfAborted();
+    // A fixed EXPORT_ECONOMY or IMPORT_ECONOMY dimension gates cohort
+    // enumerability on whether that whole economy has ANY recorded
+    // bilateral trade evidence at all (economy.has_trade_evidence,
+    // maintained by the analysis build from bilateral_year's own
+    // exporter_code/importer_code union). A fixed economy with none means
+    // this exact fixed-dimension combination is outside the known universe
+    // entirely, distinct from a known combination whose individual
+    // grouped-dimension cells are merely MISSING_OBSERVATION. See
+    // TradeExplorerV1Inputs.cohortEnumerable's own doc comment.
+    const cohortEnumerable = await this.tradeExplorerCohortEnumerable(
+      connection,
+      query.dimension === "EXPORT_ECONOMY"
+        ? null
+        : fixedExportEconomy.numericCode,
+      query.dimension === "IMPORT_ECONOMY"
+        ? null
+        : fixedImportEconomy.numericCode,
+    );
+
+    signal?.throwIfAborted();
+    const cells = cohortEnumerable
+      ? await this.tradeExplorerCells(
+          connection,
+          query,
+          resolvedExportEconomies,
+          resolvedImportEconomies,
+          resolvedProducts,
+        )
+      : [];
+
+    return {
+      analysisBuildId: this.analysisBuildId,
+      analysisReleaseCatalogSha256: this.analysisReleaseCatalogSha256,
+      // Trade Explorer's Dataset Package binds evidenceSha256 to the exact
+      // same artifact SHA-256 createTradeExplorerDatasetPackageFromArtifacts
+      // uses (see analysis-artifact-manifest.ts), so this identity is what
+      // trade-analytics-platform.ts's executeTradeExplorerV1 checks the
+      // active Dataset Package against.
+      evidenceSha256: this.manifest.artifact.sha256,
+      artifact: {
+        baciRelease: this.manifest.baciRelease,
+        buildId: this.manifest.artifact.buildId,
+        schemaVersion: this.manifest.artifact.schemaVersion,
+        sha256: this.manifest.artifact.sha256,
+      },
+      release: {
+        baciRelease: this.manifest.baciRelease,
+        sourceUpdateDate: this.manifest.sourceUpdateDate,
+        hsRevision: this.manifest.hsRevision,
+        ingestedYears: {
+          start: Math.min(...this.manifest.ingestedYears),
+          end: Math.max(...this.manifest.ingestedYears),
+        },
+        finalizedCutoffYear: this.manifest.finalizedCutoffYear,
+        provisionalYear: requireSingleProvisionalYear(this.manifest),
+      },
+      query,
+      exportEconomies: resolvedExportEconomies.map(
+        (economy) => economy.identity,
+      ),
+      importEconomies: resolvedImportEconomies.map(
+        (economy) => economy.identity,
+      ),
+      products: resolvedProducts.map((product) => product.identity),
+      cohortEnumerable,
+      cells,
+    };
+  }
+
+  private async resolveTradeExplorerEconomies(
+    connection: DuckDBConnection,
+    codes: readonly string[],
+    onUnknown: (code: string) => TradeExplorerAnalysisError,
+  ): Promise<ResolvedTradeExplorerEconomy[]> {
+    const values: Record<string, number> = {};
+    const placeholders = codes.map((code, index) => {
+      const key = `economy_code_${index}`;
+      values[key] = Number(code);
+      return `$${key}`;
+    });
+    const rows = await queryRows(connection, `
+      SELECT code, display_name, iso3, identity_note, has_trade_evidence
+      FROM ${this.tablePrefix}economy
+      WHERE kind = 'ECONOMY'
+        AND code IN (${placeholders.join(", ")})
+    `, values);
+    const byCode = new Map(
+      rows.map((row) => [requireNumber(row.code, "economy code"), row]),
+    );
+    return codes.map((code) => {
+      const row = byCode.get(Number(code));
+      if (row === undefined) {
+        throw onUnknown(code);
+      }
+      return {
+        identity: {
+          code,
+          name: requireString(row.display_name, "economy display_name"),
+          iso3: requireNullableString(row.iso3, "economy iso3"),
+          identityNote: requireNullableString(
+            row.identity_note,
+            "economy identity_note",
+          ),
+        },
+        numericCode: Number(code),
+      };
+    });
+  }
+
+  private async resolveTradeExplorerProducts(
+    connection: DuckDBConnection,
+    codes: readonly string[],
+  ): Promise<ResolvedTradeExplorerProduct[]> {
+    const values: Record<string, string> = {};
+    const placeholders = codes.map((code, index) => {
+      const key = `product_code_${index}`;
+      values[key] = code;
+      return `$${key}`;
+    });
+    const rows = await queryRows(connection, `
+      SELECT product_id, hs12_code, source_description
+      FROM ${this.tablePrefix}product
+      WHERE hs12_code IN (${placeholders.join(", ")})
+    `, values);
+    const byCode = new Map(
+      rows.map((row) => [
+        requireString(row.hs12_code, "product hs12_code"),
+        row,
+      ]),
+    );
+    return codes.map((code) => {
+      const row = byCode.get(code);
+      if (row === undefined) {
+        throw unknownTradeExplorerHsProduct(code);
+      }
+      return {
+        identity: {
+          hsRevision: this.manifest.hsRevision,
+          code: requireString(row.hs12_code, "product hs12_code"),
+          descriptionEn: requireString(
+            row.source_description,
+            "product source_description",
+          ),
+        },
+        productId: requireNumber(row.product_id, "product_id"),
+      };
+    });
+  }
+
+  // fixedExportEconomyCode/fixedImportEconomyCode are null exactly when
+  // that dimension is itself the grouped dimension (see
+  // loadTradeExplorerWithConnection above); a null fixed dimension never
+  // gates enumerability -- only a genuinely FIXED export/import economy
+  // does.
+  private async tradeExplorerCohortEnumerable(
+    connection: DuckDBConnection,
+    fixedExportEconomyCode: number | null,
+    fixedImportEconomyCode: number | null,
+  ): Promise<boolean> {
+    const codes = [fixedExportEconomyCode, fixedImportEconomyCode].filter(
+      (code): code is number => code !== null,
+    );
+    if (codes.length === 0) {
+      return true;
+    }
+    const values: Record<string, number> = {};
+    const placeholders = codes.map((code, index) => {
+      const key = `fixed_economy_code_${index}`;
+      values[key] = code;
+      return `$${key}`;
+    });
+    const rows = await queryRows(connection, `
+      SELECT code, has_trade_evidence
+      FROM ${this.tablePrefix}economy
+      WHERE code IN (${placeholders.join(", ")})
+    `, values);
+    if (rows.length !== codes.length) {
+      throw new Error(
+        "Trade Explorer economy lookup lost a previously resolved code.",
+      );
+    }
+    return rows.every((row) =>
+      requireBoolean(row.has_trade_evidence, "economy has_trade_evidence"),
+    );
+  }
+
+  private async tradeExplorerCells(
+    connection: DuckDBConnection,
+    query: TradeExplorerV1NormalizedInputs,
+    resolvedExportEconomies: readonly ResolvedTradeExplorerEconomy[],
+    resolvedImportEconomies: readonly ResolvedTradeExplorerEconomy[],
+    resolvedProducts: readonly ResolvedTradeExplorerProduct[],
+  ): Promise<TradeExplorerCellEvidence[]> {
+    const dimension = query.dimension;
+    const fixedExportEconomy = resolvedExportEconomies[0]!;
+    const fixedImportEconomy = resolvedImportEconomies[0]!;
+    const fixedProduct = resolvedProducts[0]!;
+
+    // Exactly one of these four cases applies, matching TRADE_EXPLORER_
+    // SHAPES's single grouped dimension per shape.
+    const groupedColumn: "year" | "exporter_code" | "importer_code" | "product_id" =
+      dimension === "YEAR"
+        ? "year"
+        : dimension === "EXPORT_ECONOMY"
+          ? "exporter_code"
+          : dimension === "IMPORT_ECONOMY"
+            ? "importer_code"
+            : "product_id";
+    const groupedValues: readonly number[] =
+      dimension === "YEAR"
+        ? query.years
+        : dimension === "EXPORT_ECONOMY"
+          ? resolvedExportEconomies.map((economy) => economy.numericCode)
+          : dimension === "IMPORT_ECONOMY"
+            ? resolvedImportEconomies.map((economy) => economy.numericCode)
+            : resolvedProducts.map((product) => product.productId);
+
+    const values: Record<string, number> = {};
+    const groupedPlaceholders = groupedValues.map((value, index) => {
+      const key = `grouped_${index}`;
+      values[key] = value;
+      return `$${key}`;
+    });
+    const fixedClauses: string[] = [];
+    if (dimension !== "YEAR") {
+      values.fixed_year = query.years[0]!;
+      fixedClauses.push("bilateral.year = $fixed_year");
+    }
+    if (dimension !== "EXPORT_ECONOMY") {
+      values.fixed_exporter_code = fixedExportEconomy.numericCode;
+      fixedClauses.push("bilateral.exporter_code = $fixed_exporter_code");
+    }
+    if (dimension !== "IMPORT_ECONOMY") {
+      values.fixed_importer_code = fixedImportEconomy.numericCode;
+      fixedClauses.push("bilateral.importer_code = $fixed_importer_code");
+    }
+    if (dimension !== "HS_PRODUCT") {
+      values.fixed_product_id = fixedProduct.productId;
+      fixedClauses.push("bilateral.product_id = $fixed_product_id");
+    }
+
+    // One recorded bilateral_year row is exactly one already-aggregated
+    // annual value for a single (year, product, exporter, importer): there
+    // is no separate flow-count column at this granularity (unlike
+    // market_year.source_flow_count, which counts importer-year records
+    // across every exporter combined), so every RECORDED_POSITIVE cell
+    // below reports sourceFlowCount 1 rather than an approximation.
+    const positiveRows = await queryRows(connection, `
+      SELECT bilateral.${groupedColumn} AS grouped_value,
+        bilateral.value_kusd AS value_kusd
+      FROM ${this.tablePrefix}bilateral_year AS bilateral
+      WHERE ${fixedClauses.join(" AND ")}
+        AND bilateral.${groupedColumn} IN (${groupedPlaceholders.join(", ")})
+    `, values);
+    const positiveValueByGroupedValue = new Map(
+      positiveRows.map((row) => [
+        requireNumber(row.grouped_value, "trade explorer grouped value"),
+        requireString(row.value_kusd, "trade explorer bilateral value"),
+      ]),
+    );
+
+    const coverage = await this.tradeExplorerCoverage(
+      connection,
+      dimension,
+      fixedImportEconomy.numericCode,
+      query.years,
+      resolvedImportEconomies,
+    );
+
+    return groupedValues.map((value) => {
+      const valueKusd = positiveValueByGroupedValue.get(value);
+      if (valueKusd !== undefined) {
+        return {
+          state: "RECORDED_POSITIVE" as const,
+          valueCurrentUsd: kusdToCurrentUsd(valueKusd),
+          sourceFlowCount: 1,
+        };
+      }
+      const isCovered =
+        dimension === "YEAR"
+          ? coverage.coveredYears.has(value)
+          : dimension === "IMPORT_ECONOMY"
+            ? coverage.coveredImporterCodes.has(value)
+            : coverage.covered;
+      return isCovered
+        ? { state: "NO_RECORDED_POSITIVE_FLOW" as const }
+        : { state: "MISSING_OBSERVATION" as const };
+    });
+  }
+
+  // Observation coverage for a candidate cell is always keyed by (import
+  // economy, year) via market_year cross-product importer-year activity --
+  // exactly like loadTradeTrendWithConnection's own coverage query --
+  // regardless of which dimension this shape groups: bilateral_year alone
+  // cannot distinguish "never observed" from "observed with zero flow", and
+  // market_year has no exporter/product dimension to check against. This
+  // means the coverage boolean is identical for every grouped candidate
+  // when grouping by EXPORT_ECONOMY or HS_PRODUCT (import economy and year
+  // are both fixed in those shapes) -- a legitimate, schema-imposed
+  // simplification, not a bug.
+  private async tradeExplorerCoverage(
+    connection: DuckDBConnection,
+    dimension: TradeExplorerDimension,
+    fixedImporterCode: number,
+    years: readonly number[],
+    resolvedImportEconomies: readonly ResolvedTradeExplorerEconomy[],
+  ): Promise<{
+    coveredYears: ReadonlySet<number>;
+    coveredImporterCodes: ReadonlySet<number>;
+    covered: boolean;
+  }> {
+    if (dimension === "YEAR") {
+      const values: Record<string, number> = {
+        importer_code: fixedImporterCode,
+      };
+      const placeholders = years.map((yr, index) => {
+        const key = `year_${index}`;
+        values[key] = yr;
+        return `$${key}`;
+      });
+      const rows = await queryRows(connection, `
+        SELECT DISTINCT year
+        FROM ${this.tablePrefix}market_year
+        WHERE importer_code = $importer_code
+          AND year IN (${placeholders.join(", ")})
+      `, values);
+      return {
+        coveredYears: new Set(
+          rows.map((row) => requireNumber(row.year, "market coverage year")),
+        ),
+        coveredImporterCodes: new Set(),
+        covered: false,
+      };
+    }
+    if (dimension === "IMPORT_ECONOMY") {
+      const values: Record<string, number> = { year: years[0]! };
+      const placeholders = resolvedImportEconomies.map((economy, index) => {
+        const key = `importer_${index}`;
+        values[key] = economy.numericCode;
+        return `$${key}`;
+      });
+      const rows = await queryRows(connection, `
+        SELECT DISTINCT importer_code
+        FROM ${this.tablePrefix}market_year
+        WHERE year = $year
+          AND importer_code IN (${placeholders.join(", ")})
+      `, values);
+      return {
+        coveredYears: new Set(),
+        coveredImporterCodes: new Set(
+          rows.map((row) =>
+            requireNumber(row.importer_code, "market coverage importer"),
+          ),
+        ),
+        covered: false,
+      };
+    }
+    const row = await queryOptional(connection, `
+      SELECT 1 AS present
+      FROM ${this.tablePrefix}market_year
+      WHERE importer_code = $importer_code AND year = $year
+      LIMIT 1
+    `, { importer_code: fixedImporterCode, year: years[0]! });
+    return {
+      coveredYears: new Set(),
+      coveredImporterCodes: new Set(),
+      covered: row !== undefined,
     };
   }
 
@@ -1005,6 +1463,13 @@ function requireNumber(value: unknown, label: string): number {
     throw new Error(`${label} must be a nonnegative safe integer.`);
   }
   return number;
+}
+
+function requireBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean.`);
+  }
+  return value;
 }
 
 function requireSha256(value: unknown, label: string): string {

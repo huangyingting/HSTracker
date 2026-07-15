@@ -274,12 +274,30 @@ describe("Trade Explorer module boundary", () => {
     }
   });
 
-  it("never leaks storage shape: production DuckDB source declares no Trade Explorer loader in #46", async () => {
+  it("never leaks storage shape: production DuckDB source's Trade Explorer loader carries no company, buyer, shipment, or party surface", async () => {
+    // #46 deferred the production DuckDB adapter entirely; #47 implements
+    // it as loadTradeExplorerV1Inputs, an optional method on the exact
+    // same TradeEvidenceSource seam Trade Trend/Supplier Competition
+    // already use (see DuckDbTradeEvidenceSource). The declaration itself
+    // is expected now -- what remains forbidden is the same
+    // business-domain vocabulary the fixture source is checked against
+    // above, never SQL/table/column vocabulary in the *public* seam.
     const duckDbSource = await readFile(
       resolve("src/evidence/duckdb-trade-evidence-source.ts"),
       "utf8",
     );
-    expect(duckDbSource).not.toMatch(/loadTradeExplorerV1Inputs/u);
+    expect(duckDbSource).toMatch(/loadTradeExplorerV1Inputs/u);
+    const forbiddenTokens = [
+      /\bcompany\b/iu,
+      /\bbuyer\b/iu,
+      /\bshipment\b/iu,
+      /\bparty\b/iu,
+      /\bconsignee\b/iu,
+      /\bconsignor\b/iu,
+    ];
+    for (const pattern of forbiddenTokens) {
+      expect(duckDbSource, pattern.source).not.toMatch(pattern);
+    }
   });
 
   it("serializes the fixture evidence source without a company, buyer, shipment, party, or arbitrary-SQL surface", async () => {

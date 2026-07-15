@@ -59,6 +59,10 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "supplier-competition-analysis-process-hit",
   "supplier-competition-csv-uncached",
   "supplier-competition-csv-analysis-hit",
+  "trade-explorer-analysis-uncached",
+  "trade-explorer-analysis-process-hit",
+  "trade-explorer-csv-uncached",
+  "trade-explorer-csv-analysis-hit",
 ] as const;
 
 const SINGLETON_BENCHMARK_OPERATIONS = [
@@ -127,6 +131,27 @@ export type OriginBenchmarkInput = {
   compressedPayloadBytes?: number;
 };
 
+export type TradeExplorerQueryMeasurementInput = {
+  productRole: PerformanceProductRole;
+  scanRows: number;
+  resultRows: number;
+  resultBytes: number;
+  exportBytes: number;
+  peakMemoryBytes: number;
+  peakSpillBytes: number;
+  queueWaitMs: number;
+  executionMs: number;
+  cancellationReleaseMs: number;
+  cancellationReleased: boolean;
+  cacheUnpoisoned: boolean;
+  queueUnpoisoned: boolean;
+  subsequentRequestSucceeded: boolean;
+};
+
+export type TradeExplorerMeasurementInput = {
+  queries: TradeExplorerQueryMeasurementInput[];
+};
+
 export type TargetLoadInput = {
   sessions: number;
   sustainedRequestsPerSecond: number;
@@ -144,6 +169,7 @@ export type TargetLoadInput = {
   coordinatedDistinctKeys: number;
   coordinatedBurstIntervalSeconds: number;
   includesMaximumRowProduct: boolean;
+  includesTradeExplorer: boolean;
   cacheStatesVerified: boolean;
   queueRejections: number;
   unretryableErrors: number;
@@ -177,6 +203,7 @@ export type PerformanceGateInput = {
   identity: PerformanceMeasurementIdentity;
   browserLab: BrowserLabProductInput[];
   originBenchmarks: OriginBenchmarkInput[];
+  tradeExplorer: TradeExplorerMeasurementInput;
   targetLoad: TargetLoadInput;
   lifecycle: LifecycleMeasurementInput;
 };
@@ -325,6 +352,32 @@ const ORIGIN_THRESHOLDS: Record<
     routeDeadlineMs: 15_000,
     payloadLimitBytes: 5 * 1024 * KIB,
   },
+  "trade-explorer-analysis-uncached": {
+    p95LimitMs: 2_000,
+    p99LimitMs: 4_000,
+    routeDeadlineMs: 12_000,
+    payloadLimitBytes: 1024 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "trade-explorer-analysis-process-hit": {
+    p95LimitMs: 100,
+    p99LimitMs: 250,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 1024 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "trade-explorer-csv-uncached": {
+    p95LimitMs: 3_000,
+    p99LimitMs: 6_000,
+    routeDeadlineMs: 15_000,
+    payloadLimitBytes: 1024 * KIB,
+  },
+  "trade-explorer-csv-analysis-hit": {
+    p95LimitMs: 250,
+    p99LimitMs: 500,
+    routeDeadlineMs: 15_000,
+    payloadLimitBytes: 1024 * KIB,
+  },
 };
 
 export function evaluatePerformanceGates(input: PerformanceGateInput) {
@@ -340,6 +393,7 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
   };
   const browserLab = evaluateBrowserLab(input.browserLab);
   const origin = evaluateOriginBenchmarks(input.originBenchmarks);
+  const tradeExplorer = evaluateTradeExplorer(input.tradeExplorer);
   const targetLoad = evaluateTargetLoad(input.targetLoad);
   const lifecycle = evaluateLifecycle(
     input.lifecycle,
@@ -354,6 +408,7 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
       measurementContext.status,
       browserLab.status,
       origin.status,
+      tradeExplorer.status,
       targetLoad.status,
       lifecycle.status,
     ]),
@@ -361,9 +416,128 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
       measurementContext,
       browserLab,
       origin,
+      tradeExplorer,
       targetLoad,
       lifecycle,
     },
+  };
+}
+
+const TRADE_EXPLORER_LIMITS = {
+  scanRows: 250,
+  resultRows: 250,
+  resultBytes: 1024 * KIB,
+  exportBytes: 1024 * KIB,
+  peakMemoryBytes: GIB,
+  peakSpillBytes: 4 * GIB,
+  queueWaitMs: 5_000,
+  executionMs: 5_000,
+  cancellationReleaseMs: 5_000,
+} as const;
+
+function evaluateTradeExplorer(input: TradeExplorerMeasurementInput) {
+  const queries = REQUIRED_PRODUCT_ROLES.map((productRole) => {
+    const candidates = input.queries.filter(
+      (query) => query.productRole === productRole,
+    );
+    if (candidates.length !== 1) {
+      throw new PerformanceGateInputError(
+        `Trade Explorer evidence requires exactly one ${productRole} query.`,
+      );
+    }
+    return evaluateTradeExplorerQuery(candidates[0]);
+  });
+  if (input.queries.length !== REQUIRED_PRODUCT_ROLES.length) {
+    throw new PerformanceGateInputError(
+      "Trade Explorer evidence contains an unsupported query.",
+    );
+  }
+  const reasons = queries.flatMap((query) => query.reasons);
+  return {
+    limits: TRADE_EXPLORER_LIMITS,
+    queries,
+    reasons,
+    status: (reasons.length === 0
+      ? "accepted"
+      : "blocked") as PerformanceGateStatus,
+  };
+}
+
+function evaluateTradeExplorerQuery(input: TradeExplorerQueryMeasurementInput) {
+  const label = `${input.productRole} Trade Explorer`;
+  const measurements = {
+    productRole: input.productRole,
+    scanRows: count(input.scanRows, `${label} scan rows`),
+    resultRows: count(input.resultRows, `${label} result rows`),
+    resultBytes: nonnegativeBytes(input.resultBytes, `${label} result bytes`),
+    exportBytes: nonnegativeBytes(input.exportBytes, `${label} export bytes`),
+    peakMemoryBytes: nonnegativeBytes(
+      input.peakMemoryBytes,
+      `${label} peak memory bytes`,
+    ),
+    peakSpillBytes: nonnegativeBytes(
+      input.peakSpillBytes,
+      `${label} peak spill bytes`,
+    ),
+    queueWaitMs: duration(input.queueWaitMs, `${label} queue wait`),
+    executionMs: positiveNumber(input.executionMs, `${label} execution`),
+    cancellationReleaseMs: duration(
+      input.cancellationReleaseMs,
+      `${label} cancellation release`,
+    ),
+    cancellationReleased: requiredBoolean(
+      input.cancellationReleased,
+      `${label} cancellation released`,
+    ),
+    cacheUnpoisoned: requiredBoolean(
+      input.cacheUnpoisoned,
+      `${label} cache unpoisoned`,
+    ),
+    queueUnpoisoned: requiredBoolean(
+      input.queueUnpoisoned,
+      `${label} queue unpoisoned`,
+    ),
+    subsequentRequestSucceeded: requiredBoolean(
+      input.subsequentRequestSucceeded,
+      `${label} subsequent request succeeded`,
+    ),
+  };
+  const reasons: string[] = [];
+  for (const [field, name] of [
+    ["scanRows", "scan rows"],
+    ["resultRows", "result rows"],
+    ["resultBytes", "result bytes"],
+    ["exportBytes", "export bytes"],
+    ["peakMemoryBytes", "peak memory bytes"],
+    ["peakSpillBytes", "peak spill bytes"],
+    ["queueWaitMs", "queue wait milliseconds"],
+    ["executionMs", "execution milliseconds"],
+    ["cancellationReleaseMs", "cancellation release milliseconds"],
+  ] as const) {
+    if (measurements[field] > TRADE_EXPLORER_LIMITS[field]) {
+      reasons.push(
+        `${label} ${name} ${measurements[field]} exceed ${TRADE_EXPLORER_LIMITS[field]}.`,
+      );
+    }
+  }
+  if (!measurements.cancellationReleased) {
+    reasons.push(`${label} cancellation did not release capacity.`);
+  }
+  if (!measurements.cacheUnpoisoned) {
+    reasons.push(`${label} cancellation poisoned the cache.`);
+  }
+  if (!measurements.queueUnpoisoned) {
+    reasons.push(`${label} cancellation poisoned the queue.`);
+  }
+  if (!measurements.subsequentRequestSucceeded) {
+    reasons.push(`${label} subsequent request did not succeed.`);
+  }
+  return {
+    ...measurements,
+    reasons,
+    status: (reasons.length === 0
+      ? "accepted"
+      : "blocked") as PerformanceGateStatus,
   };
 }
 
@@ -830,6 +1004,7 @@ function evaluateTargetLoad(input: TargetLoadInput) {
     coordinatedDistinctKeys !== 4 ||
     coordinatedBurstIntervalSeconds > 60 ||
     !input.includesMaximumRowProduct ||
+    !input.includesTradeExplorer ||
     !input.cacheStatesVerified ||
     queueRejections > 0 ||
     unretryableErrors > 0 ||
@@ -880,6 +1055,7 @@ function evaluateTargetLoad(input: TargetLoadInput) {
     coordinatedBurstIntervalSeconds,
     maximumCoordinatedBurstIntervalSeconds: 60,
     includesMaximumRowProduct: input.includesMaximumRowProduct,
+    includesTradeExplorer: input.includesTradeExplorer,
     cacheStatesVerified: input.cacheStatesVerified,
     queueRejections,
     unretryableErrors,
@@ -1056,6 +1232,13 @@ function positiveNumber(value: number, label: string): number {
     throw new PerformanceGateInputError(
       `${label} must be a finite positive number.`,
     );
+  }
+  return value;
+}
+
+function requiredBoolean(value: boolean, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new PerformanceGateInputError(`${label} must be a boolean.`);
   }
   return value;
 }
