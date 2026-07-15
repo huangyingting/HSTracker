@@ -117,6 +117,9 @@ entry above 250 scan rows, 250 result rows, 1 MiB result or export bytes,
 release.
 Execution time must be positive. Other zeros are valid only when the measured
 value was actually zero; all cancellation health booleans must be true.
+Each entry's `benchmarkQuery` and `resultRows` must also match the same role's
+query and grouped-row count from the origin runner's runtime identity
+attestation; a role label alone cannot bind resource evidence to an artifact.
 
 ```json
 {
@@ -127,6 +130,13 @@ value was actually zero; all cancellation health booleans must be true.
   "queries": [
     {
       "productRole": "sparse",
+      "benchmarkQuery": {
+        "shape": "finalized-trend-v1",
+        "measures": ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        "exportEconomyCode": "156",
+        "importEconomyCode": "276",
+        "hsProductCode": "010121"
+      },
       "scanRows": 12,
       "resultRows": 5,
       "resultBytes": 4096,

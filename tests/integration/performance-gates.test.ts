@@ -257,11 +257,19 @@ describe("production performance gates", () => {
     ],
     ["queueWaitMs", 5_001, "queue wait milliseconds 5001 exceed 5000"],
     ["executionMs", 5_001, "execution milliseconds 5001 exceed 5000"],
+    [
+      "cancellationReleaseMs",
+      5_001,
+      "cancellation release milliseconds 5001 exceed 5000",
+    ],
   ] as const)(
     "blocks a Trade Explorer %s budget violation",
     (field, value, reason) => {
       const input = acceptedInput();
       input.tradeExplorer.queries[0][field] = value;
+      if (field === "resultRows") {
+        input.tradeExplorer.benchmarkQueries[0].groupedRowCount = value;
+      }
 
       const result = evaluatePerformanceGates(input);
 
@@ -293,6 +301,15 @@ describe("production performance gates", () => {
 
     expect(() => evaluatePerformanceGates(input)).toThrow(
       "sparse Trade Explorer execution must be a finite positive number.",
+    );
+  });
+
+  it("rejects Trade Explorer resource evidence that does not match runtime attestation", () => {
+    const input = acceptedInput();
+    input.tradeExplorer.queries[0].benchmarkQuery.importEconomyCode = "528";
+
+    expect(() => evaluatePerformanceGates(input)).toThrow(
+      "sparse Trade Explorer measurement does not match its artifact-attested benchmark query.",
     );
   });
 
@@ -366,6 +383,23 @@ function acceptedInput(): PerformanceGateInput {
     ],
     originBenchmarks: completeOriginBenchmarks(),
     tradeExplorer: {
+      benchmarkQueries: ([
+        "sparse",
+        "median",
+        "upper-quartile",
+        "maximum-row",
+      ] as const).map((role) => ({
+        role,
+        shape: "finalized-trend-v1" as const,
+        measures: [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT",
+        ] as ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+        exportEconomyCode: "156",
+        importEconomyCode: "276",
+        hsProductCode: "010121",
+        groupedRowCount: 250,
+      })),
       queries: ([
         "sparse",
         "median",
@@ -373,6 +407,16 @@ function acceptedInput(): PerformanceGateInput {
         "maximum-row",
       ] as const).map((productRole) => ({
         productRole,
+        benchmarkQuery: {
+          shape: "finalized-trend-v1" as const,
+          measures: [
+            "TRADE_VALUE_USD",
+            "RECORDED_FLOW_COUNT",
+          ] as ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+          exportEconomyCode: "156",
+          importEconomyCode: "276",
+          hsProductCode: "010121",
+        },
         scanRows: 250,
         resultRows: 250,
         resultBytes: 1024 * KIB,

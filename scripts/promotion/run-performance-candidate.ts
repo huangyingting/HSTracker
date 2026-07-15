@@ -18,7 +18,7 @@ import {
   evaluatePerformanceGates,
   type LifecycleMeasurementInput,
   type PerformanceMeasurementIdentity,
-  type TradeExplorerMeasurementInput,
+  type TradeExplorerQueryMeasurementInput,
 } from "../../src/promotion/performance-gates";
 
 class PerformanceCandidateCliError extends Error {
@@ -139,7 +139,10 @@ async function main(): Promise<void> {
       failedTrialCount: product.failedTrialCount,
     })),
     originBenchmarks: [...originReport.originBenchmarks],
-    tradeExplorer: tradeExplorer.measurements,
+    tradeExplorer: {
+      ...tradeExplorer.measurements,
+      benchmarkQueries: originReport.attestation.tradeExplorerBenchmarkQueries,
+    },
     targetLoad: loadReport.targetLoad,
     lifecycle: lifecycle.measurements,
   });
@@ -172,7 +175,7 @@ function parseTradeExplorerEvidence(
 ): {
   schemaVersion: "trade-explorer-measurement-v1";
   measuredAt: string;
-  measurements: TradeExplorerMeasurementInput;
+  measurements: { queries: TradeExplorerQueryMeasurementInput[] };
 } {
   const evidence = object(value, "Trade Explorer evidence");
   if (evidence.schemaVersion !== "trade-explorer-measurement-v1") {
@@ -219,6 +222,10 @@ function parseTradeExplorerEvidence(
         }
         return {
           productRole,
+          benchmarkQuery: parseTradeExplorerBenchmarkQuery(
+            candidate.benchmarkQuery,
+            index,
+          ),
           scanRows: nonnegativeSafeInteger(
             candidate.scanRows,
             `Trade Explorer query ${index + 1} scanRows`,
@@ -274,6 +281,49 @@ function parseTradeExplorerEvidence(
         };
       }),
     },
+  };
+}
+
+function parseTradeExplorerBenchmarkQuery(
+  value: unknown,
+  index: number,
+): TradeExplorerQueryMeasurementInput["benchmarkQuery"] {
+  const query = object(
+    value,
+    `Trade Explorer query ${index + 1} benchmarkQuery`,
+  );
+  if (
+    query.shape !== "finalized-trend-v1" ||
+    !Array.isArray(query.measures) ||
+    query.measures.length !== 2 ||
+    query.measures[0] !== "TRADE_VALUE_USD" ||
+    query.measures[1] !== "RECORDED_FLOW_COUNT"
+  ) {
+    throw new PerformanceCandidateCliError(
+      `Trade Explorer query ${index + 1} benchmarkQuery shape or measures are invalid.`,
+    );
+  }
+  const exportEconomyCode = code(
+    query.exportEconomyCode,
+    /^\d{1,3}$/u,
+    `Trade Explorer query ${index + 1} exportEconomyCode`,
+  );
+  const importEconomyCode = code(
+    query.importEconomyCode,
+    /^\d{1,3}$/u,
+    `Trade Explorer query ${index + 1} importEconomyCode`,
+  );
+  const hsProductCode = code(
+    query.hsProductCode,
+    /^\d{6}$/u,
+    `Trade Explorer query ${index + 1} hsProductCode`,
+  );
+  return {
+    shape: "finalized-trend-v1",
+    measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+    exportEconomyCode,
+    importEconomyCode,
+    hsProductCode,
   };
 }
 
@@ -411,6 +461,14 @@ function nonnegativeNumber(value: unknown, label: string): number {
     throw new PerformanceCandidateCliError(
       `${label} must be a finite nonnegative number.`,
     );
+  }
+
+  return value;
+}
+
+function code(value: unknown, pattern: RegExp, label: string): string {
+  if (typeof value !== "string" || !pattern.test(value)) {
+    throw new PerformanceCandidateCliError(`${label} is malformed.`);
   }
   return value;
 }

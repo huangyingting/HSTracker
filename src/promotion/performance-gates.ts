@@ -1,4 +1,5 @@
 import { nonnegativeSafeInteger } from "../deployment/value-validation";
+import type { TradeExplorerArtifactBenchmarkQuery } from "../evidence/analysis-artifact-manifest";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 
 const KIB = 1024;
@@ -133,6 +134,14 @@ export type OriginBenchmarkInput = {
 
 export type TradeExplorerQueryMeasurementInput = {
   productRole: PerformanceProductRole;
+  benchmarkQuery: Pick<
+    TradeExplorerArtifactBenchmarkQuery,
+    | "shape"
+    | "measures"
+    | "exportEconomyCode"
+    | "importEconomyCode"
+    | "hsProductCode"
+  >;
   scanRows: number;
   resultRows: number;
   resultBytes: number;
@@ -150,6 +159,7 @@ export type TradeExplorerQueryMeasurementInput = {
 
 export type TradeExplorerMeasurementInput = {
   queries: TradeExplorerQueryMeasurementInput[];
+  benchmarkQueries: readonly TradeExplorerArtifactBenchmarkQuery[];
 };
 
 export type TargetLoadInput = {
@@ -445,9 +455,20 @@ function evaluateTradeExplorer(input: TradeExplorerMeasurementInput) {
         `Trade Explorer evidence requires exactly one ${productRole} query.`,
       );
     }
-    return evaluateTradeExplorerQuery(candidates[0]);
+    const benchmarks = input.benchmarkQueries.filter(
+      (query) => query.role === productRole,
+    );
+    if (benchmarks.length !== 1) {
+      throw new PerformanceGateInputError(
+        `Trade Explorer attestation requires exactly one ${productRole} benchmark query.`,
+      );
+    }
+    return evaluateTradeExplorerQuery(candidates[0], benchmarks[0]);
   });
-  if (input.queries.length !== REQUIRED_PRODUCT_ROLES.length) {
+  if (
+    input.queries.length !== REQUIRED_PRODUCT_ROLES.length ||
+    input.benchmarkQueries.length !== REQUIRED_PRODUCT_ROLES.length
+  ) {
     throw new PerformanceGateInputError(
       "Trade Explorer evidence contains an unsupported query.",
     );
@@ -463,10 +484,31 @@ function evaluateTradeExplorer(input: TradeExplorerMeasurementInput) {
   };
 }
 
-function evaluateTradeExplorerQuery(input: TradeExplorerQueryMeasurementInput) {
+function evaluateTradeExplorerQuery(
+  input: TradeExplorerQueryMeasurementInput,
+  benchmark: TradeExplorerArtifactBenchmarkQuery,
+) {
   const label = `${input.productRole} Trade Explorer`;
+  if (
+    input.benchmarkQuery.shape !== benchmark.shape ||
+    input.benchmarkQuery.measures.length !== benchmark.measures.length ||
+    input.benchmarkQuery.measures.some(
+      (measure, index) => measure !== benchmark.measures[index],
+    ) ||
+    input.benchmarkQuery.exportEconomyCode !==
+      benchmark.exportEconomyCode ||
+    input.benchmarkQuery.importEconomyCode !==
+      benchmark.importEconomyCode ||
+    input.benchmarkQuery.hsProductCode !== benchmark.hsProductCode ||
+    input.resultRows !== benchmark.groupedRowCount
+  ) {
+    throw new PerformanceGateInputError(
+      `${label} measurement does not match its artifact-attested benchmark query.`,
+    );
+  }
   const measurements = {
     productRole: input.productRole,
+    benchmarkQuery: input.benchmarkQuery,
     scanRows: count(input.scanRows, `${label} scan rows`),
     resultRows: count(input.resultRows, `${label} result rows`),
     resultBytes: nonnegativeBytes(input.resultBytes, `${label} result bytes`),

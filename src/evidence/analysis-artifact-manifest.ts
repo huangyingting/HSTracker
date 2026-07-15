@@ -17,6 +17,7 @@ import {
 } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
 import {
   createTradeExplorerDatasetPackage,
+  parseTradeExplorerDatasetCapabilityDeclaration,
   type TradeExplorerDatasetCapabilityDeclaration,
   type TradeExplorerDatasetPackage,
 } from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
@@ -687,59 +688,6 @@ export function createSupplierCompetitionDatasetPackageFromArtifacts(
     evidenceSha256: manifest.artifact.sha256,
     capabilities: manifest.supplierCompetitionDatasetPackage.capabilities,
   });
-}
-
-// trade-explorer-v1-dataset-package.ts (unowned by #47's evidence-source
-// slice) does not export a capability-declaration parser counterpart to
-// parseTradeTrendDatasetCapabilityDeclaration /
-// parseSupplierCompetitionDatasetCapabilityDeclaration above, so this
-// mirrors that exact pattern locally instead of editing that file.
-function parseTradeExplorerDatasetCapabilityDeclaration(
-  value: unknown,
-): TradeExplorerDatasetCapabilityDeclaration {
-  const declaration = record(
-    value,
-    "Trade Explorer Dataset Package capability declaration",
-  );
-  if (declaration.schemaVersion !== "trade-explorer-dataset-capabilities-v1") {
-    throw new Error(
-      "Trade Explorer Dataset Package capability declaration schema is incompatible.",
-    );
-  }
-  if (!Array.isArray(declaration.capabilities)) {
-    throw new Error(
-      "Trade Explorer Dataset Package capabilities must be an array.",
-    );
-  }
-  const capabilities = declaration.capabilities.map((entry, index) => {
-    const capability = record(
-      entry,
-      `Trade Explorer Dataset Package capability ${index}`,
-    );
-    return {
-      id: string(
-        capability.id,
-        `Trade Explorer Dataset Package capability ${index} id`,
-      ),
-      version: string(
-        capability.version,
-        `Trade Explorer Dataset Package capability ${index} version`,
-      ),
-    };
-  });
-  if (new Set(capabilities.map(({ id }) => id)).size !== capabilities.length) {
-    throw new Error(
-      "Trade Explorer Dataset Package capability IDs must be unique.",
-    );
-  }
-  return {
-    schemaVersion: "trade-explorer-dataset-capabilities-v1",
-    capabilities: [...capabilities].sort(
-      (left, right) =>
-        left.id.localeCompare(right.id) ||
-        left.version.localeCompare(right.version),
-    ),
-  };
 }
 
 function parseTradeExplorerBenchmarkQuery(

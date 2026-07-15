@@ -17,10 +17,7 @@ export const TRADE_EXPLORER_V1_CAPABILITY_REQUIREMENTS = [
 // instead of synthesizing them from TRADE_EXPLORER_V1_CAPABILITY_
 // REQUIREMENTS directly. evaluateTradeExplorerV1DatasetPackage() still
 // checks the declared capabilities against those requirements, so a
-// divergent declaration fails closed. #46 only ships the fixture package
-// created below; production verified-runtime activation stays undeclared
-// (see runtime/verified-release-runtime.ts, which never registers this
-// recipe) until #47.
+// divergent declaration fails closed.
 export type TradeExplorerDatasetCapabilityDeclaration = Readonly<{
   schemaVersion: "trade-explorer-dataset-capabilities-v1";
   capabilities: readonly Readonly<{ id: string; version: string }>[];
@@ -31,6 +28,61 @@ export const TRADE_EXPLORER_V1_DATASET_DECLARATION: TradeExplorerDatasetCapabili
     schemaVersion: "trade-explorer-dataset-capabilities-v1",
     capabilities: TRADE_EXPLORER_V1_CAPABILITY_REQUIREMENTS,
   };
+
+export function parseTradeExplorerDatasetCapabilityDeclaration(
+  value: unknown,
+): TradeExplorerDatasetCapabilityDeclaration {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(
+      "Trade Explorer Dataset Package capability declaration must be an object.",
+    );
+  }
+  const declaration = value as Record<string, unknown>;
+  if (
+    declaration.schemaVersion !== "trade-explorer-dataset-capabilities-v1"
+  ) {
+    throw new TypeError(
+      "Trade Explorer Dataset Package capability declaration schema is incompatible.",
+    );
+  }
+  if (!Array.isArray(declaration.capabilities)) {
+    throw new TypeError(
+      "Trade Explorer Dataset Package capabilities must be an array.",
+    );
+  }
+  const capabilities = declaration.capabilities.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw new TypeError(
+        `Trade Explorer Dataset Package capability ${index} must be an object.`,
+      );
+    }
+    const capability = entry as Record<string, unknown>;
+    if (
+      typeof capability.id !== "string" ||
+      capability.id.length === 0 ||
+      typeof capability.version !== "string" ||
+      capability.version.length === 0
+    ) {
+      throw new TypeError(
+        `Trade Explorer Dataset Package capability ${index} is malformed.`,
+      );
+    }
+    return { id: capability.id, version: capability.version };
+  });
+  if (new Set(capabilities.map(({ id }) => id)).size !== capabilities.length) {
+    throw new TypeError(
+      "Trade Explorer Dataset Package capability IDs must be unique.",
+    );
+  }
+  return {
+    schemaVersion: "trade-explorer-dataset-capabilities-v1",
+    capabilities: [...capabilities].sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) ||
+        left.version.localeCompare(right.version),
+    ),
+  };
+}
 
 export type TradeExplorerDatasetPackage = Readonly<{
   identity: DatasetPackageIdentity;

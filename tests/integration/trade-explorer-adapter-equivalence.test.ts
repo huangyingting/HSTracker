@@ -50,6 +50,7 @@ const ADDITIONAL_ECONOMIES = [
   { code: 710, displayName: "South Africa", iso2: "ZA", iso3: "ZAF" },
   { code: 76, displayName: "Brazil", iso2: "BR", iso3: "BRA" },
   { code: 124, displayName: "Canada", iso2: "CA", iso3: "CAN" },
+  { code: 842, displayName: "United States", iso2: "US", iso3: "USA" },
   // Never referenced by any bilateral row below: has_trade_evidence stays
   // FALSE forever, giving the "empty" (non-enumerable cohort) test a fixed
   // economy production genuinely has no evidence for.
@@ -414,29 +415,42 @@ describe("Trade Explorer fixture-vs-production adapter equivalence", () => {
 
   it("reports a typed empty outcome for a fixed economy with no recorded trade evidence at all", async () => {
     const { runtime, analysisBuildId } = await buildActivatedRuntime();
-    const outcome = await runtime.tradeAnalytics.execute({
-      ...baseRequest(analysisBuildId),
-      shape: "finalized-trend-v1",
-      dimensions: ["YEAR"],
-      measures: ["TRADE_VALUE_USD"],
+    const fixtureRuntime = createFixtureApplicationRuntime();
+    const request = (buildId: string) => ({
+      ...baseRequest(buildId),
+      shape: "finalized-trend-v1" as const,
+      dimensions: ["YEAR" as const],
+      measures: ["TRADE_VALUE_USD" as const],
       filters: {
-        year: { mode: "list", years: [] },
+        year: { mode: "list" as const, years: [] },
         exportEconomy: ["156"],
-        importEconomy: ["901"],
+        importEconomy: ["842"],
         hsProduct: [PRODUCT_CODE],
       },
       sort: null,
     });
+    const [fixture, outcome] = await Promise.all([
+      fixtureRuntime.tradeAnalytics.execute(
+        request(ACCEPTANCE_FIXTURE_BUILD_IDS.core),
+      ),
+      runtime.tradeAnalytics.execute(request(analysisBuildId)),
+    ]);
     expect(outcome.state).toBe("empty");
     if (outcome.state !== "empty") {
       throw new Error(`Expected empty, received ${outcome.state}.`);
     }
     expect(outcome.emptyReason).toBe("NO_ENUMERABLE_COHORT");
     expect(outcome.payload.rows).toEqual([]);
+    expect(fixture).toMatchObject({
+      state: "empty",
+      emptyReason: outcome.emptyReason,
+      payload: { rows: [] },
+    });
   }, 30_000);
 
   it("fails closed with the exact unknown code for unregistered export/import economies and HS products", async () => {
     const { runtime, analysisBuildId } = await buildActivatedRuntime();
+    const fixtureRuntime = createFixtureApplicationRuntime();
 
     const unknownExport = await runtime.tradeAnalytics.execute({
       ...baseRequest(analysisBuildId),
@@ -491,6 +505,62 @@ describe("Trade Explorer fixture-vs-production adapter equivalence", () => {
       state: "invalid-input",
       error: { code: "UNKNOWN_HS_PRODUCT", productCode: "000001" },
     });
+
+    for (const [fixture, production] of await Promise.all([
+      Promise.all([
+        fixtureRuntime.tradeAnalytics.execute({
+          ...baseRequest(ACCEPTANCE_FIXTURE_BUILD_IDS.core),
+          shape: "finalized-trend-v1",
+          dimensions: ["YEAR"],
+          measures: ["TRADE_VALUE_USD"],
+          filters: {
+            year: { mode: "list", years: [] },
+            exportEconomy: ["888"],
+            importEconomy: ["528"],
+            hsProduct: [PRODUCT_CODE],
+          },
+          sort: null,
+        }),
+        Promise.resolve(unknownExport),
+      ]),
+      Promise.all([
+        fixtureRuntime.tradeAnalytics.execute({
+          ...baseRequest(ACCEPTANCE_FIXTURE_BUILD_IDS.core),
+          shape: "finalized-trend-v1",
+          dimensions: ["YEAR"],
+          measures: ["TRADE_VALUE_USD"],
+          filters: {
+            year: { mode: "list", years: [] },
+            exportEconomy: ["156"],
+            importEconomy: ["999"],
+            hsProduct: [PRODUCT_CODE],
+          },
+          sort: null,
+        }),
+        Promise.resolve(unknownImport),
+      ]),
+      Promise.all([
+        fixtureRuntime.tradeAnalytics.execute({
+          ...baseRequest(ACCEPTANCE_FIXTURE_BUILD_IDS.core),
+          shape: "finalized-trend-v1",
+          dimensions: ["YEAR"],
+          measures: ["TRADE_VALUE_USD"],
+          filters: {
+            year: { mode: "list", years: [] },
+            exportEconomy: ["156"],
+            importEconomy: ["528"],
+            hsProduct: ["000001"],
+          },
+          sort: null,
+        }),
+        Promise.resolve(unknownProduct),
+      ]),
+    ])) {
+      expect(fixture).toMatchObject({
+        state: production.state,
+        error: "error" in production ? production.error : undefined,
+      });
+    }
   }, 30_000);
 
   it("succeeds at exactly the 25-code grouped-cohort budget boundary", async () => {
@@ -521,6 +591,39 @@ describe("Trade Explorer fixture-vs-production adapter equivalence", () => {
         r.dimensionValue.economy.code === "601",
     );
     expect(first).toMatchObject({ tradeValueUsd: "1000" });
+  }, 30_000);
+
+  it("agrees with the fixture when the grouped cohort exceeds the 25-code budget", async () => {
+    const { runtime, analysisBuildId } = await buildActivatedRuntime();
+    const fixtureRuntime = createFixtureApplicationRuntime();
+    const request = (buildId: string) => ({
+      ...baseRequest(buildId),
+      shape: "importing-markets-v1" as const,
+      dimensions: ["IMPORT_ECONOMY" as const],
+      measures: ["TRADE_VALUE_USD" as const],
+      filters: {
+        year: { mode: "list" as const, years: [2023] },
+        exportEconomy: ["156"],
+        importEconomy: [...BUDGET_IMPORTER_CODES, 626].map(String),
+        hsProduct: [PRODUCT_CODE],
+      },
+      sort: null,
+    });
+    const [fixture, production] = await Promise.all([
+      fixtureRuntime.tradeAnalytics.execute(
+        request(ACCEPTANCE_FIXTURE_BUILD_IDS.core),
+      ),
+      runtime.tradeAnalytics.execute(request(analysisBuildId)),
+    ]);
+
+    expect(production).toMatchObject({
+      state: "budget",
+      error: { code: "ANALYSIS_BUDGET_EXCEEDED" },
+    });
+    expect(fixture).toMatchObject({
+      state: production.state,
+      error: "error" in production ? production.error : undefined,
+    });
   }, 30_000);
 
   it("propagates an already-aborted signal instead of returning a result", async () => {
