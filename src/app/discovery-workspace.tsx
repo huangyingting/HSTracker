@@ -30,6 +30,18 @@ import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
+import {
+  parseTradeAnalysisContext,
+  resolvePinnedContext,
+  serializeTradeAnalysisContext,
+  withEconomyCode,
+  withLocale,
+  withoutPin,
+  withPin,
+  withProductCode,
+  withRecipe,
+  type CandidateMarketContext,
+} from "./trade-analysis-context";
 
 const copy = {
   en: {
@@ -214,6 +226,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     }
     analysisController.current?.abort();
     setStatus("refreshing");
+    const context = parseTradeAnalysisContext(window.location.href);
+    const url = serializeTradeAnalysisContext(
+      window.location.href,
+      withoutPin(context),
+    );
+    window.history.replaceState(null, "", url);
     const { controller, promise } = beginCurrentManifestRequest(true);
     const discovered = await promise;
     if (controller.signal.aborted || discovered === null) {
@@ -242,10 +260,21 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("idle");
-    const url = new URL(window.location.href);
-    url.searchParams.delete("market");
+    const context = parseTradeAnalysisContext(window.location.href);
+    const nextContext: CandidateMarketContext =
+      context.recipe === "candidate-market"
+        ? { ...context, locale, focusedMarketCode: null, pin: null }
+        : {
+            recipe: "candidate-market",
+            locale,
+            productCode: null,
+            pin: null,
+            exporterCode: null,
+            focusedMarketCode: null,
+          };
+    const url = serializeTradeAnalysisContext(window.location.href, nextContext);
     window.history.replaceState(null, "", url);
-  }, []);
+  }, [locale]);
 
   const prepareForExplicitContextChange = useCallback(() => {
     canonicalRestorePending.current = false;
@@ -278,6 +307,15 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
   const analyzeCandidateMarkets = useCallback(async () => {
     if (exporter === null || product === null || currentManifest === null) {
+      return;
+    }
+
+    const urlPin = parseTradeAnalysisContext(window.location.href).pin;
+    if (
+      resolvePinnedContext(urlPin, currentManifest, "candidate-market")
+        .state === "retired"
+    ) {
+      setStatus("stale");
       return;
     }
 
@@ -336,18 +374,40 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         return;
       }
 
-      const requestedCandidateCode = new URL(
-        window.location.href,
-      ).searchParams.get("market");
+      const priorContext = parseTradeAnalysisContext(window.location.href);
+      const requestedCandidateCode =
+        priorContext.recipe === "candidate-market"
+          ? priorContext.focusedMarketCode
+          : null;
       const initialCandidate =
         completeResult.candidates.find(
           ({ economy }) => economy.code === requestedCandidateCode,
         ) ?? completeResult.candidates[0];
       setSelectedCandidateCode(initialCandidate.economy.code);
       setStatus("success");
-      const url = new URL(window.location.href);
-      url.searchParams.set("market", initialCandidate.economy.code);
-      window.history.replaceState(null, "", url);
+      const nextContext = withEconomyCode(
+        withProductCode(
+          withRecipe(priorContext, "candidate-market"),
+          product.code,
+        ),
+        exporter.code,
+      );
+      if (nextContext.recipe === "candidate-market") {
+        const url = serializeTradeAnalysisContext(
+          window.location.href,
+          withPin(
+            withLocale(
+              {
+                ...nextContext,
+                focusedMarketCode: initialCandidate.economy.code,
+              },
+              locale,
+            ),
+            currentManifest,
+          ),
+        );
+        window.history.replaceState(null, "", url);
+      }
     } catch (error) {
       if (controller.signal.aborted || requestSequence.current !== sequence) {
         return;
@@ -355,7 +415,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       console.error("Candidate Market workspace request failed", error);
       setStatus("fatal");
     }
-  }, [currentManifest, exporter, product]);
+  }, [currentManifest, exporter, locale, product]);
 
   useEffect(() => {
     if (
@@ -367,11 +427,11 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     }
 
     canonicalRestorePending.current = false;
-    const parameters = new URL(window.location.href).searchParams;
+    const context = parseTradeAnalysisContext(window.location.href);
     if (
-      parameters.get("exporter") === exporter.code &&
-      parameters.get("revision") === "HS12" &&
-      parameters.get("product") === product.code
+      context.recipe === "candidate-market" &&
+      context.exporterCode === exporter.code &&
+      context.productCode === product.code
     ) {
       const timeout = window.setTimeout(
         () => void analyzeCandidateMarkets(),
@@ -383,15 +443,18 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
   useLayoutEffect(() => {
     function restoreContextFromHistory() {
-      const parameters = new URL(window.location.href).searchParams;
+      const context = parseTradeAnalysisContext(window.location.href);
       const matchesLoadedContext =
         result !== null &&
-        parameters.get("exporter") === result.query.exporter.code &&
-        parameters.get("revision") === result.query.product.hsRevision &&
-        parameters.get("product") === result.query.product.code;
+        context.recipe === "candidate-market" &&
+        context.exporterCode === result.query.exporter.code &&
+        context.productCode === result.query.product.code;
 
       if (matchesLoadedContext) {
-        const requestedCandidateCode = parameters.get("market");
+        const requestedCandidateCode =
+          context.recipe === "candidate-market"
+            ? context.focusedMarketCode
+            : null;
         if (
           result.candidates.some(
             ({ economy }) => economy.code === requestedCandidateCode,
@@ -422,8 +485,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
   function selectCandidateMarket(candidate: CandidateMarket) {
     setSelectedCandidateCode(candidate.economy.code);
-    const url = new URL(window.location.href);
-    url.searchParams.set("market", candidate.economy.code);
+    const context = parseTradeAnalysisContext(window.location.href);
+    if (context.recipe !== "candidate-market") {
+      return;
+    }
+    const url = serializeTradeAnalysisContext(window.location.href, {
+      ...context,
+      focusedMarketCode: candidate.economy.code,
+    });
     window.history.pushState(null, "", url);
   }
 
@@ -618,6 +687,20 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 comparedCandidateCodes.length >= MAX_COMPARISON_CANDIDATES
               }
               onToggleComparison={toggleCandidateComparison}
+              tradeTrendHref={serializeTradeAnalysisContext("/", {
+                recipe: "trade-trend",
+                locale,
+                importerCode: selectedCandidate.economy.code,
+                productCode: result.query.product.code,
+                pin: null,
+              })}
+              supplierCompetitionHref={serializeTradeAnalysisContext("/", {
+                recipe: "supplier-competition",
+                locale,
+                importerCode: selectedCandidate.economy.code,
+                productCode: result.query.product.code,
+                pin: null,
+              })}
             />
           </div>
           <CandidateMarketComparison

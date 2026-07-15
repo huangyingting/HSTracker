@@ -7,6 +7,11 @@ import type {
   ProductSearchProduct,
   ProductSearchResult,
 } from "../catalog/product-catalog";
+import {
+  parseTradeAnalysisContext,
+  serializeTradeAnalysisContext,
+  withProductCode,
+} from "./trade-analysis-context";
 
 const copy = {
   en: {
@@ -86,14 +91,10 @@ export function ProductCombobox({
   >("idle");
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const revision = url.searchParams.get("revision");
-    const productCode = url.searchParams.get("product");
-    if (
-      revision !== "HS12" ||
-      productCode === null ||
-      !/^\d{6}$/u.test(productCode)
-    ) {
+    const productCode = parseTradeAnalysisContext(
+      window.location.href,
+    ).productCode;
+    if (productCode === null) {
       return;
     }
 
@@ -218,9 +219,11 @@ export function ProductCombobox({
     setStatus("idle");
     onSelectionChange(product, "explicit");
 
-    const url = new URL(window.location.href);
-    url.searchParams.set("revision", "HS12");
-    url.searchParams.set("product", product.code);
+    const context = withProductCode(
+      parseTradeAnalysisContext(window.location.href),
+      product.code,
+    );
+    const url = serializeTradeAnalysisContext(window.location.href, context);
     window.history.replaceState(null, "", url);
   }
 
@@ -230,9 +233,11 @@ export function ProductCombobox({
     }
     setSelectedProduct(null);
     onSelectionChange(null, "explicit");
-    const url = new URL(window.location.href);
-    url.searchParams.delete("revision");
-    url.searchParams.delete("product");
+    const context = withProductCode(
+      parseTradeAnalysisContext(window.location.href),
+      null,
+    );
+    const url = serializeTradeAnalysisContext(window.location.href, context);
     window.history.replaceState(null, "", url);
   }
 

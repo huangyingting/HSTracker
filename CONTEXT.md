@@ -72,6 +72,18 @@ _Avoid_: Latest-dataset lookup, runtime package selection, mutable recommendatio
 The Analysis Recipe, Dataset Package, normalized semantic inputs, and Analysis Identity that establish the reproducible scope of a trade analysis. Candidate Market Context is its Candidate Market-specific form, additionally focused on one Candidate Market.
 _Avoid_: Browser session, user project, hidden account state
 
+**Canonical Task Link**:
+The exact URL encoding one Analysis Recipe, its normalized inputs, locale, and, once resolved, the pinned analysis build and Dataset Package identity of the Trade Analysis Context it reproduces. Copy, reload, browser back/forward, and opening in another browser all reproduce the same pinned meaning; a link with no pin yet resolves against the current Recommended Dataset Mapping instead of silently carrying one over from elsewhere.
+_Avoid_: Deep link, permalink, arbitrary query string
+
+**Pinned** / **Current** (Canonical Task Link):
+A Canonical Task Link is Pinned once it carries an exact analysis build and Dataset Package identity; it is Current only while that identity still matches the live Recommended Dataset Mapping. A Pinned link whose identity no longer matches is retired and must not execute against today's evidence under the old pin; it surfaces a typed actionable state instead.
+_Avoid_: Stale cache, expired session, silent fallback to latest
+
+**Explicit Current Refresh**:
+The deliberate user action that discards a Canonical Task Link's existing pin and resolves its Trade Analysis Context again against the current Recommended Dataset Mapping, producing a distinct Canonical Task Link and Analysis Identity. It never happens automatically and never substitutes current evidence under an old pin.
+_Avoid_: Automatic fallback, silent re-fetch, cache invalidation
+
 **Candidate Market Result Export**:
 An immutable tabular snapshot of the complete ranked Candidate Market cohort for one export economy and HS Product under explicit analysis, product-catalog, and freshness identities. It carries derived evidence and provenance for follow-up, not raw trade records or company evidence.
 _Avoid_: BACI export, raw-data extract, buyer list

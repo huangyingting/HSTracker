@@ -52,7 +52,7 @@ test("an analyst can select Trade Trend by keyboard, share it, and change locale
     page.getByText("Recorded positive value · USD 200000"),
   ).toBeVisible();
   await expect(page).toHaveURL(
-    /task=trade-trend.*importer=528.*revision=HS12.*product=010121/,
+    /recipe=trade-trend-v1.*importer=528.*revision=HS12.*product=010121/,
   );
 
   await page.getByRole("button", { name: "简体中文" }).click();
@@ -165,7 +165,7 @@ test("Candidate Market remains the default task with its original ranking contro
     "#1 Netherlands BACI 528 · Data Confidence: HIGH 85 /100",
   );
   await expect(page.getByRole("button", { name: "Analyze Candidate Markets" })).toBeVisible();
-  await expect(page).not.toHaveURL(/task=trade-trend/);
+  await expect(page).not.toHaveURL(/recipe=trade-trend-v1/);
 });
 
 test("switching tasks starts with a fresh analysis context", async ({ page }) => {
@@ -179,7 +179,7 @@ test("switching tasks starts with a fresh analysis context", async ({ page }) =>
   });
   await tasks.getByRole("button", { name: /Trade Trend/ }).click();
 
-  await expect(page).toHaveURL(/\?task=trade-trend$/u);
+  await expect(page).toHaveURL(/\?recipe=trade-trend-v1$/u);
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).not.toBeVisible();

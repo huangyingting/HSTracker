@@ -12,6 +12,17 @@ import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
 import { SupplierCompetitionExportAction } from "./supplier-competition-export-action";
+import {
+  parseTradeAnalysisContext,
+  resolvePinnedContext,
+  serializeTradeAnalysisContext,
+  withEconomyCode,
+  withLocale,
+  withoutPin,
+  withPin,
+  withProductCode,
+  withRecipe,
+} from "./trade-analysis-context";
 
 const copy = {
   en: {
@@ -213,14 +224,46 @@ export function SupplierCompetitionWorkspace({
     };
   }, []);
 
+  // The explicit refresh action for a retired pin: it discards the old
+  // pin (never silently rewriting it) and revalidates the current
+  // Recommended Dataset Mapping, so a subsequent Analyze click resolves a
+  // fresh, distinct canonical URL and Analysis Identity.
+  const recoverFromStalePin = useCallback(() => {
+    const context = parseTradeAnalysisContext(window.location.href);
+    const url = serializeTradeAnalysisContext(
+      window.location.href,
+      withoutPin(context),
+    );
+    window.history.replaceState(null, "", url);
+    setStatus("idle");
+    return loadManifest();
+  }, [loadManifest]);
+
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
     setResult(null);
     setStatus("idle");
-  }, []);
+    const context = withLocale(
+      parseTradeAnalysisContext(window.location.href),
+      locale,
+    );
+    const url = serializeTradeAnalysisContext(
+      window.location.href,
+      withoutPin(context),
+    );
+    window.history.replaceState(null, "", url);
+  }, [locale]);
 
   const analyze = useCallback(async () => {
     if (manifest === null || importer === null || product === null) {
+      return;
+    }
+    const urlPin = parseTradeAnalysisContext(window.location.href).pin;
+    if (
+      resolvePinnedContext(urlPin, manifest, "supplier-competition")
+        .state === "retired"
+    ) {
+      setStatus("stale");
       return;
     }
     analysisController.current?.abort();
@@ -264,13 +307,31 @@ export function SupplierCompetitionWorkspace({
       }
       setResult(payload);
       setStatus("success");
+      const context = withPin(
+        withLocale(
+          withProductCode(
+            withEconomyCode(
+              withRecipe(
+                parseTradeAnalysisContext(window.location.href),
+                "supplier-competition",
+              ),
+              importer.code,
+            ),
+            product.code,
+          ),
+          locale,
+        ),
+        manifest,
+      );
+      const url = serializeTradeAnalysisContext(window.location.href, context);
+      window.history.replaceState(null, "", url);
     } catch (error) {
       if (!controller.signal.aborted && requestSequence.current === sequence) {
         console.error("Supplier Competition workspace request failed", error);
         setStatus("fatal");
       }
     }
-  }, [importer, manifest, product]);
+  }, [importer, locale, manifest, product]);
 
   useEffect(() => {
     if (
@@ -282,12 +343,11 @@ export function SupplierCompetitionWorkspace({
       return;
     }
     restorePending.current = false;
-    const parameters = new URL(window.location.href).searchParams;
+    const context = parseTradeAnalysisContext(window.location.href);
     if (
-      parameters.get("task") === "supplier-competition" &&
-      parameters.get("importer") === importer.code &&
-      parameters.get("revision") === "HS12" &&
-      parameters.get("product") === product.code
+      context.recipe === "supplier-competition" &&
+      context.importerCode === importer.code &&
+      context.productCode === product.code
     ) {
       const timeout = window.setTimeout(() => void analyze(), 0);
       return () => window.clearTimeout(timeout);
@@ -401,7 +461,7 @@ export function SupplierCompetitionWorkspace({
             <button
               type="button"
               onClick={() =>
-                status === "stale" ? void loadManifest() : void analyze()
+                status === "stale" ? void recoverFromStalePin() : void analyze()
               }
             >
               {status === "stale" ? messages.refresh : messages.retry}

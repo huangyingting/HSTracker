@@ -567,6 +567,11 @@ test("locale switching preserves the auditable comparison context", async ({
     comparison.getByRole("button", { name: "从比较栏移除 Mexico" }),
   ).toBeVisible();
 
-  expect(page.url()).toBe(canonicalUrl);
+  // Locale is part of the canonical pinned URL once the analysis has
+  // executed, so switching locale updates it in place; the analytical
+  // values above and the request count below prove it never re-executes.
+  expect(page.url()).toBe(
+    canonicalUrl.replace("&exporter=", "&locale=zh-Hans&exporter="),
+  );
   expect(analysisRequestCount()).toBe(1);
 });

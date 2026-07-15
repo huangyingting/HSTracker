@@ -51,7 +51,7 @@ test("an analyst can select Supplier Competition by keyboard, share it, and chan
   );
 
   await expect(page).toHaveURL(
-    /task=supplier-competition.*importer=124.*revision=HS12.*product=010121/,
+    /recipe=supplier-competition-v1.*importer=124.*revision=HS12.*product=010121/,
   );
 
   await page.getByRole("button", { name: "简体中文" }).click();
@@ -215,7 +215,7 @@ test("Candidate Market remains the default task alongside Supplier Competition",
     name: "Candidate Markets",
   });
   await expect(candidateMarkets.getByRole("button")).toHaveCount(13);
-  await expect(page).not.toHaveURL(/task=supplier-competition/);
+  await expect(page).not.toHaveURL(/recipe=supplier-competition-v1/);
 });
 
 test("switching to Supplier Competition starts with a fresh analysis context", async ({
@@ -231,7 +231,7 @@ test("switching to Supplier Competition starts with a fresh analysis context", a
   });
   await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
 
-  await expect(page).toHaveURL(/\?task=supplier-competition$/u);
+  await expect(page).toHaveURL(/\?recipe=supplier-competition-v1$/u);
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).not.toBeVisible();

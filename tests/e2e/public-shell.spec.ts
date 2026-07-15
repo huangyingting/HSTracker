@@ -28,11 +28,13 @@ test("an analyst can switch the public shell to Simplified Chinese", async ({
   page,
 }) => {
   await page.goto("/");
-  const workspaceUrl = page.url();
 
   await page.getByRole("button", { name: "简体中文" }).click();
 
-  await expect(page).toHaveURL(workspaceUrl);
+  // Locale is independently canonical: it appears in the URL as soon as
+  // it is non-default, even on the bare landing page with no recipe
+  // inputs at all, so it survives reload, copy, and browser back/forward.
+  await expect(page).toHaveURL("/?locale=zh-Hans");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
   await expect(
     page.getByRole("heading", {

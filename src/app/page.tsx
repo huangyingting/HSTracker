@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AnalysisTaskHome } from "./analysis-task-home";
+import {
+  parseTradeAnalysisContext,
+  serializeTradeAnalysisContext,
+  withLocale,
+} from "./trade-analysis-context";
 
 const copy = {
   en: {
@@ -82,13 +87,38 @@ const copy = {
 
 type Locale = keyof typeof copy;
 
+function localeFromLocation(): Locale {
+  if (typeof window === "undefined") {
+    return "en";
+  }
+  return parseTradeAnalysisContext(window.location.href).locale;
+}
+
 export default function Home() {
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocale] = useState<Locale>(() => localeFromLocation());
   const messages = copy[locale];
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  useEffect(() => {
+    const restoreLocale = () => setLocale(localeFromLocation());
+    window.addEventListener("popstate", restoreLocale);
+    return () => window.removeEventListener("popstate", restoreLocale);
+  }, []);
 
   function selectLocale(nextLocale: Locale) {
     setLocale(nextLocale);
-    document.documentElement.lang = nextLocale;
+    const context = withLocale(
+      parseTradeAnalysisContext(window.location.href),
+      nextLocale,
+    );
+    const nextHref = serializeTradeAnalysisContext(
+      window.location.href,
+      context,
+    );
+    window.history.replaceState(null, "", nextHref);
   }
 
   return (

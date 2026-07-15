@@ -22,7 +22,11 @@ import {
 } from "../domain/trade-analytics/recommended-dataset-mapping";
 import { FIXTURE_PRODUCT_CATALOG_ARTIFACT_BYTES } from "../catalog/fixture-product-catalog";
 import { FIXTURE_ECONOMY_CATALOG_ARTIFACT_BYTES } from "../economy/fixture-economy-directory";
-import { createFixtureCandidateMarketDatasetPackages } from "../evidence/fixture-trade-evidence-source";
+import {
+  createFixtureCandidateMarketDatasetPackages,
+  createFixtureSupplierCompetitionDatasetPackages,
+  createFixtureTradeTrendDatasetPackages,
+} from "../evidence/fixture-trade-evidence-source";
 import { releaseObjectIdentity } from "./release-object-store";
 import { releaseJsonBytes } from "./release-manifest";
 
@@ -30,6 +34,18 @@ export const FIXTURE_CURRENT_AS_OF = "2026-03-01T00:00:00Z";
 
 const fixtureDatasetPackage =
   createFixtureCandidateMarketDatasetPackages().get(
+    ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+  )!;
+// The browser-facing manifest advertises Trade Trend's and Supplier
+// Competition's own Dataset Package identities alongside Candidate
+// Market's, so a canonical Trade Analysis Context URL for either recipe
+// can be pinned against something real (see trade-analysis-context.ts).
+const fixtureTradeTrendDatasetPackage =
+  createFixtureTradeTrendDatasetPackages().get(
+    ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+  )!;
+const fixtureSupplierCompetitionDatasetPackage =
+  createFixtureSupplierCompetitionDatasetPackages().get(
     ACCEPTANCE_FIXTURE_BUILD_IDS.core,
   )!;
 const fixtureDatasetPackageBytes = Buffer.from(
@@ -171,8 +187,15 @@ export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
     economyCatalogIdentity:
       FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest
         .economyCatalog.identity,
-    tradeTrend: null,
-    supplierCompetition: null,
+    tradeTrend: {
+      recipe: "trade-trend-v1",
+      datasetPackageIdentity: fixtureTradeTrendDatasetPackage.identity,
+    },
+    supplierCompetition: {
+      recipe: "supplier-competition-v1",
+      datasetPackageIdentity:
+        fixtureSupplierCompetitionDatasetPackage.identity,
+    },
   },
   source: {
     ...ACCEPTANCE_FIXTURE_RELEASE,

@@ -6,6 +6,7 @@ type DiscoveryErrorCode = "HTTP_ERROR" | "INVALID_MANIFEST";
 type ManifestSource = CurrentAnalysisManifest["source"];
 type ManifestFreshness = CurrentAnalysisManifest["freshness"];
 type ManifestRevision = CurrentAnalysisManifest["revisionComparison"];
+type ManifestRecommendation = CurrentAnalysisManifest["recommendation"];
 
 export class CurrentAnalysisDiscoveryError extends Error {
   constructor(
@@ -62,7 +63,8 @@ function isCurrentAnalysisManifest(
     !isNonemptyString(candidate.productSearchBuildId) ||
     !isSha256(candidate.analysisReleaseCatalogSha256) ||
     !isBenchmarkQueries(candidate.benchmarkQueries) ||
-    !isManifestSource(source)
+    !isManifestSource(source) ||
+    !isManifestRecommendation(candidate.recommendation)
   ) {
     return false;
   }
@@ -135,6 +137,46 @@ function isManifestSource(value: unknown): value is ManifestSource {
     windows.tenYear.end !== source.finalizedCutoffYear ||
     source.provisionalYear !== source.finalizedCutoffYear + 1 ||
     source.ingestedYears.end < source.provisionalYear
+  );
+}
+
+function isManifestRecommendation(
+  value: unknown,
+): value is ManifestRecommendation {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const tradeTrend = value.tradeTrend;
+  const supplierCompetition = value.supplierCompetition;
+  return (
+    value.recipe === "candidate-market-v1" &&
+    isRecommendedDatasetMappingIdentity(value.mappingIdentity) &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity) &&
+    isRecommendedProductCatalogIdentity(value.productCatalogIdentity) &&
+    isRecommendedEconomyCatalogIdentity(value.economyCatalogIdentity) &&
+    (tradeTrend === null || isTradeTrendRecommendation(tradeTrend)) &&
+    (supplierCompetition === null ||
+      isSupplierCompetitionRecommendation(supplierCompetition))
+  );
+}
+
+function isTradeTrendRecommendation(
+  value: unknown,
+): value is NonNullable<ManifestRecommendation["tradeTrend"]> {
+  return (
+    isRecord(value) &&
+    value.recipe === "trade-trend-v1" &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity)
+  );
+}
+
+function isSupplierCompetitionRecommendation(
+  value: unknown,
+): value is NonNullable<ManifestRecommendation["supplierCompetition"]> {
+  return (
+    isRecord(value) &&
+    value.recipe === "supplier-competition-v1" &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity)
   );
 }
 
@@ -218,6 +260,34 @@ function isSha256(value: unknown): value is string {
 
 function isNullableSha256(value: unknown): value is string | null {
   return value === null || isSha256(value);
+}
+
+function isDatasetPackageIdentity(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^dataset-package-v1-[0-9a-f]{64}$/u.test(value)
+  );
+}
+
+function isRecommendedDatasetMappingIdentity(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^recommended-dataset-mapping-v1-[0-9a-f]{64}$/u.test(value)
+  );
+}
+
+function isRecommendedProductCatalogIdentity(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^recommended-product-catalog-v1-[0-9a-f]{64}$/u.test(value)
+  );
+}
+
+function isRecommendedEconomyCatalogIdentity(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^recommended-economy-catalog-v1-[0-9a-f]{64}$/u.test(value)
+  );
 }
 
 function isBaciRelease(value: unknown): value is string {

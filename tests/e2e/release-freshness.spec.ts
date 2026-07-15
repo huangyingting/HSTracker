@@ -79,7 +79,8 @@ test("an Export Market Analyst can inspect the exact current source scope", asyn
 test("a retired analysis build is replaced through current-manifest revalidation without a reload", async ({
   page,
 }) => {
-  const canonicalUrl = "/?exporter=156&revision=HS12&product=010121&market=484";
+  const canonicalUrl =
+    "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=484";
   let currentManifestRequests = 0;
   let retiredBuildRequests = 0;
   let replacementBuildRequests = 0;
@@ -160,8 +161,12 @@ test("a retired analysis build is replaced through current-manifest revalidation
   await expect(
     page.getByRole("region", { name: "Selected Candidate Market evidence" }),
   ).toContainText("Mexico");
+  // The explicit refresh discards the retired pin and resolves a fresh one
+  // against the just-revalidated current manifest, so the canonical URL
+  // keeps its exact recipe inputs and gains a distinct pin for the new
+  // build rather than silently keeping the retired one.
   await expect(page).toHaveURL(
-    new RegExp(`${canonicalUrl.replace("?", "\\?")}$`),
+    new RegExp(`${canonicalUrl.replace("?", "\\?")}&build=replacement-analysis-v2&pkg=dataset-package-v1-[0-9a-f]{64}$`),
   );
   expect(await page.evaluate(() => performance.timeOrigin)).toBe(
     documentStartedAt,

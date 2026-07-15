@@ -74,7 +74,12 @@ test("locale changes relabel but never replace an explicit selection", async ({
     "HS 2012 · 010121 — 纯种繁殖用活马",
   );
   await expect(chineseCombobox).toHaveAttribute("aria-expanded", "false");
-  await expect(page).toHaveURL(selectedUrl);
+  // Locale is independently canonical: it is added even though the
+  // recipe's own inputs (no export economy yet) are still incomplete, so
+  // the explicit product selection is never lost or replaced.
+  await expect(page).toHaveURL(
+    selectedUrl.replace("?revision=", "?locale=zh-Hans&revision="),
+  );
 });
 
 test("a canonical product URL restores the same HS Product identity", async ({
@@ -116,7 +121,10 @@ test("locale changes preserve an ambiguous result set without selecting it", asy
     page.getByRole("option").locator("strong"),
   ).toHaveText(["HS 2012 · 010121", "HS 2012 · 010129"]);
   await expect(page.getByRole("option").first()).toContainText("纯种繁殖用活马");
-  await expect(page).toHaveURL("/");
+  // Locale is independently canonical: even with no product selected at
+  // all (still just an ambiguous, unresolved search), the non-default
+  // locale is never lost — it is the one meaningful change so far.
+  await expect(page).toHaveURL("/?locale=zh-Hans");
 });
 
 test("the combobox closes on Escape and explains an unsupported revision", async ({

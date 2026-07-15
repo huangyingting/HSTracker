@@ -5,6 +5,12 @@ import { useEffect, useState } from "react";
 import { DiscoveryWorkspace } from "./discovery-workspace";
 import { SupplierCompetitionWorkspace } from "./supplier-competition-workspace";
 import { TradeTrendWorkspace } from "./trade-trend-workspace";
+import {
+  parseTradeAnalysisContext,
+  serializeTradeAnalysisContext,
+  withLocale,
+  withRecipe,
+} from "./trade-analysis-context";
 
 const copy = {
   en: {
@@ -48,21 +54,11 @@ export function AnalysisTaskHome({ locale }: { locale: Locale }) {
     if (nextTask === task) {
       return;
     }
-    const url = new URL(window.location.href);
-    for (const parameter of [
-      "exporter",
-      "importer",
-      "revision",
-      "product",
-      "market",
-    ]) {
-      url.searchParams.delete(parameter);
-    }
-    if (nextTask === "candidate-market") {
-      url.searchParams.delete("task");
-    } else {
-      url.searchParams.set("task", nextTask);
-    }
+    const context = withLocale(
+      withRecipe(parseTradeAnalysisContext(window.location.href), nextTask),
+      locale,
+    );
+    const url = serializeTradeAnalysisContext(window.location.href, context);
     window.history.pushState(null, "", url);
     setTask(nextTask);
   }
@@ -113,9 +109,5 @@ function taskFromLocation(): AnalysisTask {
   if (typeof window === "undefined") {
     return "candidate-market";
   }
-  const task = new URL(window.location.href).searchParams.get("task");
-  if (task === "trade-trend" || task === "supplier-competition") {
-    return task;
-  }
-  return "candidate-market";
+  return parseTradeAnalysisContext(window.location.href).recipe;
 }

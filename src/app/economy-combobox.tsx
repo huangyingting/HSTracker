@@ -6,6 +6,12 @@ import type {
   EconomyRecord,
   EconomySearchResult,
 } from "../economy/economy-directory";
+import {
+  economyCodeOf,
+  parseTradeAnalysisContext,
+  serializeTradeAnalysisContext,
+  withEconomyCode,
+} from "./trade-analysis-context";
 
 const copy = {
   en: {
@@ -63,7 +69,6 @@ export function EconomyCombobox({
   onRetiredBuild,
 }: EconomyComboboxProps) {
   const messages = copy[locale];
-  const parameter = role === "importer" ? "importer" : "exporter";
   const label =
     role === "importer" ? messages.importerLabel : messages.label;
   const help = role === "importer" ? messages.importerHelp : messages.help;
@@ -115,10 +120,10 @@ export function EconomyCombobox({
   );
 
   useEffect(() => {
-    const economyCode = new URL(window.location.href).searchParams.get(
-      parameter,
+    const economyCode = economyCodeOf(
+      parseTradeAnalysisContext(window.location.href),
     );
-    if (economyCode === null || !/^\d{1,3}$/u.test(economyCode)) {
+    if (economyCode === null) {
       return;
     }
 
@@ -143,7 +148,7 @@ export function EconomyCombobox({
         }
       });
     return () => controller.abort();
-  }, [analysisBuildId, onSelectionChange, parameter]);
+  }, [analysisBuildId, onSelectionChange]);
 
   useEffect(
     () => () => {
@@ -190,9 +195,11 @@ export function EconomyCombobox({
     setActiveIndex(-1);
     setStatus("idle");
     onSelectionChange(economy, "explicit");
-    const url = new URL(window.location.href);
-    url.searchParams.set(parameter, economy.code);
-    url.searchParams.delete("market");
+    const context = withEconomyCode(
+      parseTradeAnalysisContext(window.location.href),
+      economy.code,
+    );
+    const url = serializeTradeAnalysisContext(window.location.href, context);
     window.history.replaceState(null, "", url);
   }
 
@@ -202,9 +209,11 @@ export function EconomyCombobox({
     }
     setSelectedEconomy(null);
     onSelectionChange(null, "explicit");
-    const url = new URL(window.location.href);
-    url.searchParams.delete(parameter);
-    url.searchParams.delete("market");
+    const context = withEconomyCode(
+      parseTradeAnalysisContext(window.location.href),
+      null,
+    );
+    const url = serializeTradeAnalysisContext(window.location.href, context);
     window.history.replaceState(null, "", url);
   }
 

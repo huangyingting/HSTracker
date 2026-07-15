@@ -109,6 +109,9 @@ const copy = {
     removeFromComparison: "Remove",
     toComparison: "to comparison",
     fromComparison: "from comparison",
+    investigateHeading: "Continue the investigation",
+    investigateTradeTrend: "Open Trade Trend for this market",
+    investigateSupplierCompetition: "Open Supplier Competition for this market",
   },
   "zh-Hans": {
     selectedEvidence: "所选候选市场证据",
@@ -202,6 +205,9 @@ const copy = {
     removeFromComparison: "从比较栏移除",
     toComparison: "加入比较栏",
     fromComparison: "",
+    investigateHeading: "继续调查",
+    investigateTradeTrend: "为该市场打开贸易趋势",
+    investigateSupplierCompetition: "为该市场打开供应商竞争",
   },
 } as const;
 
@@ -214,6 +220,11 @@ type CandidateMarketEvidenceProps = {
   isCompared: boolean;
   comparisonFull: boolean;
   onToggleComparison: (candidate: CandidateMarket) => void;
+  // Cross-task hrefs preselecting this Candidate Market's importing
+  // economy and the same HS12 product; see trade-analysis-context.ts.
+  // Deliberately outside the locked ranking <ol> (see discovery-workspace).
+  tradeTrendHref: string;
+  supplierCompetitionHref: string;
 };
 
 type ScoreInput = {
@@ -233,6 +244,8 @@ export function CandidateMarketEvidence({
   isCompared,
   comparisonFull,
   onToggleComparison,
+  tradeTrendHref,
+  supplierCompetitionHref,
 }: CandidateMarketEvidenceProps) {
   const messages = copy[locale];
   const scoreDetailsId = useId();
@@ -443,6 +456,17 @@ export function CandidateMarketEvidence({
             : `${messages.addToComparison} ${displayName} ${messages.toComparison}`}
         </button>
       </footer>
+
+      <nav
+        className="candidate-market-investigate"
+        aria-label={messages.investigateHeading}
+      >
+        <p>{messages.investigateHeading}</p>
+        <a href={tradeTrendHref}>{messages.investigateTradeTrend}</a>
+        <a href={supplierCompetitionHref}>
+          {messages.investigateSupplierCompetition}
+        </a>
+      </nav>
 
       <p className="evidence-source">
         {result.query.exporter.name} · HS 2012 ·{" "}
