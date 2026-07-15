@@ -358,6 +358,8 @@ export function createBoundedApplicationRuntime(
     tradeAnalytics,
     currentAnalysis: () => inner.currentAnalysis(),
     currentAnalysisSnapshot: () => inner.currentAnalysisSnapshot(),
+    resolveAnalysisManifest: (analysisBuildId) =>
+      inner.resolveAnalysisManifest(analysisBuildId),
     resolveFreshnessStatus: (freshnessStatusId) =>
       inner.resolveFreshnessStatus(freshnessStatusId),
     normalizeProductSearchQuery: (query) =>

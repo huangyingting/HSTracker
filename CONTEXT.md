@@ -33,8 +33,8 @@ The newest year in a BACI Release, retained as separately labelled supporting ev
 _Avoid_: Latest score year, current data, preliminary score
 
 **Release Revision**:
-A difference in same-period BACI evidence between two BACI Releases. It is distinct from change over time within one release.
-_Avoid_: Historical growth, year-over-year trend
+A difference in same-period BACI evidence between two BACI Releases associated with one selected deployment. It is distinct from change over time within one release, and distinct from replaying an older Retained Deployment: selecting a retained predecessor changes which deployment's own Release Revision evidence applies, and never borrows the current deployment's own comparison evidence.
+_Avoid_: Historical growth, year-over-year trend, cross-deployment comparison
 
 **Source Freshness Status**:
 The checked relationship between the BACI Release currently served and the latest release known to HS Tracker. It does not describe the age, completeness, or immutability of an individual trade year.
@@ -76,9 +76,13 @@ _Avoid_: Browser session, user project, hidden account state
 The exact URL encoding one Analysis Recipe, its normalized inputs, locale, and, once resolved, the pinned analysis build and Dataset Package identity of the Trade Analysis Context it reproduces. Copy, reload, browser back/forward, and opening in another browser all reproduce the same pinned meaning; a link with no pin yet resolves against the current Recommended Dataset Mapping instead of silently carrying one over from elsewhere.
 _Avoid_: Deep link, permalink, arbitrary query string
 
-**Pinned** / **Current** (Canonical Task Link):
-A Canonical Task Link is Pinned once it carries an exact analysis build and Dataset Package identity; it is Current only while that identity still matches the live Recommended Dataset Mapping. A Pinned link whose identity no longer matches is retired and must not execute against today's evidence under the old pin; it surfaces a typed actionable state instead.
+**Pinned** / **Current** / **Retained** (Canonical Task Link):
+A Canonical Task Link is Pinned once it carries an exact analysis build and Dataset Package identity; it is Current only while that identity still matches the live Recommended Dataset Mapping, and Retained while that identity instead matches one of the two preceding deployments still kept within the Deployment Retention Window. A Retained link still executes its exact Analysis Identity. A Pinned link matching neither is retired and must not execute against today's evidence or superseded retained evidence under the old pin; it surfaces a typed actionable state instead.
 _Avoid_: Stale cache, expired session, silent fallback to latest
+
+**Deployment Retention Window**:
+The current published platform deployment plus its two preceding compatible complete deployments, each binding one deployment pairing, analysis release catalog, current artifact, Recommended Dataset Mapping, product catalog, and source/freshness provenance without mixing recipe, data, or catalog generations. All three are immutable, checksum-verified, and made resident at startup so each replays without any request-time object-storage access; publication and rollback keep this window's current/history order coherent and fail closed rather than exceed it.
+_Avoid_: Cache generation, version history, backup snapshot
 
 **Explicit Current Refresh**:
 The deliberate user action that discards a Canonical Task Link's existing pin and resolves its Trade Analysis Context again against the current Recommended Dataset Mapping, producing a distinct Canonical Task Link and Analysis Identity. It never happens automatically and never substitutes current evidence under an old pin.

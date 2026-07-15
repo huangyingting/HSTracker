@@ -273,19 +273,45 @@ export interface TradeAnalyticsPlatform {
   ): Promise<AnalysisOutcome<Request["recipe"]>>;
 }
 
+export type CandidateMarketV1EvidenceBinding =
+  | TradeEvidenceSource
+  | ReadonlyMap<string, TradeEvidenceSource>;
+
+export type CandidateMarketV1PreviousReleaseBinding =
+  | CandidateMarketV1PreviousReleaseEvidence
+  | ReadonlyMap<string, CandidateMarketV1PreviousReleaseEvidence>
+  | null;
+
 export type CandidateMarketV1PlatformInput = Readonly<{
-  evidenceSource: TradeEvidenceSource;
-  previousRelease?: CandidateMarketV1PreviousReleaseEvidence | null;
+  // A single value binds every declared analysisBuildId to the same
+  // evidence source and Release Revision evidence (the legacy
+  // current-only shape every existing caller still uses). A
+  // `ReadonlyMap` instead binds each retained analysisBuildId to its own
+  // evidence source and its own Release Revision evidence, so retained
+  // deployments never share one deployment's connection or misuse
+  // another deployment's previous-release evidence (see issue #44
+  // "deepen its internal binding model rather than adding external
+  // per-recipe methods").
+  evidenceSource: CandidateMarketV1EvidenceBinding;
+  previousRelease?: CandidateMarketV1PreviousReleaseBinding;
   datasetPackages: ReadonlyMap<string, CandidateMarketDatasetPackage>;
 }>;
 
+export type TradeTrendV1EvidenceBinding =
+  | TradeEvidenceSource
+  | ReadonlyMap<string, TradeEvidenceSource>;
+
 export type TradeTrendV1PlatformInput = Readonly<{
-  evidenceSource: TradeEvidenceSource;
+  evidenceSource: TradeTrendV1EvidenceBinding;
   datasetPackages: ReadonlyMap<string, TradeTrendDatasetPackage>;
 }>;
 
+export type SupplierCompetitionV1EvidenceBinding =
+  | TradeEvidenceSource
+  | ReadonlyMap<string, TradeEvidenceSource>;
+
 export type SupplierCompetitionV1PlatformInput = Readonly<{
-  evidenceSource: TradeEvidenceSource;
+  evidenceSource: SupplierCompetitionV1EvidenceBinding;
   datasetPackages: ReadonlyMap<string, SupplierCompetitionDatasetPackage>;
 }>;
 
@@ -333,9 +359,15 @@ type SupplierCompetitionExecution = (
 ) => Promise<SupplierCompetitionResult>;
 
 class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
-  private readonly executeCandidateMarket: CandidateMarketExecution | null;
-  private readonly executeTradeTrend: TradeTrendExecution | null;
-  private readonly executeSupplierCompetition: SupplierCompetitionExecution | null;
+  private readonly executeCandidateMarket: ReadonlyMap<
+    string,
+    CandidateMarketExecution
+  >;
+  private readonly executeTradeTrend: ReadonlyMap<string, TradeTrendExecution>;
+  private readonly executeSupplierCompetition: ReadonlyMap<
+    string,
+    SupplierCompetitionExecution
+  >;
 
   constructor(
     private readonly candidateMarket: CandidateMarketV1PlatformInput | undefined,
@@ -346,20 +378,56 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
   ) {
     this.executeCandidateMarket =
       candidateMarket === undefined
-        ? null
-        : createCandidateMarketV1RecipeExecution(
-            candidateMarket.evidenceSource,
-            candidateMarket.previousRelease ?? null,
+        ? new Map()
+        : new Map(
+            [...candidateMarket.datasetPackages.keys()].map(
+              (analysisBuildId) => [
+                analysisBuildId,
+                createCandidateMarketV1RecipeExecution(
+                  requireEvidenceBinding(
+                    candidateMarket.evidenceSource,
+                    analysisBuildId,
+                    "candidate-market-v1",
+                  ),
+                  resolvePreviousReleaseBinding(
+                    candidateMarket.previousRelease,
+                    analysisBuildId,
+                  ),
+                ),
+              ],
+            ),
           );
     this.executeTradeTrend =
       tradeTrend === undefined
-        ? null
-        : createTradeTrendV1RecipeExecution(tradeTrend.evidenceSource);
+        ? new Map()
+        : new Map(
+            [...tradeTrend.datasetPackages.keys()].map((analysisBuildId) => [
+              analysisBuildId,
+              createTradeTrendV1RecipeExecution(
+                requireEvidenceBinding(
+                  tradeTrend.evidenceSource,
+                  analysisBuildId,
+                  "trade-trend-v1",
+                ),
+              ),
+            ]),
+          );
     this.executeSupplierCompetition =
       supplierCompetition === undefined
-        ? null
-        : createSupplierCompetitionV1RecipeExecution(
-            supplierCompetition.evidenceSource,
+        ? new Map()
+        : new Map(
+            [...supplierCompetition.datasetPackages.keys()].map(
+              (analysisBuildId) => [
+                analysisBuildId,
+                createSupplierCompetitionV1RecipeExecution(
+                  requireEvidenceBinding(
+                    supplierCompetition.evidenceSource,
+                    analysisBuildId,
+                    "supplier-competition-v1",
+                  ),
+                ),
+              ],
+            ),
           );
   }
 
@@ -405,7 +473,8 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     const datasetPackage = this.candidateMarket?.datasetPackages.get(
       request.analysisBuildId,
     );
-    if (datasetPackage === undefined || this.executeCandidateMarket === null) {
+    const execute = this.executeCandidateMarket.get(request.analysisBuildId);
+    if (datasetPackage === undefined || execute === undefined) {
       return expectedCandidateMarketFailure(
         request,
         "ANALYSIS_BUILD_RETIRED",
@@ -432,7 +501,7 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     };
     let result: CandidateMarketResult;
     try {
-      result = await this.executeCandidateMarket(
+      result = await execute(
         {
           analysisBuildId: request.analysisBuildId,
           exporterCode: request.exporterCode,
@@ -497,7 +566,8 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     const datasetPackage = this.tradeTrend?.datasetPackages.get(
       request.analysisBuildId,
     );
-    if (datasetPackage === undefined || this.executeTradeTrend === null) {
+    const execute = this.executeTradeTrend.get(request.analysisBuildId);
+    if (datasetPackage === undefined || execute === undefined) {
       return expectedTradeTrendFailure(request, "ANALYSIS_BUILD_RETIRED");
     }
     const compatibility = evaluateTradeTrendV1DatasetPackage(datasetPackage);
@@ -520,7 +590,7 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     };
     let result: TradeTrendResult;
     try {
-      result = await this.executeTradeTrend(
+      result = await execute(
         {
           analysisBuildId: request.analysisBuildId,
           importerCode: request.importerCode,
@@ -563,10 +633,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     const datasetPackage = this.supplierCompetition?.datasetPackages.get(
       request.analysisBuildId,
     );
-    if (
-      datasetPackage === undefined ||
-      this.executeSupplierCompetition === null
-    ) {
+    const execute = this.executeSupplierCompetition.get(
+      request.analysisBuildId,
+    );
+    if (datasetPackage === undefined || execute === undefined) {
       return expectedSupplierCompetitionFailure(
         request,
         "ANALYSIS_BUILD_RETIRED",
@@ -593,7 +663,7 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     };
     let result: SupplierCompetitionResult;
     try {
-      result = await this.executeSupplierCompetition(
+      result = await execute(
         {
           analysisBuildId: request.analysisBuildId,
           importerCode: request.importerCode,
@@ -784,6 +854,63 @@ function expectedSupplierCompetitionFailure(
         },
       };
   }
+}
+
+/**
+ * Resolves an evidence-source binding for one retained analysisBuildId: a
+ * single value applies to every declared build (legacy shape), while a
+ * `ReadonlyMap` binds each retained build to its own evidence source.
+ * Throws when a Map binding is missing the requested build, since that
+ * signals a construction-time inconsistency between `evidenceSource` and
+ * `datasetPackages` rather than an expected retirement (retirement is
+ * `datasetPackages` not declaring the build at all).
+ */
+function requireEvidenceBinding(
+  binding: TradeEvidenceSource | ReadonlyMap<string, TradeEvidenceSource>,
+  analysisBuildId: string,
+  recipe: AnalysisRecipe,
+): TradeEvidenceSource {
+  if (binding instanceof Map) {
+    const source = (
+      binding as ReadonlyMap<string, TradeEvidenceSource>
+    ).get(analysisBuildId);
+    if (source === undefined) {
+      throw new TypeError(
+        `No ${recipe} evidence source is bound for analysis build ${analysisBuildId}.`,
+      );
+    }
+    return source;
+  }
+  return binding as TradeEvidenceSource;
+}
+
+/**
+ * Resolves the Release Revision (previous-BACI-release) evidence bound to
+ * one retained analysisBuildId. A single value or `undefined`/`null`
+ * applies uniformly (the legacy current-only shape); a `ReadonlyMap`
+ * instead scopes each retained build to its own comparison evidence so a
+ * historical replay never inherits the current deployment's own
+ * previous-release evidence (see CONTEXT.md "Release Revision" and issue
+ * #44).
+ */
+function resolvePreviousReleaseBinding(
+  binding: CandidateMarketV1PreviousReleaseBinding | undefined,
+  analysisBuildId: string,
+): CandidateMarketV1PreviousReleaseEvidence | null {
+  if (binding === undefined || binding === null) {
+    return null;
+  }
+  if (binding instanceof Map) {
+    return (
+      (
+        binding as ReadonlyMap<
+          string,
+          CandidateMarketV1PreviousReleaseEvidence
+        >
+      ).get(analysisBuildId) ?? null
+    );
+  }
+  return binding as CandidateMarketV1PreviousReleaseEvidence;
 }
 
 function unresolvedOutcome<Recipe extends AnalysisRecipe>(

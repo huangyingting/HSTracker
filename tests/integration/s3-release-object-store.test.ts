@@ -398,11 +398,11 @@ describe("S3 release object store", () => {
     );
     const pointer = JSON.parse(pointerText) as {
       current: { key: string };
-      previous: { key: string } | null;
+      history: readonly { key: string }[];
     };
     const deploymentKeys = [
       pointer.current.key,
-      ...(pointer.previous === null ? [] : [pointer.previous.key]),
+      ...pointer.history.map((reference) => reference.key),
     ];
     const deploymentMetadata = await Promise.all(
       deploymentKeys.map((key) => publicDeploymentMetadata(key)),

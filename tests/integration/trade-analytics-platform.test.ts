@@ -8,10 +8,12 @@ import {
   createFixtureCandidateMarketDatasetPackages,
   FixtureTradeEvidenceSource,
 } from "../../src/evidence/fixture-trade-evidence-source";
+import type { TradeEvidenceSource } from "../../src/evidence/trade-evidence-source";
 import { createFixtureApplicationRuntime } from "../../src/runtime/application-runtime";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-current";
 import { CORE_CANDIDATE_SUMMARY } from "../../fixtures/acceptance/v1/expected/core-analysis";
+import { ACCEPTANCE_FIXTURE_BUILD_IDS } from "../../fixtures/acceptance/v1/metadata";
 import { TRADE_TREND_ACCEPTANCE_CASES } from "../../fixtures/trade-trend/v1/expected";
 import { createTradeTrendDatasetPackage } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 import { SUPPLIER_COMPETITION_ACCEPTANCE_CASES } from "../../fixtures/supplier-competition/v1/expected";
@@ -868,5 +870,172 @@ describe("TradeAnalyticsPlatform", () => {
     });
 
     expect(outcome.state).toBe("retired");
+  });
+
+  describe("retained per-build evidence binding", () => {
+    const currentBuildId = ACCEPTANCE_FIXTURE_BUILD_IDS.core;
+    const retainedBuildId = "acceptance-fixtures-v1-retained";
+
+    it("binds each retained analysisBuildId to its own evidence source rather than one shared source", async () => {
+      const currentSource: TradeEvidenceSource = {
+        async loadCmsV1Inputs(query) {
+          if (query.analysisBuildId !== currentBuildId) {
+            throw new Error(
+              "The current evidence source must only see current-build requests.",
+            );
+          }
+          return CORE_CURRENT_INPUT;
+        },
+      };
+      const retainedSource: TradeEvidenceSource = {
+        async loadCmsV1Inputs(query) {
+          if (query.analysisBuildId !== retainedBuildId) {
+            throw new Error(
+              "The retained evidence source must only see retained-build requests.",
+            );
+          }
+          return {
+            ...CORE_CURRENT_INPUT,
+            analysisBuildId: retainedBuildId,
+            exporter: { ...CORE_CURRENT_INPUT.exporter, code: "276" },
+          };
+        },
+      };
+      const datasetPackage = createFixtureCandidateMarketDatasetPackages().get(
+        currentBuildId,
+      )!;
+      const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+        evidenceSource: new Map([
+          [currentBuildId, currentSource],
+          [retainedBuildId, retainedSource],
+        ]),
+        datasetPackages: new Map([
+          [currentBuildId, datasetPackage],
+          [retainedBuildId, datasetPackage],
+        ]),
+      });
+
+      const [currentOutcome, retainedOutcome] = await Promise.all([
+        platform.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: currentBuildId,
+          exporterCode: "156",
+          productCode: "010121",
+        }),
+        platform.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: retainedBuildId,
+          exporterCode: "276",
+          productCode: "010121",
+        }),
+      ]);
+
+      expect(currentOutcome.state).toBe("success");
+      expect(retainedOutcome.state).toBe("success");
+      if (
+        currentOutcome.state !== "success" ||
+        retainedOutcome.state !== "success"
+      ) {
+        throw new Error("Expected both builds to succeed.");
+      }
+      // Each retained build reproduces its own exact deterministic
+      // Analysis Identity, never the other build's.
+      expect(currentOutcome.analysisIdentity).not.toBe(
+        retainedOutcome.analysisIdentity,
+      );
+    });
+
+    it("throws at construction when a Map evidence binding omits a declared analysis build", () => {
+      const datasetPackage = createFixtureCandidateMarketDatasetPackages().get(
+        currentBuildId,
+      )!;
+      expect(() =>
+        createCandidateMarketV1TradeAnalyticsPlatform({
+          evidenceSource: new Map([
+            [currentBuildId, new FixtureTradeEvidenceSource()],
+          ]),
+          datasetPackages: new Map([
+            [currentBuildId, datasetPackage],
+            [retainedBuildId, datasetPackage],
+          ]),
+        }),
+      ).toThrow(/no candidate-market-v1 evidence source is bound/iu);
+    });
+
+    it("scopes Release Revision evidence to its own retained build rather than the current deployment's", async () => {
+      const previousArtifactSha256 = "e".repeat(64);
+      const previousInput = {
+        ...CORE_CURRENT_INPUT,
+        artifact: {
+          ...CORE_CURRENT_INPUT.artifact,
+          baciRelease: "V202501",
+          buildId: "acceptance-fixtures-v1-retained-previous-artifact",
+          sha256: previousArtifactSha256,
+        },
+        release: { ...CORE_CURRENT_INPUT.release, baciRelease: "V202501" },
+      };
+      const sharedSource: TradeEvidenceSource = {
+        async loadCmsV1Inputs(query) {
+          return query.analysisBuildId === currentBuildId
+            ? CORE_CURRENT_INPUT
+            : { ...CORE_CURRENT_INPUT, analysisBuildId: retainedBuildId };
+        },
+      };
+      const datasetPackage = createFixtureCandidateMarketDatasetPackages().get(
+        currentBuildId,
+      )!;
+      const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+        evidenceSource: sharedSource,
+        // Only the retained build carries Release Revision comparison
+        // evidence; the current deployment declares none.
+        previousRelease: new Map([
+          [
+            retainedBuildId,
+            {
+              source: { async loadCmsV1Inputs() { return previousInput; } },
+              baciRelease: "V202501",
+              artifactSha256: previousArtifactSha256,
+              hsRevision: "HS12" as const,
+              availableYears: [2019, 2020, 2021, 2022, 2023],
+            },
+          ],
+        ]),
+        datasetPackages: new Map([
+          [currentBuildId, datasetPackage],
+          [retainedBuildId, datasetPackage],
+        ]),
+      });
+
+      const [currentOutcome, retainedOutcome] = await Promise.all([
+        platform.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: currentBuildId,
+          exporterCode: "156",
+          productCode: "010121",
+        }),
+        platform.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: retainedBuildId,
+          exporterCode: "156",
+          productCode: "010121",
+        }),
+      ]);
+
+      if (
+        currentOutcome.state !== "success" ||
+        retainedOutcome.state !== "success"
+      ) {
+        throw new Error("Expected both builds to succeed.");
+      }
+      expect(currentOutcome.payload.releaseRevisionSummary).toEqual({
+        comparisonRelease: null,
+        previousArtifactSha256: null,
+        notComparedReason: "NO_PREVIOUS_ARTIFACT",
+        noLongerEligibleCount: null,
+      });
+      expect(
+        retainedOutcome.payload.releaseRevisionSummary.comparisonRelease,
+      ).toBe("V202501");
+    });
   });
 });

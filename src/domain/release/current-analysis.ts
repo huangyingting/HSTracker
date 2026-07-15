@@ -13,6 +13,18 @@ import type {
 } from "../trade-analytics/recommended-dataset-mapping";
 import type { DatasetPackageIdentity } from "../trade-analytics/dataset-package";
 
+export type DeploymentWindowAnalysisIdentity = {
+  analysisBuildId: string;
+  recommendation: CurrentAnalysisDeployment["recommendation"];
+  // Lets a client validate a retained execution's result provenance with
+  // the same rigor as current's (see CandidateMarket/TradeTrend/Supplier
+  // Competition workspace analyze() flows), without any extra network
+  // lookup: the exact BACI Release and analysis artifact SHA-256 this
+  // retained build's own Analysis Identity is bound to.
+  baciRelease: string;
+  artifactSha256: string;
+};
+
 export type CurrentAnalysisDeployment = {
   analysisBuildId: string;
   productSearchBuildId: string;
@@ -60,6 +72,14 @@ export type CurrentAnalysisDeployment = {
       datasetPackageIdentity: DatasetPackageIdentity;
     } | null;
   };
+  // Every pairing in the active Deployment Retention Window (current
+  // first, then up to two retained predecessors), each carrying only its
+  // own recipe/package identities. This is enough for the browser's
+  // `resolvePinnedContext` (see app/trade-analysis-context.ts) to
+  // classify a pinned URL as current, retained, or retired without any
+  // network lookup: current-only legacy activations report themselves
+  // alone (see issue #44).
+  deploymentWindow: readonly DeploymentWindowAnalysisIdentity[];
 };
 
 export type CurrentAnalysisManifest = CurrentAnalysisDeployment & {

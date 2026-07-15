@@ -196,6 +196,17 @@ test("a pinned Candidate Market link that no longer matches the current recommen
         ...manifest,
         analysisBuildId: "replacement-analysis-v2",
         productSearchBuildId: "replacement-products-v2",
+        // The simulated redeploy retires the old build entirely rather
+        // than retaining it: without this, the old pin would still
+        // match the manifest's own deploymentWindow entry and resolve as
+        // "retained" (still executable) instead of "retired" (see issue
+        // #44).
+        deploymentWindow: [
+          {
+            analysisBuildId: "replacement-analysis-v2",
+            recommendation: manifest.recommendation,
+          },
+        ],
       },
     });
   });
@@ -266,4 +277,107 @@ test("a pinned Candidate Market link that no longer matches the current recommen
   expect(currentManifestRequests).toBeGreaterThanOrEqual(2);
   expect(replacementBuildRequests).toBeGreaterThan(0);
   expect(replacementProductRequests).toBeGreaterThan(0);
+});
+
+test("a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current", async ({
+  page,
+}) => {
+  await analyzeCandidateMarket(page);
+  const pinnedUrl = page.url();
+
+  let retainedAnalysisRequests = 0;
+  let currentAnalysisRequests = 0;
+
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    const response = await route.fetch();
+    const manifest = (await response.json()) as Record<string, unknown> & {
+      analysisBuildId: string;
+      recommendation: unknown;
+      source: { baciRelease: string; artifact: { sha256: string } };
+    };
+    // A redeploy that keeps the pinned build as a retained predecessor:
+    // current advances to a new build/package identity, but the
+    // manifest's own deploymentWindow still lists the original
+    // (analysisBuildId, recommendation) pair the pin was minted against
+    // (see issue #44).
+    await route.fulfill({
+      response,
+      json: {
+        ...manifest,
+        analysisBuildId: "current-analysis-v3",
+        productSearchBuildId: "current-products-v3",
+        deploymentWindow: [
+          {
+            analysisBuildId: "current-analysis-v3",
+            recommendation: manifest.recommendation,
+            baciRelease: manifest.source.baciRelease,
+            artifactSha256: manifest.source.artifact.sha256,
+          },
+          {
+            analysisBuildId: manifest.analysisBuildId,
+            recommendation: manifest.recommendation,
+            baciRelease: manifest.source.baciRelease,
+            artifactSha256: manifest.source.artifact.sha256,
+          },
+        ],
+      },
+    });
+  });
+  await page.route(
+    "**/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?*",
+    async (route) => {
+      retainedAnalysisRequests += 1;
+      await route.continue();
+    },
+  );
+  // The current-only economy/product selectors still restore against
+  // current's (fake) build by design (see issue #44 "if selectors stay
+  // current-only"), so their own restore requests are proxied back to
+  // the real fixture build rather than left to 410 -- only the
+  // candidate-markets analysis request itself is asserted below to have
+  // used the retained build, never this proxied current one.
+  await page.route(
+    "**/api/v1/analyses/current-analysis-v3/**",
+    async (route) => {
+      const url = route.request().url();
+      if (url.includes("/candidate-markets?")) {
+        currentAnalysisRequests += 1;
+      }
+      const originalUrl = url.replace(
+        "current-analysis-v3",
+        "acceptance-fixtures-v1",
+      );
+      const response = await route.fetch({ url: originalUrl });
+      await route.fulfill({ response });
+    },
+  );
+  await page.route(
+    "**/api/v1/product-catalogs/current-products-v3/**",
+    async (route) => {
+      const originalUrl = route
+        .request()
+        .url()
+        .replace("current-products-v3", "acceptance-product-search-v3");
+      const response = await route.fetch({ url: originalUrl });
+      await route.fulfill({ response });
+    },
+  );
+
+  await page.goto(pinnedUrl);
+
+  // The retained build executes exactly -- the same ranking and market
+  // as the original analysis -- without ever calling the new current
+  // build for analysis, and without showing the typed retired state.
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+  ).toHaveCount(13);
+  await expect(
+    page.getByRole("region", { name: "Selected Candidate Market evidence" }),
+  ).toContainText("Netherlands");
+  await expect(page.locator(".analysis-error")).toHaveCount(0);
+  expect(retainedAnalysisRequests).toBeGreaterThan(0);
+  expect(currentAnalysisRequests).toBe(0);
+  // The pinned URL still names the exact retained build it reproduced,
+  // never silently promoted to look like current.
+  await expect(page).toHaveURL(new RegExp("build=acceptance-fixtures-v1&"));
 });

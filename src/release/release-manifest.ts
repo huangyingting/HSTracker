@@ -17,6 +17,14 @@ export const ACTIVE_DEPLOYMENT_POINTER_KEY =
   "deployment-pointers/current.json";
 export const MAX_RELEASE_METADATA_BYTES = 1024 * 1024;
 
+// The retention window is exactly one current deployment pairing plus two
+// preceding compatible complete pairings (see CONTEXT.md and issue #44).
+// `DEPLOYMENT_RETENTION_HISTORY_LIMIT` bounds `ActiveDeploymentPointer.history`
+// (the predecessors alone; `current` is tracked separately).
+export const DEPLOYMENT_RETENTION_WINDOW_SIZE = 3;
+export const DEPLOYMENT_RETENTION_HISTORY_LIMIT =
+  DEPLOYMENT_RETENTION_WINDOW_SIZE - 1;
+
 export type ReleaseObjectReference = ReleaseObjectIdentity & {
   key: string;
 };
@@ -62,6 +70,21 @@ export type DeploymentPairingManifest = {
   recommendedDatasetMapping:
     | RecommendedDatasetMappingReference
     | null;
+  // The declared resident-volume footprint (bytes) this one pairing alone
+  // requires for its directly referenced objects: its analysis artifact,
+  // artifact manifest, analysis release catalog, product catalog, product
+  // catalog manifest, and (when present) Recommended Dataset Mapping
+  // manifest. The complete retention gate additionally counts the Dataset
+  // Package manifest nested inside that mapping and Release Revision evidence
+  // nested inside the release catalog. This value excludes the pairing
+  // manifest's own bytes (avoiding self-reference) and is deterministically
+  // derived from the other fields above, so it
+  // participates in `deploymentPairingId` like any other field. Promotion
+  // and runtime headroom gates sum this across the retention window
+  // (deduplicating shared content-addressed objects) rather than trusting
+  // an unverified operator-supplied number. See
+  // `deployment-retention-footprint.ts`.
+  residentFootprintBytes: number;
 };
 
 export type AnalysisReleaseCatalog = {
@@ -75,7 +98,12 @@ export type AnalysisReleaseCatalog = {
 export type ActiveDeploymentPointer = {
   schemaVersion: "active-deployment-pointer-v1";
   current: ReleaseObjectReference;
-  previous: ReleaseObjectReference | null;
+  // Predecessors beyond `current`, most-recent-first (immediate predecessor
+  // first), holding at most `DEPLOYMENT_RETENTION_HISTORY_LIMIT` entries.
+  // Legacy pointers persisted before the retention window existed carried
+  // a single nullable `previous` reference instead; `parseActiveDeploymentPointer`
+  // normalizes that shape into `history` on read (see issue #44).
+  history: readonly ReleaseObjectReference[];
   sourceStatusFallback: SourceStatusSnapshot;
   activatedAt: string;
 };
@@ -103,16 +131,42 @@ export function parseActiveDeploymentPointer(
   return {
     schemaVersion: "active-deployment-pointer-v1",
     current: objectReference(pointer.current, "current deployment"),
-    previous:
-      pointer.previous === null
-        ? null
-        : objectReference(pointer.previous, "previous deployment"),
+    history: parsePointerHistory(pointer),
     sourceStatusFallback: parseSourceStatusSnapshot(
       pointer.sourceStatusFallback,
       "active deployment Source Freshness Status fallback",
     ),
     activatedAt: utcTimestamp(pointer.activatedAt, "pointer activatedAt"),
   };
+}
+
+// Reads the current `history` array when present. Pointers persisted
+// before the retention window existed instead carried a single nullable
+// `previous` reference; that legacy shape normalizes to `[]` or a
+// one-element array rather than failing closed on old data (see issue #44
+// "evolve compatibly with legacy manifests/pointers").
+function parsePointerHistory(
+  pointer: Record<string, unknown>,
+): readonly ReleaseObjectReference[] {
+  if (pointer.history !== undefined) {
+    if (!Array.isArray(pointer.history)) {
+      throw new Error("Active deployment pointer history must be an array.");
+    }
+    if (pointer.history.length > DEPLOYMENT_RETENTION_HISTORY_LIMIT) {
+      throw new Error(
+        "Active deployment pointer history exceeds the retention window.",
+      );
+    }
+    return pointer.history.map((entry, index) =>
+      objectReference(entry, `history[${index}] deployment`),
+    );
+  }
+  if (pointer.previous === undefined) {
+    throw new Error("Active deployment pointer is missing history.");
+  }
+  return pointer.previous === null
+    ? []
+    : [objectReference(pointer.previous, "previous deployment")];
 }
 
 export function parseDeploymentPairingManifest(
@@ -138,6 +192,37 @@ export function parseDeploymentPairingManifest(
   if (releaseCatalog.sha256 !== analysisReleaseCatalogSha256) {
     throw new Error("Analysis release catalog identity is inconsistent.");
   }
+  const analysisArtifact = analysisArtifactReference(
+    analysis.artifact,
+    "deployment analysis artifact",
+  );
+  const productSearchReference = productCatalogReference(
+    productSearch,
+    "deployment product search",
+  );
+  const recommendedDatasetMapping =
+    deployment.recommendedDatasetMapping === undefined ||
+    deployment.recommendedDatasetMapping === null
+      ? null
+      : recommendedDatasetMappingReference(
+          deployment.recommendedDatasetMapping,
+        );
+  // Manifests promoted before the retention window existed predate this
+  // field entirely; normalize their absent declaration by computing it
+  // rather than failing closed on old data (see issue #44 "evolve
+  // compatibly with legacy manifests/pointers").
+  const legacyWithoutResidentFootprint =
+    deployment.residentFootprintBytes === undefined;
+  const residentFootprintBytes = legacyWithoutResidentFootprint
+    ? calculatePairingResidentFootprintBytes({
+        analysis: { artifact: analysisArtifact, releaseCatalog },
+        productSearch: productSearchReference,
+        recommendedDatasetMapping,
+      })
+    : count(
+        deployment.residentFootprintBytes,
+        "deployment resident footprint bytes",
+      );
   const parsed: DeploymentPairingManifest = {
     schemaVersion: "deployment-pairing-manifest-v1",
     deploymentPairingId: prefixedId(
@@ -162,29 +247,40 @@ export function parseDeploymentPairingManifest(
       "deployment Source Freshness Status fallback",
     ),
     analysis: {
-      artifact: analysisArtifactReference(
-        analysis.artifact,
-        "deployment analysis artifact",
-      ),
+      artifact: analysisArtifact,
       releaseCatalog,
     },
-    productSearch: productCatalogReference(
-      productSearch,
-      "deployment product search",
-    ),
-    recommendedDatasetMapping:
-      deployment.recommendedDatasetMapping === undefined ||
-      deployment.recommendedDatasetMapping === null
-        ? null
-        : recommendedDatasetMappingReference(
-            deployment.recommendedDatasetMapping,
-          ),
+    productSearch: productSearchReference,
+    recommendedDatasetMapping,
+    residentFootprintBytes,
   };
-  validateDeploymentPairingManifest(
-    parsed,
-    deployment.recommendedDatasetMapping === undefined,
-  );
+  validateDeploymentPairingManifest(parsed, {
+    legacyWithoutRecommendedDatasetMapping:
+      deployment.recommendedDatasetMapping === undefined,
+    legacyWithoutResidentFootprint,
+  });
   return parsed;
+}
+
+// The declared resident-volume footprint (bytes) one pairing alone
+// requires for its directly referenced, content-addressed objects. The
+// complete Deployment Retention Window footprint also resolves and counts
+// objects nested inside the mapping and release catalog. This deliberately
+// excludes the pairing manifest's own serialized bytes to avoid self-reference.
+export function calculatePairingResidentFootprintBytes(
+  pairing: Pick<
+    DeploymentPairingManifest,
+    "analysis" | "productSearch" | "recommendedDatasetMapping"
+  >,
+): number {
+  return (
+    pairing.analysis.artifact.artifact.bytes +
+    pairing.analysis.artifact.manifest.bytes +
+    pairing.analysis.releaseCatalog.bytes +
+    pairing.productSearch.catalog.bytes +
+    pairing.productSearch.manifest.bytes +
+    (pairing.recommendedDatasetMapping?.manifest.bytes ?? 0)
+  );
 }
 
 export function parseSourceStatusSnapshot(
@@ -313,9 +409,9 @@ export function publishedDeployment(
     sourceStatusFallback: pointer.sourceStatusFallback,
     activatedAt: pointer.activatedAt,
     previousDeploymentPairingId:
-      pointer.previous === null
+      pointer.history[0] === undefined
         ? null
-        : deploymentPairingIdFromKey(pointer.previous.key),
+        : deploymentPairingIdFromKey(pointer.history[0].key),
     recommendedDatasetMappingIdentity:
       deployment.recommendedDatasetMapping?.identity ?? null,
   };
@@ -446,7 +542,10 @@ function objectReference(
 
 function validateDeploymentPairingManifest(
   deployment: DeploymentPairingManifest,
-  legacyWithoutRecommendedDatasetMapping = false,
+  legacy: {
+    legacyWithoutRecommendedDatasetMapping?: boolean;
+    legacyWithoutResidentFootprint?: boolean;
+  } = {},
 ): void {
   const analysis = deployment.analysis.artifact;
   const productSearch = deployment.productSearch;
@@ -477,14 +576,24 @@ function validateDeploymentPairingManifest(
   if (deployment.analysisBuildId !== expectedAnalysisBuildId) {
     throw new Error("Deployment analysis build identity is inconsistent.");
   }
+  if (
+    !legacy.legacyWithoutResidentFootprint &&
+    deployment.residentFootprintBytes !==
+      calculatePairingResidentFootprintBytes(deployment)
+  ) {
+    throw new Error(
+      "Deployment pairing resident footprint is inconsistent.",
+    );
+  }
   const pairingIdentity = Object.fromEntries(
     Object.entries(deployment).filter(
       ([key]) =>
         key !== "deploymentPairingId" &&
         !(
-          legacyWithoutRecommendedDatasetMapping &&
+          legacy.legacyWithoutRecommendedDatasetMapping &&
           key === "recommendedDatasetMapping"
-        ),
+        ) &&
+        !(legacy.legacyWithoutResidentFootprint && key === "residentFootprintBytes"),
     ),
   );
   if (

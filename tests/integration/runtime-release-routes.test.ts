@@ -249,6 +249,135 @@ describe("verified release route integration", () => {
     expect(analysisBody).toBe(JSON.stringify(platformOutcome.payload));
     expect(csvBytes).toEqual(platformCsv.bytes);
   }, 20_000);
+
+  it("binds a retained build's own manifests, catalog, and freshness -- never current's -- for JSON and CSV routes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-routes-"));
+    temporaryDirectories.push(root);
+    const firstCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "gen1"),
+      {
+        valueOffset: 0,
+        productSearchBuildId: "product-search-v1-1111111111111111",
+      },
+    );
+    const secondCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "gen2"),
+      {
+        valueOffset: 10,
+        productSearchBuildId: "product-search-v1-2222222222222222",
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await publisher.promote({
+      ...firstCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await publisher.promote({
+      ...secondCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+    cleanups.push(installApplicationRuntime(runtime));
+
+    expect(first.analysisBuildId).not.toBe(second.analysisBuildId);
+    expect(first.productSearchBuildId).not.toBe(second.productSearchBuildId);
+
+    const currentResponse = await getCurrent(
+      new Request("http://localhost/api/v1/analyses/current"),
+    );
+    const currentBody = await currentResponse.json();
+    expect(currentBody.deploymentWindow.map((b: { analysisBuildId: string }) => b.analysisBuildId)).toEqual(
+      [second.analysisBuildId, first.analysisBuildId],
+    );
+
+    const retainedFreshness = runtime.resolveAnalysisManifest(
+      first.analysisBuildId,
+    )!.freshness;
+
+    const retainedAnalysis = await getCandidateMarkets(
+      new Request(
+        `http://localhost/api/v1/analyses/${first.analysisBuildId}/candidate-markets` +
+          `?exporter=${RUNTIME_RELEASE_FIXTURE.exporterCode}` +
+          `&product=${RUNTIME_RELEASE_FIXTURE.productCode}`,
+      ),
+      routeContext("analysisBuildId", first.analysisBuildId),
+    );
+    const retainedAnalysisBody = await retainedAnalysis.json();
+
+    const retainedCsvUrl = new URL(
+      `http://localhost/api/v1/analyses/${first.analysisBuildId}/candidate-markets.csv`,
+    );
+    retainedCsvUrl.searchParams.set(
+      "exporter",
+      RUNTIME_RELEASE_FIXTURE.exporterCode,
+    );
+    retainedCsvUrl.searchParams.set(
+      "product",
+      RUNTIME_RELEASE_FIXTURE.productCode,
+    );
+    retainedCsvUrl.searchParams.set(
+      "productSearchBuildId",
+      first.productSearchBuildId,
+    );
+    retainedCsvUrl.searchParams.set(
+      "freshnessStatusId",
+      retainedFreshness.freshnessStatusId,
+    );
+    retainedCsvUrl.searchParams.set("schema", "candidate-markets-csv-v1");
+    const retainedCsv = await getCandidateMarketsCsv(
+      new Request(retainedCsvUrl),
+      routeContext("analysisBuildId", first.analysisBuildId),
+    );
+    const retainedCsvBody = new TextDecoder().decode(
+      new Uint8Array(await retainedCsv.arrayBuffer()),
+    );
+
+    // A retained build's own productSearchBuildId gates its export (not
+    // current's): pairing the retained analysisBuildId with current's
+    // productSearchBuildId is a genuinely incompatible combination and
+    // still 410s, proving the earlier 200 above used the retained
+    // build's own identity rather than accidentally matching current's
+    // (see issue #44).
+    const currentOnlyCsvUrl = new URL(retainedCsvUrl);
+    currentOnlyCsvUrl.searchParams.set(
+      "productSearchBuildId",
+      second.productSearchBuildId,
+    );
+    const wrongBuildCsv = await getCandidateMarketsCsv(
+      new Request(currentOnlyCsvUrl),
+      routeContext("analysisBuildId", first.analysisBuildId),
+    );
+
+    expect({
+      retainedAnalysisStatus: retainedAnalysis.status,
+      retainedAnalysisBuildId: retainedAnalysisBody.analysisBuildId,
+      retainedAnalysisReleaseCatalogSha256:
+        retainedAnalysisBody.analysisReleaseCatalogSha256,
+      retainedCsvStatus: retainedCsv.status,
+      retainedCsvHasOwnProductSearchBuild: retainedCsvBody.includes(
+        first.productSearchBuildId,
+      ),
+      retainedCsvHasCurrentProductSearchBuild: retainedCsvBody.includes(
+        second.productSearchBuildId,
+      ),
+      wrongBuildCsvStatus: wrongBuildCsv.status,
+    }).toEqual({
+      retainedAnalysisStatus: 200,
+      retainedAnalysisBuildId: first.analysisBuildId,
+      retainedAnalysisReleaseCatalogSha256:
+        first.analysisReleaseCatalogSha256,
+      retainedCsvStatus: 200,
+      retainedCsvHasOwnProductSearchBuild: true,
+      retainedCsvHasCurrentProductSearchBuild: false,
+      wrongBuildCsvStatus: 410,
+    });
+  }, 20_000);
 });
 
 function routeContext<Key extends string>(

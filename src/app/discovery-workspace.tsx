@@ -311,13 +311,23 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     }
 
     const urlPin = parseTradeAnalysisContext(window.location.href).pin;
-    if (
-      resolvePinnedContext(urlPin, currentManifest, "candidate-market")
-        .state === "retired"
-    ) {
+    const pinResolution = resolvePinnedContext(
+      urlPin,
+      currentManifest,
+      "candidate-market",
+    );
+    if (pinResolution.state === "retired") {
       setStatus("stale");
       return;
     }
+    // A retained pin executes its own exact analysisBuildId rather than
+    // current's, reproducing its exact deterministic payload (see issue
+    // #44); "current"/"unpinned" keep querying the live manifest's build
+    // exactly as before.
+    const analysisBuildId =
+      pinResolution.state === "retained"
+        ? pinResolution.deployment.analysisBuildId
+        : currentManifest.analysisBuildId;
 
     analysisController.current?.abort();
     const controller = new AbortController();
@@ -336,7 +346,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         product: product.code,
       });
       const response = await fetch(
-        `/api/v1/analyses/${currentManifest.analysisBuildId}/candidate-markets?${parameters}`,
+        `/api/v1/analyses/${analysisBuildId}/candidate-markets?${parameters}`,
         { signal: controller.signal },
       );
       if (requestSequence.current !== sequence) {
@@ -356,8 +366,27 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         return;
       }
 
-      if (
-        completeResult.analysisBuildId !== currentManifest.analysisBuildId ||
+      // A retained execution validates against that exact retained
+      // build's own BACI Release/artifact identity (from
+      // currentManifest.deploymentWindow) rather than current's, with the
+      // same rigor as the "current" check below (see issue #44 "Pinned
+      // URLs within the retention window reproduce exact Analysis
+      // Identity").
+      if (pinResolution.state === "retained") {
+        const retainedIdentity = pinResolution.deployment;
+        if (
+          completeResult.analysisBuildId !== analysisBuildId ||
+          completeResult.provenance.baciRelease !==
+            retainedIdentity.baciRelease ||
+          completeResult.provenance.artifactSha256 !==
+            retainedIdentity.artifactSha256
+        ) {
+          throw new TypeError(
+            "The analysis result does not match the discovered retained manifest.",
+          );
+        }
+      } else if (
+        completeResult.analysisBuildId !== analysisBuildId ||
         completeResult.provenance.baciRelease !==
           currentManifest.source.baciRelease ||
         completeResult.provenance.artifactSha256 !==
@@ -393,18 +422,23 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         exporter.code,
       );
       if (nextContext.recipe === "candidate-market") {
+        const baseContext = withLocale(
+          {
+            ...nextContext,
+            focusedMarketCode: initialCandidate.economy.code,
+          },
+          locale,
+        );
+        // A retained execution keeps its own exact pin rather than
+        // re-deriving current's live pin, so the canonical URL continues
+        // to name the retained build it actually reproduced.
+        const pinnedContext =
+          pinResolution.state === "retained"
+            ? { ...baseContext, pin: pinResolution.pin }
+            : withPin(baseContext, currentManifest);
         const url = serializeTradeAnalysisContext(
           window.location.href,
-          withPin(
-            withLocale(
-              {
-                ...nextContext,
-                focusedMarketCode: initialCandidate.economy.code,
-              },
-              locale,
-            ),
-            currentManifest,
-          ),
+          pinnedContext,
         );
         window.history.replaceState(null, "", url);
       }

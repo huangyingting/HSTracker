@@ -232,13 +232,19 @@ export function TradeTrendWorkspace({
       return;
     }
     const urlPin = parseTradeAnalysisContext(window.location.href).pin;
-    if (
-      resolvePinnedContext(urlPin, manifest, "trade-trend").state ===
-      "retired"
-    ) {
+    const pinResolution = resolvePinnedContext(urlPin, manifest, "trade-trend");
+    if (pinResolution.state === "retired") {
       setStatus("stale");
       return;
     }
+    // A retained pin executes its own exact analysisBuildId rather than
+    // current's, reproducing its exact deterministic payload (see issue
+    // #44); "current"/"unpinned" keep querying the live manifest's build
+    // exactly as before.
+    const analysisBuildId =
+      pinResolution.state === "retained"
+        ? pinResolution.deployment.analysisBuildId
+        : manifest.analysisBuildId;
     analysisController.current?.abort();
     const controller = new AbortController();
     analysisController.current = controller;
@@ -252,7 +258,7 @@ export function TradeTrendWorkspace({
         product: product.code,
       });
       const response = await fetch(
-        `/api/v1/analyses/${manifest.analysisBuildId}/trade-trends?${parameters}`,
+        `/api/v1/analyses/${analysisBuildId}/trade-trends?${parameters}`,
         { signal: controller.signal },
       );
       if (requestSequence.current !== sequence) {
@@ -265,8 +271,24 @@ export function TradeTrendWorkspace({
         return;
       }
       const trend = (await response.json()) as TradeTrendV1Payload;
-      if (
-        trend.analysisBuildId !== manifest.analysisBuildId ||
+      // A retained execution validates against that exact retained
+      // build's own BACI Release/artifact identity (from
+      // manifest.deploymentWindow) rather than current's, with the same
+      // rigor as the "current" check below (see issue #44 "Pinned URLs
+      // within the retention window reproduce exact Analysis Identity").
+      if (pinResolution.state === "retained") {
+        const retainedIdentity = pinResolution.deployment;
+        if (
+          trend.analysisBuildId !== analysisBuildId ||
+          trend.provenance.baciRelease !== retainedIdentity.baciRelease ||
+          trend.provenance.artifactSha256 !== retainedIdentity.artifactSha256
+        ) {
+          throw new TypeError(
+            "The Trade Trend result does not match the discovered retained manifest.",
+          );
+        }
+      } else if (
+        trend.analysisBuildId !== analysisBuildId ||
         trend.provenance.baciRelease !== manifest.source.baciRelease ||
         trend.provenance.artifactSha256 !== manifest.source.artifact.sha256
       ) {
@@ -276,22 +298,26 @@ export function TradeTrendWorkspace({
       }
       setResult(trend);
       setStatus("success");
-      const context = withPin(
-        withLocale(
-          withProductCode(
-            withEconomyCode(
-              withRecipe(
-                parseTradeAnalysisContext(window.location.href),
-                "trade-trend",
-              ),
-              importer.code,
+      const baseContext = withLocale(
+        withProductCode(
+          withEconomyCode(
+            withRecipe(
+              parseTradeAnalysisContext(window.location.href),
+              "trade-trend",
             ),
-            product.code,
+            importer.code,
           ),
-          locale,
+          product.code,
         ),
-        manifest,
+        locale,
       );
+      // A retained execution keeps its own exact pin rather than
+      // re-deriving current's live pin, so the canonical URL continues to
+      // name the retained build it actually reproduced.
+      const context =
+        pinResolution.state === "retained"
+          ? { ...baseContext, pin: pinResolution.pin }
+          : withPin(baseContext, manifest);
       const url = serializeTradeAnalysisContext(window.location.href, context);
       window.history.replaceState(null, "", url);
     } catch (error) {

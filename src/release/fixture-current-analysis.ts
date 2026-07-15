@@ -145,6 +145,24 @@ export const FIXTURE_RECOMMENDED_DATASET_MAPPING =
     },
   });
 
+const fixtureRecommendation: CurrentAnalysisDeployment["recommendation"] = {
+  recipe: "candidate-market-v1",
+  mappingIdentity: FIXTURE_RECOMMENDED_DATASET_MAPPING.identity,
+  datasetPackageIdentity: fixtureDatasetPackage.identity,
+  productCatalogIdentity:
+    FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest.productCatalog.identity,
+  economyCatalogIdentity:
+    FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest.economyCatalog.identity,
+  tradeTrend: {
+    recipe: "trade-trend-v1",
+    datasetPackageIdentity: fixtureTradeTrendDatasetPackage.identity,
+  },
+  supplierCompetition: {
+    recipe: "supplier-competition-v1",
+    datasetPackageIdentity: fixtureSupplierCompetitionDatasetPackage.identity,
+  },
+};
+
 export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
   analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
   productSearchBuildId: ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS.core,
@@ -176,27 +194,7 @@ export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
       candidateCount: 2,
     },
   ],
-  recommendation: {
-    recipe: "candidate-market-v1",
-    mappingIdentity:
-      FIXTURE_RECOMMENDED_DATASET_MAPPING.identity,
-    datasetPackageIdentity: fixtureDatasetPackage.identity,
-    productCatalogIdentity:
-      FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest
-        .productCatalog.identity,
-    economyCatalogIdentity:
-      FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest
-        .economyCatalog.identity,
-    tradeTrend: {
-      recipe: "trade-trend-v1",
-      datasetPackageIdentity: fixtureTradeTrendDatasetPackage.identity,
-    },
-    supplierCompetition: {
-      recipe: "supplier-competition-v1",
-      datasetPackageIdentity:
-        fixtureSupplierCompetitionDatasetPackage.identity,
-    },
-  },
+  recommendation: fixtureRecommendation,
   source: {
     ...ACCEPTANCE_FIXTURE_RELEASE,
     windows: {
@@ -217,6 +215,17 @@ export const FIXTURE_CURRENT_ANALYSIS_DEPLOYMENT: CurrentAnalysisDeployment = {
     previousArtifactSha256: null,
     notComparedReason: "NO_PREVIOUS_ARTIFACT",
   },
+  // A current-only legacy activation has no retained predecessors, so it
+  // reports only itself (see issue #44 "evolve compatibly with legacy
+  // manifests/pointers, normalizing absent history safely").
+  deploymentWindow: [
+    {
+      analysisBuildId: ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+      recommendation: fixtureRecommendation,
+      baciRelease: ACCEPTANCE_FIXTURE_RELEASE.baciRelease,
+      artifactSha256: ACCEPTANCE_FIXTURE_ARTIFACT.sha256,
+    },
+  ],
 };
 
 export const FIXTURE_SOURCE_STATUS_SNAPSHOT: SourceStatusSnapshot = {

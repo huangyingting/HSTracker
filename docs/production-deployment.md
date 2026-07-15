@@ -212,7 +212,9 @@ curl --fail --silent --show-error "${ORIGIN}/healthz" | jq .
 ```
 
 The new immutable rollback deployment must name the previous accepted pairing,
-retain the displaced pairing as its reversible previous target, and publish
+keep the displaced pairing as the new immediate predecessor within the
+Deployment Retention Window (reversible: rolling back again swaps current and
+that predecessor once more), and publish
 `REFRESH_DELAYED`. The restarted Machine must hydrate or reuse only verified
 bytes and become ready within 15 minutes. Run the pinned analysis smoke, then
 repeat the rollback command to rehearse reversal. Retain both deployment
@@ -230,4 +232,11 @@ fly ssh console --app "${APP}" \
 Feed the two observed `avail` values to `npm run deployment:check` with
 `--volume-observation-class observed`. The check blocks below 25% free, warns
 below 30%, blocks artifacts above 10 GiB, and blocks compressed images above
-500 MiB or resident catalogs above 32 MiB.
+500 MiB or resident catalogs above 32 MiB. This one-time architecture gate is
+distinct from the automatic per-promotion and per-startup retention headroom
+gate described in
+[`release-publication.md`](release-publication.md#deployment-retention-window):
+that gate runs inside `npm run release:promote` and the verified runtime
+loader themselves, on every promotion and every restart, comparing the exact
+declared or actual three-pairing footprint rather than a manually observed
+`df` snapshot.

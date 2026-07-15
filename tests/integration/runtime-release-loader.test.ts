@@ -462,6 +462,71 @@ describe("verified release runtime", () => {
     });
   }, 20_000);
 
+  it("restarts from a legacy resident activation during an object-store outage", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    initial.close();
+
+    const pointerObject = await objectStore.getObject(
+      ACTIVE_DEPLOYMENT_POINTER_KEY,
+    );
+    if (pointerObject === null) {
+      throw new Error("Expected an active deployment pointer.");
+    }
+    const pointer = parseActiveDeploymentPointer(
+      JSON.parse((await collectObject(pointerObject)).toString("utf8")),
+    );
+    const legacyPointer = {
+      schemaVersion: pointer.schemaVersion,
+      current: pointer.current,
+      previous: pointer.history[0] ?? null,
+      sourceStatusFallback: pointer.sourceStatusFallback,
+      activatedAt: pointer.activatedAt,
+    };
+    const activationBase = {
+      schemaVersion: "resident-deployment-activation-v1",
+      pointer: legacyPointer,
+    };
+    await writeFile(
+      join(volumePath, "active-deployment.json"),
+      releaseJsonBytes({
+        ...activationBase,
+        activationId: contentAddressedId(
+          "resident-deployment-activation-v1",
+          activationBase,
+        ),
+      }),
+    );
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore: {
+        getObject() {
+          return Promise.reject(new Error("object storage unavailable"));
+        },
+      },
+      volumePath,
+      now: () => "2026-08-01T02:00:00Z",
+    });
+    runtimes.push(runtime);
+    expect(runtime.currentAnalysis().analysisBuildId).toBe(
+      published.analysisBuildId,
+    );
+  }, 20_000);
+
   it("uses the smoke-tested resident release when storage fails after pointer lookup", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
@@ -1174,6 +1239,329 @@ describe("verified release runtime", () => {
   }, 20_000);
 });
 
+describe("verified release runtime retained deployment window", () => {
+  async function promoteGeneration(
+    publisher: ReleasePublisher,
+    root: string,
+    name: string,
+    options: { valueOffset: number; activatedAt: string },
+  ) {
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, name),
+      { valueOffset: options.valueOffset },
+    );
+    return publisher.promote({
+      ...candidate,
+      activatedAt: options.activatedAt,
+    });
+  }
+
+  it("serves current and both retained predecessors through the closed execute seam without object-store access", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const third = await promoteGeneration(publisher, root, "gen3", {
+      valueOffset: 20,
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+
+    const volumePath = join(root, "volume");
+    const countingReader = new CountingReleaseReader(objectStore);
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore: countingReader,
+      volumePath,
+    });
+    runtimes.push(runtime);
+    countingReader.readCount = 0;
+
+    const [currentOutcome, retainedOutcome1, retainedOutcome2, retiredOutcome] =
+      await Promise.all([
+        runtime.tradeAnalytics.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: third.analysisBuildId,
+          exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+          productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+        }),
+        runtime.tradeAnalytics.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: second.analysisBuildId,
+          exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+          productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+        }),
+        runtime.tradeAnalytics.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: first.analysisBuildId,
+          exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+          productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+        }),
+        runtime.tradeAnalytics.execute({
+          recipe: "candidate-market-v1",
+          analysisBuildId: "never-promoted-build",
+          exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+          productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+        }),
+      ]);
+
+    expect(currentOutcome.state).toBe("success");
+    expect(retainedOutcome1.state).toBe("success");
+    expect(retainedOutcome2.state).toBe("success");
+    expect(retiredOutcome.state).toBe("retired");
+    if (
+      currentOutcome.state !== "success" ||
+      retainedOutcome1.state !== "success" ||
+      retainedOutcome2.state !== "success"
+    ) {
+      throw new Error("Expected all three retained builds to succeed.");
+    }
+    // Every retained build reproduces its own exact deterministic
+    // Analysis Identity.
+    const identities = new Set([
+      currentOutcome.analysisIdentity,
+      retainedOutcome1.analysisIdentity,
+      retainedOutcome2.analysisIdentity,
+    ]);
+    expect(identities.size).toBe(3);
+    // No request-time object-store access: all three builds already
+    // executed above via already-resident, verified data.
+    expect(countingReader.readCount).toBe(0);
+  }, 30_000);
+
+  it("resolves the manifest for current and each retained predecessor, and null for an unknown build", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    expect(
+      runtime.resolveAnalysisManifest(second.analysisBuildId)
+        ?.analysisBuildId,
+    ).toBe(second.analysisBuildId);
+    expect(
+      runtime.resolveAnalysisManifest(first.analysisBuildId)
+        ?.analysisBuildId,
+    ).toBe(first.analysisBuildId);
+    expect(
+      runtime.resolveAnalysisManifest(first.analysisBuildId)
+        ?.productSearchBuildId,
+    ).toBe(first.productSearchBuildId);
+    expect(runtime.resolveAnalysisManifest("never-promoted")).toBeNull();
+  }, 20_000);
+
+  it("trims retention beyond 3 pairings and retires a request for the trimmed generation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    await promoteGeneration(publisher, root, "gen3", {
+      valueOffset: 20,
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+    await promoteGeneration(publisher, root, "gen4", {
+      valueOffset: 30,
+      activatedAt: "2026-07-12T04:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+    });
+    runtimes.push(runtime);
+
+    expect(runtime.resolveAnalysisManifest(first.analysisBuildId)).toBeNull();
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "candidate-market-v1",
+      analysisBuildId: first.analysisBuildId,
+      exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+    });
+    expect(outcome.state).toBe("retired");
+  }, 30_000);
+
+  it("makes all three retained pairings available again after an outage restart", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const third = await promoteGeneration(publisher, root, "gen3", {
+      valueOffset: 20,
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+    });
+    initial.close();
+
+    const outage = await VerifiedReleaseRuntime.load({
+      objectStore: {
+        getObject() {
+          return Promise.reject(new Error("object storage unavailable"));
+        },
+      },
+      volumePath,
+    });
+    runtimes.push(outage);
+
+    const [currentOutcome, retained1, retained2] = await Promise.all([
+      outage.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
+        analysisBuildId: third.analysisBuildId,
+        exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+        productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+      }),
+      outage.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
+        analysisBuildId: second.analysisBuildId,
+        exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+        productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+      }),
+      outage.tradeAnalytics.execute({
+        recipe: "candidate-market-v1",
+        analysisBuildId: first.analysisBuildId,
+        exporterCode: RUNTIME_RELEASE_FIXTURE.exporterCode,
+        productCode: RUNTIME_RELEASE_FIXTURE.productCode,
+      }),
+    ]);
+    expect(currentOutcome.state).toBe("success");
+    expect(retained1.state).toBe("success");
+    expect(retained2.state).toBe("success");
+  }, 30_000);
+
+  it("fails closed before activation when the actual serving volume lacks headroom, preserving the prior active deployment", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const volumePath = join(root, "volume");
+    const initial = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+    });
+    initial.close();
+
+    await expect(
+      VerifiedReleaseRuntime.load({
+        objectStore,
+        volumePath,
+        filesystemCapacityProbe: () => ({
+          totalBytes: 1_024,
+          freeBytes: 1,
+        }),
+      }),
+    ).rejects.toThrow(/does not fit the serving volume/iu);
+
+    // The prior active deployment's resident activation record is left
+    // untouched: a normal restart still finds and trusts it.
+    const restarted = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath,
+    });
+    runtimes.push(restarted);
+    expect(restarted.currentAnalysis().analysisBuildId).toBe(
+      first.analysisBuildId,
+    );
+  }, 30_000);
+
+  it("resolves the exact retained product catalog and economy directory for a retained analysisBuildId", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+    });
+    runtimes.push(runtime);
+
+    const retainedProduct = await runtime.searchProducts({
+      productSearchBuildId: first.productSearchBuildId,
+      query: RUNTIME_RELEASE_FIXTURE.productCode,
+      locale: "en",
+      limit: 1,
+    });
+    expect(retainedProduct.productSearchBuildId).toBe(
+      first.productSearchBuildId,
+    );
+    expect(retainedProduct.matches[0]?.product.code).toBe(
+      RUNTIME_RELEASE_FIXTURE.productCode,
+    );
+
+    const currentProduct = await runtime.searchProducts({
+      productSearchBuildId: second.productSearchBuildId,
+      query: RUNTIME_RELEASE_FIXTURE.productCode,
+      locale: "en",
+      limit: 1,
+    });
+    expect(currentProduct.productSearchBuildId).toBe(
+      second.productSearchBuildId,
+    );
+
+    const retainedEconomy = await runtime.searchEconomies({
+      analysisBuildId: first.analysisBuildId,
+      query: RUNTIME_RELEASE_FIXTURE.exporterCode,
+      limit: 1,
+    });
+    expect(retainedEconomy.analysisBuildId).toBe(first.analysisBuildId);
+    expect(retainedEconomy.matches[0]?.economy.code).toBe(
+      RUNTIME_RELEASE_FIXTURE.exporterCode,
+    );
+  }, 30_000);
+});
+
 class ResidentReleaseReader implements ReleaseObjectReader {
   readonly requestedKeys: string[] = [];
 
@@ -1237,6 +1625,11 @@ class LegacyDeploymentReader implements ReleaseObjectReader {
     ) as Record<string, unknown>;
     delete legacyBase.deploymentPairingId;
     delete legacyBase.recommendedDatasetMapping;
+    // A manifest that predates the Recommended Dataset Mapping also
+    // predates the resident-footprint retention field introduced
+    // alongside it; simulate both absent rather than leaving a
+    // present-but-stale value.
+    delete legacyBase.residentFootprintBytes;
     const deploymentPairingId = contentAddressedId(
       "deployment-pairing-v1",
       legacyBase,

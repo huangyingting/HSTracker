@@ -1211,6 +1211,17 @@ describe("bounded application runtime", () => {
     );
     expect(computations).toBe(5);
   });
+
+  it("passes resolveAnalysisManifest through to the inner runtime unmodified", () => {
+    const fixture = createFixtureApplicationRuntime();
+    const runtime = createBoundedApplicationRuntime(fixture);
+
+    expect(
+      runtime.resolveAnalysisManifest("acceptance-fixtures-v1")
+        ?.analysisBuildId,
+    ).toBe("acceptance-fixtures-v1");
+    expect(runtime.resolveAnalysisManifest("never-promoted")).toBeNull();
+  });
 });
 
 type CandidateExecution = (

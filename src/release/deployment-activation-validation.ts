@@ -34,7 +34,7 @@ export async function validateDeploymentActivation(input: {
   const pointer: ActiveDeploymentPointer = {
     schemaVersion: "active-deployment-pointer-v1",
     current: input.deploymentReference,
-    previous: null,
+    history: [],
     sourceStatusFallback: deployment.sourceStatusFallback,
     activatedAt: input.activatedAt,
   };

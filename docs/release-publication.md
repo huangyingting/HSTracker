@@ -74,6 +74,40 @@ immutable writes require the key not to exist and permit only
 identity-equivalent retries. Public deployment metadata contains object keys
 and content identities, never bucket URLs or credentials.
 
+## Deployment retention window
+
+The active deployment pointer names `current` plus a `history` array holding
+up to two preceding compatible complete deployment pairings (see
+`DEPLOYMENT_RETENTION_WINDOW_SIZE`/`DEPLOYMENT_RETENTION_HISTORY_LIMIT` in
+`src/release/release-manifest.ts`). Each pairing already binds one complete
+generation -- its own analysis artifact, analysis release catalog, product
+catalog, Recommended Dataset Mapping, and Source Freshness Status fallback --
+so retention never mixes recipe, data, or catalog generations across pairings.
+Legacy pointers persisted before this window existed carried a single
+nullable `previous` reference instead of `history`; parsing normalizes that
+shape rather than failing closed, so a current-only legacy activation stays
+valid and its history simply grows on later promotions.
+
+Each `DeploymentPairingManifest` also declares its own
+`residentFootprintBytes`: the deterministic sum of the objects it references
+directly -- analysis artifact, artifact manifest, analysis release catalog,
+product catalog, catalog manifest, and Recommended Dataset Mapping manifest
+bytes -- excluding the pairing manifest's own bytes to avoid self-reference.
+Before activation, promotion resolves the nested Dataset Package manifest and
+Release Revision evidence as well, deduplicates every content-addressed object
+across the window it is about to commit, and adds one configured DuckDB spill
+reserve per pairing plus a safety-reserve fraction of the declared baseline
+serving-volume policy (`RUNTIME_RESOURCE_POLICY.deploymentRetention` in
+`src/runtime-resource-policy.ts`). A window that cannot fit this declared
+policy fails closed with `RETENTION_HEADROOM_EXCEEDED` before any pointer
+write, leaving the active deployment unchanged. The runtime repeats the exact
+same calculation against verified resident metadata and actual serving-volume
+capacity (via an injectable
+`FilesystemCapacityProbe`, production `statfsFilesystemCapacityProbe` by
+default) before committing resident activation, so a volume that is
+genuinely out of headroom also fails closed without touching the resident
+activation record (see `src/deployment/deployment-retention-footprint.ts`).
+
 ## Promote and roll back
 
 ```bash
@@ -101,13 +135,19 @@ npm run release:rollback -- \
   --activated-at 2026-07-12T04:00:00Z
 ```
 
-Rollback is reversible because it retains the displaced pairing as previous.
-It publishes a new immutable deployment manifest that reuses the target
-artifacts while embedding the rollback's `REFRESH_DELAYED` fallback. The
+Rollback promotes the immediate predecessor (`history[0]`) and keeps the
+displaced current as the new immediate predecessor, so rolling back again
+swaps current and `history[0]` once more without duplicating or losing an
+entry; the retention window's older entries shift down and trim beyond the
+window exactly as promotion does. It publishes a new immutable deployment
+manifest that reuses the target artifacts while embedding the rollback's
+`REFRESH_DELAYED` fallback. The
 operational rollback command publishes the identical status through the status
 pointer. The deployment pointer and manifest therefore agree before a process
 starts, and retrying status reconciliation cannot toggle back to the displaced
-deployment pairing.
+deployment pairing. Both promotion and rollback deduplicate an already-retained
+target by content-addressed key, so anomalous or repeated history never lists
+the same pairing twice.
 
 ## Source monitoring and refresh
 
@@ -186,39 +226,56 @@ Run the production Next.js process with:
 | S3 variables above | Yes | Read the active immutable pairing |
 
 Use an absolute volume path. The baseline deployment provisions a 50-GiB
-volume so current, previous, temporary, and query-spill files fit while
-retaining operational headroom.
+volume so current, its two retained predecessors, temporary, and query-spill
+files fit while retaining operational headroom (see "Deployment retention
+window" above for the exact declared headroom calculation).
 
 The Node instrumentation hook invokes the verified runtime loader before the
 process becomes ready. Startup:
 
-1. reads and validates the active deployment pointer and pairing;
-2. hydrates the pairing's analysis release catalog, current and compatible
-   previous DuckDB artifacts, and production product catalog;
+1. reads and validates the active deployment pointer and every pairing in its
+   retention window (current plus up to two retained predecessors);
+2. hydrates each pairing's own analysis release catalog, current and
+   compatible previous DuckDB artifacts, and production product catalog into
+   its own resident directory, reusing another pairing's already-verified,
+   content-addressed files by hardlink instead of re-downloading them;
 3. verifies every local byte count, SHA-256, schema, and cross-artifact
-   identity;
-4. opens both DuckDB artifacts read-only and loads the economy and product
-   search adapters; and
-5. loads the deployment manifest's validated Source Freshness Status fallback;
-   and
+   identity for every retained pairing;
+4. opens each retained pairing's own DuckDB instance read-only and loads its
+   own economy and product search adapters -- current keeps its DuckDB spill
+   directory at the volume root, while each retained predecessor spills into
+   its own resident directory instead;
+5. loads each pairing's own validated Source Freshness Status fallback; and
 6. runs the manifest-selected maximum-row analysis, product, and economy smoke
-   query before installing the runtime.
+   query for every retained pairing, not only current, before installing the
+   runtime.
+
+Before committing resident activation, startup also evaluates the retention
+headroom gate against the actual serving volume (see "Deployment retention
+window" above); a volume without enough headroom fails closed before any
+pointer or resident-activation write, leaving the prior active deployment
+untouched.
 
 `ReleaseHydrator.hydrateCurrent()` streams a missing pairing into a
 process-specific `.partial` directory, fsyncs files and directories, and
 atomically renames the complete directory into the serving volume. A resident
 pairing is fully reverified before reuse. Failed hydration removes partial
 state and never installs a runtime. Only after all startup smoke checks pass
-does the runtime atomically replace `active-deployment.json` in the volume and
-prune inactive pairing directories. If object storage becomes unavailable
-while resolving the current deployment later, this record selects and fully
-reverifies the last smoke-tested resident pairing; an empty or corrupt volume
-still fails closed.
+for every retained pairing does the runtime atomically replace
+`active-deployment.json` -- which records the exact retained current/history
+order -- in the volume and prune pairing directories outside that window. If
+object storage becomes unavailable while resolving the current deployment
+later, this record selects and fully reverifies every last smoke-tested
+resident pairing (an outage restart never re-tests only current); an empty or
+corrupt volume still fails closed.
 
 After readiness, route handlers use the installed in-process adapters. No
 analysis, product-search, economy, export, current, or health request reads
-object storage. Requests naming a non-active analysis or product-search build
-receive `410`. A separate background poll reads and validates the status pointer
+object storage -- including a request pinned to a retained predecessor, which
+resolves and binds that predecessor's own manifests, catalog, and freshness
+entirely from resident state. Requests naming a build outside the retention
+window receive a typed retired outcome (`410` for JSON/CSV routes) with no
+object-store access and no partial activation. A separate background poll reads and validates the status pointer
 and immutable snapshot every 55-60 seconds. Each read has a 30-second deadline
 so a hung request cannot extend that cadence. Poll failures retain the last
 validated snapshot, which continues to age through the exact 7- and 14-day UTC

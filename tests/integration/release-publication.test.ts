@@ -14,6 +14,7 @@ import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
   contentAddressedId,
+  parseActiveDeploymentPointer,
   releaseJsonBytes,
 } from "../../src/release/release-manifest";
 import type {
@@ -663,8 +664,15 @@ describe("immutable release publication", () => {
     expect((await stat(secondHydrated.analysisArtifactPath)).ino).toBe(
       firstArtifact.ino,
     );
+    // The first pairing is now the retained immediate predecessor (not
+    // pruned): the 3-slot retention window keeps it resident alongside
+    // current.
     expect((await readdir(volumePath)).sort()).toEqual(
-      ["active-deployment.json", second.deploymentPairingId].sort(),
+      [
+        "active-deployment.json",
+        first.deploymentPairingId,
+        second.deploymentPairingId,
+      ].sort(),
     );
     expect(second.deploymentPairingId).not.toBe(
       first.deploymentPairingId,
@@ -714,8 +722,15 @@ describe("immutable release publication", () => {
         )
       ).ino,
     ).toBe(firstArtifact.ino);
+    // The first pairing is now the retained immediate predecessor (not
+    // pruned): the 3-slot retention window keeps it resident alongside
+    // current.
     expect((await readdir(volumePath)).sort()).toEqual(
-      ["active-deployment.json", second.deploymentPairingId].sort(),
+      [
+        "active-deployment.json",
+        first.deploymentPairingId,
+        second.deploymentPairingId,
+      ].sort(),
     );
     expect(second.previousDeploymentPairingId).toBe(
       first.deploymentPairingId,
@@ -746,6 +761,165 @@ describe("immutable release publication", () => {
     });
     expect(await readdir(volumePath)).toEqual([]);
   });
+});
+
+describe("retained deployment history window", () => {
+  it("retains exactly current + 2 predecessors and trims the oldest", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-retention-"));
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const third = await promoteGeneration(publisher, root, "gen3", {
+      valueOffset: 20,
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+
+    const pointerAfterThree = await readActivePointer(objectStore);
+    expect(pointerAfterThree.current.key).toContain(third.deploymentPairingId);
+    expect(pointerAfterThree.history.map((reference) => reference.key)).toEqual([
+      `deployment-pairings/${second.deploymentPairingId}.json`,
+      `deployment-pairings/${first.deploymentPairingId}.json`,
+    ]);
+
+    const fourth = await promoteGeneration(publisher, root, "gen4", {
+      valueOffset: 30,
+      activatedAt: "2026-07-12T04:00:00Z",
+    });
+
+    const pointerAfterFour = await readActivePointer(objectStore);
+    expect(pointerAfterFour.current.key).toContain(fourth.deploymentPairingId);
+    // gen1 (the oldest predecessor) is trimmed beyond the 3-slot window;
+    // only gen3 and gen2 remain retained.
+    expect(pointerAfterFour.history.map((reference) => reference.key)).toEqual([
+      `deployment-pairings/${third.deploymentPairingId}.json`,
+      `deployment-pairings/${second.deploymentPairingId}.json`,
+    ]);
+  }, 30_000);
+
+  it("deduplicates an already-retained target instead of listing it twice", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-retention-"));
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    // Simulate anomalous stored state where the active pairing already
+    // appears in its own history (e.g. drifted data): the next promotion
+    // must self-heal rather than perpetuate the duplicate.
+    await duplicateCurrentIntoHistory(objectStore);
+    const anomalous = await readActivePointer(objectStore);
+    expect(anomalous.history.map((reference) => reference.key)).toEqual([
+      `deployment-pairings/${first.deploymentPairingId}.json`,
+    ]);
+
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    void second;
+
+    const pointer = await readActivePointer(objectStore);
+    const historyKeys = pointer.history.map((reference) => reference.key);
+    expect(historyKeys).toEqual([
+      `deployment-pairings/${first.deploymentPairingId}.json`,
+    ]);
+  }, 30_000);
+
+  it("rolls back by promoting the immediate predecessor and keeps the displaced current retained", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-retention-"));
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const second = await promoteGeneration(publisher, root, "gen2", {
+      valueOffset: 10,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const third = await promoteGeneration(publisher, root, "gen3", {
+      valueOffset: 20,
+      activatedAt: "2026-07-12T03:00:00Z",
+    });
+    void second;
+
+    const rolledBack = await publisher.rollback({
+      activatedAt: "2026-07-12T04:00:00Z",
+    });
+
+    expect(rolledBack.previousDeploymentPairingId).toBe(
+      third.deploymentPairingId,
+    );
+    const pointerAfterRollback = await readActivePointer(objectStore);
+    expect(pointerAfterRollback.history.map((reference) => reference.key)).toEqual([
+      `deployment-pairings/${third.deploymentPairingId}.json`,
+      `deployment-pairings/${first.deploymentPairingId}.json`,
+    ]);
+
+    // Rollback is reversible: rolling back again swaps current and
+    // history[0] once more, without duplicating or losing an entry.
+    const rolledBackAgain = await publisher.rollback({
+      activatedAt: "2026-07-12T05:00:00Z",
+    });
+    expect(rolledBackAgain.previousDeploymentPairingId).toBe(
+      rolledBack.deploymentPairingId,
+    );
+    const pointerAfterSecondRollback = await readActivePointer(objectStore);
+    expect(
+      pointerAfterSecondRollback.history.map((reference) => reference.key),
+    ).toEqual([
+      `deployment-pairings/${rolledBack.deploymentPairingId}.json`,
+      `deployment-pairings/${first.deploymentPairingId}.json`,
+
+    ]);
+  }, 30_000);
+
+  it("fails closed before activation when the declared window cannot fit the retention policy", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-retention-"));
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const first = await promoteGeneration(publisher, root, "gen1", {
+      valueOffset: 0,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "gen2"),
+      { baciRelease: "VTEST001", valueOffset: 10 },
+    );
+    // A tiny declared serving-volume policy makes even the small fixture
+    // artifacts exceed the retention headroom gate, without materializing
+    // multi-gigabyte fixtures.
+    const constrainedPublisher = new ReleasePublisher(objectStore, {
+      declaredServingVolumeBytes: 1_024,
+    });
+
+    await expect(
+      constrainedPublisher.promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toMatchObject({
+      name: "ReleasePublicationError",
+      code: "RETENTION_HEADROOM_EXCEEDED",
+    });
+    // The prior active deployment remains unchanged after a headroom
+    // rejection: promotion never partially commits.
+    await expect(publisher.current()).resolves.toMatchObject({
+      deploymentPairingId: first.deploymentPairingId,
+    });
+  }, 30_000);
 });
 
 class CorruptingReadbackStore implements ReleaseObjectStore {
@@ -867,6 +1041,12 @@ async function activateLegacyDeploymentProjection(
   ) as Record<string, unknown>;
   delete legacyBase.deploymentPairingId;
   delete legacyBase.recommendedDatasetMapping;
+  // A manifest that predates the Recommended Dataset Mapping also
+  // predates the resident-footprint retention field introduced alongside
+  // it, so this legacy simulation removes both rather than leaving a
+  // present-but-stale `residentFootprintBytes` that would no longer match
+  // a mapping-less recomputation.
+  delete legacyBase.residentFootprintBytes;
   const deploymentPairingId = contentAddressedId(
     "deployment-pairing-v1",
     legacyBase,
@@ -906,4 +1086,51 @@ async function collectReleaseObject(
 
 async function* oneChunk(bytes: Buffer): AsyncIterable<Uint8Array> {
   yield bytes;
+}
+
+async function promoteGeneration(
+  publisher: ReleasePublisher,
+  root: string,
+  name: string,
+  options: {
+    valueOffset: number;
+    activatedAt: string;
+    directoryName?: string;
+  },
+) {
+  const candidate = await writeRuntimeReleaseCandidate(
+    join(root, options.directoryName ?? name),
+    { baciRelease: "VTEST001", valueOffset: options.valueOffset },
+  );
+  return publisher.promote({
+    ...candidate,
+    activatedAt: options.activatedAt,
+  });
+}
+
+async function readActivePointer(objectStore: InMemoryReleaseObjectStore) {
+  const stored = await objectStore.getObject(ACTIVE_DEPLOYMENT_POINTER_KEY);
+  if (stored === null) {
+    throw new Error("Expected an active deployment pointer.");
+  }
+  return parseActiveDeploymentPointer(
+    JSON.parse((await collectReleaseObject(stored)).toString("utf8")),
+  );
+}
+
+async function duplicateCurrentIntoHistory(
+  objectStore: InMemoryReleaseObjectStore,
+): Promise<void> {
+  const stored = await objectStore.getObject(ACTIVE_DEPLOYMENT_POINTER_KEY);
+  if (stored === null) {
+    throw new Error("Expected an active deployment pointer.");
+  }
+  const pointer = JSON.parse(
+    (await collectReleaseObject(stored)).toString("utf8"),
+  ) as { current: unknown; [key: string]: unknown };
+  await objectStore.compareAndSwap(
+    ACTIVE_DEPLOYMENT_POINTER_KEY,
+    stored.version,
+    releaseJsonBytes({ ...pointer, history: [pointer.current] }),
+  );
 }

@@ -604,4 +604,98 @@ describe("Trade Analysis Context: resolvePinnedContext", () => {
     const resolution = resolvePinnedContext(null, manifest, "trade-trend");
     expect(resolution).toEqual({ state: "unpinned" });
   });
+
+  const RETAINED_ANALYSIS_BUILD_ID = "analysis-build-v1-retained0000000";
+  const RETAINED_DATASET_PACKAGE_IDENTITY = manifest.recommendation
+    .tradeTrend!.datasetPackageIdentity;
+  const MISMATCHED_DATASET_PACKAGE_IDENTITY = manifest.recommendation
+    .supplierCompetition!.datasetPackageIdentity;
+  const retainedRecommendation = {
+    ...manifest.recommendation,
+    datasetPackageIdentity: RETAINED_DATASET_PACKAGE_IDENTITY,
+  };
+  const manifestWithRetainedPredecessor = {
+    ...manifest,
+    deploymentWindow: [
+      ...manifest.deploymentWindow,
+      {
+        analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+        recommendation: retainedRecommendation,
+        baciRelease: "V202501",
+        artifactSha256: "e".repeat(64),
+      },
+    ],
+  };
+
+  it("is retained when the pin names a retained predecessor with a matching package identity", () => {
+    const pin = {
+      analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+      datasetPackageIdentity: RETAINED_DATASET_PACKAGE_IDENTITY,
+    };
+    expect(
+      resolvePinnedContext(
+        pin,
+        manifestWithRetainedPredecessor,
+        "candidate-market",
+      ),
+    ).toEqual({
+      state: "retained",
+      pin,
+      deployment: manifestWithRetainedPredecessor.deploymentWindow[1],
+    });
+  });
+
+  it("is retired with PACKAGE_MISMATCH when a retained predecessor's package identity has since changed", () => {
+    const pin = {
+      analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+      datasetPackageIdentity: MISMATCHED_DATASET_PACKAGE_IDENTITY,
+    };
+    expect(
+      resolvePinnedContext(
+        pin,
+        manifestWithRetainedPredecessor,
+        "candidate-market",
+      ),
+    ).toEqual({ state: "retired", pin, reason: "PACKAGE_MISMATCH" });
+  });
+
+  it("is retired with RECIPE_UNSUPPORTED when the retained predecessor never declared the recipe", () => {
+    const pin = {
+      analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+      datasetPackageIdentity: RETAINED_DATASET_PACKAGE_IDENTITY,
+    };
+    const manifestWithLegacyPredecessor = {
+      ...manifest,
+      deploymentWindow: [
+        ...manifest.deploymentWindow,
+        {
+          analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+          recommendation: { ...retainedRecommendation, supplierCompetition: null },
+          baciRelease: "V202501",
+          artifactSha256: "e".repeat(64),
+        },
+      ],
+    };
+    expect(
+      resolvePinnedContext(
+        pin,
+        manifestWithLegacyPredecessor,
+        "supplier-competition",
+      ),
+    ).toEqual({ state: "retired", pin, reason: "RECIPE_UNSUPPORTED" });
+  });
+
+  it("is retired with BUILD_MISMATCH when the pin names neither current nor any retained predecessor", () => {
+    const pin = {
+      analysisBuildId: "never-retained-build",
+      datasetPackageIdentity: RETAINED_DATASET_PACKAGE_IDENTITY,
+    };
+    expect(
+      resolvePinnedContext(
+        pin,
+        manifestWithRetainedPredecessor,
+        "candidate-market",
+      ),
+    ).toEqual({ state: "retired", pin, reason: "BUILD_MISMATCH" });
+  });
 });

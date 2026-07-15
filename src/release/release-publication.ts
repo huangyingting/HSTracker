@@ -30,7 +30,9 @@ import {
 } from "../evidence/analysis-artifact-manifest";
 import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
+  DEPLOYMENT_RETENTION_HISTORY_LIMIT,
   assertDeploymentReleaseCatalog,
+  calculatePairingResidentFootprintBytes,
   contentAddressedId,
   parseActiveDeploymentPointer,
   parseAnalysisReleaseCatalog,
@@ -42,6 +44,7 @@ import {
   sameSourceStatusSnapshot,
   type ActiveDeploymentPointer,
   type AnalysisArtifactReference,
+  type AnalysisReleaseCatalog,
   type DeploymentPairingManifest,
   type PublishedDeployment,
   type ProductCatalogReference,
@@ -59,6 +62,7 @@ import {
   sourceStatusSnapshot,
 } from "./source-status-publication";
 import { validateDeploymentActivation } from "./deployment-activation-validation";
+import { evaluateDeclaredDeploymentRetentionPolicy } from "../deployment/deployment-retention-footprint";
 import {
   count,
   hs12,
@@ -97,6 +101,7 @@ export class ReleasePublicationError extends Error {
       | "NO_PREVIOUS_DEPLOYMENT"
       | "OBJECT_READBACK_MISMATCH"
       | "PAIRING_INCOMPATIBLE"
+      | "RETENTION_HEADROOM_EXCEEDED"
       | "SMOKE_FAILED",
     message: string,
     options?: ErrorOptions,
@@ -140,8 +145,21 @@ type ValidatedProductCandidate = {
   manifestIdentity: ReleaseObjectIdentity;
 };
 
+export type ReleasePublisherOptions = {
+  // Overrides the declared baseline serving-volume policy the retention
+  // headroom gate enforces at promotion time (see
+  // `deployment-retention-footprint.ts`). Defaults to
+  // `RUNTIME_RESOURCE_POLICY.deploymentRetention.declaredServingVolumeBytes`;
+  // tests substitute a small value to exercise the fail-closed path
+  // without materializing multi-gigabyte fixtures.
+  declaredServingVolumeBytes?: number;
+};
+
 export class ReleasePublisher {
-  constructor(private readonly objectStore: ReleaseObjectStore) {}
+  constructor(
+    private readonly objectStore: ReleaseObjectStore,
+    private readonly options: ReleasePublisherOptions = {},
+  ) {}
 
   async promote(input: PromoteReleaseInput): Promise<PublishedDeployment> {
     utcTimestamp(input.activatedAt, "activatedAt");
@@ -251,6 +269,14 @@ export class ReleasePublisher {
       },
       productSearch: productCatalogReference,
       recommendedDatasetMapping,
+      residentFootprintBytes: calculatePairingResidentFootprintBytes({
+        analysis: {
+          artifact: analysisPublication.artifact,
+          releaseCatalog: analysisPublication.releaseCatalog,
+        },
+        productSearch: productCatalogReference,
+        recommendedDatasetMapping,
+      }),
     } as const;
     const deploymentPairingId = contentAddressedId(
       "deployment-pairing-v1",
@@ -270,10 +296,20 @@ export class ReleasePublisher {
         deploymentReference,
         input.activatedAt,
       );
+    const history = await this.nextRetentionHistory(
+      current === null
+        ? []
+        : [current.pointer.current, ...current.pointer.history],
+      deploymentReference,
+      current === null
+        ? new Map()
+        : new Map([[current.pointer.current.key, current.deployment]]),
+    );
+    await this.assertRetentionHeadroom([validatedDeployment], history);
     const pointer: ActiveDeploymentPointer = {
       schemaVersion: "active-deployment-pointer-v1",
       current: deploymentReference,
-      previous: current?.pointer.current ?? null,
+      history: history.references,
       sourceStatusFallback:
         validatedDeployment.sourceStatusFallback,
       activatedAt: input.activatedAt,
@@ -289,7 +325,7 @@ export class ReleasePublisher {
   async rollback(input: RollbackReleaseInput): Promise<PublishedDeployment> {
     utcTimestamp(input.activatedAt, "activatedAt");
     const current = await this.loadCurrentState();
-    if (current === null || current.pointer.previous === null) {
+    if (current === null || current.pointer.history.length === 0) {
       throw new ReleasePublicationError(
         "NO_PREVIOUS_DEPLOYMENT",
         "No previous deployment pairing is available.",
@@ -305,9 +341,10 @@ export class ReleasePublisher {
         "Active deployment changed before rollback.",
       );
     }
+    const immediatePredecessor = current.pointer.history[0]!;
     const previousBytes = await readVerifiedReference(
       this.objectStore,
-      current.pointer.previous,
+      immediatePredecessor,
     );
     const previous = parseDeploymentPairingManifest(
       JSON.parse(previousBytes.toString("utf8")),
@@ -342,6 +379,11 @@ export class ReleasePublisher {
       analysis: previous.analysis,
       productSearch: previous.productSearch,
       recommendedDatasetMapping,
+      residentFootprintBytes: calculatePairingResidentFootprintBytes({
+        analysis: previous.analysis,
+        productSearch: previous.productSearch,
+        recommendedDatasetMapping,
+      }),
     } as const;
     const deployment: DeploymentPairingManifest = {
       ...pairingBase,
@@ -359,16 +401,27 @@ export class ReleasePublisher {
         deploymentReference,
         input.activatedAt,
       );
+    // The displaced current becomes the new immediate predecessor, keeping
+    // rollback reversible: rolling back again would swap current and
+    // history[0] once more (see issue #44 "keep displaced current
+    // coherently in history").
+    const history = await this.nextRetentionHistory(
+      [current.pointer.current, ...current.pointer.history.slice(1)],
+      deploymentReference,
+      new Map([[current.pointer.current.key, current.deployment]]),
+    );
+    await this.assertRetentionHeadroom([validatedDeployment], history);
     const pointer: ActiveDeploymentPointer = {
       schemaVersion: "active-deployment-pointer-v1",
       current: deploymentReference,
-      previous: current.pointer.current,
+      history: history.references,
       sourceStatusFallback,
       activatedAt: input.activatedAt,
     };
     await this.activatePointer(current.pointerVersion, pointer);
     return publishedDeployment(pointer, validatedDeployment);
   }
+
 
   async current(): Promise<PublishedDeployment | null> {
     const state = await this.loadCurrentState();
@@ -745,6 +798,120 @@ export class ReleasePublisher {
       pointerVersion: storedPointer.version,
       deployment,
     };
+  }
+
+  /**
+   * Computes the retained-history references and manifests for the window
+   * about to be activated: `candidateRefs` (the predecessor references
+   * before dedup/trim, most-recent-first) with `excludeRef` (the new
+   * current) removed and the result trimmed to the retention limit. This
+   * both deduplicates an already-retained target and enforces the exact
+   * 3-slot window (current + 2 predecessors) on every activation.
+   */
+  private async nextRetentionHistory(
+    candidateRefs: readonly ReleaseObjectReference[],
+    excludeRef: ReleaseObjectReference,
+    knownPairings: ReadonlyMap<string, DeploymentPairingManifest>,
+  ): Promise<{
+    references: readonly ReleaseObjectReference[];
+    pairings: readonly DeploymentPairingManifest[];
+  }> {
+    const seen = new Set<string>([excludeRef.key]);
+    const references: ReleaseObjectReference[] = [];
+    for (const reference of candidateRefs) {
+      if (seen.has(reference.key)) {
+        continue;
+      }
+      seen.add(reference.key);
+      references.push(reference);
+      if (references.length === DEPLOYMENT_RETENTION_HISTORY_LIMIT) {
+        break;
+      }
+    }
+    const pairings = await Promise.all(
+      references.map((reference) => {
+        const known = knownPairings.get(reference.key);
+        return known !== undefined
+          ? Promise.resolve(known)
+          : this.loadPairingManifest(reference);
+      }),
+    );
+    return { references, pairings };
+  }
+
+  /**
+   * Fails closed before pointer activation when the retention window
+   * (`newPairings` plus the retained `history`) cannot fit the declared
+   * baseline serving-volume policy, leaving the prior active deployment
+   * untouched (see issue #44 "promotion fails rather than violating
+   * retention or volume-headroom guarantees").
+   */
+  private async assertRetentionHeadroom(
+    newPairings: readonly DeploymentPairingManifest[],
+    history: { pairings: readonly DeploymentPairingManifest[] },
+  ): Promise<void> {
+    const allPairings = [...newPairings, ...history.pairings];
+    // Enriches each pairing with its own parsed release catalog so a
+    // non-null Release Revision "previous" artifact/manifest (materialized
+    // onto disk by hydration whenever one exists) is counted rather than
+    // silently omitted from the declared footprint (see issue #44
+    // "including unique analysis artifacts/manifests/release catalogs").
+    const enriched = await Promise.all(
+      allPairings.map(async (pairing) => ({
+        pairing,
+        releaseCatalog: await this.loadReleaseCatalog(
+          pairing.analysis.releaseCatalog,
+        ),
+        datasetPackageManifest:
+          await this.loadDatasetPackageManifestReference(pairing),
+      })),
+    );
+    const policy = evaluateDeclaredDeploymentRetentionPolicy(
+      enriched,
+      this.options.declaredServingVolumeBytes,
+    );
+    if (!policy.fits) {
+      throw new ReleasePublicationError(
+        "RETENTION_HEADROOM_EXCEEDED",
+        "The Deployment Retention Window does not fit the declared serving-volume policy.",
+      );
+    }
+  }
+
+  private async loadReleaseCatalog(
+    reference: ReleaseObjectReference,
+  ): Promise<AnalysisReleaseCatalog> {
+    const bytes = await readVerifiedReference(this.objectStore, reference);
+    return parseAnalysisReleaseCatalog(JSON.parse(bytes.toString("utf8")));
+  }
+
+  private async loadDatasetPackageManifestReference(
+    pairing: DeploymentPairingManifest,
+  ): Promise<ReleaseObjectReference | undefined> {
+    if (pairing.recommendedDatasetMapping === null) {
+      return undefined;
+    }
+    const bytes = await readVerifiedReference(
+      this.objectStore,
+      pairing.recommendedDatasetMapping.manifest,
+    );
+    const mapping = createRecommendedDatasetMapping(
+      JSON.parse(bytes.toString("utf8")),
+    );
+    if (mapping.identity !== pairing.recommendedDatasetMapping.identity) {
+      throw new ReleasePublicationError(
+        "PAIRING_INCOMPATIBLE",
+        "Recommended Dataset Mapping identity does not match the deployment pairing.",
+      );
+    }
+    return mapping.manifest.datasetPackage.manifest;
+  }
+
+  private async loadPairingManifest(
+    reference: ReleaseObjectReference,
+  ): Promise<DeploymentPairingManifest> {
+    const bytes = await readVerifiedReference(this.objectStore, reference);
+    return parseDeploymentPairingManifest(JSON.parse(bytes.toString("utf8")));
   }
 
   private async activatePointer(

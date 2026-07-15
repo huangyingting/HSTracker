@@ -93,11 +93,21 @@ const candidateMarketCsvRoute =
         ...parsedIdentity,
       };
 
-      const manifest = runtime.currentAnalysis();
-      if (
-        identity.productSearchBuildId !==
-        manifest.productSearchBuildId
-      ) {
+      // Resolves this exact analysisBuildId's own manifest when it is
+      // current or a retained predecessor; an analysisBuildId the
+      // manifest layer does not recognize (e.g. retired, or a fixture
+      // build with no manifest identity of its own) falls back to
+      // current's manifest so the product-search/BACI-release
+      // compatibility checks below still have a manifest to compare
+      // against -- the execution result's own analysisBuildId is what
+      // actually decides compatibility, never this fallback (see issue
+      // #44: no current metadata mixes into a genuinely retained
+      // export, since a retained build always resolves its own manifest
+      // here).
+      const manifest =
+        runtime.resolveAnalysisManifest(identity.analysisBuildId) ??
+        runtime.currentAnalysis();
+      if (identity.productSearchBuildId !== manifest.productSearchBuildId) {
         throw new CandidateMarketExportRouteError(
           410,
           "PRODUCT_SEARCH_BUILD_RETIRED",

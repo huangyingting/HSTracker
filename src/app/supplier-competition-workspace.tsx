@@ -259,13 +259,23 @@ export function SupplierCompetitionWorkspace({
       return;
     }
     const urlPin = parseTradeAnalysisContext(window.location.href).pin;
-    if (
-      resolvePinnedContext(urlPin, manifest, "supplier-competition")
-        .state === "retired"
-    ) {
+    const pinResolution = resolvePinnedContext(
+      urlPin,
+      manifest,
+      "supplier-competition",
+    );
+    if (pinResolution.state === "retired") {
       setStatus("stale");
       return;
     }
+    // A retained pin executes its own exact analysisBuildId rather than
+    // current's, reproducing its exact deterministic payload (see issue
+    // #44); "current"/"unpinned" keep querying the live manifest's build
+    // exactly as before.
+    const analysisBuildId =
+      pinResolution.state === "retained"
+        ? pinResolution.deployment.analysisBuildId
+        : manifest.analysisBuildId;
     analysisController.current?.abort();
     const controller = new AbortController();
     analysisController.current = controller;
@@ -279,7 +289,7 @@ export function SupplierCompetitionWorkspace({
         product: product.code,
       });
       const response = await fetch(
-        `/api/v1/analyses/${manifest.analysisBuildId}/supplier-competitions?${parameters}`,
+        `/api/v1/analyses/${analysisBuildId}/supplier-competitions?${parameters}`,
         { signal: controller.signal },
       );
       if (requestSequence.current !== sequence) {
@@ -296,8 +306,25 @@ export function SupplierCompetitionWorkspace({
       }
       const payload =
         (await response.json()) as SupplierCompetitionV1Payload;
-      if (
-        payload.analysisBuildId !== manifest.analysisBuildId ||
+      // A retained execution validates against that exact retained
+      // build's own BACI Release/artifact identity (from
+      // manifest.deploymentWindow) rather than current's, with the same
+      // rigor as the "current" check below (see issue #44 "Pinned URLs
+      // within the retention window reproduce exact Analysis Identity").
+      if (pinResolution.state === "retained") {
+        const retainedIdentity = pinResolution.deployment;
+        if (
+          payload.analysisBuildId !== analysisBuildId ||
+          payload.provenance.baciRelease !== retainedIdentity.baciRelease ||
+          payload.provenance.artifactSha256 !==
+            retainedIdentity.artifactSha256
+        ) {
+          throw new TypeError(
+            "The Supplier Competition result does not match the discovered retained manifest.",
+          );
+        }
+      } else if (
+        payload.analysisBuildId !== analysisBuildId ||
         payload.provenance.baciRelease !== manifest.source.baciRelease ||
         payload.provenance.artifactSha256 !== manifest.source.artifact.sha256
       ) {
@@ -307,22 +334,26 @@ export function SupplierCompetitionWorkspace({
       }
       setResult(payload);
       setStatus("success");
-      const context = withPin(
-        withLocale(
-          withProductCode(
-            withEconomyCode(
-              withRecipe(
-                parseTradeAnalysisContext(window.location.href),
-                "supplier-competition",
-              ),
-              importer.code,
+      const baseContext = withLocale(
+        withProductCode(
+          withEconomyCode(
+            withRecipe(
+              parseTradeAnalysisContext(window.location.href),
+              "supplier-competition",
             ),
-            product.code,
+            importer.code,
           ),
-          locale,
+          product.code,
         ),
-        manifest,
+        locale,
       );
+      // A retained execution keeps its own exact pin rather than
+      // re-deriving current's live pin, so the canonical URL continues to
+      // name the retained build it actually reproduced.
+      const context =
+        pinResolution.state === "retained"
+          ? { ...baseContext, pin: pinResolution.pin }
+          : withPin(baseContext, manifest);
       const url = serializeTradeAnalysisContext(window.location.href, context);
       window.history.replaceState(null, "", url);
     } catch (error) {

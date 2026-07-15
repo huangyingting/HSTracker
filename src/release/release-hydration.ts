@@ -55,11 +55,8 @@ export type HydrateCurrentReleaseInput = {
 
 const RESIDENT_ACTIVATION_FILE = "active-deployment.json";
 
-export type HydratedRelease = {
-  deployment: PublishedDeployment;
+export type HydratedDeploymentPairing = {
   deploymentManifest: DeploymentPairingManifest;
-  deploymentPointer: ActiveDeploymentPointer;
-  sourceStatusFallback: SourceStatusSnapshot;
   analysisReleaseCatalog: AnalysisReleaseCatalog;
   rootPath: string;
   analysisArtifactPath: string;
@@ -75,6 +72,19 @@ export type HydratedRelease = {
     artifactPath: string;
     artifactManifestPath: string;
   } | null;
+};
+
+export type HydratedRelease = HydratedDeploymentPairing & {
+  deployment: PublishedDeployment;
+  deploymentPointer: ActiveDeploymentPointer;
+  sourceStatusFallback: SourceStatusSnapshot;
+  // Every retained pairing in the active window, current-first: index 0 is
+  // this same current pairing (identical to the top-level fields above),
+  // followed by up to `DEPLOYMENT_RETENTION_HISTORY_LIMIT` predecessors,
+  // each fully hydrated and verified into its own resident directory. No
+  // request-time object-store hydration is needed for any of them once
+  // startup completes (see issue #44).
+  retained: readonly HydratedDeploymentPairing[];
 };
 
 export class ReleaseHydrationError extends Error {
@@ -99,80 +109,206 @@ export class ReleaseHydrator {
     await makeRuntimeDirectory(volumePath, { recursive: true });
     try {
       const pointer = await this.readPointer();
-      const deploymentBytes = await this.readVerifiedObject(pointer.current);
-      const deployment = parseDeploymentPairingManifest(
-        JSON.parse(deploymentBytes.toString("utf8")),
+      const current = await this.hydratePairing(
+        volumePath,
+        pointer.current,
       );
       if (
         !sameSourceStatusSnapshot(
           pointer.sourceStatusFallback,
-          deployment.sourceStatusFallback,
+          current.deploymentManifest.sourceStatusFallback,
         )
       ) {
         throw new Error(
           "Active deployment Source Freshness Status fallback is incompatible.",
         );
       }
-      const finalPath = join(
-        /* turbopackIgnore: true */ volumePath,
-        deployment.deploymentPairingId,
+      // Every retained predecessor hydrates into its own sibling
+      // directory after `current` so it can reuse `current`'s
+      // already-resident, content-addressed files via hardlink (see
+      // `materializeVerified`/`findReusableFile`) rather than
+      // re-downloading unchanged objects. Each predecessor keeps its own
+      // manifest, release catalog, product catalog, and Recommended
+      // Dataset Mapping -- it is never hydrated from `current`'s (see
+      // issue #44 "bind each retained build to its own ... catalogs/
+      // provenance").
+      const history = await Promise.all(
+        pointer.history.map((reference) =>
+          this.hydratePairing(volumePath, reference),
+        ),
       );
-      if (await exists(finalPath)) {
-        await verifyResidentReleaseBase(
-          finalPath,
-          deployment,
-          deploymentBytes,
-        );
-        const releaseCatalog = parseAnalysisReleaseCatalog(
-          JSON.parse(
-            await readRuntimeFile(
-              join(
-                /* turbopackIgnore: true */ finalPath,
-                "analysis-release-catalog.json",
-              ),
-              "utf8",
-            ),
-          ),
-        );
-        assertDeploymentReleaseCatalog(deployment, releaseCatalog);
-        await this.ensureResidentPreviousAnalysis(
-          finalPath,
-          releaseCatalog,
-        );
-        return hydratedRelease(
-          finalPath,
-          pointer,
-          deployment,
-          releaseCatalog,
-        );
+      return {
+        ...current,
+        deployment: publishedDeployment(pointer, current.deploymentManifest),
+        deploymentPointer: pointer,
+        sourceStatusFallback: current.deploymentManifest.sourceStatusFallback,
+        retained: [current, ...history],
+      };
+    } catch (error) {
+      if (!(error instanceof ActiveDeploymentUnavailableError)) {
+        throw error;
       }
+      return this.hydrateResidentActivation(volumePath, error);
+    }
+  }
 
-      const releaseCatalogBytes = await this.readVerifiedObject(
-        deployment.analysis.releaseCatalog,
+  /**
+   * Hydrates one deployment pairing (current or a retained predecessor)
+   * into its own resident directory, reusing an already-verified resident
+   * directory when present and otherwise downloading into a
+   * process-specific `.partial` directory before an atomic rename. This
+   * is the sole per-pairing hydration path: `hydrateCurrent()` calls it
+   * once for `pointer.current` and once per `pointer.history` entry.
+   */
+  private async hydratePairing(
+    volumePath: string,
+    deploymentReference: ReleaseObjectReference,
+  ): Promise<HydratedDeploymentPairing> {
+    const deploymentBytes = await this.readVerifiedObject(
+      deploymentReference,
+    );
+    const deployment = parseDeploymentPairingManifest(
+      JSON.parse(deploymentBytes.toString("utf8")),
+    );
+    const finalPath = join(
+      /* turbopackIgnore: true */ volumePath,
+      deployment.deploymentPairingId,
+    );
+    if (await exists(finalPath)) {
+      await verifyResidentReleaseBase(
+        finalPath,
+        deployment,
+        deploymentBytes,
       );
       const releaseCatalog = parseAnalysisReleaseCatalog(
-        JSON.parse(releaseCatalogBytes.toString("utf8")),
+        JSON.parse(
+          await readRuntimeFile(
+            join(
+              /* turbopackIgnore: true */ finalPath,
+              "analysis-release-catalog.json",
+            ),
+            "utf8",
+          ),
+        ),
       );
       assertDeploymentReleaseCatalog(deployment, releaseCatalog);
-      const mappingObjects =
-        await this.readRecommendedDatasetMapping(deployment);
-      const partialPath = join(
-        /* turbopackIgnore: true */ volumePath,
-        `.${deployment.deploymentPairingId}-${process.pid}.partial`,
-      );
-      await removeRuntimePath(partialPath, {
-        force: true,
-        recursive: true,
-      });
-      await makeRuntimeDirectory(partialPath);
-      try {
-        const downloads: Promise<void>[] = [
+      await this.ensureResidentPreviousAnalysis(finalPath, releaseCatalog);
+      return hydratedPairing(finalPath, deployment, releaseCatalog);
+    }
+
+    const releaseCatalogBytes = await this.readVerifiedObject(
+      deployment.analysis.releaseCatalog,
+    );
+    const releaseCatalog = parseAnalysisReleaseCatalog(
+      JSON.parse(releaseCatalogBytes.toString("utf8")),
+    );
+    assertDeploymentReleaseCatalog(deployment, releaseCatalog);
+    const mappingObjects =
+      await this.readRecommendedDatasetMapping(deployment);
+    const partialPath = join(
+      /* turbopackIgnore: true */ volumePath,
+      `.${deployment.deploymentPairingId}-${process.pid}.partial`,
+    );
+    await removeRuntimePath(partialPath, {
+      force: true,
+      recursive: true,
+    });
+    await makeRuntimeDirectory(partialPath);
+    try {
+      const downloads: Promise<void>[] = [
+        this.materializeVerified(
+          volumePath,
+          deployment.analysis.artifact.artifact,
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "candidate-market.duckdb",
+          ),
+          [
+            "candidate-market.duckdb",
+            "previous-candidate-market.duckdb",
+          ],
+        ),
+        this.materializeVerified(
+          volumePath,
+          deployment.analysis.artifact.manifest,
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "artifact-manifest.json",
+          ),
+          [
+            "artifact-manifest.json",
+            "previous-artifact-manifest.json",
+          ],
+        ),
+        this.materializeVerified(
+          volumePath,
+          deployment.analysis.releaseCatalog,
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "analysis-release-catalog.json",
+          ),
+          ["analysis-release-catalog.json"],
+          releaseCatalogBytes,
+        ),
+        this.materializeVerified(
+          volumePath,
+          deployment.productSearch.catalog,
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "product-catalog.json",
+          ),
+          ["product-catalog.json"],
+        ),
+        this.materializeVerified(
+          volumePath,
+          deployment.productSearch.manifest,
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "catalog-manifest.json",
+          ),
+          ["catalog-manifest.json"],
+        ),
+        writeVerifiedFile(
+          join(
+            /* turbopackIgnore: true */ partialPath,
+            "deployment-manifest.json",
+          ),
+          singleChunk(deploymentBytes),
+          deploymentReference,
+        ),
+      ];
+      if (mappingObjects !== null) {
+        downloads.push(
           this.materializeVerified(
             volumePath,
-            deployment.analysis.artifact.artifact,
+            deployment.recommendedDatasetMapping!.manifest,
             join(
               /* turbopackIgnore: true */ partialPath,
-              "candidate-market.duckdb",
+              "recommended-dataset-mapping.json",
+            ),
+            ["recommended-dataset-mapping.json"],
+            mappingObjects.mappingBytes,
+          ),
+          this.materializeVerified(
+            volumePath,
+            mappingObjects.packageReference,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "dataset-package-manifest.json",
+            ),
+            ["dataset-package-manifest.json"],
+            mappingObjects.packageBytes,
+          ),
+        );
+      }
+      if (releaseCatalog.previous !== null) {
+        downloads.push(
+          this.materializeVerified(
+            volumePath,
+            releaseCatalog.previous.artifact,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "previous-candidate-market.duckdb",
             ),
             [
               "candidate-market.duckdb",
@@ -181,144 +317,46 @@ export class ReleaseHydrator {
           ),
           this.materializeVerified(
             volumePath,
-            deployment.analysis.artifact.manifest,
+            releaseCatalog.previous.manifest,
             join(
               /* turbopackIgnore: true */ partialPath,
-              "artifact-manifest.json",
+              "previous-artifact-manifest.json",
             ),
             [
               "artifact-manifest.json",
               "previous-artifact-manifest.json",
             ],
           ),
-          this.materializeVerified(
-            volumePath,
-            deployment.analysis.releaseCatalog,
-            join(
-              /* turbopackIgnore: true */ partialPath,
-              "analysis-release-catalog.json",
-            ),
-            ["analysis-release-catalog.json"],
-            releaseCatalogBytes,
-          ),
-          this.materializeVerified(
-            volumePath,
-            deployment.productSearch.catalog,
-            join(
-              /* turbopackIgnore: true */ partialPath,
-              "product-catalog.json",
-            ),
-            ["product-catalog.json"],
-          ),
-          this.materializeVerified(
-            volumePath,
-            deployment.productSearch.manifest,
-            join(
-              /* turbopackIgnore: true */ partialPath,
-              "catalog-manifest.json",
-            ),
-            ["catalog-manifest.json"],
-          ),
-          writeVerifiedFile(
-            join(
-              /* turbopackIgnore: true */ partialPath,
-              "deployment-manifest.json",
-            ),
-            singleChunk(deploymentBytes),
-            pointer.current,
-          ),
-        ];
-        if (mappingObjects !== null) {
-          downloads.push(
-            this.materializeVerified(
-              volumePath,
-              deployment.recommendedDatasetMapping!.manifest,
-              join(
-                /* turbopackIgnore: true */ partialPath,
-                "recommended-dataset-mapping.json",
-              ),
-              ["recommended-dataset-mapping.json"],
-              mappingObjects.mappingBytes,
-            ),
-            this.materializeVerified(
-              volumePath,
-              mappingObjects.packageReference,
-              join(
-                /* turbopackIgnore: true */ partialPath,
-                "dataset-package-manifest.json",
-              ),
-              ["dataset-package-manifest.json"],
-              mappingObjects.packageBytes,
-            ),
-          );
-        }
-        if (releaseCatalog.previous !== null) {
-          downloads.push(
-            this.materializeVerified(
-              volumePath,
-              releaseCatalog.previous.artifact,
-              join(
-                /* turbopackIgnore: true */ partialPath,
-                "previous-candidate-market.duckdb",
-              ),
-              [
-                "candidate-market.duckdb",
-                "previous-candidate-market.duckdb",
-              ],
-            ),
-            this.materializeVerified(
-              volumePath,
-              releaseCatalog.previous.manifest,
-              join(
-                /* turbopackIgnore: true */ partialPath,
-                "previous-artifact-manifest.json",
-              ),
-              [
-                "artifact-manifest.json",
-                "previous-artifact-manifest.json",
-              ],
-            ),
-          );
-        }
-        await Promise.all(downloads);
-        await syncDirectory(partialPath);
-        try {
-          await renameRuntimePath(partialPath, finalPath);
-        } catch (error) {
-          if (!(await exists(finalPath))) {
-            throw error;
-          }
-          await removeRuntimePath(partialPath, {
-            force: true,
-            recursive: true,
-          });
-          await verifyResidentReleaseBase(
-            finalPath,
-            deployment,
-            deploymentBytes,
-          );
-          await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
-        }
-        await syncDirectory(volumePath);
+        );
+      }
+      await Promise.all(downloads);
+      await syncDirectory(partialPath);
+      try {
+        await renameRuntimePath(partialPath, finalPath);
       } catch (error) {
+        if (!(await exists(finalPath))) {
+          throw error;
+        }
         await removeRuntimePath(partialPath, {
           force: true,
           recursive: true,
         });
-        throw error;
+        await verifyResidentReleaseBase(
+          finalPath,
+          deployment,
+          deploymentBytes,
+        );
+        await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
       }
-      return hydratedRelease(
-        finalPath,
-        pointer,
-        deployment,
-        releaseCatalog,
-      );
+      await syncDirectory(volumePath);
     } catch (error) {
-      if (!(error instanceof ActiveDeploymentUnavailableError)) {
-        throw error;
-      }
-      return this.hydrateResidentActivation(volumePath, error);
+      await removeRuntimePath(partialPath, {
+        force: true,
+        recursive: true,
+      });
+      throw error;
     }
+    return hydratedPairing(finalPath, deployment, releaseCatalog);
   }
 
   async commitResidentActivation(
@@ -357,7 +395,10 @@ export class ReleaseHydrator {
     } finally {
       await removeRuntimePath(partialPath, { force: true });
     }
-    await pruneInactivePairings(volumePath, hydrated.rootPath);
+    await pruneInactivePairings(
+      volumePath,
+      hydrated.retained.map((pairing) => pairing.rootPath),
+    );
   }
 
   private async readPointer(): Promise<ActiveDeploymentPointer> {
@@ -402,9 +443,44 @@ export class ReleaseHydrator {
     const pointer = parseResidentActivation(
       JSON.parse(activationBytes.toString("utf8")),
     );
-    const pairingId = deploymentPairingIdFromKey(
-      pointer.current.key,
+    const current = await this.verifyResidentPairing(
+      volumePath,
+      pointer.current,
     );
+    if (
+      !sameSourceStatusSnapshot(
+        pointer.sourceStatusFallback,
+        current.deploymentManifest.sourceStatusFallback,
+      )
+    ) {
+      throw new Error(
+        "Resident deployment activation is incompatible.",
+      );
+    }
+    // Every retained predecessor was smoke-tested and committed together
+    // with `current` (see `commitResidentActivation`), so an outage
+    // restart re-verifies and makes all of them available again without
+    // any request-time object-store access (see issue #44 "support
+    // outage restart only after all are smoke-tested").
+    const history = await Promise.all(
+      pointer.history.map((reference) =>
+        this.verifyResidentPairing(volumePath, reference),
+      ),
+    );
+    return {
+      ...current,
+      deployment: publishedDeployment(pointer, current.deploymentManifest),
+      deploymentPointer: pointer,
+      sourceStatusFallback: current.deploymentManifest.sourceStatusFallback,
+      retained: [current, ...history],
+    };
+  }
+
+  private async verifyResidentPairing(
+    volumePath: string,
+    reference: ReleaseObjectReference,
+  ): Promise<HydratedDeploymentPairing> {
+    const pairingId = deploymentPairingIdFromKey(reference.key);
     const finalPath = join(
       /* turbopackIgnore: true */ volumePath,
       pairingId,
@@ -417,18 +493,12 @@ export class ReleaseHydrator {
     );
     verifyIdentity(
       releaseObjectIdentity(deploymentBytes),
-      pointer.current,
+      reference,
     );
     const deployment = parseDeploymentPairingManifest(
       JSON.parse(deploymentBytes.toString("utf8")),
     );
-    if (
-      deployment.deploymentPairingId !== pairingId ||
-      !sameSourceStatusSnapshot(
-        pointer.sourceStatusFallback,
-        deployment.sourceStatusFallback,
-      )
-    ) {
+    if (deployment.deploymentPairingId !== pairingId) {
       throw new Error(
         "Resident deployment activation is incompatible.",
       );
@@ -451,12 +521,7 @@ export class ReleaseHydrator {
       deploymentBytes,
     );
     await verifyResidentPreviousAnalysis(finalPath, releaseCatalog);
-    return hydratedRelease(
-      finalPath,
-      pointer,
-      deployment,
-      releaseCatalog,
-    );
+    return hydratedPairing(finalPath, deployment, releaseCatalog);
   }
 
   private async readVerifiedObject(
@@ -658,16 +723,18 @@ async function findReusableFile(
 
 async function pruneInactivePairings(
   volumePath: string,
-  activePath: string,
+  retainedPaths: readonly string[],
 ): Promise<void> {
-  const activeName = activePath.slice(volumePath.length + 1);
+  const retainedNames = new Set(
+    retainedPaths.map((path) => path.slice(volumePath.length + 1)),
+  );
   const entries = await readRuntimeDirectory(volumePath);
   await Promise.all(
     entries
       .filter(
         (entry) =>
           entry.isDirectory() &&
-          entry.name !== activeName &&
+          !retainedNames.has(entry.name) &&
           isDeploymentPairingDirectory(entry.name),
       )
       .map((entry) =>
@@ -876,17 +943,13 @@ function verifyIdentity(
   }
 }
 
-function hydratedRelease(
+function hydratedPairing(
   rootPath: string,
-  pointer: ActiveDeploymentPointer,
   deployment: DeploymentPairingManifest,
   analysisReleaseCatalog: AnalysisReleaseCatalog,
-): HydratedRelease {
+): HydratedDeploymentPairing {
   return {
-    deployment: publishedDeployment(pointer, deployment),
     deploymentManifest: deployment,
-    deploymentPointer: pointer,
-    sourceStatusFallback: deployment.sourceStatusFallback,
     analysisReleaseCatalog,
     rootPath,
     analysisArtifactPath: join(
@@ -959,17 +1022,41 @@ function parseResidentActivation(
       "Resident deployment activation schema is incompatible.",
     );
   }
-  const pointer = parseActiveDeploymentPointer(activation.pointer);
+  const storedPointer = record(
+    activation.pointer,
+    "resident active deployment pointer",
+  );
+  const pointer = parseActiveDeploymentPointer(storedPointer);
   const base = {
     schemaVersion: "resident-deployment-activation-v1",
     pointer,
   } as const;
+  const activationId = string(
+    activation.activationId,
+    "resident deployment activation ID",
+  );
+  const currentActivationId = contentAddressedId(
+    "resident-deployment-activation-v1",
+    base,
+  );
+  const isLegacyPointer =
+    storedPointer.history === undefined &&
+    Object.prototype.hasOwnProperty.call(storedPointer, "previous");
+  const legacyActivationId = isLegacyPointer
+    ? contentAddressedId("resident-deployment-activation-v1", {
+        schemaVersion: "resident-deployment-activation-v1",
+        pointer: {
+          schemaVersion: pointer.schemaVersion,
+          current: pointer.current,
+          previous: pointer.history[0] ?? null,
+          sourceStatusFallback: pointer.sourceStatusFallback,
+          activatedAt: pointer.activatedAt,
+        },
+      })
+    : null;
   if (
-    string(
-      activation.activationId,
-      "resident deployment activation ID",
-    ) !==
-    contentAddressedId("resident-deployment-activation-v1", base)
+    activationId !== currentActivationId &&
+    activationId !== legacyActivationId
   ) {
     throw new Error(
       "Resident deployment activation identity is inconsistent.",

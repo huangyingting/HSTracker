@@ -2,6 +2,7 @@ import type { ProductCatalog } from "../catalog/product-catalog";
 import { ImmutableProductCatalog } from "../catalog/immutable-product-catalog";
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
+import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import {
   createCandidateMarketDatasetPackage,
   evaluateCandidateMarketV1DatasetPackage,
@@ -18,6 +19,7 @@ import {
   createTradeAnalyticsPlatform,
   type CandidateMarketV1PreviousReleaseEvidence,
   type TradeAnalyticsPlatform,
+  type TradeAnalyticsPlatformInput,
 } from "../domain/trade-analytics/trade-analytics-platform";
 import { resolveReleaseRevisionComparisonIdentity } from "../domain/release/release-revision";
 import {
@@ -34,6 +36,7 @@ import {
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
+import type { TradeEvidenceSource } from "../evidence/trade-evidence-source";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
 import { evaluateSupplierCompetitionV1DatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
 import type { SupplierCompetitionDatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
@@ -42,15 +45,22 @@ import type { TradeTrendDatasetPackage } from "../domain/trade-analytics/trade-t
 import { currentUtcSecond } from "../operations/utc-clock";
 import {
   type AnalysisArtifactReference,
+  type PublishedDeployment,
+  type ReleaseObjectReference,
 } from "../release/release-manifest";
 import {
   ReleaseHydrator,
-  type HydratedRelease,
+  type HydratedDeploymentPairing,
 } from "../release/release-hydration";
 import {
   releaseObjectIdentity,
   type ReleaseObjectReader,
 } from "../release/release-object-store";
+import {
+  evaluateDeploymentRetentionHeadroom,
+  statfsFilesystemCapacityProbe,
+  type FilesystemCapacityProbe,
+} from "../deployment/deployment-retention-footprint";
 import { readRuntimeFile } from "../runtime-file-access";
 import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
 import type {
@@ -64,27 +74,90 @@ type VerifiedReleaseRuntimeInput = {
   objectStore: ReleaseObjectReader;
   volumePath: string;
   now?: () => string;
+  // Injectable seam for the pre-activation headroom gate (see
+  // deployment-retention-footprint.ts); defaults to a real `statfs` probe
+  // of `volumePath`. Tests substitute a deterministic capacity.
+  filesystemCapacityProbe?: FilesystemCapacityProbe;
+};
+
+// Everything one retained deployment pairing (current or a retained
+// predecessor) needs to serve requests on its own: its own evidence
+// source, dataset packages, Recommended Dataset Mapping, product catalog,
+// and economy directory, opened from its own resident directory (see
+// issue #44 "bind each retained build to its own evidence source, Dataset
+// Packages/Recommended Mapping, catalogs/provenance"). `runtime/
+// verified-release-runtime.ts` never shares these across pairings.
+type RetainedRuntimeBundle = {
+  pairing: HydratedDeploymentPairing;
+  manifest: AnalysisArtifactManifest;
+  previousManifest: AnalysisArtifactManifest | null;
+  datasetPackage: CandidateMarketDatasetPackage;
+  tradeTrendDatasetPackage: TradeTrendDatasetPackage;
+  supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage;
+  recommendedDatasetMapping: RecommendedDatasetMapping;
+  analysisDatabase: DuckDbAnalysisDatabase;
+  evidenceSource: DuckDbTradeEvidenceSource;
+  previousRelease: CandidateMarketV1PreviousReleaseEvidence | null;
+  productCatalog: ImmutableProductCatalog;
+  economyDirectory: DuckDbEconomyDirectory;
+  deployment: CurrentAnalysisDeployment;
+  runAnalyticalSmoke: boolean;
+  runTradeTrendSmoke: boolean;
+  runSupplierCompetitionSmoke: boolean;
 };
 
 export class VerifiedReleaseRuntime {
+  private readonly productCatalogsByBuildId: ReadonlyMap<
+    string,
+    ProductCatalog
+  >;
+  private readonly economyDirectoriesByBuildId: ReadonlyMap<
+    string,
+    EconomyDirectory
+  >;
+  private readonly bundlesByAnalysisBuildId: ReadonlyMap<
+    string,
+    RetainedRuntimeBundle
+  >;
+
   private constructor(
-    private readonly hydrated: HydratedRelease,
-    private readonly manifest: AnalysisArtifactManifest,
-    private readonly previousManifest: AnalysisArtifactManifest | null,
+    // Every retained pairing in the active window, current-first: [0] is
+    // current, followed by up to `DEPLOYMENT_RETENTION_HISTORY_LIMIT`
+    // predecessors (see release-manifest.ts).
+    private readonly bundles: readonly RetainedRuntimeBundle[],
+    private readonly publishedDeployment: PublishedDeployment,
     private readonly deployment: CurrentAnalysisDeployment,
     private sourceStatus: SourceStatusSnapshot,
-    private readonly analysisDatabase: DuckDbAnalysisDatabase,
     readonly tradeAnalytics: TradeAnalyticsPlatform,
-    private readonly productCatalog: ProductCatalog,
-    private readonly economyDirectory: EconomyDirectory,
     private readonly now: () => string,
-    datasetPackage: CandidateMarketDatasetPackage,
     readonly recommendedDatasetMapping: RecommendedDatasetMapping,
   ) {
     this.retainedSourceStatuses.set(
       sourceStatus.sourceStatusSnapshotId,
       sourceStatus,
     );
+    this.productCatalogsByBuildId = new Map(
+      bundles.map((bundle) => [
+        bundle.pairing.deploymentManifest.productSearchBuildId,
+        bundle.productCatalog,
+      ]),
+    );
+    this.economyDirectoriesByBuildId = new Map(
+      bundles.map((bundle) => [
+        bundle.pairing.deploymentManifest.analysisBuildId,
+        bundle.economyDirectory,
+      ]),
+    );
+    this.bundlesByAnalysisBuildId = new Map(
+      bundles.map((bundle) => [
+        bundle.pairing.deploymentManifest.analysisBuildId,
+        bundle,
+      ]),
+    );
+  }
+
+  private get current(): RetainedRuntimeBundle {
+    return this.bundles[0]!;
   }
 
   private sourceStatusDiagnostics:
@@ -102,169 +175,113 @@ export class VerifiedReleaseRuntime {
     const hydrated = await hydrator.hydrateCurrent({
       volumePath: input.volumePath,
     });
-    const [manifest, previousManifest, catalogManifest] = await Promise.all([
-      readAnalysisArtifactManifest(
-        hydrated.analysisArtifactManifestPath,
-      ),
-      hydrated.previousAnalysis === null
-        ? Promise.resolve(null)
-        : readAnalysisArtifactManifest(
-            hydrated.previousAnalysis.artifactManifestPath,
-          ),
-      readJson(hydrated.productCatalogManifestPath),
-    ]);
-    validateHydratedPairing(
-      hydrated,
-      manifest,
-      previousManifest,
-      catalogManifest,
+    // Headroom is evaluated before opening any per-pairing DuckDB
+    // instance and, critically, before `commitResidentActivation` below:
+    // a window that cannot fit fails closed here and the prior active
+    // deployment's resident activation record is left untouched (see
+    // issue #44 "fail before pointer activation/committed resident
+    // state; preserve prior active deployment on failure").
+    const capacityProbe =
+      input.filesystemCapacityProbe ?? statfsFilesystemCapacityProbe;
+    const footprintPairings = await Promise.all(
+      // Each retained pairing's own already-parsed release catalog (from
+      // hydration) and resident Recommended Dataset Mapping let the footprint
+      // count both Release Revision evidence and the separately materialized
+      // Dataset Package manifest.
+      hydrated.retained.map(async (pairing) => ({
+        pairing: pairing.deploymentManifest,
+        releaseCatalog: pairing.analysisReleaseCatalog,
+        datasetPackageManifest:
+          await residentDatasetPackageManifestReference(pairing),
+      })),
     );
-    const datasetPackage =
-      createCandidateMarketDatasetPackageFromArtifacts({
-        manifest,
-        analysisReleaseCatalogSha256:
-          hydrated.deployment.analysisReleaseCatalogSha256,
-        previousManifest,
-      });
-    const tradeTrendDatasetPackage =
-      createTradeTrendDatasetPackageFromArtifacts(manifest);
-    const supplierCompetitionDatasetPackage =
-      createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
-    const recommendedDatasetMapping =
-      await loadRecommendedDatasetMapping(
-        hydrated,
-        datasetPackage,
-        tradeTrendDatasetPackage,
-        supplierCompetitionDatasetPackage,
+    const headroom = evaluateDeploymentRetentionHeadroom(
+      footprintPairings,
+      capacityProbe(input.volumePath),
+    );
+    if (!headroom.fits) {
+      throw new Error(
+        "The Deployment Retention Window does not fit the serving volume's actual capacity.",
       );
-    const runAnalyticalSmoke =
-      evaluateCandidateMarketV1DatasetPackage(datasetPackage)
-        .compatible;
-    // Trade Trend only runs its startup smoke when the Recommended Dataset
-    // Mapping just validated above actually declares and gates
-    // trade-trend-v1 against this exact artifact; a package that merely
-    // self-evaluates as compatible is not enough (see
-    // recommended-dataset-mapping.ts).
-    const runTradeTrendSmoke =
-      recommendedDatasetMapping.manifest.tradeTrend !== null &&
-      evaluateTradeTrendV1DatasetPackage(tradeTrendDatasetPackage)
-        .compatible;
-    // Supplier Competition follows the identical gating rule as Trade
-    // Trend above.
-    const runSupplierCompetitionSmoke =
-      recommendedDatasetMapping.manifest.supplierCompetition !== null &&
-      evaluateSupplierCompetitionV1DatasetPackage(
-        supplierCompetitionDatasetPackage,
-      ).compatible;
-    let analysisDatabase: DuckDbAnalysisDatabase | undefined;
+    }
+
+    async function residentDatasetPackageManifestReference(
+      pairing: HydratedDeploymentPairing,
+    ): Promise<ReleaseObjectReference | undefined> {
+      if (pairing.recommendedDatasetMappingPath === null) {
+        return undefined;
+      }
+      const mapping = createRecommendedDatasetMapping(
+        JSON.parse(
+          await readRuntimeFile(pairing.recommendedDatasetMappingPath, "utf8"),
+        ),
+      );
+      return mapping.manifest.datasetPackage.manifest;
+    }
+
+    const bundles: RetainedRuntimeBundle[] = [];
     try {
-      analysisDatabase = await DuckDbAnalysisDatabase.open({
-        currentArtifactPath: hydrated.analysisArtifactPath,
-        previousArtifactPath:
-          hydrated.previousAnalysis?.artifactPath ?? null,
-        servingVolumePath: input.volumePath,
-      });
-      const analysisSource = await DuckDbTradeEvidenceSource.openShared({
-        database: analysisDatabase,
-        databaseName: "current",
-        artifactPath: hydrated.analysisArtifactPath,
-        artifactManifestPath: hydrated.analysisArtifactManifestPath,
-        analysisBuildId: hydrated.deployment.analysisBuildId,
-        analysisReleaseCatalogSha256:
-          hydrated.deployment.analysisReleaseCatalogSha256,
-      });
-      const previousRelease = await openPreviousRelease(
-        hydrated,
-        previousManifest,
-        analysisDatabase,
+      for (const [index, pairing] of hydrated.retained.entries()) {
+        // `current` (index 0) keeps its DuckDB spill directory at the
+        // volume root for continuity with existing operational tooling;
+        // each retained predecessor spills into its own resident
+        // directory instead, so the three never contend for the same
+        // spill budget (see deployment-retention-footprint.ts, which
+        // reserves one spill allowance per retained pairing).
+        bundles.push(
+          await openRetainedBundle(
+            pairing,
+            index === 0 ? input.volumePath : pairing.rootPath,
+          ),
+        );
+      }
+      // Every manifest served for this active window advertises the full
+      // retained window's own recipe/package identities, so the browser's
+      // `resolvePinnedContext` can classify a pinned URL as current,
+      // retained, or retired without any network lookup (see issue #44
+      // "Current-analysis browser manifest should expose sufficient
+      // retained pin/provenance/package metadata").
+      const deploymentWindow = bundles.map((bundle) => ({
+        analysisBuildId: bundle.pairing.deploymentManifest.analysisBuildId,
+        recommendation: bundle.deployment.recommendation,
+        baciRelease: bundle.deployment.source.baciRelease,
+        artifactSha256: bundle.deployment.source.artifact.sha256,
+      }));
+      for (const [index, bundle] of bundles.entries()) {
+        bundles[index] = {
+          ...bundle,
+          deployment: { ...bundle.deployment, deploymentWindow },
+        };
+      }
+
+      const tradeAnalytics = createTradeAnalyticsPlatform(
+        buildPlatformInput(bundles),
       );
-      const [productCatalog, economyDirectory] = await Promise.all([
-        ImmutableProductCatalog.open({
-          catalogPath: hydrated.productCatalogPath,
-          catalogManifestPath: hydrated.productCatalogManifestPath,
-        }),
-        DuckDbEconomyDirectory.loadShared({
-          database: analysisDatabase,
-          analysisBuildId: hydrated.deployment.analysisBuildId,
-        }),
-      ]);
-      const tradeAnalytics = createTradeAnalyticsPlatform({
-        candidateMarket: {
-          evidenceSource: analysisSource,
-          previousRelease,
-          datasetPackages: new Map([
-            [hydrated.deployment.analysisBuildId, datasetPackage],
-          ]),
-        },
-        ...(recommendedDatasetMapping.manifest.tradeTrend === null
-          ? {}
-          : {
-              tradeTrend: {
-                evidenceSource: analysisSource,
-                datasetPackages: new Map([
-                  [
-                    hydrated.deployment.analysisBuildId,
-                    tradeTrendDatasetPackage,
-                  ],
-                ]),
-              },
-            }),
-        // The runtime platform must omit supplierCompetition entirely
-        // (never merely skip its smoke/metadata) when the Recommended
-        // Dataset Mapping declares no supplier-competition-v1 support, so
-        // requests for it return "retired" rather than an unverified
-        // result. See recommended-dataset-mapping.ts.
-        ...(recommendedDatasetMapping.manifest.supplierCompetition === null
-          ? {}
-          : {
-              supplierCompetition: {
-                evidenceSource: analysisSource,
-                datasetPackages: new Map([
-                  [
-                    hydrated.deployment.analysisBuildId,
-                    supplierCompetitionDatasetPackage,
-                  ],
-                ]),
-              },
-            }),
-      });
-      await verifyStartupSmoke(
-        hydrated,
-        manifest,
-        tradeAnalytics,
-        productCatalog,
-        economyDirectory,
-        runAnalyticalSmoke,
-        runTradeTrendSmoke,
-        runSupplierCompetitionSmoke,
-      );
-      const deployment = currentAnalysisDeployment(
-        hydrated,
-        manifest,
-        previousManifest,
-        recommendedDatasetMapping,
-        tradeTrendDatasetPackage,
-        supplierCompetitionDatasetPackage,
-      );
+      // Every retained deployment is smoke-tested at startup, not only
+      // current, so an outage restart can trust all three without any
+      // request-time verification (see issue #44 "Startup smoke all
+      // supported recipes/package mappings per retained deployment").
+      for (const bundle of bundles) {
+        await verifyStartupSmoke(bundle, tradeAnalytics);
+      }
+
+      const current = bundles[0]!;
       const sourceStatus = hydrated.sourceStatusFallback;
-      assertStatusMicroCacheBudget(deployment, [sourceStatus]);
+      assertStatusMicroCacheBudget(current.deployment, [sourceStatus]);
       await hydrator.commitResidentActivation(hydrated);
       return new VerifiedReleaseRuntime(
-        hydrated,
-        manifest,
-        previousManifest,
-        deployment,
+        bundles,
+        hydrated.deployment,
+        current.deployment,
         sourceStatus,
-        analysisDatabase,
         tradeAnalytics,
-        productCatalog,
-        economyDirectory,
         input.now ?? currentUtcSecond,
-        datasetPackage,
-        recommendedDatasetMapping,
+        current.recommendedDatasetMapping,
       );
     } catch (error) {
-      analysisDatabase?.close();
+      for (const bundle of bundles) {
+        bundle.analysisDatabase.close();
+      }
       throw error;
     }
   }
@@ -278,29 +295,29 @@ export class VerifiedReleaseRuntime {
       buildId,
       deployment: {
         deploymentPairingId:
-          this.hydrated.deployment.deploymentPairingId,
-        baciRelease: this.hydrated.deployment.baciRelease,
-        analysisBuildId: this.hydrated.deployment.analysisBuildId,
+          this.publishedDeployment.deploymentPairingId,
+        baciRelease: this.publishedDeployment.baciRelease,
+        analysisBuildId: this.publishedDeployment.analysisBuildId,
         analysisReleaseCatalogSha256:
-          this.hydrated.deployment.analysisReleaseCatalogSha256,
+          this.publishedDeployment.analysisReleaseCatalogSha256,
         productSearchBuildId:
-          this.hydrated.deployment.productSearchBuildId,
-        activatedAt: this.hydrated.deployment.activatedAt,
+          this.publishedDeployment.productSearchBuildId,
+        activatedAt: this.publishedDeployment.activatedAt,
       },
       analysisArtifact: {
-        buildId: this.manifest.artifact.buildId,
-        schemaVersion: this.manifest.artifact.schemaVersion,
-        sha256: this.manifest.artifact.sha256,
+        buildId: this.current.manifest.artifact.buildId,
+        schemaVersion: this.current.manifest.artifact.schemaVersion,
+        sha256: this.current.manifest.artifact.sha256,
       },
       previousAnalysisArtifact:
-        this.previousManifest === null
+        this.current.previousManifest === null
           ? null
           : {
-              baciRelease: this.previousManifest.baciRelease,
-              buildId: this.previousManifest.artifact.buildId,
+              baciRelease: this.current.previousManifest.baciRelease,
+              buildId: this.current.previousManifest.artifact.buildId,
               schemaVersion:
-                this.previousManifest.artifact.schemaVersion,
-              sha256: this.previousManifest.artifact.sha256,
+                this.current.previousManifest.artifact.schemaVersion,
+              sha256: this.current.previousManifest.artifact.sha256,
             },
       freshness: {
         sourceStatusSnapshotId: freshness.sourceStatusSnapshotId,
@@ -330,9 +347,53 @@ export class VerifiedReleaseRuntime {
     };
   }
 
+  /**
+   * Resolves the manifest for any analysisBuildId within the retention
+   * window -- current or a retained predecessor -- without any
+   * object-store access, or `null` when the build is unknown (older than
+   * the window, or never promoted), which callers must treat as retired
+   * (see issue #44 "Requests older than the online window return the
+   * typed retired outcome"). Current always reflects the live,
+   * poll-updated Source Freshness Status via `currentAnalysis()`; a
+   * retained predecessor instead reports its own frozen bootstrap status,
+   * since retained pairings are immutable historical snapshots that the
+   * source-status poller never revises.
+   */
+  resolveAnalysisManifest(
+    analysisBuildId: string,
+  ): CurrentAnalysisManifest | null {
+    if (analysisBuildId === this.deployment.analysisBuildId) {
+      return this.currentAnalysis();
+    }
+    const bundle = this.bundlesByAnalysisBuildId.get(analysisBuildId);
+    if (bundle === undefined) {
+      return null;
+    }
+    return resolveCurrentAnalysisManifest(
+      bundle.deployment,
+      bundle.pairing.deploymentManifest.sourceStatusFallback,
+      this.now(),
+    );
+  }
+
   resolveFreshnessStatus(freshnessStatusId: string) {
     const now = this.now();
     for (const snapshot of this.retainedSourceStatuses.values()) {
+      for (const asOf of freshnessTransitionTimes(snapshot, now)) {
+        const freshness = evaluateSourceFreshness(snapshot, asOf);
+        if (freshness.freshnessStatusId === freshnessStatusId) {
+          return freshness;
+        }
+      }
+    }
+    // A retained predecessor's own frozen bootstrap status never enters
+    // `retainedSourceStatuses` (that map tracks only current's own BACI
+    // Release lineage as the source-status poller advances it): a CSV
+    // export pinned to a retained build's freshnessStatusId still
+    // resolves here so its retained export binds its own exact
+    // freshness rather than current's (see issue #44).
+    for (const bundle of this.bundles.slice(1)) {
+      const snapshot = bundle.pairing.deploymentManifest.sourceStatusFallback;
       for (const asOf of freshnessTransitionTimes(snapshot, now)) {
         const freshness = evaluateSourceFreshness(snapshot, asOf);
         if (freshness.freshnessStatusId === freshnessStatusId) {
@@ -408,27 +469,42 @@ export class VerifiedReleaseRuntime {
   }
 
   normalizeProductSearchQuery(query: string): string {
-    return this.productCatalog.normalizeQuery(query);
+    return this.current.productCatalog.normalizeQuery(query);
   }
 
+  // Dispatches by the query's own `productSearchBuildId` to the exact
+  // retained catalog it names -- current or a retained predecessor -- so
+  // a pinned CSV/JSON export request bound to a retained build resolves
+  // its exact product without mixing in current metadata. An
+  // unrecognized build falls back to current's catalog, which reproduces
+  // today's `retiredProductSearchBuild` rejection unchanged (see issue
+  // #44: live typeahead search only ever supplies current's own build ID,
+  // so this widening is invisible to it).
   searchProducts(
     query: Parameters<ProductCatalog["search"]>[0],
     options?: RuntimeRequestOptions,
   ) {
     options?.signal?.throwIfAborted();
-    return this.productCatalog.search(query);
+    const catalog =
+      this.productCatalogsByBuildId.get(query.productSearchBuildId) ??
+      this.current.productCatalog;
+    return catalog.search(query);
   }
 
+  // Mirrors `searchProducts` above, dispatching by `analysisBuildId`.
   searchEconomies(
     query: Parameters<EconomyDirectory["search"]>[0],
     options?: RuntimeRequestOptions,
   ) {
     options?.signal?.throwIfAborted();
-    return this.economyDirectory.search(query);
+    const directory =
+      this.economyDirectoriesByBuildId.get(query.analysisBuildId) ??
+      this.current.economyDirectory;
+    return directory.search(query);
   }
 
   resources(): ApplicationRuntimeResources {
-    const duckDb = this.analysisDatabase.resources();
+    const duckDb = this.current.analysisDatabase.resources();
     return {
       analysisExecution: {
         active: duckDb.activeConnections,
@@ -454,7 +530,9 @@ export class VerifiedReleaseRuntime {
   }
 
   close(): void {
-    this.analysisDatabase.close();
+    for (const bundle of this.bundles) {
+      bundle.analysisDatabase.close();
+    }
   }
 }
 
@@ -494,7 +572,7 @@ function freshnessTransitionTimes(
 }
 
 function validateHydratedPairing(
-  hydrated: HydratedRelease,
+  hydrated: HydratedDeploymentPairing,
   manifest: AnalysisArtifactManifest,
   previousManifest: AnalysisArtifactManifest | null,
   catalogManifestValue: unknown,
@@ -574,7 +652,7 @@ if (
 }
 
 async function openPreviousRelease(
-hydrated: HydratedRelease,
+hydrated: HydratedDeploymentPairing,
 manifest: AnalysisArtifactManifest | null,
 database: DuckDbAnalysisDatabase,
 ): Promise<CandidateMarketV1PreviousReleaseEvidence | null> {
@@ -587,9 +665,9 @@ const source = await DuckDbTradeEvidenceSource.openShared({
   artifactPath: hydrated.previousAnalysis.artifactPath,
   artifactManifestPath:
     hydrated.previousAnalysis.artifactManifestPath,
-  analysisBuildId: hydrated.deployment.analysisBuildId,
+  analysisBuildId: hydrated.deploymentManifest.analysisBuildId,
   analysisReleaseCatalogSha256:
-    hydrated.deployment.analysisReleaseCatalogSha256,
+    hydrated.deploymentManifest.analysisReleaseCatalogSha256,
 });
 return {
   source,
@@ -601,15 +679,21 @@ return {
 }
 
 async function verifyStartupSmoke(
-  hydrated: HydratedRelease,
-  manifest: AnalysisArtifactManifest,
+  bundle: RetainedRuntimeBundle,
   tradeAnalytics: TradeAnalyticsPlatform,
-  productCatalog: ProductCatalog,
-  economyDirectory: EconomyDirectory,
-  runAnalyticalSmoke: boolean,
-  runTradeTrendSmoke: boolean,
-  runSupplierCompetitionSmoke: boolean,
 ): Promise<void> {
+  const manifest = bundle.manifest;
+  const analysisBuildId = bundle.pairing.deploymentManifest.analysisBuildId;
+  const baciRelease = bundle.pairing.deploymentManifest.baciRelease;
+  const analysisReleaseCatalogSha256 =
+    bundle.pairing.deploymentManifest.analysisReleaseCatalogSha256;
+  const productSearchBuildId =
+    bundle.pairing.deploymentManifest.productSearchBuildId;
+  const runAnalyticalSmoke = bundle.runAnalyticalSmoke;
+  const runTradeTrendSmoke = bundle.runTradeTrendSmoke;
+  const runSupplierCompetitionSmoke = bundle.runSupplierCompetitionSmoke;
+  const productCatalog = bundle.productCatalog;
+  const economyDirectory = bundle.economyDirectory;
   const benchmarks = manifest.benchmarkQueries.filter(
     ({ role }) => role === "maximum-row",
   );
@@ -647,7 +731,7 @@ async function verifyStartupSmoke(
   const analysisResultPromise = runAnalyticalSmoke
     ? tradeAnalytics.execute({
         recipe: "candidate-market-v1",
-        analysisBuildId: hydrated.deployment.analysisBuildId,
+        analysisBuildId,
         exporterCode: benchmark.exporterCode,
         productCode: benchmark.productCode,
       })
@@ -655,7 +739,7 @@ async function verifyStartupSmoke(
   const tradeTrendResultPromise = shouldRunTradeTrendSmoke
     ? tradeAnalytics.execute({
         recipe: "trade-trend-v1",
-        analysisBuildId: hydrated.deployment.analysisBuildId,
+        analysisBuildId,
         importerCode: tradeTrendBenchmark!.importerCode,
         productCode: tradeTrendBenchmark!.productCode,
       })
@@ -663,7 +747,7 @@ async function verifyStartupSmoke(
   const supplierCompetitionResultPromise = shouldRunSupplierCompetitionSmoke
     ? tradeAnalytics.execute({
         recipe: "supplier-competition-v1",
-        analysisBuildId: hydrated.deployment.analysisBuildId,
+        analysisBuildId,
         importerCode: supplierCompetitionBenchmark!.importerCode,
         productCode: supplierCompetitionBenchmark!.productCode,
       })
@@ -679,14 +763,13 @@ async function verifyStartupSmoke(
     tradeTrendResultPromise,
     supplierCompetitionResultPromise,
     productCatalog.search({
-      productSearchBuildId:
-        hydrated.deployment.productSearchBuildId,
+      productSearchBuildId,
       query: benchmark.productCode,
       locale: "en",
       limit: 1,
     }),
     economyDirectory.search({
-      analysisBuildId: hydrated.deployment.analysisBuildId,
+      analysisBuildId,
       query: benchmark.exporterCode,
       limit: 1,
     }),
@@ -715,32 +798,28 @@ async function verifyStartupSmoke(
     (runAnalyticalSmoke &&
       (analysisResult === null ||
         analysisResult.cohortSize !== benchmark.candidateCount ||
-        analysisResult.provenance.baciRelease !==
-          hydrated.deployment.baciRelease ||
+        analysisResult.provenance.baciRelease !== baciRelease ||
         analysisResult.analysisReleaseCatalogSha256 !==
-          hydrated.deployment.analysisReleaseCatalogSha256)) ||
+          analysisReleaseCatalogSha256)) ||
     (shouldRunTradeTrendSmoke &&
       (tradeTrendResult === null ||
-        tradeTrendResult.provenance.baciRelease !==
-          hydrated.deployment.baciRelease ||
+        tradeTrendResult.provenance.baciRelease !== baciRelease ||
         tradeTrendResult.analysisReleaseCatalogSha256 !==
-          hydrated.deployment.analysisReleaseCatalogSha256 ||
+          analysisReleaseCatalogSha256 ||
         tradeTrendResult.query.importer.code !==
           tradeTrendBenchmark!.importerCode ||
         tradeTrendResult.query.product.code !==
           tradeTrendBenchmark!.productCode)) ||
     (shouldRunSupplierCompetitionSmoke &&
       (supplierCompetitionResult === null ||
-        supplierCompetitionResult.provenance.baciRelease !==
-          hydrated.deployment.baciRelease ||
+        supplierCompetitionResult.provenance.baciRelease !== baciRelease ||
         supplierCompetitionResult.analysisReleaseCatalogSha256 !==
-          hydrated.deployment.analysisReleaseCatalogSha256 ||
+          analysisReleaseCatalogSha256 ||
         supplierCompetitionResult.query.importer.code !==
           supplierCompetitionBenchmark!.importerCode ||
         supplierCompetitionResult.query.product.code !==
           supplierCompetitionBenchmark!.productCode)) ||
-    productResult.productSearchBuildId !==
-      hydrated.deployment.productSearchBuildId ||
+    productResult.productSearchBuildId !== productSearchBuildId ||
     productResult.matches[0]?.product.code !== benchmark.productCode ||
     economyResult.matches[0]?.economy.code !== benchmark.exporterCode
   ) {
@@ -749,7 +828,7 @@ async function verifyStartupSmoke(
 }
 
 function currentAnalysisDeployment(
-  hydrated: HydratedRelease,
+  hydrated: HydratedDeploymentPairing,
   manifest: AnalysisArtifactManifest,
   previousManifest: AnalysisArtifactManifest | null,
   mapping: RecommendedDatasetMapping,
@@ -758,10 +837,14 @@ function currentAnalysisDeployment(
 ): CurrentAnalysisDeployment {
   const cutoff = manifest.finalizedCutoffYear;
   return {
-    analysisBuildId: hydrated.deployment.analysisBuildId,
-    productSearchBuildId: hydrated.deployment.productSearchBuildId,
+    analysisBuildId: hydrated.deploymentManifest.analysisBuildId,
+    productSearchBuildId: hydrated.deploymentManifest.productSearchBuildId,
     analysisReleaseCatalogSha256:
-      hydrated.deployment.analysisReleaseCatalogSha256,
+      hydrated.deploymentManifest.analysisReleaseCatalogSha256,
+    // Populated once every retained bundle has been opened (see
+    // `VerifiedReleaseRuntime.load`); a bundle is never served before
+    // that patch runs.
+    deploymentWindow: [],
     benchmarkQueries: manifest.benchmarkQueries,
     recommendation: {
       recipe: "candidate-market-v1",
@@ -836,7 +919,7 @@ function currentAnalysisDeployment(
 }
 
 async function loadRecommendedDatasetMapping(
-  hydrated: HydratedRelease,
+  hydrated: HydratedDeploymentPairing,
   expectedPackage: CandidateMarketDatasetPackage,
   expectedTradeTrendPackage: TradeTrendDatasetPackage,
   expectedSupplierCompetitionPackage: SupplierCompetitionDatasetPackage,
@@ -933,17 +1016,17 @@ async function loadRecommendedDatasetMapping(
   return mapping;
 }
 
-function recommendedCatalogs(hydrated: HydratedRelease) {
+function recommendedCatalogs(hydrated: HydratedDeploymentPairing) {
   const productCatalog = {
     productSearchBuildId:
-      hydrated.deployment.productSearchBuildId,
+      hydrated.deploymentManifest.productSearchBuildId,
     schemaVersion: "product-catalog-artifact-v1" as const,
     catalog: hydrated.deploymentManifest.productSearch.catalog,
     manifest:
       hydrated.deploymentManifest.productSearch.manifest,
   };
   const economyCatalog = {
-    analysisBuildId: hydrated.deployment.analysisBuildId,
+    analysisBuildId: hydrated.deploymentManifest.analysisBuildId,
     schemaVersion: "candidate-market-artifact-v1" as const,
     artifact:
       hydrated.deploymentManifest.analysis.artifact.artifact,
@@ -965,4 +1048,194 @@ function object(value: unknown, label: string): Record<string, unknown> {
     throw new Error(`${label} must be an object.`);
   }
   return value as Record<string, unknown>;
+}
+
+/**
+ * Hydrates one retained deployment pairing's complete, isolated runtime
+ * bundle: its own analysis artifact manifest, product-catalog manifest,
+ * Dataset Packages, Recommended Dataset Mapping, DuckDB instance
+ * (attaching its own Release Revision "previous" artifact when its
+ * release catalog declares one), evidence source, product catalog, and
+ * economy directory. Nothing here is shared with another pairing's
+ * bundle (see issue #44 "bind each retained build to its own evidence
+ * source, Dataset Packages/Recommended Mapping, catalogs/provenance").
+ */
+async function openRetainedBundle(
+  pairing: HydratedDeploymentPairing,
+  servingVolumePath: string,
+): Promise<RetainedRuntimeBundle> {
+  const [manifest, previousManifest, catalogManifest] = await Promise.all([
+    readAnalysisArtifactManifest(pairing.analysisArtifactManifestPath),
+    pairing.previousAnalysis === null
+      ? Promise.resolve(null)
+      : readAnalysisArtifactManifest(
+          pairing.previousAnalysis.artifactManifestPath,
+        ),
+    readJson(pairing.productCatalogManifestPath),
+  ]);
+  validateHydratedPairing(pairing, manifest, previousManifest, catalogManifest);
+  const datasetPackage = createCandidateMarketDatasetPackageFromArtifacts({
+    manifest,
+    analysisReleaseCatalogSha256:
+      pairing.deploymentManifest.analysisReleaseCatalogSha256,
+    previousManifest,
+  });
+  const tradeTrendDatasetPackage =
+    createTradeTrendDatasetPackageFromArtifacts(manifest);
+  const supplierCompetitionDatasetPackage =
+    createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
+  const recommendedDatasetMapping = await loadRecommendedDatasetMapping(
+    pairing,
+    datasetPackage,
+    tradeTrendDatasetPackage,
+    supplierCompetitionDatasetPackage,
+  );
+  const runAnalyticalSmoke =
+    evaluateCandidateMarketV1DatasetPackage(datasetPackage).compatible;
+  const runTradeTrendSmoke =
+    recommendedDatasetMapping.manifest.tradeTrend !== null &&
+    evaluateTradeTrendV1DatasetPackage(tradeTrendDatasetPackage).compatible;
+  const runSupplierCompetitionSmoke =
+    recommendedDatasetMapping.manifest.supplierCompetition !== null &&
+    evaluateSupplierCompetitionV1DatasetPackage(
+      supplierCompetitionDatasetPackage,
+    ).compatible;
+
+  const analysisDatabase = await DuckDbAnalysisDatabase.open({
+    currentArtifactPath: pairing.analysisArtifactPath,
+    previousArtifactPath: pairing.previousAnalysis?.artifactPath ?? null,
+    servingVolumePath,
+  });
+  try {
+    const evidenceSource = await DuckDbTradeEvidenceSource.openShared({
+      database: analysisDatabase,
+      databaseName: "current",
+      artifactPath: pairing.analysisArtifactPath,
+      artifactManifestPath: pairing.analysisArtifactManifestPath,
+      analysisBuildId: pairing.deploymentManifest.analysisBuildId,
+      analysisReleaseCatalogSha256:
+        pairing.deploymentManifest.analysisReleaseCatalogSha256,
+    });
+    const previousRelease = await openPreviousRelease(
+      pairing,
+      previousManifest,
+      analysisDatabase,
+    );
+    const [productCatalog, economyDirectory] = await Promise.all([
+      ImmutableProductCatalog.open({
+        catalogPath: pairing.productCatalogPath,
+        catalogManifestPath: pairing.productCatalogManifestPath,
+      }),
+      DuckDbEconomyDirectory.loadShared({
+        database: analysisDatabase,
+        analysisBuildId: pairing.deploymentManifest.analysisBuildId,
+      }),
+    ]);
+    const deployment = currentAnalysisDeployment(
+      pairing,
+      manifest,
+      previousManifest,
+      recommendedDatasetMapping,
+      tradeTrendDatasetPackage,
+      supplierCompetitionDatasetPackage,
+    );
+    return {
+      pairing,
+      manifest,
+      previousManifest,
+      datasetPackage,
+      tradeTrendDatasetPackage,
+      supplierCompetitionDatasetPackage,
+      recommendedDatasetMapping,
+      analysisDatabase,
+      evidenceSource,
+      previousRelease,
+      productCatalog,
+      economyDirectory,
+      deployment,
+      runAnalyticalSmoke,
+      runTradeTrendSmoke,
+      runSupplierCompetitionSmoke,
+    };
+  } catch (error) {
+    analysisDatabase.close();
+    throw error;
+  }
+}
+
+/**
+ * Builds the deepened per-build binding the closed
+ * `TradeAnalyticsPlatform.execute` seam uses to dispatch by
+ * analysisBuildId: each retained bundle contributes its own evidence
+ * source, Dataset Package, and (for Candidate Market) Release Revision
+ * evidence, and a recipe section is omitted entirely -- never populated
+ * with an unverified fallback -- when no retained bundle's own
+ * Recommended Dataset Mapping declares it (see
+ * trade-analytics-platform.ts and recommended-dataset-mapping.ts).
+ */
+function buildPlatformInput(
+  bundles: readonly RetainedRuntimeBundle[],
+): TradeAnalyticsPlatformInput {
+  const candidateMarketEvidence = new Map<string, TradeEvidenceSource>();
+  const candidateMarketPackages = new Map<
+    string,
+    CandidateMarketDatasetPackage
+  >();
+  const candidateMarketPreviousRelease = new Map<
+    string,
+    CandidateMarketV1PreviousReleaseEvidence
+  >();
+  const tradeTrendEvidence = new Map<string, TradeEvidenceSource>();
+  const tradeTrendPackages = new Map<string, TradeTrendDatasetPackage>();
+  const supplierCompetitionEvidence = new Map<string, TradeEvidenceSource>();
+  const supplierCompetitionPackages = new Map<
+    string,
+    SupplierCompetitionDatasetPackage
+  >();
+
+  for (const bundle of bundles) {
+    const buildId = bundle.pairing.deploymentManifest.analysisBuildId;
+    candidateMarketEvidence.set(buildId, bundle.evidenceSource);
+    candidateMarketPackages.set(buildId, bundle.datasetPackage);
+    if (bundle.previousRelease !== null) {
+      candidateMarketPreviousRelease.set(buildId, bundle.previousRelease);
+    }
+    if (bundle.recommendedDatasetMapping.manifest.tradeTrend !== null) {
+      tradeTrendEvidence.set(buildId, bundle.evidenceSource);
+      tradeTrendPackages.set(buildId, bundle.tradeTrendDatasetPackage);
+    }
+    if (
+      bundle.recommendedDatasetMapping.manifest.supplierCompetition !== null
+    ) {
+      supplierCompetitionEvidence.set(buildId, bundle.evidenceSource);
+      supplierCompetitionPackages.set(
+        buildId,
+        bundle.supplierCompetitionDatasetPackage,
+      );
+    }
+  }
+
+  return {
+    candidateMarket: {
+      evidenceSource: candidateMarketEvidence,
+      previousRelease: candidateMarketPreviousRelease,
+      datasetPackages: candidateMarketPackages,
+    },
+    ...(tradeTrendPackages.size === 0
+      ? {}
+      : {
+          tradeTrend: {
+            evidenceSource: tradeTrendEvidence,
+            datasetPackages: tradeTrendPackages,
+          },
+        }),
+    ...(supplierCompetitionPackages.size === 0
+      ? {}
+      : {
+          supplierCompetition: {
+            evidenceSource: supplierCompetitionEvidence,
+            datasetPackages: supplierCompetitionPackages,
+          },
+        }),
+  };
 }

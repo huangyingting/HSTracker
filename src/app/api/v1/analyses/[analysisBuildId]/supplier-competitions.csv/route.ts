@@ -93,7 +93,14 @@ const supplierCompetitionCsvRoute =
         ...parsedIdentity,
       };
 
-      const manifest = runtime.currentAnalysis();
+      // Resolves this exact analysisBuildId's own manifest when it is
+      // current or a retained predecessor, falling back to current's
+      // manifest only for an analysisBuildId the manifest layer does not
+      // recognize; the execution result's own analysisBuildId is what
+      // actually decides compatibility below (see issue #44).
+      const manifest =
+        runtime.resolveAnalysisManifest(identity.analysisBuildId) ??
+        runtime.currentAnalysis();
       if (
         identity.productSearchBuildId !==
         manifest.productSearchBuildId

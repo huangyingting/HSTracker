@@ -111,11 +111,90 @@ export type PinRetiredReason =
 export type PinResolution =
   | Readonly<{ state: "unpinned" }>
   | Readonly<{ state: "current"; pin: TradeAnalysisContextPin }>
+  // Within the retained retention window (an older but still-served
+  // deployment pairing): the pin reproduces its exact Analysis Identity,
+  // distinct from "current" so callers can label it explicitly rather
+  // than presenting it as today's live recommendation (see CONTEXT.md
+  // "Pinned"/"Current" and issue #44).
+  | Readonly<{
+      state: "retained";
+      pin: TradeAnalysisContextPin;
+      deployment: CurrentAnalysisManifest["deploymentWindow"][number];
+    }>
   | Readonly<{
       state: "retired";
       pin: TradeAnalysisContextPin;
       reason: PinRetiredReason;
     }>;
+
+/**
+ * Compares a URL-carried pin against the current manifest for `recipe`
+ * without ever fabricating or silently rewriting it. A missing pin is
+ * "unpinned" (legacy or not-yet-executed); a pin that already matches the
+ * current recommendation is "current"; a pin whose analysisBuildId names
+ * one of the manifest's own retained predecessors (see
+ * `CurrentAnalysisManifest.deploymentWindow`) and matches that
+ * predecessor's own recipe/package identity is "retained" and still
+ * executes; any other pin is "retired" and must not be executed against
+ * current or retained data.
+ */
+export function resolvePinnedContext(
+  pin: TradeAnalysisContextPin | null,
+  manifest: CurrentAnalysisManifest,
+  recipe: TradeAnalysisRecipe,
+): PinResolution {
+  if (pin === null) {
+    return { state: "unpinned" };
+  }
+  if (pin.analysisBuildId === manifest.analysisBuildId) {
+    const expectedPackageIdentity = recipeDatasetPackageIdentity(manifest, recipe);
+    if (expectedPackageIdentity === null) {
+      return { state: "retired", pin, reason: "RECIPE_UNSUPPORTED" };
+    }
+    return pin.datasetPackageIdentity === expectedPackageIdentity
+      ? { state: "current", pin }
+      : { state: "retired", pin, reason: "PACKAGE_MISMATCH" };
+  }
+  const retained = manifest.deploymentWindow.find(
+    (candidate) => candidate.analysisBuildId === pin.analysisBuildId,
+  );
+  if (retained === undefined) {
+    return { state: "retired", pin, reason: "BUILD_MISMATCH" };
+  }
+  const retainedPackageIdentity = recipeDatasetPackageIdentityFromRecommendation(
+    retained.recommendation,
+    recipe,
+  );
+  if (retainedPackageIdentity === null) {
+    return { state: "retired", pin, reason: "RECIPE_UNSUPPORTED" };
+  }
+  return retainedPackageIdentity === pin.datasetPackageIdentity
+    ? { state: "retained", pin, deployment: retained }
+    : { state: "retired", pin, reason: "PACKAGE_MISMATCH" };
+}
+
+function recipeDatasetPackageIdentity(
+  manifest: CurrentAnalysisManifest,
+  recipe: TradeAnalysisRecipe,
+): string | null {
+  return recipeDatasetPackageIdentityFromRecommendation(
+    manifest.recommendation,
+    recipe,
+  );
+}
+
+function recipeDatasetPackageIdentityFromRecommendation(
+  recommendation: CurrentAnalysisManifest["recommendation"],
+  recipe: TradeAnalysisRecipe,
+): string | null {
+  if (recipe === "candidate-market") {
+    return recommendation.datasetPackageIdentity;
+  }
+  if (recipe === "trade-trend") {
+    return recommendation.tradeTrend?.datasetPackageIdentity ?? null;
+  }
+  return recommendation.supplierCompetition?.datasetPackageIdentity ?? null;
+}
 
 /**
  * Parses a location's query string into a fully recipe-scoped, validated
@@ -327,47 +406,6 @@ export function withPin<T extends TradeAnalysisContext>(
   manifest: CurrentAnalysisManifest,
 ): T {
   return { ...context, pin: pinFromManifest(manifest, context.recipe) };
-}
-
-/**
- * Compares a URL-carried pin against the current manifest for `recipe`
- * without ever fabricating or silently rewriting it. A missing pin is
- * "unpinned" (legacy or not-yet-executed); a pin that already matches the
- * current recommendation is "current"; any other pin is "retired" and must
- * not be executed against current data.
- */
-export function resolvePinnedContext(
-  pin: TradeAnalysisContextPin | null,
-  manifest: CurrentAnalysisManifest,
-  recipe: TradeAnalysisRecipe,
-): PinResolution {
-  if (pin === null) {
-    return { state: "unpinned" };
-  }
-  const expectedPackageIdentity = recipeDatasetPackageIdentity(manifest, recipe);
-  if (expectedPackageIdentity === null) {
-    return { state: "retired", pin, reason: "RECIPE_UNSUPPORTED" };
-  }
-  if (pin.analysisBuildId !== manifest.analysisBuildId) {
-    return { state: "retired", pin, reason: "BUILD_MISMATCH" };
-  }
-  if (pin.datasetPackageIdentity !== expectedPackageIdentity) {
-    return { state: "retired", pin, reason: "PACKAGE_MISMATCH" };
-  }
-  return { state: "current", pin };
-}
-
-function recipeDatasetPackageIdentity(
-  manifest: CurrentAnalysisManifest,
-  recipe: TradeAnalysisRecipe,
-): string | null {
-  if (recipe === "candidate-market") {
-    return manifest.recommendation.datasetPackageIdentity;
-  }
-  if (recipe === "trade-trend") {
-    return manifest.recommendation.tradeTrend?.datasetPackageIdentity ?? null;
-  }
-  return manifest.recommendation.supplierCompetition?.datasetPackageIdentity ?? null;
 }
 
 /** The recipe's own economy code (exporter for candidate-market, importer

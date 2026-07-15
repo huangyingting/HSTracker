@@ -62,6 +62,13 @@ export interface ApplicationRuntime {
     manifest: CurrentAnalysisManifest;
     asOf: string;
   };
+  // Resolves the manifest for any analysisBuildId within the retention
+  // window (current or a retained predecessor) without object-store
+  // access, or `null` when the build is unknown -- older than the
+  // window, or never promoted -- which callers must treat as retired
+  // (see issue #44). Fixture and current-only legacy activations only
+  // ever have one retained build, so this simply compares against it.
+  resolveAnalysisManifest(analysisBuildId: string): CurrentAnalysisManifest | null;
   resolveFreshnessStatus(
     freshnessStatusId: string,
   ): EffectiveSourceFreshness | null;
@@ -143,6 +150,10 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
         manifest: resolveFixtureCurrentAnalysisManifest(),
         asOf: FIXTURE_CURRENT_AS_OF,
       };
+    },
+    resolveAnalysisManifest(analysisBuildId) {
+      const manifest = resolveFixtureCurrentAnalysisManifest();
+      return manifest.analysisBuildId === analysisBuildId ? manifest : null;
     },
     resolveFreshnessStatus: resolveFixtureExportFreshnessStatus,
     normalizeProductSearchQuery: productCatalog.normalizeQuery.bind(
