@@ -15,6 +15,18 @@ import type {
   SupplierCompetitionV1RecipeInput,
 } from "../supplier-competition/result";
 import {
+  invalidTradeExplorerQuery,
+  isTradeExplorerAnalysisError,
+  retiredTradeExplorerAnalysisBuild,
+  type TradeExplorerAnalysisError,
+} from "../trade-explorer/errors";
+import type {
+  TradeExplorerResult,
+  TradeExplorerV1EvidenceRequest,
+  TradeExplorerV1NormalizedInputs,
+  TradeExplorerV1RecipeInput,
+} from "../trade-explorer/result";
+import {
   isTradeTrendAnalysisError,
 } from "../trade-trend/errors";
 import type {
@@ -42,6 +54,14 @@ import {
   evaluateSupplierCompetitionV1DatasetPackage,
   type SupplierCompetitionDatasetPackage,
 } from "./supplier-competition-v1-dataset-package";
+import {
+  createTradeExplorerV1RecipeExecution,
+} from "./trade-explorer-v1-recipe";
+import { validateTradeExplorerV1Request } from "./trade-explorer-v1-request";
+import {
+  evaluateTradeExplorerV1DatasetPackage,
+  type TradeExplorerDatasetPackage,
+} from "./trade-explorer-v1-dataset-package";
 import {
   createTradeTrendV1RecipeExecution,
 } from "./trade-trend-v1-recipe";
@@ -81,6 +101,28 @@ export type SupplierCompetitionV1AnalysisRequest = Readonly<{
   productCode: string;
 }>;
 
+// The closed, public Trade Explorer v1 request. `filters`/`dimensions`/
+// `sort` are pre-normalization -- see ../trade-explorer/normalize.ts,
+// which validateTradeExplorerV1Request calls -- so caller list/tuple
+// order, duplicate codes, and an omitted sort never reach the recipe
+// itself. There is deliberately no generic key/value map, arbitrary field
+// name, expression, or storage-naming string anywhere in this shape.
+export type TradeExplorerV1AnalysisRequest = Readonly<{
+  recipe: "trade-explorer-v1";
+  analysisBuildId: string;
+  sql?: never;
+  table?: never;
+  tableName?: never;
+  column?: never;
+  columnName?: never;
+  expression?: never;
+  path?: never;
+  objectKey?: never;
+  rawRecord?: never;
+  rawRecords?: never;
+}> &
+  Omit<TradeExplorerV1RecipeInput, "analysisBuildId">;
+
 export type CandidateMarketV1NormalizedInputs = Readonly<{
   exporterCode: string;
   product: Readonly<{
@@ -104,6 +146,8 @@ export type SupplierCompetitionV1NormalizedInputs = Readonly<{
     code: string;
   }>;
 }>;
+
+export type { TradeExplorerV1NormalizedInputs } from "../trade-explorer/result";
 
 export type AnalysisExecutionOptions = Readonly<{
   signal?: AbortSignal;
@@ -164,6 +208,28 @@ type AnalysisRecipeContracts = {
       | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
       | Readonly<{ code: "UNKNOWN_IMPORTER"; importerCode: string }>
       | Readonly<{ code: "UNKNOWN_PRODUCT"; productCode: string }>;
+  };
+  "trade-explorer-v1": {
+    request: TradeExplorerV1AnalysisRequest;
+    normalizedInputs: TradeExplorerV1NormalizedInputs;
+    payload: TradeExplorerResult;
+    emptyReason: "NO_ENUMERABLE_COHORT";
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNSUPPORTED_SHAPE"; shape: string }>
+      | Readonly<{ code: "DIMENSION_MISMATCH" }>
+      | Readonly<{ code: "UNSUPPORTED_MEASURE" }>
+      | Readonly<{ code: "UNSUPPORTED_SORT_KEY" }>
+      | Readonly<{ code: "YEAR_FILTER_INVALID" }>
+      | Readonly<{ code: "YEAR_OUT_OF_FINALIZED_WINDOW" }>
+      | Readonly<{
+          code: "FIXED_DIMENSION_CARDINALITY_INVALID";
+          dimension: string;
+        }>
+      | Readonly<{ code: "GROUPED_DIMENSION_EMPTY"; dimension: string }>
+      | Readonly<{ code: "UNKNOWN_EXPORT_ECONOMY"; economyCode: string }>
+      | Readonly<{ code: "UNKNOWN_IMPORT_ECONOMY"; economyCode: string }>
+      | Readonly<{ code: "UNKNOWN_HS_PRODUCT"; productCode: string }>;
   };
 };
 
@@ -315,10 +381,27 @@ export type SupplierCompetitionV1PlatformInput = Readonly<{
   datasetPackages: ReadonlyMap<string, SupplierCompetitionDatasetPackage>;
 }>;
 
+export type TradeExplorerV1EvidenceBinding =
+  | TradeEvidenceSource
+  | ReadonlyMap<string, TradeEvidenceSource>;
+
+export type TradeExplorerV1PlatformInput = Readonly<{
+  evidenceSource: TradeExplorerV1EvidenceBinding;
+  datasetPackages: ReadonlyMap<string, TradeExplorerDatasetPackage>;
+}>;
+
 export type TradeAnalyticsPlatformInput = Readonly<{
   candidateMarket?: CandidateMarketV1PlatformInput;
   tradeTrend?: TradeTrendV1PlatformInput;
   supplierCompetition?: SupplierCompetitionV1PlatformInput;
+  // Deliberately omitted by the production verified runtime until #47:
+  // an undeclared `tradeExplorer` input leaves every trade-explorer-v1
+  // request retired (no dataset package is ever registered for any
+  // analysisBuildId), which is the same safe "undeclared" state
+  // production keeps for any recipe it has not yet activated. Only the
+  // fixture application runtime supplies this (see
+  // runtime/application-runtime.ts).
+  tradeExplorer?: TradeExplorerV1PlatformInput;
 }>;
 
 export type {
@@ -335,11 +418,13 @@ export function createTradeAnalyticsPlatform({
   candidateMarket,
   tradeTrend,
   supplierCompetition,
+  tradeExplorer,
 }: TradeAnalyticsPlatformInput): TradeAnalyticsPlatform {
   return new InternalTradeAnalyticsPlatform(
     candidateMarket,
     tradeTrend,
     supplierCompetition,
+    tradeExplorer,
   );
 }
 
@@ -358,6 +443,11 @@ type SupplierCompetitionExecution = (
   options?: AnalysisExecutionOptions,
 ) => Promise<SupplierCompetitionResult>;
 
+type TradeExplorerExecution = (
+  request: TradeExplorerV1EvidenceRequest,
+  options?: AnalysisExecutionOptions,
+) => Promise<TradeExplorerResult>;
+
 class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
   private readonly executeCandidateMarket: ReadonlyMap<
     string,
@@ -368,6 +458,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     string,
     SupplierCompetitionExecution
   >;
+  private readonly executeTradeExplorer: ReadonlyMap<
+    string,
+    TradeExplorerExecution
+  >;
 
   constructor(
     private readonly candidateMarket: CandidateMarketV1PlatformInput | undefined,
@@ -375,6 +469,7 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     private readonly supplierCompetition:
       | SupplierCompetitionV1PlatformInput
       | undefined,
+    private readonly tradeExplorer: TradeExplorerV1PlatformInput | undefined,
   ) {
     this.executeCandidateMarket =
       candidateMarket === undefined
@@ -429,6 +524,23 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
               ],
             ),
           );
+    this.executeTradeExplorer =
+      tradeExplorer === undefined
+        ? new Map()
+        : new Map(
+            [...tradeExplorer.datasetPackages.keys()].map(
+              (analysisBuildId) => [
+                analysisBuildId,
+                createTradeExplorerV1RecipeExecution(
+                  requireEvidenceBinding(
+                    tradeExplorer.evidenceSource,
+                    analysisBuildId,
+                    "trade-explorer-v1",
+                  ),
+                ),
+              ],
+            ),
+          );
   }
 
   async execute<Request extends AnalysisRequest>(
@@ -449,6 +561,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
           request,
           options,
         );
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      case "trade-explorer-v1": {
+        const outcome = await this.executeTradeExplorerV1(request, options);
         return outcome as AnalysisOutcome<Request["recipe"]>;
       }
       default:
@@ -712,6 +828,124 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     }
     return { state: "success", ...completed };
   }
+
+  // Trade Explorer resolves its Dataset Package before full normalization
+  // (unlike the other three recipes above, which normalize first): its
+  // own year filter can only be validated/expanded against the exact
+  // finalized window the resolved Dataset Package declares (manifest.
+  // finalizedCutoffYear), so "normalize deterministically... before
+  // execution" (issue #46 acceptance criteria) requires the package
+  // first. A malformed analysisBuildId is still checked first so an
+  // invalid request is never misreported as retired.
+  private async executeTradeExplorerV1(
+    request: TradeExplorerV1AnalysisRequest,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<"trade-explorer-v1">> {
+    if (!/^[a-z0-9][a-z0-9-]{0,127}$/iu.test(request.analysisBuildId)) {
+      return expectedTradeExplorerFailure(
+        request,
+        invalidTradeExplorerQuery("analysisBuildId is malformed."),
+      );
+    }
+    const datasetPackage = this.tradeExplorer?.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    const execute = this.executeTradeExplorer.get(request.analysisBuildId);
+    if (datasetPackage === undefined || execute === undefined) {
+      return expectedTradeExplorerFailure(
+        request,
+        retiredTradeExplorerAnalysisBuild(request.analysisBuildId),
+      );
+    }
+    const compatibility = evaluateTradeExplorerV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"trade-explorer-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const finalizedCutoffYear = datasetPackage.manifest.finalizedCutoffYear;
+    const finalizedWindow = {
+      start: finalizedCutoffYear - 4,
+      end: finalizedCutoffYear,
+    };
+    let normalizedInputs: TradeExplorerV1NormalizedInputs;
+    try {
+      normalizedInputs = validateTradeExplorerV1Request(
+        request,
+        finalizedWindow,
+      );
+    } catch (error) {
+      if (!isTradeExplorerAnalysisError(error)) {
+        throw error;
+      }
+      return expectedTradeExplorerFailure(request, error);
+    }
+    let result: TradeExplorerResult;
+    try {
+      result = await execute(
+        { analysisBuildId: request.analysisBuildId, query: normalizedInputs },
+        options,
+      );
+    } catch (error) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
+      }
+      if (!isTradeExplorerAnalysisError(error)) {
+        throw error;
+      }
+      return expectedTradeExplorerFailure(request, error);
+    }
+    if (
+      result.analysisBuildId !== request.analysisBuildId ||
+      JSON.stringify(result.query) !== JSON.stringify(normalizedInputs)
+    ) {
+      throw new TypeError(
+        "Trade Explorer evidence returned a result for a different normalized request.",
+      );
+    }
+    if (
+      result.provenance.baciRelease !== datasetPackage.manifest.baciRelease ||
+      result.provenance.hsRevision !== datasetPackage.manifest.hsRevision ||
+      result.provenance.finalizedWindow.start !== finalizedWindow.start ||
+      result.provenance.finalizedWindow.end !== finalizedWindow.end ||
+      result.provenance.evidenceSha256 !==
+        datasetPackage.manifest.evidenceSha256
+    ) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"trade-explorer-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: "PACKAGE_IDENTITY_MISMATCH",
+        },
+      };
+    }
+    const completed = completedTradeExplorerOutcome(
+      request.recipe,
+      result,
+      datasetPackage.identity,
+      normalizedInputs,
+    );
+    if (result.rowCount === 0) {
+      if (result.emptyReason !== "NO_ENUMERABLE_COHORT" || result.rows.length !== 0) {
+        throw new TypeError(
+          "Trade Explorer empty-result invariants were violated.",
+        );
+      }
+      return { state: "empty", emptyReason: result.emptyReason, ...completed };
+    }
+    if (result.emptyReason !== null || result.rows.length !== result.rowCount) {
+      throw new TypeError(
+        "Trade Explorer success-result invariants were violated.",
+      );
+    }
+    return { state: "success", ...completed };
+  }
 }
 
 function expectedCandidateMarketFailure(
@@ -852,6 +1086,94 @@ function expectedSupplierCompetitionFailure(
           code: "ANALYSIS_BUDGET_EXCEEDED",
           budget: "RESULT_ROWS",
         },
+      };
+  }
+}
+
+function expectedTradeExplorerFailure(
+  request: TradeExplorerV1AnalysisRequest,
+  error: TradeExplorerAnalysisError,
+): AnalysisOutcome<"trade-explorer-v1"> {
+  const unresolved = unresolvedOutcome<"trade-explorer-v1">(request);
+  switch (error.code) {
+    case "INVALID_ANALYSIS_QUERY":
+    case "DIMENSION_MISMATCH":
+    case "UNSUPPORTED_MEASURE":
+    case "UNSUPPORTED_SORT_KEY":
+    case "YEAR_FILTER_INVALID":
+    case "YEAR_OUT_OF_FINALIZED_WINDOW":
+      return { state: "invalid-input", ...unresolved, error: { code: error.code } };
+    case "UNSUPPORTED_SHAPE":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code: error.code, shape: error.detail ?? "" },
+      };
+    case "FIXED_DIMENSION_CARDINALITY_INVALID":
+    case "GROUPED_DIMENSION_EMPTY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code: error.code, dimension: error.detail ?? "" },
+      };
+    case "UNKNOWN_EXPORT_ECONOMY":
+    case "UNKNOWN_IMPORT_ECONOMY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code: error.code, economyCode: error.detail ?? "" },
+      };
+    case "UNKNOWN_HS_PRODUCT":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code: error.code, productCode: error.detail ?? "" },
+      };
+    case "ANALYSIS_BUILD_RETIRED":
+      return {
+        state: "retired",
+        ...unresolved,
+        error: { code: error.code, analysisBuildId: request.analysisBuildId },
+      };
+    case "ANALYSIS_UNAVAILABLE":
+      return { state: "temporary-unavailability", ...unresolved, error: { code: error.code } };
+    case "NO_COMPATIBLE_DATASET_PACKAGE":
+      return {
+        state: "incompatible-package",
+        ...unresolved,
+        error: {
+          code: error.code,
+          reason:
+            error.detail === "MISSING_REQUIRED_CAPABILITY" ||
+            error.detail === "CAPABILITY_VERSION_MISMATCH" ||
+            error.detail === "PACKAGE_IDENTITY_MISMATCH"
+              ? error.detail
+              : "PACKAGE_IDENTITY_MISMATCH",
+        },
+      };
+    case "INPUT_CARDINALITY_BUDGET_EXCEEDED":
+      return {
+        state: "budget",
+        ...unresolved,
+        error: { code: "ANALYSIS_BUDGET_EXCEEDED", budget: "INPUT_CARDINALITY" },
+      };
+    case "RESULT_ROWS_BUDGET_EXCEEDED":
+      return {
+        state: "budget",
+        ...unresolved,
+        error: { code: "ANALYSIS_BUDGET_EXCEEDED", budget: "RESULT_ROWS" },
+      };
+    case "RESULT_BYTES_BUDGET_EXCEEDED":
+      return {
+        state: "budget",
+        ...unresolved,
+        error: { code: "ANALYSIS_BUDGET_EXCEEDED", budget: "RESULT_BYTES" },
+      };
+    case "SCAN_BUDGET_EXCEEDED":
+      return {
+        state: "budget",
+        ...unresolved,
+        error: { code: "ANALYSIS_BUDGET_EXCEEDED", budget: "SCAN" },
       };
   }
 }
@@ -997,6 +1319,24 @@ function completedSupplierCompetitionOutcome(
   };
 }
 
+function completedTradeExplorerOutcome(
+  recipe: "trade-explorer-v1",
+  payload: TradeExplorerResult,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: TradeExplorerV1NormalizedInputs,
+): CompletedAnalysisOutcome<"trade-explorer-v1"> {
+  return {
+    recipe,
+    analysisIdentity: analysisIdentityForTradeExplorer(
+      datasetPackageIdentity,
+      normalizedInputs,
+    ),
+    datasetPackageIdentity,
+    normalizedInputs,
+    payload,
+  };
+}
+
 function analysisIdentityFor(
   recipe: "candidate-market-v1",
   datasetPackageIdentity: DatasetPackageIdentity,
@@ -1036,5 +1376,33 @@ function analysisIdentityFor(
   const digest = createHash("sha256")
     .update(canonicalIdentity)
     .digest("hex");
+  return `analysis-identity-v1-${digest}` as AnalysisIdentity;
+}
+// Trade Explorer's normalized inputs have no single economy/product field
+// pair -- see TradeExplorerV1NormalizedInputs -- so its identity is kept
+// as its own function rather than a fourth analysisIdentityFor overload
+// sharing that shape. Every field that must NOT alter Analysis Identity
+// (caller list/tuple order, an omitted sort) has already been normalized
+// away by normalizeTradeExplorerV1Request before this runs; the declared
+// result sort is the one ordering input that legitimately participates.
+function analysisIdentityForTradeExplorer(
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: TradeExplorerV1NormalizedInputs,
+): AnalysisIdentity {
+  const canonicalIdentity = JSON.stringify([
+    "analysis-identity-v1",
+    "trade-explorer-v1",
+    datasetPackageIdentity,
+    normalizedInputs.shape,
+    normalizedInputs.dimension,
+    normalizedInputs.measures,
+    normalizedInputs.years,
+    normalizedInputs.exportEconomy,
+    normalizedInputs.importEconomy,
+    normalizedInputs.hsProduct,
+    normalizedInputs.sort.key,
+    normalizedInputs.sort.direction,
+  ]);
+  const digest = createHash("sha256").update(canonicalIdentity).digest("hex");
   return `analysis-identity-v1-${digest}` as AnalysisIdentity;
 }

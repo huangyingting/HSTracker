@@ -15,6 +15,8 @@ export type RuntimeRouteFamily =
   | "trade-trend-csv"
   | "supplier-competition"
   | "supplier-competition-csv"
+  | "trade-explorer"
+  | "trade-explorer-csv"
   | "product-search"
   | "economy-search"
   | "current-analysis"
@@ -22,7 +24,7 @@ export type RuntimeRouteFamily =
 
 export type RuntimeRequestMetric = Readonly<{
   routeFamily: RuntimeRouteFamily;
-  method: "GET" | "HEAD";
+  method: "GET" | "HEAD" | "POST";
   synthetic: boolean;
   status: number;
   cacheState: RuntimeOperationObservation["cacheState"] | "bypass";
@@ -197,7 +199,7 @@ function startRuntimeMeasurement(
 }
 
 export type RuntimeRequestClassification = Readonly<{
-  method: "GET" | "HEAD";
+  method: "GET" | "HEAD" | "POST";
   synthetic: boolean;
 }>;
 

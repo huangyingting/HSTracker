@@ -11,9 +11,11 @@ export const ROUTE_DEADLINE_MS = {
   candidateMarket: 12_000,
   tradeTrend: 12_000,
   supplierCompetition: 12_000,
+  tradeExplorer: 12_000,
   candidateMarketCsv: 15_000,
   tradeTrendCsv: 15_000,
   supplierCompetitionCsv: 15_000,
+  tradeExplorerCsv: 15_000,
   health: 2_000,
 } as const;
 

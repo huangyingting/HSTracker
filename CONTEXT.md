@@ -112,6 +112,14 @@ _Avoid_: Buyer-supplier relationship, company-level trade data, inferred zero sh
 The Herfindahl-Hirschman Index of finalized supplier shares on a documented 0–10,000 scale, computed only when at least one supplying economy recorded a positive pooled value; otherwise concentration is explicitly unavailable rather than a neutral or zero value. It never reflects Provisional Year evidence.
 _Avoid_: Market-share estimate for a single company, concentration inferred from missing data, Provisional Year concentration
 
+**Trade Explorer**:
+A bounded Analysis Recipe that lets an Export Market Analyst combine only an allowlisted business shape's own fixed dimensions, one grouped dimension, approved measures, finalized-year or code filters, and a deterministic sort, entirely through public semantic vocabulary. It never exposes SQL, storage layout, formulas, unrestricted joins, or raw records, and Provisional Year evidence is excluded by construction.
+_Avoid_: Database console, ad hoc query builder, arbitrary pivot table
+
+**Trade Explorer Shape**:
+One fixed, versioned business-question template Trade Explorer v1 allowlists -- finalized-year trend, importing markets, supplying economies, or product mix -- naming exactly which single dimension is grouped into result rows and which remaining dimensions must each resolve to one fixed value. A request names a shape rather than freely choosing table-like joins or arbitrary dimension combinations.
+_Avoid_: Query template, report type, pivot configuration
+
 **Company Trade Context**:
 Separately sourced and access-controlled evidence about Source Party Mentions, Legal Entities, brands, models, transport documents, or shipment events for a Candidate Market Context. It is not BACI evidence and never changes the Candidate Market Score or Data Confidence.
 _Avoid_: Company-level BACI, customer list, buyer database

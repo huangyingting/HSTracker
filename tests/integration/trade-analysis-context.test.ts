@@ -12,6 +12,7 @@ import {
   hasCompleteRecipeInputs,
   parseTradeAnalysisContext,
   pinFromManifest,
+  productCodeOf,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withEconomyCode,
@@ -152,14 +153,14 @@ describe("Trade Analysis Context: parsing", () => {
     const context = parseTradeAnalysisContext(
       "/?revision=HS07&product=010121",
     );
-    expect(context.productCode).toBeNull();
+    expect(productCodeOf(context)).toBeNull();
   });
 
   it("discards a malformed product code", () => {
     const context = parseTradeAnalysisContext(
       "/?revision=HS12&product=abcdef",
     );
-    expect(context.productCode).toBeNull();
+    expect(productCodeOf(context)).toBeNull();
   });
 
   it("discards a pin unless both build and pkg are present and well-formed", () => {
@@ -697,5 +698,237 @@ describe("Trade Analysis Context: resolvePinnedContext", () => {
         "candidate-market",
       ),
     ).toEqual({ state: "retired", pin, reason: "BUILD_MISMATCH" });
+  });
+});
+
+describe("Trade Analysis Context: trade-explorer", () => {
+  it("defaults an empty location to an incomplete trade-explorer context when explicitly requested", () => {
+    expect(
+      parseTradeAnalysisContext("/?recipe=trade-explorer-v1"),
+    ).toEqual({
+      recipe: "trade-explorer",
+      locale: "en",
+      pin: null,
+      shape: null,
+      measures: [],
+      years: [],
+      exportEconomy: [],
+      importEconomy: [],
+      hsProduct: [],
+      sort: null,
+    });
+  });
+
+  it("parses the exact versioned recipe identity to the trade-explorer recipe", () => {
+    expect(
+      parseTradeAnalysisContext("/?recipe=trade-explorer-v1").recipe,
+    ).toBe("trade-explorer");
+  });
+
+  it("round-trips a complete finalized-trend-v1 selection through parse/serialize", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "trade-explorer",
+      locale: "en",
+      pin: null,
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD", "RECORDED_FLOW_COUNT"],
+      years: [],
+      exportEconomy: ["156"],
+      importEconomy: ["528"],
+      hsProduct: ["010121"],
+      sort: { key: "YEAR", direction: "asc" },
+    };
+    const url = serializeTradeAnalysisContext("/", context);
+    expect(parseTradeAnalysisContext(url)).toEqual(context);
+  });
+
+  it("round-trips a bounded cohort selection with an explicit year list and a measure sort", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "trade-explorer",
+      locale: "zh-Hans",
+      pin: null,
+      shape: "importing-markets-v1",
+      measures: ["TRADE_VALUE_USD"],
+      years: [2023],
+      exportEconomy: ["156"],
+      importEconomy: ["36", "484", "528"],
+      hsProduct: ["010121"],
+      sort: { key: "TRADE_VALUE_USD", direction: "desc" },
+    };
+    const url = serializeTradeAnalysisContext("/", context);
+    expect(parseTradeAnalysisContext(url)).toEqual(context);
+  });
+
+  it("serializes equivalent Trade Explorer inputs to one normalized canonical URL", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "trade-explorer",
+      locale: "en",
+      pin: null,
+      shape: "importing-markets-v1",
+      measures: ["RECORDED_FLOW_COUNT", "TRADE_VALUE_USD"],
+      years: [2023, 2023],
+      exportEconomy: ["156"],
+      importEconomy: ["528", "036", "484", "528"],
+      hsProduct: ["010129", "010121", "010129"],
+      sort: { key: "TRADE_VALUE_USD", direction: "desc" },
+    };
+    expect(serializeTradeAnalysisContext("/", context)).toBe(
+      "/?recipe=trade-explorer-v1&shape=importing-markets-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&years=2023&exportEconomy=156&importEconomy=36%2C484%2C528&hsProduct=010121%2C010129&sortKey=TRADE_VALUE_USD&sortDirection=desc",
+    );
+  });
+
+  it("reflects in-progress selection: a chosen shape survives with no codes selected yet", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "trade-explorer",
+      locale: "en",
+      pin: null,
+      shape: "importing-markets-v1",
+      measures: [],
+      years: [],
+      exportEconomy: [],
+      importEconomy: [],
+      hsProduct: [],
+      sort: null,
+    };
+    const url = serializeTradeAnalysisContext("/", context);
+    expect(url).toContain("recipe=trade-explorer-v1");
+    expect(url).toContain("shape=importing-markets-v1");
+    expect(parseTradeAnalysisContext(url)).toEqual(context);
+  });
+
+  it("never encodes an opaque JSON or base64 blob -- only named semantic parameters", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "trade-explorer",
+      locale: "en",
+      pin: null,
+      shape: "product-mix-v1",
+      measures: ["TRADE_VALUE_USD"],
+      years: [2023],
+      exportEconomy: ["156"],
+      importEconomy: ["528"],
+      hsProduct: ["010121", "010129"],
+      sort: null,
+    };
+    const url = new URL(
+      serializeTradeAnalysisContext("/", context),
+      "http://localhost",
+    );
+    expect([...url.searchParams.keys()].sort()).toEqual(
+      [
+        "recipe",
+        "shape",
+        "measures",
+        "years",
+        "exportEconomy",
+        "importEconomy",
+        "hsProduct",
+      ].sort(),
+    );
+    for (const value of url.searchParams.values()) {
+      expect(value).not.toMatch(/[{}[\]]/u);
+    }
+  });
+
+  it("discards an unrecognized shape and every malformed code list", () => {
+    const context = parseTradeAnalysisContext(
+      "/?recipe=trade-explorer-v1&shape=unknown-shape-v1&measures=DROP_TABLE&exportEconomy=not-a-code&importEconomy=528,076&hsProduct=abc",
+    );
+    expect(context).toMatchObject({
+      shape: null,
+      measures: [],
+      exportEconomy: [],
+      hsProduct: [],
+    });
+    // A well-formed sibling list still parses even when another field is
+    // malformed -- each field is validated independently.
+    expect(context).toMatchObject({ importEconomy: ["528", "076"] });
+  });
+
+  it("discards a sort key that is not the grouped dimension or a requested measure", () => {
+    const context = parseTradeAnalysisContext(
+      "/?recipe=trade-explorer-v1&shape=importing-markets-v1&measures=TRADE_VALUE_USD&sortKey=DROP_TABLE&sortDirection=asc",
+    );
+    expect(context).toMatchObject({ sort: null });
+  });
+
+  it("is complete only once shape, measures, and all three code lists are non-empty", () => {
+    const empty = emptyTradeAnalysisContext("trade-explorer", "en");
+    expect(hasCompleteRecipeInputs(empty)).toBe(false);
+    const complete = {
+      ...empty,
+      shape: "finalized-trend-v1" as const,
+      measures: ["TRADE_VALUE_USD"] as const,
+      exportEconomy: ["156"],
+      importEconomy: ["528"],
+      hsProduct: ["010121"],
+    };
+    expect(hasCompleteRecipeInputs(complete)).toBe(true);
+  });
+
+  it("transfers compatible economy and product selections to and from trade-explorer", () => {
+    const tradeTrend = withEconomyCode(
+      withProductCode(emptyTradeAnalysisContext("trade-trend", "en"), "010121"),
+      "528",
+    );
+    expect(withRecipe(tradeTrend, "trade-explorer")).toEqual({
+      ...emptyTradeAnalysisContext("trade-explorer", "en"),
+      importEconomy: ["528"],
+      hsProduct: ["010121"],
+    });
+
+    const explorer: TradeAnalysisContext = {
+      recipe: "trade-explorer",
+      locale: "en",
+      pin: null,
+      shape: "finalized-trend-v1",
+      measures: ["TRADE_VALUE_USD"],
+      years: [],
+      exportEconomy: ["156"],
+      importEconomy: ["528"],
+      hsProduct: ["010121"],
+      sort: null,
+    };
+    expect(withRecipe(explorer, "trade-trend")).toEqual({
+      ...emptyTradeAnalysisContext("trade-trend", "en"),
+      productCode: "010121",
+      importerCode: "528",
+    });
+    expect(withRecipe(explorer, "candidate-market")).toEqual({
+      ...emptyTradeAnalysisContext("candidate-market", "en"),
+      productCode: "010121",
+      exporterCode: "156",
+    });
+  });
+
+  it("throws when withEconomyCode or withProductCode is misapplied to a trade-explorer context", () => {
+    const explorer = emptyTradeAnalysisContext("trade-explorer", "en");
+    expect(() => withEconomyCode(explorer, "528")).toThrow(TypeError);
+    expect(() => withProductCode(explorer, "010121")).toThrow(TypeError);
+    expect(() => economyCodeOf(explorer)).toThrow(TypeError);
+    expect(() => productCodeOf(explorer)).toThrow(TypeError);
+  });
+
+  it("resolves the current pin from the manifest's own tradeExplorer recommendation", () => {
+    const pin = pinFromManifest(manifest, "trade-explorer");
+    expect(pin).toEqual({
+      analysisBuildId: manifest.analysisBuildId,
+      datasetPackageIdentity:
+        manifest.recommendation.tradeExplorer!.datasetPackageIdentity,
+    });
+    expect(resolvePinnedContext(pin, manifest, "trade-explorer")).toEqual({
+      state: "current",
+      pin,
+    });
+  });
+
+  it("is retired with RECIPE_UNSUPPORTED when the manifest no longer declares trade-explorer", () => {
+    const unsupported = {
+      ...manifest,
+      recommendation: { ...manifest.recommendation, tradeExplorer: null },
+    };
+    const pin = pinFromManifest(manifest, "trade-explorer")!;
+    expect(
+      resolvePinnedContext(pin, unsupported, "trade-explorer"),
+    ).toEqual({ state: "retired", pin, reason: "RECIPE_UNSUPPORTED" });
   });
 });

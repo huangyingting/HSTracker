@@ -1651,10 +1651,11 @@ describe("verified release runtime retained deployment window", () => {
       activatedAt: "2026-07-12T02:00:00Z",
     });
 
+    let now = "2026-07-12T02:00:00Z";
     const runtime = await VerifiedReleaseRuntime.load({
       objectStore,
       volumePath: join(root, "volume"),
-      now: () => "2026-07-12T02:00:00Z",
+      now: () => now,
     });
     runtimes.push(runtime);
 
@@ -1670,6 +1671,13 @@ describe("verified release runtime retained deployment window", () => {
       runtime.resolveAnalysisManifest(first.analysisBuildId)
         ?.productSearchBuildId,
     ).toBe(first.productSearchBuildId);
+    const retainedManifest = runtime.resolveAnalysisManifest(
+      first.analysisBuildId,
+    );
+    now = "2030-07-12T02:00:00Z";
+    expect(runtime.resolveAnalysisManifest(first.analysisBuildId)).toEqual(
+      retainedManifest,
+    );
     expect(runtime.resolveAnalysisManifest("never-promoted")).toBeNull();
   }, 20_000);
 

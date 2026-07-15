@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { DiscoveryWorkspace } from "./discovery-workspace";
 import { SupplierCompetitionWorkspace } from "./supplier-competition-workspace";
+import { TradeExplorerWorkspace } from "./trade-explorer-workspace";
 import { TradeTrendWorkspace } from "./trade-trend-workspace";
 import {
   parseTradeAnalysisContext,
@@ -22,6 +23,10 @@ const copy = {
     supplierCompetition: "Supplier Competition",
     supplierCompetitionDetail:
       "Inspect the supplying-economy structure for one importing economy.",
+    tradeExplorer: "Trade Explorer",
+    tradeExplorerBadge: "Advanced",
+    tradeExplorerDetail:
+      "Combine approved dimensions, measures, and filters under strict budgets.",
   },
   "zh-Hans": {
     title: "选择分析任务",
@@ -31,6 +36,9 @@ const copy = {
     tradeTrendDetail: "查看一个经济体的年度进口证据。",
     supplierCompetition: "供应商竞争",
     supplierCompetitionDetail: "查看一个进口经济体的供应经济体结构。",
+    tradeExplorer: "贸易探索者",
+    tradeExplorerBadge: "高级",
+    tradeExplorerDetail: "在严格预算下组合已批准的维度、度量与筛选条件。",
   },
 } as const;
 
@@ -38,7 +46,8 @@ type Locale = keyof typeof copy;
 type AnalysisTask =
   | "candidate-market"
   | "trade-trend"
-  | "supplier-competition";
+  | "supplier-competition"
+  | "trade-explorer";
 
 export function AnalysisTaskHome({ locale }: { locale: Locale }) {
   const [task, setTask] = useState<AnalysisTask>(() => taskFromLocation());
@@ -92,14 +101,27 @@ export function AnalysisTaskHome({ locale }: { locale: Locale }) {
             <strong>{messages.supplierCompetition}</strong>
             <span>{messages.supplierCompetitionDetail}</span>
           </button>
+          <button
+            type="button"
+            aria-pressed={task === "trade-explorer"}
+            onClick={() => selectTask("trade-explorer")}
+          >
+            <strong>
+              {messages.tradeExplorer}{" "}
+              <span className="analysis-task-badge">{messages.tradeExplorerBadge}</span>
+            </strong>
+            <span>{messages.tradeExplorerDetail}</span>
+          </button>
         </div>
       </nav>
       {task === "candidate-market" ? (
         <DiscoveryWorkspace locale={locale} />
       ) : task === "trade-trend" ? (
         <TradeTrendWorkspace locale={locale} />
-      ) : (
+      ) : task === "supplier-competition" ? (
         <SupplierCompetitionWorkspace locale={locale} />
+      ) : (
+        <TradeExplorerWorkspace locale={locale} />
       )}
     </>
   );

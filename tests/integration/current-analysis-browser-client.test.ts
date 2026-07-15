@@ -63,6 +63,29 @@ describe("browser current-analysis discovery", () => {
     });
   });
 
+  it("normalizes a rolling-deployment v1 manifest without Trade Explorer support", async () => {
+    const legacyRecommendation = { ...currentManifest.recommendation };
+    delete (
+      legacyRecommendation as Partial<typeof legacyRecommendation>
+    ).tradeExplorer;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        ...currentManifest,
+        recommendation: legacyRecommendation,
+      }),
+    );
+
+    await expect(
+      loadCurrentAnalysisManifest({
+        fetcher,
+        signal: new AbortController().signal,
+        revalidate: false,
+      }),
+    ).resolves.toMatchObject({
+      recommendation: { tradeExplorer: null },
+    });
+  });
+
   it("rejects an update-in-progress manifest without refresh timestamps", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

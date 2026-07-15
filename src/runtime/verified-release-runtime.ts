@@ -407,7 +407,7 @@ export class VerifiedReleaseRuntime {
     return resolveCurrentAnalysisManifest(
       bundle.deployment,
       bundle.pairing.deploymentManifest.sourceStatusFallback,
-      this.now(),
+      bundle.pairing.deploymentManifest.sourceStatusFallback.checkedAt,
       this.deploymentActivation,
     );
   }
@@ -914,6 +914,12 @@ function currentAnalysisDeployment(
               datasetPackageIdentity:
                 supplierCompetitionDatasetPackage.identity,
             },
+      // trade-explorer-v1 stays fixture-only until issue #47 activates a
+      // measured production Dataset Package for it: the verified runtime
+      // never declares a mapping for it, so this is always null here (see
+      // trade-analytics-platform.ts's TradeAnalyticsPlatformInput comment
+      // and CurrentAnalysisManifest.recommendation.tradeExplorer).
+      tradeExplorer: null,
     },
     source: {
       baciRelease: manifest.baciRelease,

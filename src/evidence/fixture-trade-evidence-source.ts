@@ -26,6 +26,17 @@ import type {
   TradeTrendV1RecipeInput,
 } from "../domain/trade-trend/result";
 import {
+  retiredTradeExplorerAnalysisBuild,
+  unavailableTradeExplorerAnalysisBuild,
+  unknownTradeExplorerExportEconomy,
+  unknownTradeExplorerHsProduct,
+  unknownTradeExplorerImportEconomy,
+} from "../domain/trade-explorer/errors";
+import type {
+  TradeExplorerV1EvidenceRequest,
+  TradeExplorerV1Inputs,
+} from "../domain/trade-explorer/result";
+import {
   createTradeTrendDatasetPackage,
   TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
   type TradeTrendDatasetPackage,
@@ -35,6 +46,11 @@ import {
   SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
   type SupplierCompetitionDatasetPackage,
 } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
+import {
+  createTradeExplorerDatasetPackage,
+  TRADE_EXPLORER_V1_CAPABILITY_REQUIREMENTS,
+  type TradeExplorerDatasetPackage,
+} from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
 import {
   CANDIDATE_MARKET_V1_DATASET_DECLARATION,
   createCandidateMarketDatasetPackage,
@@ -68,6 +84,17 @@ import {
   SUPPLIER_COMPETITION_FIXTURE_CONTENT_SHA256,
   SUPPLIER_COMPETITION_FIXTURE_INPUTS,
 } from "../../fixtures/supplier-competition/v1/evidence";
+import {
+  cellFor,
+  knownTradeExplorerEconomy,
+  knownTradeExplorerProduct,
+  resolveTradeExplorerCombo,
+  TRADE_EXPLORER_ARTIFACT,
+  TRADE_EXPLORER_ANALYSIS_RELEASE_CATALOG_SHA256,
+  TRADE_EXPLORER_FIXTURE_CONTENT_SHA256,
+  TRADE_EXPLORER_RELEASE,
+} from "../../fixtures/trade-explorer/v1/evidence";
+
 
 const FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [
@@ -190,6 +217,85 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
       throw unknownSupplierCompetitionImporter(query.importerCode);
     }
     throw unknownSupplierCompetitionProduct(query.productCode);
+  }
+
+  async loadTradeExplorerV1Inputs(
+    request: TradeExplorerV1EvidenceRequest,
+  ): Promise<TradeExplorerV1Inputs> {
+    if (request.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.failing) {
+      throw new Error("fixture adapter failure");
+    }
+    if (
+      request.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable
+    ) {
+      throw unavailableTradeExplorerAnalysisBuild(request.analysisBuildId);
+    }
+    if (request.analysisBuildId !== ACCEPTANCE_FIXTURE_BUILD_IDS.core) {
+      throw retiredTradeExplorerAnalysisBuild(request.analysisBuildId);
+    }
+    const { query } = request;
+
+    const exportEconomies = query.exportEconomy.map((code) => {
+      const identity = knownTradeExplorerEconomy(code);
+      if (identity === null) {
+        throw unknownTradeExplorerExportEconomy(code);
+      }
+      return identity;
+    });
+    const importEconomies = query.importEconomy.map((code) => {
+      const identity = knownTradeExplorerEconomy(code);
+      if (identity === null) {
+        throw unknownTradeExplorerImportEconomy(code);
+      }
+      return identity;
+    });
+    const products = query.hsProduct.map((code) => {
+      const identity = knownTradeExplorerProduct(code);
+      if (identity === null) {
+        throw unknownTradeExplorerHsProduct(code);
+      }
+      return identity;
+    });
+
+    const combo = resolveTradeExplorerCombo(query);
+    if (combo === null) {
+      return {
+        analysisBuildId: request.analysisBuildId,
+        analysisReleaseCatalogSha256: TRADE_EXPLORER_ANALYSIS_RELEASE_CATALOG_SHA256,
+        evidenceSha256: TRADE_EXPLORER_FIXTURE_CONTENT_SHA256,
+        artifact: TRADE_EXPLORER_ARTIFACT,
+        release: TRADE_EXPLORER_RELEASE,
+        query,
+        exportEconomies,
+        importEconomies,
+        products,
+        cohortEnumerable: false,
+        cells: [],
+      };
+    }
+
+    const groupedCodes =
+      query.dimension === "YEAR"
+        ? query.years.map(String)
+        : query.dimension === "EXPORT_ECONOMY"
+          ? query.exportEconomy
+          : query.dimension === "IMPORT_ECONOMY"
+            ? query.importEconomy
+            : query.hsProduct;
+
+    return {
+      analysisBuildId: request.analysisBuildId,
+      analysisReleaseCatalogSha256: TRADE_EXPLORER_ANALYSIS_RELEASE_CATALOG_SHA256,
+      evidenceSha256: TRADE_EXPLORER_FIXTURE_CONTENT_SHA256,
+      artifact: TRADE_EXPLORER_ARTIFACT,
+      release: TRADE_EXPLORER_RELEASE,
+      query,
+      exportEconomies,
+      importEconomies,
+      products,
+      cohortEnumerable: true,
+      cells: groupedCodes.map((code) => cellFor(combo, code)),
+    };
   }
 }
 
@@ -379,4 +485,24 @@ function supplierCompetitionFixtureKey(
   productCode: string,
 ): string {
   return `${importerCode}:${productCode}`;
+}
+
+export function createFixtureTradeExplorerDatasetPackages(): ReadonlyMap<
+  string,
+  TradeExplorerDatasetPackage
+> {
+  const datasetPackage = createTradeExplorerDatasetPackage({
+    schemaVersion: "trade-explorer-dataset-package-manifest-v1",
+    baciRelease: "V202601",
+    hsRevision: "HS12",
+    finalizedYearCount: 5,
+    finalizedCutoffYear: TRADE_EXPLORER_RELEASE.finalizedCutoffYear,
+    evidenceSha256: TRADE_EXPLORER_FIXTURE_CONTENT_SHA256,
+    capabilities: TRADE_EXPLORER_V1_CAPABILITY_REQUIREMENTS,
+  });
+  return new Map([
+    [ACCEPTANCE_FIXTURE_BUILD_IDS.core, datasetPackage],
+    [FIXTURE_ADAPTER_TEST_BUILD_IDS.failing, datasetPackage],
+    [FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable, datasetPackage],
+  ]);
 }

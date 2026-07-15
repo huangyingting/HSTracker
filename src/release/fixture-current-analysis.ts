@@ -25,6 +25,7 @@ import { FIXTURE_ECONOMY_CATALOG_ARTIFACT_BYTES } from "../economy/fixture-econo
 import {
   createFixtureCandidateMarketDatasetPackages,
   createFixtureSupplierCompetitionDatasetPackages,
+  createFixtureTradeExplorerDatasetPackages,
   createFixtureTradeTrendDatasetPackages,
 } from "../evidence/fixture-trade-evidence-source";
 import { releaseObjectIdentity } from "./release-object-store";
@@ -46,6 +47,16 @@ const fixtureTradeTrendDatasetPackage =
   )!;
 const fixtureSupplierCompetitionDatasetPackage =
   createFixtureSupplierCompetitionDatasetPackages().get(
+    ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+  )!;
+// Trade Explorer stays fixture-only through issue #47: the browser-facing
+// manifest still advertises its Dataset Package identity here so a
+// canonical Trade Explorer Trade Analysis Context URL can be pinned
+// against something real in the fixture/e2e runtime (see
+// trade-analysis-context.ts), but runtime/verified-release-runtime.ts
+// never populates this for production.
+const fixtureTradeExplorerDatasetPackage =
+  createFixtureTradeExplorerDatasetPackages().get(
     ACCEPTANCE_FIXTURE_BUILD_IDS.core,
   )!;
 const fixtureDatasetPackageBytes = Buffer.from(
@@ -160,6 +171,10 @@ const fixtureRecommendation: CurrentAnalysisDeployment["recommendation"] = {
   supplierCompetition: {
     recipe: "supplier-competition-v1",
     datasetPackageIdentity: fixtureSupplierCompetitionDatasetPackage.identity,
+  },
+  tradeExplorer: {
+    recipe: "trade-explorer-v1",
+    datasetPackageIdentity: fixtureTradeExplorerDatasetPackage.identity,
   },
 };
 

@@ -8,6 +8,10 @@ import type {
   SupplierCompetitionV1RecipeInput,
 } from "../domain/supplier-competition/result";
 import type {
+  TradeExplorerV1EvidenceRequest,
+  TradeExplorerV1Inputs,
+} from "../domain/trade-explorer/result";
+import type {
   TradeTrendV1Inputs,
   TradeTrendV1RecipeInput,
 } from "../domain/trade-trend/result";
@@ -82,4 +86,13 @@ export interface TradeEvidenceSource {
     query: SupplierCompetitionV1RecipeInput,
     options?: TradeEvidenceLoadOptions,
   ): Promise<SupplierCompetitionV1Inputs>;
+  // Never exposes storage shape: `request.query` is always the platform's
+  // already-normalized, deterministic Trade Explorer query (see
+  // ../domain/trade-explorer/normalize.ts) -- an implementation may
+  // resolve it however it likes, but it never receives SQL, table/column
+  // names, paths, or object keys through this seam.
+  loadTradeExplorerV1Inputs?(
+    request: TradeExplorerV1EvidenceRequest,
+    options?: TradeEvidenceLoadOptions,
+  ): Promise<TradeExplorerV1Inputs>;
 }

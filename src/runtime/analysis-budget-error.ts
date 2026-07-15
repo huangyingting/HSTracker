@@ -19,7 +19,12 @@ export class AnalysisBudgetExceededError extends Error {
     analysisName = "Candidate Market",
   ) {
     super(`${analysisName} analysis exceeded its ${budget} budget.`);
-    this.publicMessage = `The complete ${analysisName} result exceeds its serving budget.`;
+    this.publicMessage =
+      budget === "INPUT_CARDINALITY"
+        ? `Narrow the ${analysisName} request; it exceeds the input-size budget.`
+        : budget === "SCAN"
+          ? `Narrow the ${analysisName} request; it exceeds the scan budget.`
+          : `The complete ${analysisName} result exceeds its serving budget.`;
     this.name = "AnalysisBudgetExceededError";
     brandCrossBundleError(this, ERROR_BRAND);
   }

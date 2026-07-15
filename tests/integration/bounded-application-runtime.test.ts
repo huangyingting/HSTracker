@@ -1028,6 +1028,106 @@ describe("bounded application runtime", () => {
     expect(runtime.resources().caches.analysis.entries).toBe(0);
   });
 
+  it("does not let malformed Trade Explorer inputs collide with a cached normalized code", async () => {
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+    );
+    const validRequest = {
+      recipe: "trade-explorer-v1" as const,
+      analysisBuildId: "acceptance-fixtures-v1",
+      shape: "finalized-trend-v1" as const,
+      dimensions: ["YEAR"] as const,
+      measures: ["TRADE_VALUE_USD"] as const,
+      filters: {
+        year: { mode: "list" as const, years: [] },
+        exportEconomy: ["156"],
+        importEconomy: ["528"],
+        hsProduct: ["010121"],
+      },
+      sort: null,
+    };
+
+    await expect(
+      runtime.tradeAnalytics.execute(validRequest),
+    ).resolves.toMatchObject({ state: "success" });
+    await expect(
+      runtime.tradeAnalytics.execute({
+        ...validRequest,
+        filters: {
+          ...validRequest.filters,
+          exportEconomy: ["0156"],
+        },
+      }),
+    ).resolves.toMatchObject({
+      state: "invalid-input",
+    });
+
+    for (const malformed of [
+      { ...validRequest, dimensions: null },
+      { ...validRequest, measures: null },
+      { ...validRequest, filters: null },
+      { ...validRequest, analysisBuildId: null },
+      { ...validRequest, analysisBuildId: 1n },
+    ]) {
+      const outcome = await runtime.tradeAnalytics.execute(
+        malformed as unknown as AnalysisRequest,
+      );
+      expect(["invalid-input", "retired"]).toContain(outcome.state);
+    }
+  });
+
+  it("coalesces equivalent Trade Explorer requests by normalized semantic inputs", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          analysisRequest: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          computations += 1;
+          return fixture.tradeAnalytics.execute(analysisRequest, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner);
+    const request = {
+      recipe: "trade-explorer-v1" as const,
+      analysisBuildId: "acceptance-fixtures-v1",
+      shape: "importing-markets-v1" as const,
+      dimensions: ["IMPORT_ECONOMY"] as const,
+      measures: ["TRADE_VALUE_USD"] as const,
+      filters: {
+        year: { mode: "range" as const, start: 2023, end: 2023 },
+        exportEconomy: ["156"],
+        importEconomy: ["076"],
+        hsProduct: ["010121"],
+      },
+      sort: null,
+    };
+
+    const first = await runtime.tradeAnalytics.execute(request);
+    const second = await runtime.tradeAnalytics.execute({
+      ...request,
+      filters: {
+        ...request.filters,
+        year: { mode: "list", years: [2023] },
+        importEconomy: ["76"],
+      },
+      sort: { key: "IMPORT_ECONOMY", direction: "asc" },
+    });
+
+    expect(first).toMatchObject({ state: "success" });
+    expect(second).toMatchObject({
+      state: "success",
+      analysisIdentity:
+        first.state === "success" ? first.analysisIdentity : undefined,
+    });
+    expect(computations).toBe(1);
+    expect(runtime.resources().caches.analysis.entries).toBe(1);
+  });
+
   it("validates raw search input before a normalized cache lookup", async () => {
     const fixture = createFixtureApplicationRuntime();
     const productSearchBuildId =

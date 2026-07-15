@@ -40,17 +40,19 @@ export function createMeasuredRuntimeRoute<Context>(
 ): {
   get(request: Request, context: Context): Promise<Response>;
   head(request: Request, context: Context): Promise<Response>;
+  post(request: Request, context: Context): Promise<Response>;
 } {
   async function respond(
     request: Request,
     context: Context,
-    headOnly: boolean,
+    method: "GET" | "HEAD" | "POST",
   ): Promise<Response> {
     const runtime = getApplicationRuntime();
+    const headOnly = method === "HEAD";
     return measureRuntimeRequest(
       runtime,
       config.routeFamily,
-      classifyRuntimeRequest(request, headOnly ? "HEAD" : "GET"),
+      classifyRuntimeRequest(request, method),
       async (measurement) => {
         const deadline = createRequestDeadline(
           request.signal,
@@ -78,7 +80,8 @@ export function createMeasuredRuntimeRoute<Context>(
   }
 
   return {
-    get: (request, context) => respond(request, context, false),
-    head: (request, context) => respond(request, context, true),
+    get: (request, context) => respond(request, context, "GET"),
+    head: (request, context) => respond(request, context, "HEAD"),
+    post: (request, context) => respond(request, context, "POST"),
   };
 }

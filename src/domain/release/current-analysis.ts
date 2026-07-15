@@ -72,6 +72,15 @@ export type CurrentAnalysisDeployment = {
       recipe: "supplier-competition-v1";
       datasetPackageIdentity: DatasetPackageIdentity;
     } | null;
+    // Populated only for the fixture deployment while trade-explorer-v1
+    // remains fixture-backed (issue #46); the production verified runtime
+    // never declares this until #47 activates a measured production
+    // Dataset Package for it (see runtime/verified-release-runtime.ts,
+    // which always supplies `null` here).
+    tradeExplorer: {
+      recipe: "trade-explorer-v1";
+      datasetPackageIdentity: DatasetPackageIdentity;
+    } | null;
   };
   // Every pairing in the active Deployment Retention Window (current
   // first, then up to two retained predecessors), each carrying only its

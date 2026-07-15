@@ -12,6 +12,7 @@ export class CurrentAnalysisDiscoveryError extends Error {
   constructor(
     readonly code: DiscoveryErrorCode,
     message: string,
+    readonly status: number | null = null,
   ) {
     super(message);
     this.name = "CurrentAnalysisDiscoveryError";
@@ -27,25 +28,83 @@ export async function loadCurrentAnalysisManifest({
   signal: AbortSignal;
   revalidate: boolean;
 }): Promise<CurrentAnalysisManifest> {
-  const response = await fetcher("/api/v1/analyses/current", {
+  return loadManifest({
+    path: "/api/v1/analyses/current",
+    label: "Current analysis",
+    fetcher,
+    signal,
+    revalidate,
+  });
+}
+
+export async function loadAnalysisBuildManifest({
+  analysisBuildId,
+  fetcher,
+  signal,
+}: {
+  analysisBuildId: string;
+  fetcher: typeof fetch;
+  signal: AbortSignal;
+}): Promise<CurrentAnalysisManifest> {
+  return loadManifest({
+    path: `/api/v1/analyses/${encodeURIComponent(analysisBuildId)}/manifest`,
+    label: `Analysis build ${analysisBuildId}`,
+    fetcher,
+    signal,
+    revalidate: true,
+  });
+}
+
+async function loadManifest({
+  path,
+  label,
+  fetcher,
+  signal,
+  revalidate,
+}: {
+  path: string;
+  label: string;
+  fetcher: typeof fetch;
+  signal: AbortSignal;
+  revalidate: boolean;
+}): Promise<CurrentAnalysisManifest> {
+  const response = await fetcher(path, {
     cache: revalidate ? "no-store" : "default",
     signal,
   });
   if (!response.ok) {
     throw new CurrentAnalysisDiscoveryError(
       "HTTP_ERROR",
-      `Current analysis manifest returned ${response.status}.`,
+      `${label} manifest returned ${response.status}.`,
+      response.status,
     );
   }
 
-  const candidate: unknown = await response.json();
+  const candidate = normalizeLegacyManifest(await response.json());
   if (!isCurrentAnalysisManifest(candidate)) {
     throw new CurrentAnalysisDiscoveryError(
       "INVALID_MANIFEST",
-      "The current analysis manifest is malformed or incompatible.",
+      `${label} manifest is malformed or incompatible.`,
     );
   }
   return candidate;
+}
+
+function normalizeLegacyManifest(candidate: unknown): unknown {
+  if (
+    !isRecord(candidate) ||
+    !isRecord(candidate.recommendation) ||
+    Object.hasOwn(candidate.recommendation, "tradeExplorer")
+  ) {
+    return candidate;
+  }
+  return {
+    ...candidate,
+    recommendation: {
+      ...candidate.recommendation,
+      tradeExplorer: null,
+    },
+  };
 }
 
 function isCurrentAnalysisManifest(
@@ -148,6 +207,7 @@ function isManifestRecommendation(
   }
   const tradeTrend = value.tradeTrend;
   const supplierCompetition = value.supplierCompetition;
+  const tradeExplorer = value.tradeExplorer;
   return (
     value.recipe === "candidate-market-v1" &&
     isRecommendedDatasetMappingIdentity(value.mappingIdentity) &&
@@ -156,7 +216,8 @@ function isManifestRecommendation(
     isRecommendedEconomyCatalogIdentity(value.economyCatalogIdentity) &&
     (tradeTrend === null || isTradeTrendRecommendation(tradeTrend)) &&
     (supplierCompetition === null ||
-      isSupplierCompetitionRecommendation(supplierCompetition))
+      isSupplierCompetitionRecommendation(supplierCompetition)) &&
+    (tradeExplorer === null || isTradeExplorerRecommendation(tradeExplorer))
   );
 }
 
@@ -176,6 +237,16 @@ function isSupplierCompetitionRecommendation(
   return (
     isRecord(value) &&
     value.recipe === "supplier-competition-v1" &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity)
+  );
+}
+
+function isTradeExplorerRecommendation(
+  value: unknown,
+): value is NonNullable<ManifestRecommendation["tradeExplorer"]> {
+  return (
+    isRecord(value) &&
+    value.recipe === "trade-explorer-v1" &&
     isDatasetPackageIdentity(value.datasetPackageIdentity)
   );
 }

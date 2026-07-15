@@ -9,6 +9,7 @@ import type {
 } from "../catalog/product-catalog";
 import {
   parseTradeAnalysisContext,
+  productCodeOf,
   serializeTradeAnalysisContext,
   withProductCode,
 } from "./trade-analysis-context";
@@ -91,9 +92,9 @@ export function ProductCombobox({
   >("idle");
 
   useEffect(() => {
-    const productCode = parseTradeAnalysisContext(
-      window.location.href,
-    ).productCode;
+    const productCode = productCodeOf(
+      parseTradeAnalysisContext(window.location.href),
+    );
     if (productCode === null) {
       return;
     }

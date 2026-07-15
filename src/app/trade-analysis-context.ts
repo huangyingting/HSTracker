@@ -1,21 +1,32 @@
 // The single canonical seam for Trade Analysis Context URLs. It owns
 // canonical query-parameter names, their order, locale and legacy-input
 // normalization, recipe-scoped transitions, pin-vs-current resolution, and
-// applying a current manifest pin, for Candidate Market, Trade Trend, and
-// Supplier Competition. Every task workspace, combobox, task shell, and
-// share link goes through this module rather than reading or writing
-// `URLSearchParams` directly, or hand-constructing a `TradeAnalysisContext`
-// object, so canonical URL rules and the context's own shape/invariants
-// exist exactly once. It is pure: it never touches `window`, `document`, or
-// `history` itself, which keeps it fully unit-testable and leaves the
-// actual browser side effects to its "use client" callers.
+// applying a current manifest pin, for Candidate Market, Trade Trend,
+// Supplier Competition, and Trade Explorer. Every task workspace,
+// combobox, task shell, and share link goes through this module rather
+// than reading or writing `URLSearchParams` directly, or hand-constructing
+// a `TradeAnalysisContext` object, so canonical URL rules and the
+// context's own shape/invariants exist exactly once. It is pure: it never
+// touches `window`, `document`, or `history` itself, which keeps it fully
+// unit-testable and leaves the actual browser side effects to its "use
+// client" callers.
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import { tradeExplorerShapeDefinition } from "../domain/trade-explorer/shapes";
+import {
+  TRADE_EXPLORER_MAX_FILTER_CODES,
+  TRADE_EXPLORER_MAX_YEARS,
+  TRADE_EXPLORER_MEASURE_ORDER,
+  type TradeExplorerMeasure,
+  type TradeExplorerShape,
+  type TradeExplorerSort,
+} from "../domain/trade-explorer/result";
 
 export type TradeAnalysisLocale = "en" | "zh-Hans";
 export type TradeAnalysisRecipe =
   | "candidate-market"
   | "trade-trend"
-  | "supplier-competition";
+  | "supplier-competition"
+  | "trade-explorer";
 
 // The exact versioned Analysis Recipe identity the canonical `recipe` URL
 // parameter carries — the same literal strings `CurrentAnalysisManifest`'s
@@ -25,7 +36,8 @@ export type TradeAnalysisRecipe =
 export type TradeAnalysisRecipeIdentity =
   | "candidate-market-v1"
   | "trade-trend-v1"
-  | "supplier-competition-v1";
+  | "supplier-competition-v1"
+  | "trade-explorer-v1";
 
 const DEFAULT_LOCALE: TradeAnalysisLocale = "en";
 const DEFAULT_RECIPE: TradeAnalysisRecipe = "candidate-market";
@@ -45,6 +57,7 @@ const RECIPE_IDENTITY: Readonly<
   "candidate-market": "candidate-market-v1",
   "trade-trend": "trade-trend-v1",
   "supplier-competition": "supplier-competition-v1",
+  "trade-explorer": "trade-explorer-v1",
 };
 
 const RECIPE_BY_IDENTITY: Readonly<
@@ -53,17 +66,31 @@ const RECIPE_BY_IDENTITY: Readonly<
   "candidate-market-v1": "candidate-market",
   "trade-trend-v1": "trade-trend",
   "supplier-competition-v1": "supplier-competition",
+  "trade-explorer-v1": "trade-explorer",
 };
 
 // Pre-recipe-identity links only ever named Trade Trend and Supplier
 // Competition this way (Candidate Market, the default, never had a task
 // alias). Parsing still accepts them for backward compatibility, but
 // reserialization always upgrades to the exact versioned `recipe`
-// identity above; see parseRecipe.
+// identity above; see parseRecipe. Trade Explorer is new in issue #46 and
+// never had a pre-recipe-identity alias, so it is deliberately absent
+// here.
 const LEGACY_TASK_RECIPE: Readonly<Record<string, TradeAnalysisRecipe>> = {
   "trade-trend": "trade-trend",
   "supplier-competition": "supplier-competition",
 };
+
+// The recipes that share Trade Trend/Supplier Competition's single
+// importer + HS12-product shape, used by withRecipe below to decide
+// whether switching recipes can carry that shape forward. Trade Explorer
+// and Candidate Market are both excluded: Trade Explorer's shape has no
+// single importer/product field at all, so switching into or out of it
+// always starts from empty inputs.
+const IMPORTER_SHAPED_RECIPES: ReadonlySet<TradeAnalysisRecipe> = new Set([
+  "trade-trend",
+  "supplier-competition",
+]);
 
 export type TradeAnalysisContextPin = Readonly<{
   analysisBuildId: string;
@@ -98,10 +125,31 @@ export type SupplierCompetitionContext = BaseContextFields &
     importerCode: string | null;
   }>;
 
+// Trade Explorer has no single economy/product field pair, so it does not
+// extend BaseContextFields: it carries its own bounded, ordered lists
+// (never a generic key/value map) plus an optional sort, each field
+// independently present or absent so the canonical URL can reflect
+// in-progress selection exactly like the other tasks' incremental
+// economy/product selection. `shape` alone is nullable; every list
+// defaults to `[]` and `sort` to `null` when unset.
+export type TradeExplorerContext = Readonly<{
+  recipe: "trade-explorer";
+  locale: TradeAnalysisLocale;
+  pin: TradeAnalysisContextPin | null;
+  shape: TradeExplorerShape | null;
+  measures: readonly TradeExplorerMeasure[];
+  years: readonly number[];
+  exportEconomy: readonly string[];
+  importEconomy: readonly string[];
+  hsProduct: readonly string[];
+  sort: TradeExplorerSort | null;
+}>;
+
 export type TradeAnalysisContext =
   | CandidateMarketContext
   | TradeTrendContext
-  | SupplierCompetitionContext;
+  | SupplierCompetitionContext
+  | TradeExplorerContext;
 
 export type PinRetiredReason =
   | "BUILD_MISMATCH"
@@ -193,7 +241,10 @@ function recipeDatasetPackageIdentityFromRecommendation(
   if (recipe === "trade-trend") {
     return recommendation.tradeTrend?.datasetPackageIdentity ?? null;
   }
-  return recommendation.supplierCompetition?.datasetPackageIdentity ?? null;
+  if (recipe === "supplier-competition") {
+    return recommendation.supplierCompetition?.datasetPackageIdentity ?? null;
+  }
+  return recommendation.tradeExplorer?.datasetPackageIdentity ?? null;
 }
 
 /**
@@ -208,11 +259,21 @@ export function parseTradeAnalysisContext(
   const params = toURL(location).searchParams;
   const recipe = parseRecipe(params.get("recipe"), params.get("task"));
   const locale = parseLocale(params.get("locale"));
+  const pin = parsePin(params.get("build"), params.get("pkg"));
+
+  if (recipe === "trade-explorer") {
+    return {
+      recipe,
+      locale,
+      pin,
+      ...parseTradeExplorerFields(params),
+    };
+  }
+
   const productCode = parseProductCode(
     params.get("revision"),
     params.get("product"),
   );
-  const pin = parsePin(params.get("build"), params.get("pkg"));
 
   if (recipe === "candidate-market") {
     return {
@@ -267,17 +328,23 @@ export function serializeTradeAnalysisContext(
   if (context.locale !== DEFAULT_LOCALE) {
     params.set("locale", context.locale);
   }
-  const economyCode = economyCodeOf(context);
-  if (economyCode !== null) {
-    params.set(economyParamName(context.recipe), economyCode);
+
+  if (context.recipe === "trade-explorer") {
+    appendTradeExplorerFields(params, context);
+  } else {
+    const economyCode = economyCodeOf(context);
+    if (economyCode !== null) {
+      params.set(economyParamName(context.recipe), economyCode);
+    }
+    if (context.productCode !== null) {
+      params.set("revision", "HS12");
+      params.set("product", context.productCode);
+    }
+    if (context.recipe === "candidate-market" && context.focusedMarketCode !== null) {
+      params.set("market", context.focusedMarketCode);
+    }
   }
-  if (context.productCode !== null) {
-    params.set("revision", "HS12");
-    params.set("product", context.productCode);
-  }
-  if (context.recipe === "candidate-market" && context.focusedMarketCode !== null) {
-    params.set("market", context.focusedMarketCode);
-  }
+
   if (context.pin !== null) {
     params.set("build", context.pin.analysisBuildId);
     params.set("pkg", context.pin.datasetPackageIdentity);
@@ -302,22 +369,49 @@ export function emptyTradeAnalysisContext(
       focusedMarketCode: null,
     };
   }
+  if (recipe === "trade-explorer") {
+    return emptyTradeExplorerContext(locale);
+  }
   return { recipe, locale, productCode: null, pin: null, importerCode: null };
+}
+
+function emptyTradeExplorerContext(
+  locale: TradeAnalysisLocale,
+): TradeExplorerContext {
+  return {
+    recipe: "trade-explorer",
+    locale,
+    pin: null,
+    shape: null,
+    measures: [],
+    years: [],
+    exportEconomy: [],
+    importEconomy: [],
+    hsProduct: [],
+    sort: null,
+  };
 }
 
 /** True once the recipe's own canonical inputs are both present. */
 export function hasCompleteRecipeInputs(context: TradeAnalysisContext): boolean {
+  if (context.recipe === "trade-explorer") {
+    return (
+      context.shape !== null &&
+      context.measures.length > 0 &&
+      context.exportEconomy.length > 0 &&
+      context.importEconomy.length > 0 &&
+      context.hsProduct.length > 0
+    );
+  }
   return economyCodeOf(context) !== null && context.productCode !== null;
 }
 
 /**
  * Transitions `context` to `recipe`, always discarding the pin (a recipe
- * change invalidates it). Trade Trend and Supplier Competition share an
- * importer+HS12-product shape, so switching directly between them carries
- * that importing economy and product forward; any other transition (to or
- * from Candidate Market, whose canonical input is an exporter, not an
- * importer) starts that recipe with empty inputs rather than guessing an
- * exporter from an importer or vice versa.
+ * change invalidates it). Compatible single economy and product selections
+ * carry across recipes. Trade Explorer receives a candidate-market exporter
+ * or an importer-shaped recipe's importer in the matching dimension; it
+ * transfers a dimension back only when that dimension has exactly one value.
  */
 export function withRecipe(
   context: TradeAnalysisContext,
@@ -327,15 +421,62 @@ export function withRecipe(
     return context;
   }
   const sharesImporterShape =
-    context.recipe !== "candidate-market" && recipe !== "candidate-market";
+    IMPORTER_SHAPED_RECIPES.has(context.recipe) &&
+    IMPORTER_SHAPED_RECIPES.has(recipe);
   if (sharesImporterShape) {
     return {
-      recipe,
+      recipe: recipe as "trade-trend" | "supplier-competition",
       locale: context.locale,
-      productCode: context.productCode,
+      productCode: (context as TradeTrendContext | SupplierCompetitionContext)
+        .productCode,
       pin: null,
-      importerCode: context.importerCode,
+      importerCode: (context as TradeTrendContext | SupplierCompetitionContext)
+        .importerCode,
     };
+  }
+  if (recipe === "trade-explorer") {
+    const explorer = emptyTradeExplorerContext(context.locale);
+    if (context.recipe === "candidate-market") {
+      return {
+        ...explorer,
+        exportEconomy:
+          context.exporterCode === null ? [] : [context.exporterCode],
+        hsProduct:
+          context.productCode === null ? [] : [context.productCode],
+      };
+    }
+    if (context.recipe !== "trade-explorer") {
+      return {
+        ...explorer,
+        importEconomy:
+          context.importerCode === null ? [] : [context.importerCode],
+        hsProduct:
+          context.productCode === null ? [] : [context.productCode],
+      };
+    }
+  }
+  if (context.recipe === "trade-explorer") {
+    const single = emptyTradeAnalysisContext(recipe, context.locale);
+    const productCode =
+      context.hsProduct.length === 1 ? context.hsProduct[0]! : null;
+    if (recipe === "candidate-market") {
+      return {
+        ...single,
+        productCode,
+        exporterCode:
+          context.exportEconomy.length === 1
+            ? context.exportEconomy[0]!
+            : null,
+      } as CandidateMarketContext;
+    }
+    return {
+      ...single,
+      productCode,
+      importerCode:
+        context.importEconomy.length === 1
+          ? context.importEconomy[0]!
+          : null,
+    } as TradeTrendContext | SupplierCompetitionContext;
   }
   return emptyTradeAnalysisContext(recipe, context.locale);
 }
@@ -345,15 +486,40 @@ export function withoutPin(context: TradeAnalysisContext): TradeAnalysisContext 
   return { ...context, pin: null };
 }
 
+/** Recipes carrying BaseContextFields' single economy/product shape --
+ * every recipe except Trade Explorer, whose own shape has no such single
+ * field (see TradeExplorerContext). `withEconomyCode`/`withProductCode`/
+ * `economyCodeOf` are only ever called by the shared EconomyCombobox/
+ * ProductCombobox components, which Trade Explorer's workspace does not
+ * use for its own bounded per-dimension code-list fields; calling them
+ * with a Trade Explorer context is a caller defect, not an expected
+ * input, so they throw rather than silently reshaping it. */
+export type SingleEconomyContext =
+  | CandidateMarketContext
+  | TradeTrendContext
+  | SupplierCompetitionContext;
+
+function asSingleEconomyContext(
+  context: TradeAnalysisContext,
+): SingleEconomyContext {
+  if (context.recipe === "trade-explorer") {
+    throw new TypeError(
+      "Trade Explorer's Trade Analysis Context has no single economy/product field.",
+    );
+  }
+  return context;
+}
+
 /** Returns `context` with its own economy code field (exporter or
  * importer, whichever the recipe consumes) set to `code`. */
 export function withEconomyCode(
   context: TradeAnalysisContext,
   code: string | null,
 ): TradeAnalysisContext {
-  return context.recipe === "candidate-market"
-    ? { ...context, exporterCode: code }
-    : { ...context, importerCode: code };
+  const single = asSingleEconomyContext(context);
+  return single.recipe === "candidate-market"
+    ? { ...single, exporterCode: code }
+    : { ...single, importerCode: code };
 }
 
 /** Returns `context` with its product code field set to `code`. */
@@ -361,7 +527,7 @@ export function withProductCode(
   context: TradeAnalysisContext,
   code: string | null,
 ): TradeAnalysisContext {
-  return { ...context, productCode: code };
+  return { ...asSingleEconomyContext(context), productCode: code };
 }
 
 /** Returns `context` relabeled to `locale`; the Analysis Identity it may
@@ -412,12 +578,23 @@ export function withPin<T extends TradeAnalysisContext>(
  * for trade-trend and supplier-competition), independent of which field
  * name backs it. */
 export function economyCodeOf(context: TradeAnalysisContext): string | null {
-  return context.recipe === "candidate-market"
-    ? context.exporterCode
-    : context.importerCode;
+  const single = asSingleEconomyContext(context);
+  return single.recipe === "candidate-market"
+    ? single.exporterCode
+    : single.importerCode;
 }
 
-function economyParamName(recipe: TradeAnalysisRecipe): "exporter" | "importer" {
+/** The recipe's own single product code field, for the three recipes that
+ * have one (see SingleEconomyContext); Trade Explorer's own product
+ * cohort/filter codes are read directly from its own `hsProduct` field
+ * instead. */
+export function productCodeOf(context: TradeAnalysisContext): string | null {
+  return asSingleEconomyContext(context).productCode;
+}
+
+function economyParamName(
+  recipe: SingleEconomyContext["recipe"],
+): "exporter" | "importer" {
   return recipe === "candidate-market" ? "exporter" : "importer";
 }
 
@@ -479,6 +656,180 @@ function parsePin(
   }
   return { analysisBuildId, datasetPackageIdentity };
 }
+
+// Trade Explorer's own canonical URL vocabulary intentionally reuses the
+// exact param names the API route's own GET/HEAD query-string form uses
+// (see domain/trade-analytics/trade-explorer-v1-query-codec.ts) -- shape,
+// measures, years, exportEconomy, importEconomy, hsProduct, sortKey,
+// sortDirection -- but parses each independently and tolerates partial
+// presence, unlike that strict all-or-nothing codec: a Trade Explorer
+// workspace's in-progress selection (e.g. shape chosen but no codes yet)
+// must still round-trip through the URL, exactly like Trade Trend and
+// Supplier Competition's importer/product fields already do one at a
+// time. `dimensions` and `filters.year`'s range form are deliberately
+// never parsed here; the workspace always writes years as an explicit
+// list.
+function parseTradeExplorerFields(
+  params: URLSearchParams,
+): Omit<TradeExplorerContext, "recipe" | "locale" | "pin"> {
+  const shapeValue = params.get("shape");
+  const shape =
+    shapeValue !== null && tradeExplorerShapeDefinition(shapeValue) !== null
+      ? (shapeValue as TradeExplorerShape)
+      : null;
+  const measures = parseCodeList<TradeExplorerMeasure>(
+    params.get("measures"),
+    (token): token is TradeExplorerMeasure =>
+      TRADE_EXPLORER_MEASURE_ORDER.includes(token as TradeExplorerMeasure),
+    TRADE_EXPLORER_MEASURE_ORDER.length,
+    "RECORDED_FLOW_COUNT".length,
+  );
+  const years = parseCodeList<string>(
+    params.get("years"),
+    YEAR_PATTERN.test.bind(YEAR_PATTERN),
+    TRADE_EXPLORER_MAX_YEARS,
+    4,
+  ).map(Number);
+  const exportEconomy = parseCodeList<string>(
+    params.get("exportEconomy"),
+    ECONOMY_CODE_PATTERN.test.bind(ECONOMY_CODE_PATTERN),
+    TRADE_EXPLORER_MAX_FILTER_CODES,
+    3,
+  );
+  const importEconomy = parseCodeList<string>(
+    params.get("importEconomy"),
+    ECONOMY_CODE_PATTERN.test.bind(ECONOMY_CODE_PATTERN),
+    TRADE_EXPLORER_MAX_FILTER_CODES,
+    3,
+  );
+  const hsProduct = parseCodeList<string>(
+    params.get("hsProduct"),
+    PRODUCT_CODE_PATTERN.test.bind(PRODUCT_CODE_PATTERN),
+    TRADE_EXPLORER_MAX_FILTER_CODES,
+    6,
+  );
+  const sort = parseTradeExplorerSort(
+    params.get("sortKey"),
+    params.get("sortDirection"),
+    shape,
+    measures,
+  );
+
+  return {
+    shape,
+    measures,
+    years,
+    exportEconomy,
+    importEconomy,
+    hsProduct,
+    sort,
+  };
+}
+
+function parseCodeList<T extends string>(
+  value: string | null,
+  isValid: (token: string) => boolean,
+  maxTokens: number,
+  maxTokenLength: number,
+): readonly T[] {
+  if (value === null || value.length === 0) {
+    return [];
+  }
+  if (value.length > maxTokens * maxTokenLength + (maxTokens - 1)) {
+    return [];
+  }
+  const tokens = value.split(",");
+  return tokens.length <= maxTokens && tokens.every(isValid)
+    ? (tokens as unknown as readonly T[])
+    : [];
+}
+
+function parseTradeExplorerSort(
+  key: string | null,
+  direction: string | null,
+  shape: TradeExplorerShape | null,
+  measures: readonly TradeExplorerMeasure[],
+): TradeExplorerSort | null {
+  if (key === null || direction === null || shape === null) {
+    return null;
+  }
+  const definition = tradeExplorerShapeDefinition(shape);
+  const allowedKeys: readonly string[] =
+    definition === null ? measures : [definition.groupedDimension, ...measures];
+  if (
+    !allowedKeys.includes(key) ||
+    (direction !== "asc" && direction !== "desc")
+  ) {
+    return null;
+  }
+  return { key: key as TradeExplorerSort["key"], direction };
+}
+
+function appendTradeExplorerFields(
+  params: URLSearchParams,
+  context: TradeExplorerContext,
+): void {
+  const measures = TRADE_EXPLORER_MEASURE_ORDER.filter((measure) =>
+    context.measures.includes(measure),
+  );
+  const years = [...new Set(context.years)]
+    .filter((year) => Number.isSafeInteger(year) && YEAR_PATTERN.test(String(year)))
+    .sort((left, right) => left - right);
+  const exportEconomy = canonicalEconomyCodes(context.exportEconomy);
+  const importEconomy = canonicalEconomyCodes(context.importEconomy);
+  const hsProduct = canonicalProductCodes(context.hsProduct);
+
+  if (context.shape !== null) {
+    params.set("shape", context.shape);
+  }
+  if (measures.length > 0) {
+    params.set("measures", measures.join(","));
+  }
+  if (years.length > 0) {
+    params.set("years", years.join(","));
+  }
+  if (exportEconomy.length > 0) {
+    params.set("exportEconomy", exportEconomy.join(","));
+  }
+  if (importEconomy.length > 0) {
+    params.set("importEconomy", importEconomy.join(","));
+  }
+  if (hsProduct.length > 0) {
+    params.set("hsProduct", hsProduct.join(","));
+  }
+  if (
+    context.sort !== null &&
+    parseTradeExplorerSort(
+      context.sort.key,
+      context.sort.direction,
+      context.shape,
+      measures,
+    ) !== null
+  ) {
+    params.set("sortKey", context.sort.key);
+    params.set("sortDirection", context.sort.direction);
+  }
+}
+
+function canonicalEconomyCodes(codes: readonly string[]): readonly string[] {
+  return [...new Set(
+    codes
+      .filter((code) => ECONOMY_CODE_PATTERN.test(code))
+      .map((code) => String(Number(code))),
+  )].sort(compareSemanticCodes);
+}
+
+function canonicalProductCodes(codes: readonly string[]): readonly string[] {
+  return [...new Set(
+    codes.filter((code) => PRODUCT_CODE_PATTERN.test(code)),
+  )].sort(compareSemanticCodes);
+}
+
+function compareSemanticCodes(left: string, right: string): number {
+  return Number(left) - Number(right);
+}
+
+const YEAR_PATTERN = /^\d{4}$/u;
 
 function toURL(location: string | URL): URL {
   if (location instanceof URL) {

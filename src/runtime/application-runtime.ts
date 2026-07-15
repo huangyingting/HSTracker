@@ -12,6 +12,7 @@ import { createFixtureEconomyDirectory } from "../economy/fixture-economy-direct
 import {
   createFixtureCandidateMarketDatasetPackages,
   createFixtureSupplierCompetitionDatasetPackages,
+  createFixtureTradeExplorerDatasetPackages,
   createFixtureTradeTrendDatasetPackages,
   FixtureTradeEvidenceSource,
 } from "../evidence/fixture-trade-evidence-source";
@@ -150,6 +151,10 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
       supplierCompetition: {
         evidenceSource: new FixtureTradeEvidenceSource(),
         datasetPackages: createFixtureSupplierCompetitionDatasetPackages(),
+      },
+      tradeExplorer: {
+        evidenceSource: new FixtureTradeEvidenceSource(),
+        datasetPackages: createFixtureTradeExplorerDatasetPackages(),
       },
     }),
     currentAnalysis: resolveFixtureCurrentAnalysisManifest,

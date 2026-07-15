@@ -1,5 +1,6 @@
 const MEBIBYTE = 1024 * 1024;
 const GIBIBYTE = 1024 * 1024 * 1024;
+const KIBIBYTE = 1024;
 
 export const RUNTIME_RESOURCE_POLICY = Object.freeze({
   maxConcurrentAnalyses: 2,
@@ -8,9 +9,11 @@ export const RUNTIME_RESOURCE_POLICY = Object.freeze({
   analysisTimeoutMs: 5_000,
   analysisBudget: {
     maxInputBytes: 256,
+    maxTradeExplorerInputBytes: 2 * KIBIBYTE,
     maxResultRows: 250,
     maxResultBytes: MEBIBYTE,
   },
+  tradeExplorerRequestBodyMaxBytes: 4 * KIBIBYTE,
   anonymousSourceRateLimit: {
     capacity: 60,
     refillTokensPerSecond: 10,

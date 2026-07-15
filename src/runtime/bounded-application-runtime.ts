@@ -3,7 +3,9 @@ import { isCandidateMarketAnalysisError } from "../domain/candidate-market/error
 import { validateCandidateMarketV1Request } from "../domain/trade-analytics/candidate-market-v1-request";
 import { validateSupplierCompetitionV1Request } from "../domain/trade-analytics/supplier-competition-v1-request";
 import { validateTradeTrendV1Request } from "../domain/trade-analytics/trade-trend-v1-request";
+import { validateTradeExplorerV1Request } from "../domain/trade-analytics/trade-explorer-v1-request";
 import { isSupplierCompetitionAnalysisError } from "../domain/supplier-competition/errors";
+import { isTradeExplorerAnalysisError } from "../domain/trade-explorer/errors";
 import { isTradeTrendAnalysisError } from "../domain/trade-trend/errors";
 import type {
   AnalysisExecutionOptions,
@@ -12,6 +14,7 @@ import type {
   AnalysisRecipe,
   AnalysisRequest,
   TradeAnalyticsPlatform,
+  TradeExplorerV1AnalysisRequest,
 } from "../domain/trade-analytics/trade-analytics-platform";
 import { normalizeEconomyQuery } from "../economy/economy-search";
 import { validateEconomySearchQuery } from "../economy/economy-search";
@@ -35,7 +38,8 @@ type AnalysisQuery = AnalysisRequest;
 type AnalysisResult =
   | AnalysisOutcome<"candidate-market-v1">
   | AnalysisOutcome<"trade-trend-v1">
-  | AnalysisOutcome<"supplier-competition-v1">;
+  | AnalysisOutcome<"supplier-competition-v1">
+  | AnalysisOutcome<"trade-explorer-v1">;
 type AnalysisPromise = Promise<AnalysisResult>;
 type ProductSearchQuery = Parameters<
   ApplicationRuntime["searchProducts"]
@@ -66,6 +70,7 @@ export type BoundedApplicationRuntimeOptions = Readonly<{
 
 export type AnalysisBudgetPolicy = Readonly<{
   maxInputBytes: number;
+  maxTradeExplorerInputBytes: number;
   maxResultRows: number;
   maxResultBytes: number;
 }>;
@@ -245,7 +250,8 @@ export function createBoundedApplicationRuntime(
       if (
         !isCandidateMarketAnalysisError(error) &&
         !isTradeTrendAnalysisError(error) &&
-        !isSupplierCompetitionAnalysisError(error)
+        !isSupplierCompetitionAnalysisError(error) &&
+        !isTradeExplorerAnalysisError(error)
       ) {
         return Promise.reject(error);
       }
@@ -269,10 +275,35 @@ export function createBoundedApplicationRuntime(
         },
       );
     }
+    let normalizedTradeExplorer:
+      | ReturnType<typeof validateTradeExplorerV1Request>
+      | undefined;
+    if (query.recipe === "trade-explorer-v1") {
+      try {
+        const cutoff = activeDeployment.source.finalizedCutoffYear;
+        normalizedTradeExplorer = validateTradeExplorerV1Request(query, {
+          start: cutoff - 4,
+          end: cutoff,
+        });
+      } catch (error) {
+        if (!isTradeExplorerAnalysisError(error)) {
+          return Promise.reject(error);
+        }
+        return inner.tradeAnalytics.execute(query, requestOptions).then(
+          (outcome) => {
+            requestOptions?.observe?.(
+              analysisObservation("bypass", null, null, outcome),
+            );
+            return outcome;
+          },
+        );
+      }
+    }
 
     const key = analysisKey(
       query,
       requestOptions?.cachePartitionKey,
+      normalizedTradeExplorer,
     );
     const cached = analysisCache.lookup(key);
     if (cached !== undefined) {
@@ -587,7 +618,23 @@ function economySearchKey(query: EconomySearchQuery): string {
 function analysisKey(
   query: AnalysisQuery,
   cachePartitionKey: string | undefined,
+  normalizedTradeExplorer?: ReturnType<
+    typeof validateTradeExplorerV1Request
+  >,
 ): string {
+  if (query.recipe === "trade-explorer-v1") {
+    if (normalizedTradeExplorer === undefined) {
+      throw new TypeError(
+        "Trade Explorer cache keys require normalized semantic inputs.",
+      );
+    }
+    return [
+      query.recipe,
+      query.analysisBuildId,
+      JSON.stringify(normalizedTradeExplorer),
+      cachePartitionKey ?? "",
+    ].join("\u0000");
+  }
   return [
     query.recipe,
     query.analysisBuildId,
@@ -612,10 +659,22 @@ function validateAnalysisRequest(query: AnalysisQuery): void {
     validateSupplierCompetitionV1Request(query);
     return;
   }
+  if (query.recipe === "trade-explorer-v1") {
+    // Trade Explorer's own normalization needs the resolved Dataset
+    // Package's finalized window (see trade-analytics-platform.ts's
+    // executeTradeExplorerV1), which this generic preflight bypass check
+    // does not have. It is only a caching/coalescing efficiency hint --
+    // `inner.tradeAnalytics.execute` always re-validates authoritatively
+    // -- so trade-explorer-v1 requests simply always take the normal
+    // cached/queued path rather than the invalid-request bypass path.
+    return;
+  }
   validateTradeTrendV1Request(query);
 }
 
-function normalizedEconomyCode(query: AnalysisQuery): string {
+function normalizedEconomyCode(
+  query: Exclude<AnalysisQuery, TradeExplorerV1AnalysisRequest>,
+): string {
   return String(
     Number(
       query.recipe === "candidate-market-v1"
@@ -623,6 +682,29 @@ function normalizedEconomyCode(query: AnalysisQuery): string {
         : query.importerCode,
     ),
   );
+}
+
+function tradeExplorerRawInputKey(
+  query: TradeExplorerV1AnalysisRequest,
+): string | null {
+  try {
+    return JSON.stringify([
+      query.shape,
+      [...query.dimensions].sort(),
+      [...query.measures].sort(),
+      query.filters.year,
+      sortedEconomyCodes(query.filters.exportEconomy),
+      sortedEconomyCodes(query.filters.importEconomy),
+      [...query.filters.hsProduct].sort(),
+      query.sort,
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+function sortedEconomyCodes(codes: readonly string[]): readonly string[] {
+  return [...codes].sort();
 }
 
 function analysisResultRows(
@@ -637,6 +719,12 @@ function analysisResultRows(
       outcome.payload.provisionalSupplierShares.length
     );
   }
+  if (outcome.recipe === "trade-explorer-v1") {
+    return (
+      outcome.payload.rows.length +
+      (outcome.payload.totalRow === null ? 0 : 1)
+    );
+  }
   return (
     outcome.payload.finalizedObservations.length +
     (outcome.payload.provisionalObservation === null ? 0 : 1)
@@ -647,17 +735,37 @@ function inputBudgetOutcome(
   request: AnalysisQuery,
   policy: AnalysisBudgetPolicy,
 ): AnalysisResult | null {
-  const canonicalInputs = [
-    request.recipe,
-    request.analysisBuildId,
-    request.recipe === "candidate-market-v1"
-      ? request.exporterCode
-      : request.importerCode,
-    request.productCode,
-  ];
+  const maxInputBytes =
+    request.recipe === "trade-explorer-v1"
+      ? policy.maxTradeExplorerInputBytes
+      : policy.maxInputBytes;
+  let canonicalInputs: readonly string[];
+  if (request.recipe === "trade-explorer-v1") {
+    const tradeExplorerInputKey = tradeExplorerRawInputKey(request);
+    if (tradeExplorerInputKey === null) {
+      return null;
+    }
+    canonicalInputs = [
+      request.recipe,
+      request.analysisBuildId,
+      tradeExplorerInputKey,
+    ];
+  } else {
+    canonicalInputs = [
+      request.recipe,
+      request.analysisBuildId,
+      request.recipe === "candidate-market-v1"
+        ? request.exporterCode
+        : request.importerCode,
+      request.productCode,
+    ];
+  }
+  if (canonicalInputs.some((input) => typeof input !== "string")) {
+    return null;
+  }
   if (
     canonicalInputs.some(
-      (input) => input.length > policy.maxInputBytes,
+      (input) => input.length > maxInputBytes,
     )
   ) {
     return budgetOutcome(request, "INPUT_CARDINALITY");
@@ -665,7 +773,7 @@ function inputBudgetOutcome(
   const canonicalInputBytes = utf8ByteLength(
     JSON.stringify(canonicalInputs),
   );
-  return canonicalInputBytes > policy.maxInputBytes
+  return canonicalInputBytes > maxInputBytes
     ? budgetOutcome(request, "INPUT_CARDINALITY")
     : null;
 }
@@ -813,10 +921,16 @@ function resolveAnalysisBudget(
   const policy = {
     ...RUNTIME_RESOURCE_POLICY.analysisBudget,
     ...override,
+    maxTradeExplorerInputBytes:
+      override?.maxTradeExplorerInputBytes ??
+      override?.maxInputBytes ??
+      RUNTIME_RESOURCE_POLICY.analysisBudget.maxTradeExplorerInputBytes,
   };
   if (
     !Number.isSafeInteger(policy.maxInputBytes) ||
     policy.maxInputBytes < 1 ||
+    !Number.isSafeInteger(policy.maxTradeExplorerInputBytes) ||
+    policy.maxTradeExplorerInputBytes < 1 ||
     !Number.isSafeInteger(policy.maxResultRows) ||
     policy.maxResultRows < 0 ||
     !Number.isSafeInteger(policy.maxResultBytes) ||

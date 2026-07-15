@@ -10,6 +10,8 @@ const copy = {
     done: "Link copied",
     importingContextHint:
       "The address bar already carries this exact context — importing economy and HS Product. Copy it to share the same evidence.",
+    explorerContextHint:
+      "The address bar already carries this exact bounded analysis — shape, filters, measures, and sort. Copy it to share the same evidence.",
   },
   "zh-Hans": {
     kicker: "分享此分析",
@@ -18,6 +20,8 @@ const copy = {
     done: "已复制链接",
     importingContextHint:
       "地址栏已包含当前完整情境——进口经济体与 HS 产品。复制它即可分享相同的证据。",
+    explorerContextHint:
+      "地址栏已包含此确切的有界分析——形态、筛选条件、度量与排序。复制它即可分享相同的证据。",
   },
 } as const;
 
@@ -28,7 +32,7 @@ export function AnalysisShareLink({
   task = "candidate-market",
 }: {
   locale: ShareLocale;
-  task?: "candidate-market" | "trade-trend" | "supplier-competition";
+  task?: "candidate-market" | "trade-trend" | "supplier-competition" | "trade-explorer";
 }) {
   const messages = copy[locale];
   const [copied, setCopied] = useState(false);
@@ -65,7 +69,9 @@ export function AnalysisShareLink({
         <span>
           {task === "candidate-market"
             ? messages.hint
-            : messages.importingContextHint}
+            : task === "trade-explorer"
+              ? messages.explorerContextHint
+              : messages.importingContextHint}
         </span>
       </div>
       <button type="button" data-copied={copied} onClick={copyAnalysisLink}>
