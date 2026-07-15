@@ -28,7 +28,7 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 51,
+          benchmarkCount: 67,
         },
         targetLoad: {
           status: "accepted",
@@ -340,6 +340,10 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "trade-trend-analysis-process-hit",
     "trade-trend-csv-uncached",
     "trade-trend-csv-analysis-hit",
+    "supplier-competition-analysis-uncached",
+    "supplier-competition-analysis-process-hit",
+    "supplier-competition-csv-uncached",
+    "supplier-competition-csv-analysis-hit",
   ];
   const roles = [
     "sparse",
@@ -376,6 +380,10 @@ function benchmark(
     "trade-trend-analysis-process-hit": [100, 250, 2_000],
     "trade-trend-csv-uncached": [3_000, 6_000, 15_000],
     "trade-trend-csv-analysis-hit": [250, 500, 15_000],
+    "supplier-competition-analysis-uncached": [2_000, 4_000, 12_000],
+    "supplier-competition-analysis-process-hit": [100, 250, 2_000],
+    "supplier-competition-csv-uncached": [3_000, 6_000, 15_000],
+    "supplier-competition-csv-analysis-hit": [250, 500, 15_000],
   } as const;
   const payloadBytes =
     operation === "current-manifest"
@@ -383,9 +391,12 @@ function benchmark(
       : operation.includes("search")
         ? 64 * KIB
         : operation.startsWith("candidate-analysis") ||
-            operation.startsWith("trade-trend-analysis")
+            operation.startsWith("trade-trend-analysis") ||
+            operation.startsWith("supplier-competition-analysis")
           ? 1_536 * KIB
-          : operation.startsWith("csv") || operation.startsWith("trade-trend-csv")
+          : operation.startsWith("csv") ||
+              operation.startsWith("trade-trend-csv") ||
+              operation.startsWith("supplier-competition-csv")
             ? 5 * 1024 * KIB
             : 8 * KIB;
   const [p95Ms, p99Ms, deadlineMs] = thresholds[operation];
@@ -406,7 +417,8 @@ function benchmark(
     payloadBytes,
     compressedPayloadBytes:
       operation.startsWith("candidate-analysis") ||
-      operation.startsWith("trade-trend-analysis")
+      operation.startsWith("trade-trend-analysis") ||
+      operation.startsWith("supplier-competition-analysis")
         ? 300 * KIB
         : undefined,
   };

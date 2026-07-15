@@ -14,6 +14,7 @@ export type RuntimeRouteFamily =
   | "trade-trend"
   | "trade-trend-csv"
   | "supplier-competition"
+  | "supplier-competition-csv"
   | "product-search"
   | "economy-search"
   | "current-analysis"

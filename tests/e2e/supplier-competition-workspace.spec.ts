@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test, type Page } from "@playwright/test";
 
 async function selectSupplierCompetitionContext(
@@ -58,6 +60,58 @@ test("an analyst can select Supplier Competition by keyboard, share it, and chan
   ).toBeVisible();
   await expect(page.getByText("5200.000000", { exact: true })).toBeVisible();
   await expect(page.getByText("仅为经济体级别证据")).toBeVisible();
+});
+
+test("an analyst downloads the complete contextual Supplier Competition CSV", async ({
+  page,
+}) => {
+  let exportUrl: URL | null = null;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/supplier-competitions.csv")) {
+      exportUrl = url;
+    }
+  });
+
+  await page.goto(
+    "/?task=supplier-competition&importer=124&revision=HS12&product=010121",
+  );
+  await selectSupplierCompetitionContext(page, "124", /Canada/);
+  await page.getByRole("button", { name: "Analyze Supplier Competition" }).click();
+  await expect(
+    page.getByRole("table", { name: "Complete supplier-economy structure" }),
+  ).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download complete CSV" }).click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (path === null) {
+    throw new Error("The CSV download did not produce a local file.");
+  }
+  const bytes = await readFile(path);
+  const text = bytes.toString("utf8");
+
+  expect(download.suggestedFilename()).toMatch(
+    /^hs-tracker_supplier-competition_for-124_HS12-010121_V202601_scx1-[a-f0-9]{64}\.csv$/u,
+  );
+  expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+  expect(text.match(/\r\n/g)).toHaveLength(5);
+  expect(text.match(/"SUPPLIER"/g)).toHaveLength(4);
+  expect(text).toContain('"纯种繁殖用活马"');
+  expect(text).toContain('"700000"');
+  expect(text).toContain('"5200.000000"');
+  expect(exportUrl).not.toBeNull();
+  expect(exportUrl!.searchParams.get("importer")).toBe("124");
+  expect(exportUrl!.searchParams.get("product")).toBe("010121");
+  expect(exportUrl!.searchParams.get("schema")).toBe(
+    "supplier-competitions-csv-v1",
+  );
+
+  await page.getByRole("button", { name: "简体中文" }).click();
+  await expect(
+    page.getByRole("button", { name: "下载完整 CSV" }),
+  ).toBeVisible();
 });
 
 test("Supplier Competition distinguishes sparse, incomplete supplier structure, and not-applicable provisional evidence on a narrow viewport", async ({

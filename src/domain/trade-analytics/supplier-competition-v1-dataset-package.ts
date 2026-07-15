@@ -4,9 +4,88 @@ import type { DatasetPackageIdentity } from "./dataset-package";
 
 export const SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS = [
   { id: "supplier-competition/supplier-annual-value", version: "1" },
+  { id: "supplier-competition/supplier-structure", version: "1" },
   { id: "supplier-competition/economy-identity", version: "1" },
   { id: "supplier-competition/hs-product-identity", version: "1" },
+  { id: "supplier-competition/period-coverage", version: "1" },
 ] as const;
+
+// This is the artifact-declared counterpart of
+// CANDIDATE_MARKET_V1_DATASET_DECLARATION and
+// TRADE_TREND_V1_DATASET_DECLARATION: the published analysis artifact
+// carries this declaration so createSupplierCompetitionDatasetPackageFrom
+// Artifacts() derives its package from reviewed, artifact-embedded
+// capabilities instead of synthesizing them from
+// SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS directly.
+// evaluateSupplierCompetitionV1DatasetPackage() still checks the declared
+// capabilities against those requirements, so a divergent declaration fails
+// closed.
+export type SupplierCompetitionDatasetCapabilityDeclaration = Readonly<{
+  schemaVersion: "supplier-competition-dataset-capabilities-v1";
+  capabilities: readonly Readonly<{ id: string; version: string }>[];
+}>;
+
+export const SUPPLIER_COMPETITION_V1_DATASET_DECLARATION: SupplierCompetitionDatasetCapabilityDeclaration =
+  {
+    schemaVersion: "supplier-competition-dataset-capabilities-v1",
+    capabilities: SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+  };
+
+export function parseSupplierCompetitionDatasetCapabilityDeclaration(
+  value: unknown,
+): SupplierCompetitionDatasetCapabilityDeclaration {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(
+      "Supplier Competition Dataset Package capability declaration must be an object.",
+    );
+  }
+  const declaration = value as Record<string, unknown>;
+  if (
+    declaration.schemaVersion !==
+    "supplier-competition-dataset-capabilities-v1"
+  ) {
+    throw new TypeError(
+      "Supplier Competition Dataset Package capability declaration schema is incompatible.",
+    );
+  }
+  if (!Array.isArray(declaration.capabilities)) {
+    throw new TypeError(
+      "Supplier Competition Dataset Package capabilities must be an array.",
+    );
+  }
+  const capabilities = declaration.capabilities.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw new TypeError(
+        `Supplier Competition Dataset Package capability ${index} must be an object.`,
+      );
+    }
+    const capability = entry as Record<string, unknown>;
+    if (
+      typeof capability.id !== "string" ||
+      capability.id.length === 0 ||
+      typeof capability.version !== "string" ||
+      capability.version.length === 0
+    ) {
+      throw new TypeError(
+        `Supplier Competition Dataset Package capability ${index} is malformed.`,
+      );
+    }
+    return { id: capability.id, version: capability.version };
+  });
+  if (new Set(capabilities.map(({ id }) => id)).size !== capabilities.length) {
+    throw new TypeError(
+      "Supplier Competition Dataset Package capability IDs must be unique.",
+    );
+  }
+  return {
+    schemaVersion: "supplier-competition-dataset-capabilities-v1",
+    capabilities: [...capabilities].sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) ||
+        left.version.localeCompare(right.version),
+    ),
+  };
+}
 
 export type SupplierCompetitionDatasetPackage = Readonly<{
   identity: DatasetPackageIdentity;

@@ -20,9 +20,11 @@ import {
 
 import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
 import { TRADE_TREND_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
+import { SUPPLIER_COMPETITION_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
 import { createTradeAnalyticsPlatform } from "../../src/domain/trade-analytics/trade-analytics-platform";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createSupplierCompetitionDatasetPackageFromArtifacts,
   createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
 } from "../../src/evidence/analysis-artifact-manifest";
@@ -144,6 +146,16 @@ type TradeTrendBenchmarkQuery = {
   pairRowCount: number;
   resultBytes: number;
   selectionAlgorithm: "market-year-importer-row-count-v1";
+};
+
+type SupplierCompetitionBenchmarkQuery = {
+  role: BenchmarkRole;
+  productCode: string;
+  importerCode: string;
+  supplierRowCount: number;
+  distinctSupplierCount: number;
+  resultBytes: number;
+  selectionAlgorithm: "bilateral-year-distinct-supplier-count-v1";
 };
 
 type MaximumRowSmokeResult = {
@@ -319,6 +331,7 @@ export async function buildAnalysisArtifact(
     sourceReportSha256: sha256(sourceReportBytes),
     datasetPackage: CANDIDATE_MARKET_V1_DATASET_DECLARATION,
     tradeTrendDatasetPackage: TRADE_TREND_V1_DATASET_DECLARATION,
+    supplierCompetitionDatasetPackage: SUPPLIER_COMPETITION_V1_DATASET_DECLARATION,
     pipelineGitSha: options.pipelineGitSha,
     duckdbVersion,
     artifact: {
@@ -339,6 +352,7 @@ export async function buildAnalysisArtifact(
   let benchmarkQueries: BenchmarkQuery[];
   let maximumRowSmokeResult: MaximumRowSmokeResult;
   let tradeTrendBenchmarkQueries: TradeTrendBenchmarkQuery[];
+  let supplierCompetitionBenchmarkQueries: SupplierCompetitionBenchmarkQuery[];
   const benchmarkStarted = performance.now();
   try {
     await rm(preliminaryManifestPath, { force: true });
@@ -348,18 +362,23 @@ export async function buildAnalysisArtifact(
         ...artifactManifestBase,
         benchmarkQueries: [],
         tradeTrendBenchmarkQueries: [],
+        supplierCompetitionBenchmarkQueries: [],
       }),
       { flag: "wx" },
     );
-    ({ benchmarkQueries, maximumRowSmokeResult, tradeTrendBenchmarkQueries } =
-      await selectBenchmarkQueries({
-        artifactPath: partialArtifactPath,
-        artifactManifestPath: preliminaryManifestPath,
-        artifactBuildId,
-        analysisReleaseCatalogSha256: sha256(stagingManifestBytes),
-        scoreWindow: stagingManifest.scoreWindow,
-        provisionalYear: stagingManifest.provisionalYears[0]!,
-      }));
+    ({
+      benchmarkQueries,
+      maximumRowSmokeResult,
+      tradeTrendBenchmarkQueries,
+      supplierCompetitionBenchmarkQueries,
+    } = await selectBenchmarkQueries({
+      artifactPath: partialArtifactPath,
+      artifactManifestPath: preliminaryManifestPath,
+      artifactBuildId,
+      analysisReleaseCatalogSha256: sha256(stagingManifestBytes),
+      scoreWindow: stagingManifest.scoreWindow,
+      provisionalYear: stagingManifest.provisionalYears[0]!,
+    }));
   } catch (error) {
     await rm(partialArtifactPath, { force: true });
     if (error instanceof AnalysisArtifactBuildError) {
@@ -377,6 +396,7 @@ export async function buildAnalysisArtifact(
     ...artifactManifestBase,
     benchmarkQueries,
     tradeTrendBenchmarkQueries,
+    supplierCompetitionBenchmarkQueries,
   };
   const artifactManifestBytes = jsonBytes(artifactManifest);
   const report = {
@@ -400,6 +420,7 @@ export async function buildAnalysisArtifact(
     benchmarkQueries,
     maximumRowSmokeResult,
     tradeTrendBenchmarkQueries,
+    supplierCompetitionBenchmarkQueries,
     timingsMs: {
       ...timings,
       total: elapsedMilliseconds(buildStarted),
@@ -865,6 +886,7 @@ async function selectBenchmarkQueries({
   benchmarkQueries: BenchmarkQuery[];
   maximumRowSmokeResult: MaximumRowSmokeResult;
   tradeTrendBenchmarkQueries: TradeTrendBenchmarkQuery[];
+  supplierCompetitionBenchmarkQueries: SupplierCompetitionBenchmarkQuery[];
 }> {
   const instance = await DuckDBInstance.create(artifactPath, {
     access_mode: "READ_ONLY",
@@ -884,6 +906,13 @@ async function selectBenchmarkQueries({
     productCode: string;
     windowRowCount: number;
     pairRowCount: number;
+  }[];
+  let selectedSupplierCompetition: {
+    role: BenchmarkRole;
+    importerCode: string;
+    productCode: string;
+    supplierRowCount: number;
+    distinctSupplierCount: number;
   }[];
   try {
     const products = await queryRows(
@@ -1048,6 +1077,74 @@ async function selectBenchmarkQueries({
         pairRowCount: requireQueryCount(pair, "pair_row_count"),
       });
     }
+
+    // The Supplier Competition benchmark cohort is the (importer, product)
+    // pair itself, ranked by the number of distinct supplying economies
+    // that recorded a positive bilateral flow within the finalized window
+    // -- the exact quantity that determines the size of the supplier
+    // cohort the production adapter must pool and rank.
+    const supplierPairs = await queryRows(
+      connection,
+      `
+        SELECT
+          bilateral.importer_code,
+          product.hs12_code,
+          COUNT(*)::UBIGINT AS supplier_row_count,
+          COUNT(DISTINCT bilateral.exporter_code)::UBIGINT
+            AS distinct_supplier_count
+        FROM bilateral_year AS bilateral
+        JOIN economy AS importer
+          ON importer.code = bilateral.importer_code
+          AND importer.kind = 'ECONOMY'
+        JOIN product
+          ON product.product_id = bilateral.product_id
+        WHERE bilateral.year BETWEEN $window_start AND $window_end
+        GROUP BY bilateral.importer_code, product.hs12_code
+        ORDER BY distinct_supplier_count, bilateral.importer_code, product.hs12_code
+      `,
+      {
+        window_start: scoreWindow.start,
+        window_end: scoreWindow.end,
+      },
+    );
+    if (supplierPairs.length === 0) {
+      throw new AnalysisArtifactBuildError(
+        "ARTIFACT_BUILD_FAILED",
+        "Artifact has no benchmarkable Supplier Competition importer/product pairs.",
+      );
+    }
+    const supplierCompetitionSelectors: readonly {
+      role: BenchmarkRole;
+      index: number;
+    }[] = [
+      { role: "sparse", index: 0 },
+      {
+        role: "median",
+        index: Math.floor((supplierPairs.length - 1) / 2),
+      },
+      {
+        role: "upper-quartile",
+        index: Math.floor(0.75 * (supplierPairs.length - 1)),
+      },
+      { role: "maximum-row", index: supplierPairs.length - 1 },
+    ];
+    selectedSupplierCompetition = supplierCompetitionSelectors.map(
+      (selector) => {
+        const pair = supplierPairs[selector.index]!;
+        return {
+          role: selector.role,
+          importerCode: String(
+            requireQueryCount(pair, "importer_code"),
+          ),
+          productCode: requireQueryString(pair, "hs12_code"),
+          supplierRowCount: requireQueryCount(pair, "supplier_row_count"),
+          distinctSupplierCount: requireQueryCount(
+            pair,
+            "distinct_supplier_count",
+          ),
+        };
+      },
+    );
   } finally {
     connection.closeSync();
     instance.closeSync();
@@ -1068,6 +1165,10 @@ async function selectBenchmarkQueries({
     }
   >();
   const tradeTrendResultFacts = new Map<string, { resultBytes: number }>();
+  const supplierCompetitionResultFacts = new Map<
+    string,
+    { resultBytes: number }
+  >();
   try {
     const manifest = await readAnalysisArtifactManifest(
       artifactManifestPath,
@@ -1080,6 +1181,8 @@ async function selectBenchmarkQueries({
       });
     const tradeTrendDatasetPackage =
       createTradeTrendDatasetPackageFromArtifacts(manifest);
+    const supplierCompetitionDatasetPackage =
+      createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
     const tradeAnalytics = createTradeAnalyticsPlatform({
       candidateMarket: {
         evidenceSource,
@@ -1091,6 +1194,12 @@ async function selectBenchmarkQueries({
         evidenceSource,
         datasetPackages: new Map([
           [artifactBuildId, tradeTrendDatasetPackage],
+        ]),
+      },
+      supplierCompetition: {
+        evidenceSource,
+        datasetPackages: new Map([
+          [artifactBuildId, supplierCompetitionDatasetPackage],
         ]),
       },
     });
@@ -1152,6 +1261,31 @@ async function selectBenchmarkQueries({
       );
       tradeTrendResultFacts.set(key, { resultBytes: resultBytes.length });
     }
+    for (const benchmark of selectedSupplierCompetition) {
+      const key = `${benchmark.importerCode}:${benchmark.productCode}`;
+      if (supplierCompetitionResultFacts.has(key)) {
+        continue;
+      }
+      const outcome = await tradeAnalytics.execute({
+        recipe: "supplier-competition-v1",
+        analysisBuildId: artifactBuildId,
+        importerCode: benchmark.importerCode,
+        productCode: benchmark.productCode,
+      });
+      if (outcome.state !== "success" && outcome.state !== "empty") {
+        throw new AnalysisArtifactBuildError(
+          "ARTIFACT_BUILD_FAILED",
+          `Artifact Supplier Competition benchmark analysis failed: ${outcome.state} (${outcome.error.code}).`,
+        );
+      }
+      const resultBytes = Buffer.from(
+        JSON.stringify(outcome.payload),
+        "utf8",
+      );
+      supplierCompetitionResultFacts.set(key, {
+        resultBytes: resultBytes.length,
+      });
+    }
   } finally {
     evidenceSource.close();
   }
@@ -1199,6 +1333,28 @@ async function selectBenchmarkQueries({
       };
     },
   );
+  const supplierCompetitionBenchmarkQueries = selectedSupplierCompetition.map(
+    (benchmark): SupplierCompetitionBenchmarkQuery => {
+      const facts = supplierCompetitionResultFacts.get(
+        `${benchmark.importerCode}:${benchmark.productCode}`,
+      );
+      if (facts === undefined) {
+        throw new AnalysisArtifactBuildError(
+          "ARTIFACT_BUILD_FAILED",
+          "A selected Supplier Competition benchmark query has no smoke result.",
+        );
+      }
+      return {
+        role: benchmark.role,
+        productCode: benchmark.productCode,
+        importerCode: benchmark.importerCode,
+        supplierRowCount: benchmark.supplierRowCount,
+        distinctSupplierCount: benchmark.distinctSupplierCount,
+        resultBytes: facts.resultBytes,
+        selectionAlgorithm: "bilateral-year-distinct-supplier-count-v1",
+      };
+    },
+  );
   const maximum = benchmarkQueries.find(
     ({ role }) => role === "maximum-row",
   )!;
@@ -1216,6 +1372,7 @@ async function selectBenchmarkQueries({
       resultSha256: maximumFacts.resultSha256,
     },
     tradeTrendBenchmarkQueries,
+    supplierCompetitionBenchmarkQueries,
   };
 }
 

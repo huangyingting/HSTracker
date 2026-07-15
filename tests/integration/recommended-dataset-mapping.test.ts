@@ -10,6 +10,10 @@ import {
 } from "../../src/domain/trade-analytics/recommended-dataset-mapping";
 import { createCandidateMarketDatasetPackage } from "../../src/domain/trade-analytics/dataset-package";
 import {
+  createSupplierCompetitionDatasetPackage,
+  SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+} from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
+import {
   createTradeTrendDatasetPackage,
   TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
 } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
@@ -53,6 +57,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping: FIXTURE_RECOMMENDED_DATASET_MAPPING,
         datasetPackage,
         tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -120,6 +125,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping,
         datasetPackage: incompatible,
         tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -153,6 +159,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping,
         datasetPackage,
         tradeTrendDatasetPackage,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -183,6 +190,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping: FIXTURE_RECOMMENDED_DATASET_MAPPING,
         datasetPackage,
         tradeTrendDatasetPackage,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -208,6 +216,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping,
         datasetPackage,
         tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -244,6 +253,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping,
         datasetPackage,
         tradeTrendDatasetPackage,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -277,6 +287,7 @@ describe("Recommended Dataset Mapping", () => {
         mapping,
         datasetPackage,
         tradeTrendDatasetPackage,
+        supplierCompetitionDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -284,6 +295,187 @@ describe("Recommended Dataset Mapping", () => {
       "Recommended Dataset Mapping Trade Trend package is incompatible",
     );
   });
+
+  it("declares and gates supplier-competition-v1 alongside candidate-market-v1 when its declaration is compatible", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const supplierCompetitionDatasetPackage =
+      createSupplierCompetitionDatasetPackage({
+        schemaVersion: "supplier-competition-dataset-package-manifest-v1",
+        baciRelease: "V202601",
+        hsRevision: "HS12",
+        finalizedYearCount: 5,
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+        capabilities: SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+      });
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      supplierCompetition: {
+        recipe: "supplier-competition-v1",
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).not.toThrow();
+    expect(mapping.manifest.supplierCompetition).toEqual({
+      recipe: "supplier-competition-v1",
+      evidenceSha256: manifest.economyCatalog.artifact.sha256,
+    });
+  });
+
+  it("rejects a caller-supplied Supplier Competition package the mapping does not declare", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const supplierCompetitionDatasetPackage =
+      createSupplierCompetitionDatasetPackage({
+        schemaVersion: "supplier-competition-dataset-package-manifest-v1",
+        baciRelease: "V202601",
+        hsRevision: "HS12",
+        finalizedYearCount: 5,
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+        capabilities: SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+      });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping: FIXTURE_RECOMMENDED_DATASET_MAPPING,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping does not declare supplier-competition-v1",
+    );
+  });
+
+  it("rejects a mapping that declares supplier-competition-v1 without a compatible package", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      supplierCompetition: {
+        recipe: "supplier-competition-v1",
+        evidenceSha256: manifest.economyCatalog.artifact.sha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping declares supplier-competition-v1 without a package",
+    );
+  });
+
+  it("rejects a Supplier Competition declaration whose evidence does not match the pinned analysis artifact", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const mismatchedEvidenceSha256 = "d".repeat(64);
+    const supplierCompetitionDatasetPackage =
+      createSupplierCompetitionDatasetPackage({
+        schemaVersion: "supplier-competition-dataset-package-manifest-v1",
+        baciRelease: "V202601",
+        hsRevision: "HS12",
+        finalizedYearCount: 5,
+        evidenceSha256: mismatchedEvidenceSha256,
+        capabilities: SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+      });
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      supplierCompetition: {
+        recipe: "supplier-competition-v1",
+        evidenceSha256: mismatchedEvidenceSha256,
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping Supplier Competition evidence is incompatible",
+    );
+  });
+
+  it.each([
+    "supplier-competition/supplier-structure",
+    "supplier-competition/period-coverage",
+  ])(
+    "rejects a Supplier Competition declaration missing required capability %s",
+    (missingCapabilityId) => {
+      const datasetPackage =
+        createFixtureCandidateMarketDatasetPackages().get(
+          "acceptance-fixtures-v1",
+        )!;
+      const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+      const supplierCompetitionDatasetPackage =
+        createSupplierCompetitionDatasetPackage({
+          schemaVersion: "supplier-competition-dataset-package-manifest-v1",
+          baciRelease: "V202601",
+          hsRevision: "HS12",
+          finalizedYearCount: 5,
+          evidenceSha256: manifest.economyCatalog.artifact.sha256,
+          capabilities:
+            SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS.filter(
+              ({ id }) => id !== missingCapabilityId,
+            ),
+        });
+      const mapping = createRecommendedDatasetMapping({
+        ...manifest,
+        supplierCompetition: {
+          recipe: "supplier-competition-v1",
+          evidenceSha256: manifest.economyCatalog.artifact.sha256,
+        },
+      });
+
+      expect(() =>
+        validateRecommendedDatasetMapping({
+          mapping,
+          datasetPackage,
+          tradeTrendDatasetPackage: null,
+          supplierCompetitionDatasetPackage,
+          productCatalog: manifest.productCatalog,
+          economyCatalog: manifest.economyCatalog,
+        }),
+      ).toThrow(
+        "Recommended Dataset Mapping Supplier Competition package is incompatible",
+      );
+    },
+  );
 });
 
 function mappingInput() {

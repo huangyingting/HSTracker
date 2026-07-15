@@ -15,7 +15,10 @@ import { CORE_CANDIDATE_SUMMARY } from "../../fixtures/acceptance/v1/expected/co
 import { TRADE_TREND_ACCEPTANCE_CASES } from "../../fixtures/trade-trend/v1/expected";
 import { createTradeTrendDatasetPackage } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 import { SUPPLIER_COMPETITION_ACCEPTANCE_CASES } from "../../fixtures/supplier-competition/v1/expected";
-import { createSupplierCompetitionDatasetPackage } from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
+import {
+  createSupplierCompetitionDatasetPackage,
+  SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+} from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
 
 describe("TradeAnalyticsPlatform", () => {
   it.each(TRADE_TREND_ACCEPTANCE_CASES)(
@@ -830,20 +833,8 @@ describe("TradeAnalyticsPlatform", () => {
                 hsRevision: "HS12",
                 finalizedYearCount: 5,
                 evidenceSha256,
-                capabilities: [
-                  {
-                    id: "supplier-competition/supplier-annual-value",
-                    version: "1",
-                  },
-                  {
-                    id: "supplier-competition/economy-identity",
-                    version: "1",
-                  },
-                  {
-                    id: "supplier-competition/hs-product-identity",
-                    version: "1",
-                  },
-                ],
+                capabilities:
+                  SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
               }),
             ],
           ]),

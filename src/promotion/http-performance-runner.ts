@@ -324,6 +324,10 @@ const PRODUCT_OPERATIONS = [
   "trade-trend-analysis-process-hit",
   "trade-trend-csv-uncached",
   "trade-trend-csv-analysis-hit",
+  "supplier-competition-analysis-uncached",
+  "supplier-competition-analysis-process-hit",
+  "supplier-competition-csv-uncached",
+  "supplier-competition-csv-analysis-hit",
 ] as const satisfies readonly OriginBenchmarkOperation[];
 const UNCACHED_OPERATIONS = [
   "economy-search-uncached",
@@ -332,6 +336,8 @@ const UNCACHED_OPERATIONS = [
   "csv-uncached",
   "trade-trend-analysis-uncached",
   "trade-trend-csv-uncached",
+  "supplier-competition-analysis-uncached",
+  "supplier-competition-csv-uncached",
 ] as const satisfies readonly OriginBenchmarkOperation[];
 const CACHE_STATE_HIT = "hit";
 const CACHE_STATE_MISS = "miss";
@@ -359,6 +365,10 @@ const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
   "trade-trend-analysis-process-hit": 2_000,
   "trade-trend-csv-uncached": 15_000,
   "trade-trend-csv-analysis-hit": 15_000,
+  "supplier-competition-analysis-uncached": 12_000,
+  "supplier-competition-analysis-process-hit": 2_000,
+  "supplier-competition-csv-uncached": 15_000,
+  "supplier-competition-csv-analysis-hit": 15_000,
 };
 
 const REQUIRED_ORIGIN_BENCHMARK_COUNT =
@@ -756,13 +766,14 @@ function assertAttestedOriginBenchmarks(
   for (const requestCase of plan.requests) {
     if (
       requestCase.productRole === undefined ||
-      // Trade Trend operations are intentionally not attested here yet:
-      // the public current-analysis manifest does not expose
-      // tradeTrendBenchmarkQueries (only Candidate Market's
-      // benchmarkQueries), so there is no exporter/product pair to bind a
-      // trade-trend-* request to. This real HTTP-execution wiring is
-      // deferred to #48; performance-gates.ts already accepts/blocks a
-      // measured trade-trend-* report regardless of how it was produced.
+      // Trade Trend and Supplier Competition operations are intentionally
+      // not attested here yet: the public current-analysis manifest does
+      // not expose their benchmark queries (only Candidate Market's
+      // benchmarkQueries), so there is no importer/product pair to bind a
+      // trade-trend-*/supplier-competition-* request to. This real
+      // HTTP-execution wiring is deferred to #48; performance-gates.ts
+      // already accepts/blocks a measured trade-trend-*/supplier-
+      // competition-* report regardless of how it was produced.
       (requestCase.operation !== "candidate-analysis-uncached" &&
         requestCase.operation !== "candidate-analysis-process-hit" &&
         requestCase.operation !== "csv-uncached" &&
@@ -945,7 +956,8 @@ export async function runOriginBenchmark(
 
       const measurementMs =
         requestCase.operation === "csv-analysis-hit" ||
-        requestCase.operation === "trade-trend-csv-analysis-hit"
+        requestCase.operation === "trade-trend-csv-analysis-hit" ||
+        requestCase.operation === "supplier-competition-csv-analysis-hit"
           ? outcome.ttfbMs
           : outcome.totalMs;
       samples.push({

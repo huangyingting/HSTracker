@@ -11,6 +11,7 @@ import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
+import { SupplierCompetitionExportAction } from "./supplier-competition-export-action";
 
 const copy = {
   en: {
@@ -379,6 +380,11 @@ export function SupplierCompetitionWorkspace({
 
       {status === "success" && result !== null ? (
         <>
+          <SupplierCompetitionExportAction
+            result={result}
+            locale={locale}
+            onManifestRevalidated={setManifest}
+          />
           <AnalysisShareLink locale={locale} task="supplier-competition" />
           <p className="supplier-competition-company-boundary" role="note">
             <strong>{messages.companyBoundaryTitle}</strong>{" "}

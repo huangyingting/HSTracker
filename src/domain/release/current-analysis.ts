@@ -52,6 +52,13 @@ export type CurrentAnalysisDeployment = {
       recipe: "trade-trend-v1";
       datasetPackageIdentity: DatasetPackageIdentity;
     } | null;
+    // Populated only when the same closed Recommended Dataset Mapping also
+    // declares and gates supplier-competition-v1; null for legacy,
+    // Candidate-Market-only, or Trade-Trend-only mappings.
+    supplierCompetition: {
+      recipe: "supplier-competition-v1";
+      datasetPackageIdentity: DatasetPackageIdentity;
+    } | null;
   };
 };
 

@@ -13,6 +13,7 @@ export const ROUTE_DEADLINE_MS = {
   supplierCompetition: 12_000,
   candidateMarketCsv: 15_000,
   tradeTrendCsv: 15_000,
+  supplierCompetitionCsv: 15_000,
   health: 2_000,
 } as const;
 

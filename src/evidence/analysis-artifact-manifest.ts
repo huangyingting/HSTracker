@@ -10,6 +10,12 @@ import {
   type DatasetSourceReconciliationEvidence,
 } from "../domain/trade-analytics/dataset-package";
 import {
+  createSupplierCompetitionDatasetPackage,
+  parseSupplierCompetitionDatasetCapabilityDeclaration,
+  type SupplierCompetitionDatasetCapabilityDeclaration,
+  type SupplierCompetitionDatasetPackage,
+} from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
+import {
   createTradeTrendDatasetPackage,
   parseTradeTrendDatasetCapabilityDeclaration,
   type TradeTrendDatasetCapabilityDeclaration,
@@ -40,6 +46,14 @@ export type TradeTrendArtifactBenchmarkQuery = {
   pairRowCount: number;
 };
 
+export type SupplierCompetitionArtifactBenchmarkQuery = {
+  role: "sparse" | "median" | "upper-quartile" | "maximum-row";
+  productCode: string;
+  importerCode: string;
+  supplierRowCount: number;
+  distinctSupplierCount: number;
+};
+
 export type AnalysisArtifactManifest = {
   schemaVersion: "candidate-market-artifact-manifest-v1";
   baciRelease: string;
@@ -63,6 +77,7 @@ export type AnalysisArtifactManifest = {
   sourceReconciliationEvidence: DatasetSourceReconciliationEvidence;
   datasetPackage: CandidateMarketDatasetCapabilityDeclaration;
   tradeTrendDatasetPackage: TradeTrendDatasetCapabilityDeclaration;
+  supplierCompetitionDatasetPackage: SupplierCompetitionDatasetCapabilityDeclaration;
   scoreVersionsSupported: string[];
   artifact: {
     schemaVersion: "candidate-market-artifact-v1";
@@ -74,6 +89,7 @@ export type AnalysisArtifactManifest = {
   builtAt: string;
   benchmarkQueries: AnalysisArtifactBenchmarkQuery[];
   tradeTrendBenchmarkQueries: TradeTrendArtifactBenchmarkQuery[];
+  supplierCompetitionBenchmarkQueries: SupplierCompetitionArtifactBenchmarkQuery[];
 };
 
 const LEGACY_ANNUAL_SOURCE_CHECK_KEYS = [
@@ -188,6 +204,16 @@ export function parseAnalysisArtifactManifest(
       : parseTradeTrendDatasetCapabilityDeclaration(
           manifest.tradeTrendDatasetPackage,
         );
+  const supplierCompetitionDatasetPackage =
+    manifest.supplierCompetitionDatasetPackage === undefined
+      ? {
+          schemaVersion:
+            "supplier-competition-dataset-capabilities-v1" as const,
+          capabilities: [],
+        }
+      : parseSupplierCompetitionDatasetCapabilityDeclaration(
+          manifest.supplierCompetitionDatasetPackage,
+        );
   const benchmarkQueries = array(
     manifest.benchmarkQueries,
     "benchmark queries",
@@ -196,6 +222,10 @@ export function parseAnalysisArtifactManifest(
     manifest.tradeTrendBenchmarkQueries ?? [],
     "trade trend benchmark queries",
   ).map(parseTradeTrendBenchmarkQuery);
+  const supplierCompetitionBenchmarkQueries = array(
+    manifest.supplierCompetitionBenchmarkQueries ?? [],
+    "supplier competition benchmark queries",
+  ).map(parseSupplierCompetitionBenchmarkQuery);
   const buildId = string(artifact.buildId, "analysis artifact build ID");
   if (!/^candidate-market-artifact-v1-[a-f0-9]{16}$/u.test(buildId)) {
     throw new Error("Analysis artifact build ID is malformed.");
@@ -233,6 +263,7 @@ export function parseAnalysisArtifactManifest(
     sourceReconciliationEvidence,
     datasetPackage,
     tradeTrendDatasetPackage,
+    supplierCompetitionDatasetPackage,
     scoreVersionsSupported,
     artifact: {
       schemaVersion: "candidate-market-artifact-v1",
@@ -247,6 +278,7 @@ export function parseAnalysisArtifactManifest(
     builtAt: utcTimestamp(manifest.builtAt, "artifact builtAt"),
     benchmarkQueries,
     tradeTrendBenchmarkQueries,
+    supplierCompetitionBenchmarkQueries,
   };
 }
 
@@ -548,6 +580,74 @@ export function createTradeTrendDatasetPackageFromArtifacts(
     finalizedYearCount: 5,
     evidenceSha256: manifest.artifact.sha256,
     capabilities: manifest.tradeTrendDatasetPackage.capabilities,
+  });
+}
+
+function parseSupplierCompetitionBenchmarkQuery(
+  value: unknown,
+  index: number,
+): SupplierCompetitionArtifactBenchmarkQuery {
+  const query = record(
+    value,
+    `supplier competition benchmark query ${index}`,
+  );
+  const role = string(
+    query.role,
+    `supplier competition benchmark query ${index} role`,
+  );
+  if (
+    role !== "sparse" &&
+    role !== "median" &&
+    role !== "upper-quartile" &&
+    role !== "maximum-row"
+  ) {
+    throw new Error(
+      `Supplier competition benchmark query ${index} role is invalid.`,
+    );
+  }
+  const productCode = string(
+    query.productCode,
+    `supplier competition benchmark query ${index} product code`,
+  );
+  const importerCode = string(
+    query.importerCode,
+    `supplier competition benchmark query ${index} importer code`,
+  );
+  if (!/^\d{6}$/u.test(productCode) || !/^\d{1,3}$/u.test(importerCode)) {
+    throw new Error(
+      `Supplier competition benchmark query ${index} identity is malformed.`,
+    );
+  }
+  return {
+    role,
+    productCode,
+    importerCode,
+    supplierRowCount: count(
+      query.supplierRowCount,
+      `supplier competition benchmark query ${index} supplier row count`,
+    ),
+    distinctSupplierCount: count(
+      query.distinctSupplierCount,
+      `supplier competition benchmark query ${index} distinct supplier count`,
+    ),
+  };
+}
+
+export function createSupplierCompetitionDatasetPackageFromArtifacts(
+  manifest: AnalysisArtifactManifest,
+): SupplierCompetitionDatasetPackage {
+  // The declared capabilities come from the published artifact manifest
+  // (manifest.supplierCompetitionDatasetPackage), not from a hardcoded
+  // requirements list, so evaluateSupplierCompetitionV1DatasetPackage()
+  // below is a genuine check against reviewed, artifact-embedded evidence
+  // rather than a tautology.
+  return createSupplierCompetitionDatasetPackage({
+    schemaVersion: "supplier-competition-dataset-package-manifest-v1",
+    baciRelease: manifest.baciRelease,
+    hsRevision: manifest.hsRevision,
+    finalizedYearCount: 5,
+    evidenceSha256: manifest.artifact.sha256,
+    capabilities: manifest.supplierCompetitionDatasetPackage.capabilities,
   });
 }
 

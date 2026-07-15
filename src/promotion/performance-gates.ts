@@ -52,6 +52,13 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "trade-trend-analysis-process-hit",
   "trade-trend-csv-uncached",
   "trade-trend-csv-analysis-hit",
+  // Supplier Competition follows the identical accept/block plumbing as
+  // Trade Trend above; see the comment beside its ORIGIN_THRESHOLDS
+  // entries below.
+  "supplier-competition-analysis-uncached",
+  "supplier-competition-analysis-process-hit",
+  "supplier-competition-csv-uncached",
+  "supplier-competition-csv-analysis-hit",
 ] as const;
 
 const SINGLETON_BENCHMARK_OPERATIONS = [
@@ -282,6 +289,37 @@ const ORIGIN_THRESHOLDS: Record<
     payloadLimitBytes: 5 * 1024 * KIB,
   },
   "trade-trend-csv-analysis-hit": {
+    p95LimitMs: 250,
+    p99LimitMs: 500,
+    routeDeadlineMs: 15_000,
+    payloadLimitBytes: 5 * 1024 * KIB,
+  },
+  // Supplier Competition reuses the identical origin p95/p99 measurement
+  // contract as Trade Trend above, for the same reason: no separate budget
+  // is named in docs/research/2026-07-11-mvp-performance-and-caching-
+  // targets.md, so its sparse/median/upper-quartile/maximum-row package
+  // queries and CSV hits/misses are measured and gated the same way.
+  "supplier-competition-analysis-uncached": {
+    p95LimitMs: 2_000,
+    p99LimitMs: 4_000,
+    routeDeadlineMs: 12_000,
+    payloadLimitBytes: 1_536 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "supplier-competition-analysis-process-hit": {
+    p95LimitMs: 100,
+    p99LimitMs: 250,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 1_536 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "supplier-competition-csv-uncached": {
+    p95LimitMs: 3_000,
+    p99LimitMs: 6_000,
+    routeDeadlineMs: 15_000,
+    payloadLimitBytes: 5 * 1024 * KIB,
+  },
+  "supplier-competition-csv-analysis-hit": {
     p95LimitMs: 250,
     p99LimitMs: 500,
     routeDeadlineMs: 15_000,

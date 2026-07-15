@@ -733,6 +733,67 @@ describe("immutable DuckDB analysis artifact CLI", () => {
     20_000,
   );
 
+  it(
+    "resolves every sparse/median/upper-quartile/maximum-row Supplier Competition package query",
+    async () => {
+      // This is a functional completeness check only, for the same reason
+      // documented on the equivalent Trade Trend test above: wall-clock
+      // timing on a shared development machine is not a valid Machine-class
+      // performance gate. Measured, accept/block latency gates for these
+      // same four package-query identities run through the existing
+      // src/promotion/performance-gates.ts pipeline (see
+      // tests/integration/performance-gates.test.ts).
+      const root = await temporaryWorkspace();
+      const staging = await stageSafeFixture(join(root, "staging-work"));
+      const outcome = await runArtifactCli({
+        stagingManifestPath: staging.stagingManifestPath,
+        workspace: join(root, "artifact-work"),
+        reportPath: join(root, "artifact-report.json"),
+      });
+      const manifest = await readAnalysisArtifactManifest(
+        outcome.artifactManifestPath,
+      );
+      expect(manifest.supplierCompetitionBenchmarkQueries).toHaveLength(4);
+      expect(
+        manifest.supplierCompetitionBenchmarkQueries
+          .map(({ role }) => role)
+          .sort(),
+      ).toEqual(
+        ["maximum-row", "median", "sparse", "upper-quartile"].sort(),
+      );
+
+      const source = await DuckDbTradeEvidenceSource.open({
+        artifactPath: outcome.artifactPath,
+        artifactManifestPath: outcome.artifactManifestPath,
+        analysisBuildId: "safe-analysis-build",
+        analysisReleaseCatalogSha256: "a".repeat(64),
+      });
+      try {
+        for (const benchmark of manifest.supplierCompetitionBenchmarkQueries) {
+          const inputs = await source.loadSupplierCompetitionV1Inputs!({
+            analysisBuildId: "safe-analysis-build",
+            importerCode: benchmark.importerCode,
+            productCode: benchmark.productCode,
+          });
+
+          expect(
+            inputs.suppliers.length,
+            `${benchmark.role} query`,
+          ).toBeGreaterThanOrEqual(0);
+          for (const supplier of inputs.suppliers) {
+            expect(
+              supplier.annualObservations,
+              `${benchmark.role} query supplier ${supplier.economy.code}`,
+            ).toHaveLength(5);
+          }
+        }
+      } finally {
+        source.close();
+      }
+    },
+    20_000,
+  );
+
   it("fails closed before publishing from changed accepted staging", async () => {
     const root = await temporaryWorkspace();
     const staging = await stageSafeFixture(join(root, "staging-work"));

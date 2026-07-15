@@ -9,6 +9,10 @@ import {
   type CandidateMarketDatasetCapabilityDeclaration,
 } from "../../src/domain/trade-analytics/dataset-package";
 import {
+  SUPPLIER_COMPETITION_V1_DATASET_DECLARATION,
+  type SupplierCompetitionDatasetCapabilityDeclaration,
+} from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
+import {
   TRADE_TREND_V1_DATASET_DECLARATION,
   type TradeTrendDatasetCapabilityDeclaration,
 } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
@@ -43,6 +47,14 @@ export type TradeTrendEquivalenceRow = {
   valueKusd: string;
 };
 
+// Reuses the same (year, product, exporter, importer, value) shape as
+// TradeTrendEquivalenceRow: see
+// supplier-competition-adapter-equivalence.test.ts for how these are
+// combined into multi-supplier bilateral rows for one importer/product.
+export type SupplierCompetitionEquivalenceRow = TradeTrendEquivalenceRow;
+
+export type SupplierCompetitionEquivalenceEconomy = TradeTrendEquivalenceEconomy;
+
 export async function writeRuntimeReleaseCandidate(
   root: string,
   options: {
@@ -52,6 +64,7 @@ export async function writeRuntimeReleaseCandidate(
     benchmarkCandidateCount?: number;
     datasetPackage?: CandidateMarketDatasetCapabilityDeclaration;
     tradeTrendDatasetPackage?: TradeTrendDatasetCapabilityDeclaration;
+    supplierCompetitionDatasetPackage?: SupplierCompetitionDatasetCapabilityDeclaration;
     legacyDatasetPackageManifest?: boolean;
     sourceSha256?: string;
     sourceUpdateDate?: string;
@@ -72,6 +85,21 @@ export async function writeRuntimeReleaseCandidate(
       description: string;
     }>[];
     additionalTradeTrendRows?: readonly TradeTrendEquivalenceRow[];
+    // Layers extra economies/products/bilateral rows onto the default
+    // fixture DuckDB so a test can reproduce multi-supplier structures
+    // (dispersed/concentrated/single-supplier/sparse/empty/provisional
+    // -changing) without a second BACI archive: see
+    // supplier-competition-adapter-equivalence.test.ts. Every (year,
+    // product, importer) combination touched here also gets a matching
+    // market_year aggregate row (summed across its bilateral rows), which
+    // the production Provisional Year detection needs.
+    additionalSupplierCompetitionEconomies?: readonly SupplierCompetitionEquivalenceEconomy[];
+    additionalSupplierCompetitionProducts?: readonly Readonly<{
+      productId: number;
+      code: string;
+      description: string;
+    }>[];
+    additionalSupplierCompetitionRows?: readonly SupplierCompetitionEquivalenceRow[];
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -109,9 +137,16 @@ export async function writeRuntimeReleaseCandidate(
     valueOffset,
     finalizedCutoffYear,
     sourceUpdateDate,
-    options.additionalTradeTrendEconomies ?? [],
-    options.additionalTradeTrendProducts ?? [],
+    [
+      ...(options.additionalTradeTrendEconomies ?? []),
+      ...(options.additionalSupplierCompetitionEconomies ?? []),
+    ],
+    [
+      ...(options.additionalTradeTrendProducts ?? []),
+      ...(options.additionalSupplierCompetitionProducts ?? []),
+    ],
     options.additionalTradeTrendRows ?? [],
+    options.additionalSupplierCompetitionRows ?? [],
   );
   const artifactBytes = await readFile(artifactPath);
   const artifactIdentity = releaseObjectIdentity(artifactBytes);
@@ -161,6 +196,9 @@ export async function writeRuntimeReleaseCandidate(
           tradeTrendDatasetPackage:
             options.tradeTrendDatasetPackage ??
             TRADE_TREND_V1_DATASET_DECLARATION,
+          supplierCompetitionDatasetPackage:
+            options.supplierCompetitionDatasetPackage ??
+            SUPPLIER_COMPETITION_V1_DATASET_DECLARATION,
         }),
     scoreVersionsSupported: ["cms-v1"],
     artifact: {
@@ -286,6 +324,7 @@ async function writeRuntimeDuckDb(
     description: string;
   }>[],
   additionalTradeRows: readonly TradeTrendEquivalenceRow[],
+  additionalSupplierCompetitionRows: readonly SupplierCompetitionEquivalenceRow[],
 ): Promise<void> {
   const instance = await DuckDBInstance.create(path);
   const connection = await instance.connect();
@@ -388,6 +427,70 @@ async function writeRuntimeDuckDb(
         },
       );
     }
+    for (const row of additionalSupplierCompetitionRows) {
+      const productId = productIdByCode.get(row.productCode);
+      if (productId === undefined) {
+        throw new Error(
+          `Supplier Competition equivalence row references an undeclared product ${row.productCode}.`,
+        );
+      }
+      await connection.run(
+        `
+          INSERT INTO bilateral_year VALUES
+            ($year, $product_id, $exporter_code, $importer_code,
+              CAST($value_kusd AS DECIMAL(38,3)))
+        `,
+        {
+          year: row.year,
+          product_id: productId,
+          exporter_code: row.exporterCode,
+          importer_code: row.importerCode,
+          value_kusd: row.valueKusd,
+        },
+      );
+    }
+    // Supplier Competition tests need a realistic market_year aggregate
+    // (SUM of every supplier's bilateral value that year, not one row per
+    // supplier) so the Provisional Year total is properly summed instead
+    // of duplicated: this mirrors how the real production build script
+    // aggregates market_year with GROUP BY year/product/importer.
+    const supplierCompetitionGroups = new Map<
+      string,
+      { year: number; productId: number; importerCode: number; valuesKusd: string[] }
+    >();
+    for (const row of additionalSupplierCompetitionRows) {
+      const productId = productIdByCode.get(row.productCode)!;
+      const key = `${row.year}:${productId}:${row.importerCode}`;
+      const group = supplierCompetitionGroups.get(key) ?? {
+        year: row.year,
+        productId,
+        importerCode: row.importerCode,
+        valuesKusd: [],
+      };
+      group.valuesKusd.push(row.valueKusd);
+      supplierCompetitionGroups.set(key, group);
+    }
+    for (const group of supplierCompetitionGroups.values()) {
+      const totalKusd = sumKusd(group.valuesKusd);
+      await connection.run(
+        `
+          INSERT INTO market_year VALUES
+            ($year, $product_id, $importer_code,
+              CAST($value_kusd AS DECIMAL(38,3)),
+              $supplier_count,
+              CAST($value_kusd AS DECIMAL(38,3)) *
+                CAST($value_kusd AS DECIMAL(38,3)),
+              $supplier_count, $supplier_count, 1.000)
+        `,
+        {
+          year: group.year,
+          product_id: group.productId,
+          importer_code: group.importerCode,
+          value_kusd: totalKusd,
+          supplier_count: group.valuesKusd.length,
+        },
+      );
+    }
     const metadata = {
       artifact_schema_version: "candidate-market-artifact-v1",
       baci_release: baciRelease,
@@ -406,4 +509,20 @@ async function writeRuntimeDuckDb(
     connection.closeSync();
     instance.closeSync();
   }
+}
+
+// Exact decimal-string summation (three fixed decimal places, matching the
+// bilateral_year/market_year value_kusd convention) without floating-point
+// rounding, since these test values can exceed float-safe precision once
+// combined across several suppliers.
+function sumKusd(valuesKusd: readonly string[]): string {
+  const totalMilli = valuesKusd.reduce((sum, value) => {
+    const match = /^(\d+)\.(\d{3})$/u.exec(value);
+    if (match === null) {
+      throw new Error(`${value} must have exactly three decimal places.`);
+    }
+    return sum + BigInt(`${match[1]}${match[2]}`);
+  }, 0n);
+  const digits = totalMilli.toString().padStart(4, "0");
+  return `${digits.slice(0, -3)}.${digits.slice(-3)}`;
 }

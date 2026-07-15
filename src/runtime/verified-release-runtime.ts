@@ -28,12 +28,15 @@ import { DuckDbEconomyDirectory } from "../economy/duckdb-economy-directory";
 import type { EconomyDirectory } from "../economy/economy-directory";
 import {
   createCandidateMarketDatasetPackageFromArtifacts,
+  createSupplierCompetitionDatasetPackageFromArtifacts,
   createTradeTrendDatasetPackageFromArtifacts,
   readAnalysisArtifactManifest,
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
+import { evaluateSupplierCompetitionV1DatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
+import type { SupplierCompetitionDatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import { currentUtcSecond } from "../operations/utc-clock";
@@ -125,11 +128,14 @@ export class VerifiedReleaseRuntime {
       });
     const tradeTrendDatasetPackage =
       createTradeTrendDatasetPackageFromArtifacts(manifest);
+    const supplierCompetitionDatasetPackage =
+      createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
     const recommendedDatasetMapping =
       await loadRecommendedDatasetMapping(
         hydrated,
         datasetPackage,
         tradeTrendDatasetPackage,
+        supplierCompetitionDatasetPackage,
       );
     const runAnalyticalSmoke =
       evaluateCandidateMarketV1DatasetPackage(datasetPackage)
@@ -143,6 +149,13 @@ export class VerifiedReleaseRuntime {
       recommendedDatasetMapping.manifest.tradeTrend !== null &&
       evaluateTradeTrendV1DatasetPackage(tradeTrendDatasetPackage)
         .compatible;
+    // Supplier Competition follows the identical gating rule as Trade
+    // Trend above.
+    const runSupplierCompetitionSmoke =
+      recommendedDatasetMapping.manifest.supplierCompetition !== null &&
+      evaluateSupplierCompetitionV1DatasetPackage(
+        supplierCompetitionDatasetPackage,
+      ).compatible;
     let analysisDatabase: DuckDbAnalysisDatabase | undefined;
     try {
       analysisDatabase = await DuckDbAnalysisDatabase.open({
@@ -196,6 +209,24 @@ export class VerifiedReleaseRuntime {
                 ]),
               },
             }),
+        // The runtime platform must omit supplierCompetition entirely
+        // (never merely skip its smoke/metadata) when the Recommended
+        // Dataset Mapping declares no supplier-competition-v1 support, so
+        // requests for it return "retired" rather than an unverified
+        // result. See recommended-dataset-mapping.ts.
+        ...(recommendedDatasetMapping.manifest.supplierCompetition === null
+          ? {}
+          : {
+              supplierCompetition: {
+                evidenceSource: analysisSource,
+                datasetPackages: new Map([
+                  [
+                    hydrated.deployment.analysisBuildId,
+                    supplierCompetitionDatasetPackage,
+                  ],
+                ]),
+              },
+            }),
       });
       await verifyStartupSmoke(
         hydrated,
@@ -205,6 +236,7 @@ export class VerifiedReleaseRuntime {
         economyDirectory,
         runAnalyticalSmoke,
         runTradeTrendSmoke,
+        runSupplierCompetitionSmoke,
       );
       const deployment = currentAnalysisDeployment(
         hydrated,
@@ -212,6 +244,7 @@ export class VerifiedReleaseRuntime {
         previousManifest,
         recommendedDatasetMapping,
         tradeTrendDatasetPackage,
+        supplierCompetitionDatasetPackage,
       );
       const sourceStatus = hydrated.sourceStatusFallback;
       assertStatusMicroCacheBudget(deployment, [sourceStatus]);
@@ -575,6 +608,7 @@ async function verifyStartupSmoke(
   economyDirectory: EconomyDirectory,
   runAnalyticalSmoke: boolean,
   runTradeTrendSmoke: boolean,
+  runSupplierCompetitionSmoke: boolean,
 ): Promise<void> {
   const benchmarks = manifest.benchmarkQueries.filter(
     ({ role }) => role === "maximum-row",
@@ -596,6 +630,19 @@ async function verifyStartupSmoke(
   const tradeTrendBenchmark = tradeTrendBenchmarks[0] ?? null;
   const shouldRunTradeTrendSmoke =
     runTradeTrendSmoke && tradeTrendBenchmark !== null;
+  const supplierCompetitionBenchmarks =
+    manifest.supplierCompetitionBenchmarkQueries.filter(
+      ({ role }) => role === "maximum-row",
+    );
+  if (supplierCompetitionBenchmarks.length > 1) {
+    throw new Error(
+      "Analysis artifact must have at most one Supplier Competition startup smoke query.",
+    );
+  }
+  const supplierCompetitionBenchmark =
+    supplierCompetitionBenchmarks[0] ?? null;
+  const shouldRunSupplierCompetitionSmoke =
+    runSupplierCompetitionSmoke && supplierCompetitionBenchmark !== null;
 
   const analysisResultPromise = runAnalyticalSmoke
     ? tradeAnalytics.execute({
@@ -613,14 +660,24 @@ async function verifyStartupSmoke(
         productCode: tradeTrendBenchmark!.productCode,
       })
     : Promise.resolve(null);
+  const supplierCompetitionResultPromise = shouldRunSupplierCompetitionSmoke
+    ? tradeAnalytics.execute({
+        recipe: "supplier-competition-v1",
+        analysisBuildId: hydrated.deployment.analysisBuildId,
+        importerCode: supplierCompetitionBenchmark!.importerCode,
+        productCode: supplierCompetitionBenchmark!.productCode,
+      })
+    : Promise.resolve(null);
   const [
     analysisOutcome,
     tradeTrendOutcome,
+    supplierCompetitionOutcome,
     productResult,
     economyResult,
   ] = await Promise.all([
     analysisResultPromise,
     tradeTrendResultPromise,
+    supplierCompetitionResultPromise,
     productCatalog.search({
       productSearchBuildId:
         hydrated.deployment.productSearchBuildId,
@@ -647,6 +704,13 @@ async function verifyStartupSmoke(
       : tradeTrendOutcome.state === "success"
         ? tradeTrendOutcome.payload
         : null;
+  const supplierCompetitionResult =
+    supplierCompetitionOutcome === null
+      ? null
+      : supplierCompetitionOutcome.state === "success" ||
+          supplierCompetitionOutcome.state === "empty"
+        ? supplierCompetitionOutcome.payload
+        : null;
   if (
     (runAnalyticalSmoke &&
       (analysisResult === null ||
@@ -665,6 +729,16 @@ async function verifyStartupSmoke(
           tradeTrendBenchmark!.importerCode ||
         tradeTrendResult.query.product.code !==
           tradeTrendBenchmark!.productCode)) ||
+    (shouldRunSupplierCompetitionSmoke &&
+      (supplierCompetitionResult === null ||
+        supplierCompetitionResult.provenance.baciRelease !==
+          hydrated.deployment.baciRelease ||
+        supplierCompetitionResult.analysisReleaseCatalogSha256 !==
+          hydrated.deployment.analysisReleaseCatalogSha256 ||
+        supplierCompetitionResult.query.importer.code !==
+          supplierCompetitionBenchmark!.importerCode ||
+        supplierCompetitionResult.query.product.code !==
+          supplierCompetitionBenchmark!.productCode)) ||
     productResult.productSearchBuildId !==
       hydrated.deployment.productSearchBuildId ||
     productResult.matches[0]?.product.code !== benchmark.productCode ||
@@ -680,6 +754,7 @@ function currentAnalysisDeployment(
   previousManifest: AnalysisArtifactManifest | null,
   mapping: RecommendedDatasetMapping,
   tradeTrendDatasetPackage: TradeTrendDatasetPackage,
+  supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage,
 ): CurrentAnalysisDeployment {
   const cutoff = manifest.finalizedCutoffYear;
   return {
@@ -703,6 +778,14 @@ function currentAnalysisDeployment(
           : {
               recipe: "trade-trend-v1",
               datasetPackageIdentity: tradeTrendDatasetPackage.identity,
+            },
+      supplierCompetition:
+        mapping.manifest.supplierCompetition === null
+          ? null
+          : {
+              recipe: "supplier-competition-v1",
+              datasetPackageIdentity:
+                supplierCompetitionDatasetPackage.identity,
             },
     },
     source: {
@@ -756,6 +839,7 @@ async function loadRecommendedDatasetMapping(
   hydrated: HydratedRelease,
   expectedPackage: CandidateMarketDatasetPackage,
   expectedTradeTrendPackage: TradeTrendDatasetPackage,
+  expectedSupplierCompetitionPackage: SupplierCompetitionDatasetPackage,
 ): Promise<RecommendedDatasetMapping> {
   const catalogs = recommendedCatalogs(hydrated);
   let mapping: RecommendedDatasetMapping;
@@ -803,10 +887,12 @@ async function loadRecommendedDatasetMapping(
         },
       },
       // A legacy analysis artifact manifest predates capability
-      // declarations entirely, so it never went through Trade Trend review
-      // either: normalize it as Candidate-Market-only rather than deriving
-      // Trade Trend support from a default declaration it never published.
+      // declarations entirely, so it never went through Trade Trend or
+      // Supplier Competition review either: normalize it as
+      // Candidate-Market-only rather than deriving support from a default
+      // declaration it never published.
       tradeTrend: null,
+      supplierCompetition: null,
       productCatalog: {
         identity: recommendedProductCatalogIdentity(
           catalogs.productCatalog,
@@ -828,6 +914,10 @@ async function loadRecommendedDatasetMapping(
       mapping.manifest.tradeTrend === null
         ? null
         : expectedTradeTrendPackage,
+    supplierCompetitionDatasetPackage:
+      mapping.manifest.supplierCompetition === null
+        ? null
+        : expectedSupplierCompetitionPackage,
     productCatalog: catalogs.productCatalog,
     economyCatalog: catalogs.economyCatalog,
   });
