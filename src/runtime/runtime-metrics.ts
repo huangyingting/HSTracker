@@ -13,6 +13,7 @@ export type RuntimeRouteFamily =
   | "candidate-market-csv"
   | "trade-trend"
   | "trade-trend-csv"
+  | "supplier-competition"
   | "product-search"
   | "economy-search"
   | "current-analysis"

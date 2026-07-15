@@ -14,6 +14,8 @@ import { CORE_CURRENT_INPUT } from "../../fixtures/acceptance/v1/evidence/core-c
 import { CORE_CANDIDATE_SUMMARY } from "../../fixtures/acceptance/v1/expected/core-analysis";
 import { TRADE_TREND_ACCEPTANCE_CASES } from "../../fixtures/trade-trend/v1/expected";
 import { createTradeTrendDatasetPackage } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
+import { SUPPLIER_COMPETITION_ACCEPTANCE_CASES } from "../../fixtures/supplier-competition/v1/expected";
+import { createSupplierCompetitionDatasetPackage } from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
 
 describe("TradeAnalyticsPlatform", () => {
   it.each(TRADE_TREND_ACCEPTANCE_CASES)(
@@ -674,5 +676,206 @@ describe("TradeAnalyticsPlatform", () => {
     expect(cacheStates).toEqual(["miss", "hit", "miss"]);
     expect(cached.analysisIdentity).toBe(first.analysisIdentity);
     expect(partitioned.analysisIdentity).toBe(first.analysisIdentity);
+  });
+
+  it.each(SUPPLIER_COMPETITION_ACCEPTANCE_CASES)(
+    "returns the $name Supplier Competition acceptance fixture",
+    async ({
+      importerCode,
+      productCode,
+      cohortSize,
+      finalizedPooledValueCurrentUsd,
+      supplierShares,
+      concentration,
+      qualityWarnings,
+      provisionalSupplierShares,
+    }) => {
+      const outcome =
+        await createFixtureApplicationRuntime().tradeAnalytics.execute({
+          recipe: "supplier-competition-v1",
+          analysisBuildId: "acceptance-fixtures-v1",
+          importerCode,
+          productCode,
+        });
+
+      const expectedState = cohortSize === 0 ? "empty" : "success";
+      expect(outcome.state).toBe(expectedState);
+      if (outcome.state !== "success" && outcome.state !== "empty") {
+        throw new Error(`Expected ${expectedState}, received ${outcome.state}.`);
+      }
+      expect(outcome.payload.cohortSize).toBe(cohortSize);
+      expect(outcome.payload.finalizedPooledValueCurrentUsd).toBe(
+        finalizedPooledValueCurrentUsd,
+      );
+      expect(
+        outcome.payload.supplierShares.map((share) => ({
+          code: share.economy.code,
+          pooled: share.pooledValueCurrentUsd,
+          share: share.sharePercent,
+          quantityCoverageRate: share.quantityCoverageRate,
+        })),
+      ).toEqual(
+        supplierShares.map(({ code, pooled, share, quantityCoverageRate }) => ({
+          code,
+          pooled,
+          share,
+          quantityCoverageRate,
+        })),
+      );
+      expect(outcome.payload.concentration).toEqual(concentration);
+      expect(outcome.payload.qualityWarnings).toEqual(qualityWarnings);
+      expect(
+        outcome.payload.provisionalSupplierShares.map((share) => ({
+          code: share.economy.code,
+          state: share.bilateralState,
+          value: share.valueCurrentUsd,
+        })),
+      ).toEqual(
+        provisionalSupplierShares.map(({ code, state, value }) => ({
+          code,
+          state,
+          value,
+        })),
+      );
+    },
+  );
+
+  it("returns the fixture-backed Supplier Competition v1 outcome through the closed execute seam", async () => {
+    const outcome =
+      await createFixtureApplicationRuntime().tradeAnalytics.execute({
+        recipe: "supplier-competition-v1",
+        analysisBuildId: "acceptance-fixtures-v1",
+        importerCode: "124",
+        productCode: "010121",
+      });
+
+    expect(outcome).toMatchObject({
+      state: "success",
+      recipe: "supplier-competition-v1",
+      normalizedInputs: {
+        importerCode: "124",
+        product: { hsRevision: "HS12", code: "010121" },
+      },
+      payload: {
+        schemaVersion: "supplier-competition-result-v1",
+        query: {
+          importer: { code: "124", name: "Canada" },
+          product: { code: "010121" },
+        },
+        cohortSize: 4,
+        emptyReason: null,
+        concentration: {
+          state: "COMPUTED",
+          herfindahlHirschmanIndex: "5200.000000",
+          scale: 10000,
+        },
+      },
+    });
+    expect(outcome.analysisIdentity).toMatch(
+      /^analysis-identity-v1-[a-f0-9]{64}$/,
+    );
+    if (outcome.state !== "success") {
+      throw new Error(`Expected success, received ${outcome.state}.`);
+    }
+    expect(outcome.payload.discoveryDisclaimer).toMatch(
+      /does not identify companies, buyers, shipments, Party Roles, or Commercial Relationship Assertions/,
+    );
+  });
+
+  it("derives Supplier Competition identity only from its recipe, package, and normalized semantic inputs", async () => {
+    const platform = createFixtureApplicationRuntime().tradeAnalytics;
+    const request = {
+      recipe: "supplier-competition-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      importerCode: "124",
+      productCode: "010121",
+    } as const;
+
+    const [first, presentationVariant] = await Promise.all([
+      platform.execute(request),
+      platform.execute({
+        ...request,
+        locale: "zh-Hans",
+        executionTime: "2099-01-01T00:00:00Z",
+        cacheState: "miss",
+        requestOrigin: "198.51.100.4",
+      }),
+    ]);
+
+    expect(first.analysisIdentity).toBe(presentationVariant.analysisIdentity);
+    expect(first.normalizedInputs).toEqual({
+      importerCode: "124",
+      product: { hsRevision: "HS12", code: "010121" },
+    });
+  });
+
+  it("changes Supplier Competition Analysis Identity when exact package evidence changes", async () => {
+    const request = {
+      recipe: "supplier-competition-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      importerCode: "124",
+      productCode: "010121",
+    } as const;
+    const platform = (evidenceSha256: string) =>
+      createTradeAnalyticsPlatform({
+        supplierCompetition: {
+          evidenceSource: new FixtureTradeEvidenceSource(),
+          datasetPackages: new Map([
+            [
+              request.analysisBuildId,
+              createSupplierCompetitionDatasetPackage({
+                schemaVersion:
+                  "supplier-competition-dataset-package-manifest-v1",
+                baciRelease: "V202601",
+                hsRevision: "HS12",
+                finalizedYearCount: 5,
+                evidenceSha256,
+                capabilities: [
+                  {
+                    id: "supplier-competition/supplier-annual-value",
+                    version: "1",
+                  },
+                  {
+                    id: "supplier-competition/economy-identity",
+                    version: "1",
+                  },
+                  {
+                    id: "supplier-competition/hs-product-identity",
+                    version: "1",
+                  },
+                ],
+              }),
+            ],
+          ]),
+        },
+      });
+
+    const [first, changed] = await Promise.all([
+      platform("a".repeat(64)).execute(request),
+      platform("b".repeat(64)).execute(request),
+    ]);
+
+    expect(first.state).toBe("success");
+    expect(changed.state).toBe("success");
+    expect(first.analysisIdentity).not.toBe(changed.analysisIdentity);
+    expect(first.datasetPackageIdentity).not.toBe(
+      changed.datasetPackageIdentity,
+    );
+  });
+
+  it("leaves Supplier Competition retired when the platform declares no Supplier Competition input", async () => {
+    const platform = createCandidateMarketV1TradeAnalyticsPlatform({
+      evidenceSource: new FixtureTradeEvidenceSource(),
+      datasetPackages: createFixtureCandidateMarketDatasetPackages(),
+    });
+
+    const outcome = await platform.execute({
+      recipe: "supplier-competition-v1",
+      analysisBuildId: "acceptance-fixtures-v1",
+      importerCode: "124",
+      productCode: "010121",
+    });
+
+    expect(outcome.state).toBe("retired");
   });
 });

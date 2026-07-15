@@ -6,6 +6,16 @@ import {
 } from "../domain/candidate-market/errors";
 import type { CandidateMarketV1RecipeInput } from "../domain/candidate-market/result";
 import {
+  retiredSupplierCompetitionAnalysisBuild,
+  unavailableSupplierCompetitionAnalysisBuild,
+  unknownSupplierCompetitionImporter,
+  unknownSupplierCompetitionProduct,
+} from "../domain/supplier-competition/errors";
+import type {
+  SupplierCompetitionV1Inputs,
+  SupplierCompetitionV1RecipeInput,
+} from "../domain/supplier-competition/result";
+import {
   retiredTradeTrendAnalysisBuild,
   unavailableTradeTrendAnalysisBuild,
   unknownImporter,
@@ -20,6 +30,11 @@ import {
   TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
   type TradeTrendDatasetPackage,
 } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
+import {
+  createSupplierCompetitionDatasetPackage,
+  SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+  type SupplierCompetitionDatasetPackage,
+} from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
 import {
   CANDIDATE_MARKET_V1_DATASET_DECLARATION,
   createCandidateMarketDatasetPackage,
@@ -49,6 +64,10 @@ import {
   TRADE_TREND_FIXTURE_CONTENT_SHA256,
   TRADE_TREND_FIXTURE_INPUTS,
 } from "../../fixtures/trade-trend/v1/evidence";
+import {
+  SUPPLIER_COMPETITION_FIXTURE_CONTENT_SHA256,
+  SUPPLIER_COMPETITION_FIXTURE_INPUTS,
+} from "../../fixtures/supplier-competition/v1/evidence";
 
 const FIXTURE_INPUTS: ReadonlyMap<string, CmsV1Inputs> = new Map([
   [
@@ -141,6 +160,36 @@ export class FixtureTradeEvidenceSource implements TradeEvidenceSource {
       throw unknownImporter(query.importerCode);
     }
     throw unknownTradeTrendProduct(query.productCode);
+  }
+
+  async loadSupplierCompetitionV1Inputs(
+    query: SupplierCompetitionV1RecipeInput,
+  ): Promise<SupplierCompetitionV1Inputs> {
+    if (query.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.failing) {
+      throw new Error("fixture adapter failure");
+    }
+    if (query.analysisBuildId === FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable) {
+      throw unavailableSupplierCompetitionAnalysisBuild(
+        query.analysisBuildId,
+      );
+    }
+    if (query.analysisBuildId !== ACCEPTANCE_FIXTURE_BUILD_IDS.core) {
+      throw retiredSupplierCompetitionAnalysisBuild(query.analysisBuildId);
+    }
+    const input = SUPPLIER_COMPETITION_FIXTURE_INPUTS.get(
+      supplierCompetitionFixtureKey(query.importerCode, query.productCode),
+    );
+    if (input !== undefined) {
+      return input;
+    }
+    if (
+      [...SUPPLIER_COMPETITION_FIXTURE_INPUTS.keys()].some((key) =>
+        key.endsWith(`:${query.productCode}`),
+      )
+    ) {
+      throw unknownSupplierCompetitionImporter(query.importerCode);
+    }
+    throw unknownSupplierCompetitionProduct(query.productCode);
   }
 }
 
@@ -303,5 +352,31 @@ export function createFixtureTradeTrendDatasetPackages(): ReadonlyMap<
 }
 
 function tradeTrendFixtureKey(importerCode: string, productCode: string): string {
+  return `${importerCode}:${productCode}`;
+}
+
+export function createFixtureSupplierCompetitionDatasetPackages(): ReadonlyMap<
+  string,
+  SupplierCompetitionDatasetPackage
+> {
+  const datasetPackage = createSupplierCompetitionDatasetPackage({
+    schemaVersion: "supplier-competition-dataset-package-manifest-v1",
+    baciRelease: "V202601",
+    hsRevision: "HS12",
+    finalizedYearCount: 5,
+    evidenceSha256: SUPPLIER_COMPETITION_FIXTURE_CONTENT_SHA256,
+    capabilities: SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
+  });
+  return new Map([
+    [ACCEPTANCE_FIXTURE_BUILD_IDS.core, datasetPackage],
+    [FIXTURE_ADAPTER_TEST_BUILD_IDS.failing, datasetPackage],
+    [FIXTURE_ADAPTER_TEST_BUILD_IDS.unavailable, datasetPackage],
+  ]);
+}
+
+function supplierCompetitionFixtureKey(
+  importerCode: string,
+  productCode: string,
+): string {
   return `${importerCode}:${productCode}`;
 }

@@ -26,6 +26,12 @@ const tradeTrendQuery = {
   importerCode: "156",
   productCode: "010121",
 };
+const supplierCompetitionQuery = {
+  recipe: "supplier-competition-v1" as const,
+  analysisBuildId: "acceptance-fixtures-v1",
+  importerCode: "124",
+  productCode: "010121",
+};
 const anonymousSourceAdapter = createAnonymousSourceHttpAdapter({
   trustedProxy: {
     clientAddressHeader: "x-hs-tracker-client-address",
@@ -70,6 +76,86 @@ describe("bounded application runtime", () => {
 
     expect(computations).toBe(2);
     expect(cacheStates).toEqual(["miss", "miss", "hit", "hit"]);
+  });
+
+  it("extends the same recipe-aware cache and validation protections to a third recipe (Supplier Competition)", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          request: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          computations += 1;
+          return fixture.tradeAnalytics.execute(request, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner);
+    const cacheStates: string[] = [];
+    const observe = (observation: { cacheState: string }) =>
+      cacheStates.push(observation.cacheState);
+
+    await runtime.tradeAnalytics.execute(query, { observe });
+    await runtime.tradeAnalytics.execute(tradeTrendQuery, { observe });
+    await runtime.tradeAnalytics.execute(supplierCompetitionQuery, { observe });
+    await runtime.tradeAnalytics.execute(query, { observe });
+    await runtime.tradeAnalytics.execute(tradeTrendQuery, { observe });
+    await runtime.tradeAnalytics.execute(supplierCompetitionQuery, { observe });
+
+    expect(computations).toBe(3);
+    expect(cacheStates).toEqual([
+      "miss",
+      "miss",
+      "miss",
+      "hit",
+      "hit",
+      "hit",
+    ]);
+
+    const malformed = await runtime.tradeAnalytics.execute({
+      ...supplierCompetitionQuery,
+      productCode: "malformed",
+    });
+    expect(malformed).toMatchObject({
+      state: "invalid-input",
+      error: { code: "INVALID_ANALYSIS_QUERY" },
+    });
+  });
+
+  it("rejects a Supplier Competition result-row budget before caching it or admitting more analytical work", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let computations = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          request: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          computations += 1;
+          return fixture.tradeAnalytics.execute(request, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner, {
+      analysisBudget: { maxResultRows: 1 },
+    });
+
+    await expect(
+      runtime.tradeAnalytics.execute(supplierCompetitionQuery),
+    ).resolves.toMatchObject({
+      state: "budget",
+      error: {
+        code: "ANALYSIS_BUDGET_EXCEEDED",
+        budget: "RESULT_ROWS",
+      },
+    });
+
+    expect(computations).toBe(1);
+    expect(runtime.resources().caches.analysis.entries).toBe(0);
   });
 
   it("reserves the accepted 128-MiB process-cache allocation", () => {

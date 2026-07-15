@@ -1,7 +1,9 @@
 import { validateProductSearchQuery } from "../catalog/validate-product-search-query";
 import { isCandidateMarketAnalysisError } from "../domain/candidate-market/errors";
 import { validateCandidateMarketV1Request } from "../domain/trade-analytics/candidate-market-v1-request";
+import { validateSupplierCompetitionV1Request } from "../domain/trade-analytics/supplier-competition-v1-request";
 import { validateTradeTrendV1Request } from "../domain/trade-analytics/trade-trend-v1-request";
+import { isSupplierCompetitionAnalysisError } from "../domain/supplier-competition/errors";
 import { isTradeTrendAnalysisError } from "../domain/trade-trend/errors";
 import type {
   AnalysisExecutionOptions,
@@ -32,7 +34,8 @@ import {
 type AnalysisQuery = AnalysisRequest;
 type AnalysisResult =
   | AnalysisOutcome<"candidate-market-v1">
-  | AnalysisOutcome<"trade-trend-v1">;
+  | AnalysisOutcome<"trade-trend-v1">
+  | AnalysisOutcome<"supplier-competition-v1">;
 type AnalysisPromise = Promise<AnalysisResult>;
 type ProductSearchQuery = Parameters<
   ApplicationRuntime["searchProducts"]
@@ -241,7 +244,8 @@ export function createBoundedApplicationRuntime(
     } catch (error) {
       if (
         !isCandidateMarketAnalysisError(error) &&
-        !isTradeTrendAnalysisError(error)
+        !isTradeTrendAnalysisError(error) &&
+        !isSupplierCompetitionAnalysisError(error)
       ) {
         return Promise.reject(error);
       }
@@ -601,6 +605,10 @@ function validateAnalysisRequest(query: AnalysisQuery): void {
     validateCandidateMarketV1Request(query);
     return;
   }
+  if (query.recipe === "supplier-competition-v1") {
+    validateSupplierCompetitionV1Request(query);
+    return;
+  }
   validateTradeTrendV1Request(query);
 }
 
@@ -619,6 +627,12 @@ function analysisResultRows(
 ): number {
   if (outcome.recipe === "candidate-market-v1") {
     return outcome.payload.candidates.length;
+  }
+  if (outcome.recipe === "supplier-competition-v1") {
+    return (
+      outcome.payload.supplierShares.length +
+      outcome.payload.provisionalSupplierShares.length
+    );
   }
   return (
     outcome.payload.finalizedObservations.length +

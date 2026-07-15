@@ -4,6 +4,10 @@ import type {
   ProductIdentity,
 } from "../domain/candidate-market/result";
 import type {
+  SupplierCompetitionV1Inputs,
+  SupplierCompetitionV1RecipeInput,
+} from "../domain/supplier-competition/result";
+import type {
   TradeTrendV1Inputs,
   TradeTrendV1RecipeInput,
 } from "../domain/trade-trend/result";
@@ -74,4 +78,8 @@ export interface TradeEvidenceSource {
     query: TradeTrendV1RecipeInput,
     options?: TradeEvidenceLoadOptions,
   ): Promise<TradeTrendV1Inputs>;
+  loadSupplierCompetitionV1Inputs?(
+    query: SupplierCompetitionV1RecipeInput,
+    options?: TradeEvidenceLoadOptions,
+  ): Promise<SupplierCompetitionV1Inputs>;
 }

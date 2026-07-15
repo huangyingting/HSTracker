@@ -8,6 +8,13 @@ import type {
   CandidateMarketResult,
 } from "../candidate-market/result";
 import {
+  isSupplierCompetitionAnalysisError,
+} from "../supplier-competition/errors";
+import type {
+  SupplierCompetitionResult,
+  SupplierCompetitionV1RecipeInput,
+} from "../supplier-competition/result";
+import {
   isTradeTrendAnalysisError,
 } from "../trade-trend/errors";
 import type {
@@ -27,6 +34,14 @@ import {
   type CandidateMarketDatasetPackage,
   type DatasetPackageIdentity,
 } from "./dataset-package";
+import {
+  createSupplierCompetitionV1RecipeExecution,
+} from "./supplier-competition-v1-recipe";
+import { validateSupplierCompetitionV1Request } from "./supplier-competition-v1-request";
+import {
+  evaluateSupplierCompetitionV1DatasetPackage,
+  type SupplierCompetitionDatasetPackage,
+} from "./supplier-competition-v1-dataset-package";
 import {
   createTradeTrendV1RecipeExecution,
 } from "./trade-trend-v1-recipe";
@@ -59,6 +74,13 @@ export type TradeTrendV1AnalysisRequest = Readonly<{
   productCode: string;
 }>;
 
+export type SupplierCompetitionV1AnalysisRequest = Readonly<{
+  recipe: "supplier-competition-v1";
+  analysisBuildId: string;
+  importerCode: string;
+  productCode: string;
+}>;
+
 export type CandidateMarketV1NormalizedInputs = Readonly<{
   exporterCode: string;
   product: Readonly<{
@@ -68,6 +90,14 @@ export type CandidateMarketV1NormalizedInputs = Readonly<{
 }>;
 
 export type TradeTrendV1NormalizedInputs = Readonly<{
+  importerCode: string;
+  product: Readonly<{
+    hsRevision: "HS12";
+    code: string;
+  }>;
+}>;
+
+export type SupplierCompetitionV1NormalizedInputs = Readonly<{
   importerCode: string;
   product: Readonly<{
     hsRevision: "HS12";
@@ -120,6 +150,16 @@ type AnalysisRecipeContracts = {
     normalizedInputs: TradeTrendV1NormalizedInputs;
     payload: TradeTrendResult;
     emptyReason: never;
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNKNOWN_IMPORTER"; importerCode: string }>
+      | Readonly<{ code: "UNKNOWN_PRODUCT"; productCode: string }>;
+  };
+  "supplier-competition-v1": {
+    request: SupplierCompetitionV1AnalysisRequest;
+    normalizedInputs: SupplierCompetitionV1NormalizedInputs;
+    payload: SupplierCompetitionResult;
+    emptyReason: "NO_ELIGIBLE_SUPPLIERS_IN_FINALIZED_WINDOW";
     invalidError:
       | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
       | Readonly<{ code: "UNKNOWN_IMPORTER"; importerCode: string }>
@@ -244,9 +284,15 @@ export type TradeTrendV1PlatformInput = Readonly<{
   datasetPackages: ReadonlyMap<string, TradeTrendDatasetPackage>;
 }>;
 
+export type SupplierCompetitionV1PlatformInput = Readonly<{
+  evidenceSource: TradeEvidenceSource;
+  datasetPackages: ReadonlyMap<string, SupplierCompetitionDatasetPackage>;
+}>;
+
 export type TradeAnalyticsPlatformInput = Readonly<{
   candidateMarket?: CandidateMarketV1PlatformInput;
   tradeTrend?: TradeTrendV1PlatformInput;
+  supplierCompetition?: SupplierCompetitionV1PlatformInput;
 }>;
 
 export type {
@@ -262,8 +308,13 @@ export function createCandidateMarketV1TradeAnalyticsPlatform(
 export function createTradeAnalyticsPlatform({
   candidateMarket,
   tradeTrend,
+  supplierCompetition,
 }: TradeAnalyticsPlatformInput): TradeAnalyticsPlatform {
-  return new InternalTradeAnalyticsPlatform(candidateMarket, tradeTrend);
+  return new InternalTradeAnalyticsPlatform(
+    candidateMarket,
+    tradeTrend,
+    supplierCompetition,
+  );
 }
 
 type CandidateMarketExecution = (
@@ -276,13 +327,22 @@ type TradeTrendExecution = (
   options?: AnalysisExecutionOptions,
 ) => Promise<TradeTrendResult>;
 
+type SupplierCompetitionExecution = (
+  request: SupplierCompetitionV1RecipeInput,
+  options?: AnalysisExecutionOptions,
+) => Promise<SupplierCompetitionResult>;
+
 class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
   private readonly executeCandidateMarket: CandidateMarketExecution | null;
   private readonly executeTradeTrend: TradeTrendExecution | null;
+  private readonly executeSupplierCompetition: SupplierCompetitionExecution | null;
 
   constructor(
     private readonly candidateMarket: CandidateMarketV1PlatformInput | undefined,
     private readonly tradeTrend: TradeTrendV1PlatformInput | undefined,
+    private readonly supplierCompetition:
+      | SupplierCompetitionV1PlatformInput
+      | undefined,
   ) {
     this.executeCandidateMarket =
       candidateMarket === undefined
@@ -295,17 +355,39 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
       tradeTrend === undefined
         ? null
         : createTradeTrendV1RecipeExecution(tradeTrend.evidenceSource);
+    this.executeSupplierCompetition =
+      supplierCompetition === undefined
+        ? null
+        : createSupplierCompetitionV1RecipeExecution(
+            supplierCompetition.evidenceSource,
+          );
   }
 
   async execute<Request extends AnalysisRequest>(
     request: Request,
     options?: AnalysisExecutionOptions,
   ): Promise<AnalysisOutcome<Request["recipe"]>> {
-    const outcome =
-      request.recipe === "candidate-market-v1"
-        ? await this.executeCandidateMarketV1(request, options)
-        : await this.executeTradeTrendV1(request, options);
-    return outcome as AnalysisOutcome<Request["recipe"]>;
+    switch (request.recipe) {
+      case "candidate-market-v1": {
+        const outcome = await this.executeCandidateMarketV1(request, options);
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      case "trade-trend-v1": {
+        const outcome = await this.executeTradeTrendV1(request, options);
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      case "supplier-competition-v1": {
+        const outcome = await this.executeSupplierCompetitionV1(
+          request,
+          options,
+        );
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      default:
+        throw new TypeError(
+          `Unsupported Analysis Recipe: ${String((request as AnalysisRequest).recipe)}`,
+        );
+    }
   }
 
   private async executeCandidateMarketV1(
@@ -465,6 +547,101 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
       ),
     };
   }
+
+  private async executeSupplierCompetitionV1(
+    request: SupplierCompetitionV1AnalysisRequest,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<"supplier-competition-v1">> {
+    try {
+      validateSupplierCompetitionV1Request(request);
+    } catch (error) {
+      if (!isSupplierCompetitionAnalysisError(error)) {
+        throw error;
+      }
+      return expectedSupplierCompetitionFailure(request, error.code);
+    }
+    const datasetPackage = this.supplierCompetition?.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    if (
+      datasetPackage === undefined ||
+      this.executeSupplierCompetition === null
+    ) {
+      return expectedSupplierCompetitionFailure(
+        request,
+        "ANALYSIS_BUILD_RETIRED",
+      );
+    }
+    const compatibility =
+      evaluateSupplierCompetitionV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"supplier-competition-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const normalizedInputs: SupplierCompetitionV1NormalizedInputs = {
+      importerCode: String(Number(request.importerCode)),
+      product: {
+        hsRevision: "HS12",
+        code: request.productCode,
+      },
+    };
+    let result: SupplierCompetitionResult;
+    try {
+      result = await this.executeSupplierCompetition(
+        {
+          analysisBuildId: request.analysisBuildId,
+          importerCode: request.importerCode,
+          productCode: request.productCode,
+        },
+        options,
+      );
+    } catch (error) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
+      }
+      if (!isSupplierCompetitionAnalysisError(error)) {
+        throw error;
+      }
+      return expectedSupplierCompetitionFailure(request, error.code);
+    }
+    const completed = completedSupplierCompetitionOutcome(
+      request.recipe,
+      result,
+      datasetPackage.identity,
+      normalizedInputs,
+    );
+    if (result.cohortSize === 0) {
+      if (
+        result.emptyReason !==
+          "NO_ELIGIBLE_SUPPLIERS_IN_FINALIZED_WINDOW" ||
+        result.supplierShares.length !== 0
+      ) {
+        throw new TypeError(
+          "Supplier Competition empty-result invariants were violated.",
+        );
+      }
+      return {
+        state: "empty",
+        emptyReason: result.emptyReason,
+        ...completed,
+      };
+    }
+    if (
+      result.emptyReason !== null ||
+      result.supplierShares.length !== result.cohortSize
+    ) {
+      throw new TypeError(
+        "Supplier Competition success-result invariants were violated.",
+      );
+    }
+    return { state: "success", ...completed };
+  }
 }
 
 function expectedCandidateMarketFailure(
@@ -555,6 +732,60 @@ function expectedTradeTrendFailure(
   }
 }
 
+function expectedSupplierCompetitionFailure(
+  request: SupplierCompetitionV1AnalysisRequest,
+  code:
+    | "INVALID_ANALYSIS_QUERY"
+    | "UNKNOWN_IMPORTER"
+    | "UNKNOWN_PRODUCT"
+    | "ANALYSIS_BUILD_RETIRED"
+    | "ANALYSIS_UNAVAILABLE"
+    | "SUPPLIER_COHORT_BUDGET_EXCEEDED",
+): AnalysisOutcome<"supplier-competition-v1"> {
+  const unresolved = unresolvedOutcome<"supplier-competition-v1">(request);
+  switch (code) {
+    case "INVALID_ANALYSIS_QUERY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code },
+      };
+    case "UNKNOWN_IMPORTER":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code, importerCode: request.importerCode },
+      };
+    case "UNKNOWN_PRODUCT":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code, productCode: request.productCode },
+      };
+    case "ANALYSIS_BUILD_RETIRED":
+      return {
+        state: "retired",
+        ...unresolved,
+        error: { code, analysisBuildId: request.analysisBuildId },
+      };
+    case "ANALYSIS_UNAVAILABLE":
+      return {
+        state: "temporary-unavailability",
+        ...unresolved,
+        error: { code },
+      };
+    case "SUPPLIER_COHORT_BUDGET_EXCEEDED":
+      return {
+        state: "budget",
+        ...unresolved,
+        error: {
+          code: "ANALYSIS_BUDGET_EXCEEDED",
+          budget: "RESULT_ROWS",
+        },
+      };
+  }
+}
+
 function unresolvedOutcome<Recipe extends AnalysisRecipe>(
   request: AnalysisRequest<Recipe>,
 ): UnresolvedAnalysisOutcome<Recipe> {
@@ -620,6 +851,25 @@ function completedTradeTrendOutcome(
   };
 }
 
+function completedSupplierCompetitionOutcome(
+  recipe: "supplier-competition-v1",
+  payload: SupplierCompetitionResult,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: SupplierCompetitionV1NormalizedInputs,
+): CompletedAnalysisOutcome<"supplier-competition-v1"> {
+  return {
+    recipe,
+    analysisIdentity: analysisIdentityFor(
+      recipe,
+      datasetPackageIdentity,
+      normalizedInputs,
+    ),
+    datasetPackageIdentity,
+    normalizedInputs,
+    payload,
+  };
+}
+
 function analysisIdentityFor(
   recipe: "candidate-market-v1",
   datasetPackageIdentity: DatasetPackageIdentity,
@@ -631,16 +881,23 @@ function analysisIdentityFor(
   normalizedInputs: TradeTrendV1NormalizedInputs,
 ): AnalysisIdentity;
 function analysisIdentityFor(
+  recipe: "supplier-competition-v1",
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: SupplierCompetitionV1NormalizedInputs,
+): AnalysisIdentity;
+function analysisIdentityFor(
   recipe: AnalysisRecipe,
   datasetPackageIdentity: DatasetPackageIdentity,
   normalizedInputs:
     | CandidateMarketV1NormalizedInputs
-    | TradeTrendV1NormalizedInputs,
+    | TradeTrendV1NormalizedInputs
+    | SupplierCompetitionV1NormalizedInputs,
 ): AnalysisIdentity {
   const economyCode =
     recipe === "candidate-market-v1"
       ? (normalizedInputs as CandidateMarketV1NormalizedInputs).exporterCode
-      : (normalizedInputs as TradeTrendV1NormalizedInputs).importerCode;
+      : (normalizedInputs as TradeTrendV1NormalizedInputs | SupplierCompetitionV1NormalizedInputs)
+          .importerCode;
   const canonicalIdentity = JSON.stringify([
     "analysis-identity-v1",
     recipe,

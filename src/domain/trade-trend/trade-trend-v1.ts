@@ -1,3 +1,12 @@
+import {
+  divideHalfUp,
+  formatFixedDecimal as formatFixed,
+  formatFixedDecimalScale as formatFixedScale,
+  normalizeFixedDecimal as normalizeFixed,
+  parsePositiveFixedDecimal as parsePositiveDecimal,
+  tenTo,
+  type FixedDecimal,
+} from "../fixed-decimal";
 import type {
   TradeTrendObservation,
   TradeTrendResult,
@@ -9,11 +18,6 @@ const FINALIZED_YEAR_COUNT = 5;
 const PERCENTAGE_DIGITS = 6;
 const TRADE_TREND_DISCLAIMER =
   "Trade Trend evidence describes recorded nominal imports and is a discovery aid, not a forecast, recommendation, or prediction of commercial success.";
-
-type FixedDecimal = Readonly<{
-  units: bigint;
-  scale: number;
-}>;
 
 export function computeTradeTrendV1(
   inputs: TradeTrendV1Inputs,
@@ -192,31 +196,6 @@ function summaryFor(
   };
 }
 
-function parsePositiveDecimal(value: string, field: string): FixedDecimal {
-  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/u.exec(value);
-  if (match === null) {
-    throw new TypeError(`${field} must be a positive decimal string.`);
-  }
-  const fraction = match[2] ?? "";
-  const units = BigInt(`${match[1]}${fraction}`);
-  if (units === 0n) {
-    throw new TypeError(`${field} must be positive.`);
-  }
-  return normalizeFixed({ units, scale: fraction.length });
-}
-
-function normalizeFixed(value: FixedDecimal): FixedDecimal {
-  if (value.units === 0n) {
-    return { units: 0n, scale: 0 };
-  }
-  let { units, scale } = value;
-  while (scale > 0 && units % 10n === 0n) {
-    units /= 10n;
-    scale -= 1;
-  }
-  return { units, scale };
-}
-
 function subtract(left: FixedDecimal, right: FixedDecimal): FixedDecimal {
   const scale = Math.max(left.scale, right.scale);
   return normalizeFixed({
@@ -319,31 +298,6 @@ function ratioDenominator(last: FixedDecimal, first: FixedDecimal): bigint {
   return first.units * tenTo(last.scale);
 }
 
-function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
-  const quotient = numerator / denominator;
-  const remainder = numerator % denominator;
-  return remainder * 2n >= denominator ? quotient + 1n : quotient;
-}
-
-function formatFixed(value: FixedDecimal): string {
-  const normalized = normalizeFixed(value);
-  return formatFixedScale(normalized, normalized.scale);
-}
-
-function formatFixedScale(value: FixedDecimal, scale: number): string {
-  if (value.scale > scale) {
-    throw new TypeError("A fixed decimal cannot be formatted at lower precision.");
-  }
-  const scaledUnits = value.units * tenTo(scale - value.scale);
-  const sign = scaledUnits < 0n ? "-" : "";
-  const absolute = scaledUnits < 0n ? -scaledUnits : scaledUnits;
-  if (scale === 0) {
-    return `${sign}${absolute}`;
-  }
-  const padded = absolute.toString().padStart(scale + 1, "0");
-  return `${sign}${padded.slice(0, -scale)}.${padded.slice(-scale)}`;
-}
-
 function power(base: bigint, exponent: number): bigint {
   let result = 1n;
   let current = base;
@@ -356,8 +310,4 @@ function power(base: bigint, exponent: number): bigint {
     remaining = Math.floor(remaining / 2);
   }
   return result;
-}
-
-function tenTo(exponent: number): bigint {
-  return 10n ** BigInt(exponent);
 }

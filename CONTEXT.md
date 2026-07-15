@@ -84,6 +84,14 @@ _Avoid_: Demand forecast, sales trend, zero-filled time series
 The first and last recorded-positive observations in a Trade Trend's Finalized Years, their span, exact absolute change, percentage change, and CAGR. It is explicitly unavailable when fewer than two recorded-positive endpoints exist.
 _Avoid_: Neutral growth, inferred zero trend, summary including Provisional Year
 
+**Supplier Competition**:
+A deterministic five-Finalized-Year view of the complete recorded supplying-economy structure behind one importing economy's imports for one HS Product, pooling recorded trade values across the exact Finalized Years used and reporting each supplying economy's share, bounded cohort membership, and concentration. It is economy-level evidence for investigation, not company identification, a forecast, or a recommendation.
+_Avoid_: Buyer-supplier relationship, company-level trade data, inferred zero share
+
+**Supplier Competition Summary / HHI**:
+The Herfindahl-Hirschman Index of finalized supplier shares on a documented 0–10,000 scale, computed only when at least one supplying economy recorded a positive pooled value; otherwise concentration is explicitly unavailable rather than a neutral or zero value. It never reflects Provisional Year evidence.
+_Avoid_: Market-share estimate for a single company, concentration inferred from missing data, Provisional Year concentration
+
 **Company Trade Context**:
 Separately sourced and access-controlled evidence about Source Party Mentions, Legal Entities, brands, models, transport documents, or shipment events for a Candidate Market Context. It is not BACI evidence and never changes the Candidate Market Score or Data Confidence.
 _Avoid_: Company-level BACI, customer list, buyer database
