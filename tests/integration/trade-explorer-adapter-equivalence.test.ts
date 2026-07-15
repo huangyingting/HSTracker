@@ -66,13 +66,13 @@ const ADDITIONAL_ECONOMIES = [
 // the 25 budget-edge importer codes: 1 + 1 + 1 + 1 + 25 = 29.
 const CANDIDATE_MARKET_COHORT_SIZE = 29;
 
-const BUDGET_IMPORTER_CODES = Array.from({ length: 25 }, (_, index) => 601 + index);
+const BUDGET_IMPORTER_CODES = Array.from({ length: 25 }, (_, index) => index + 1);
 
 const BUDGET_ECONOMIES = BUDGET_IMPORTER_CODES.map((code) => ({
   code,
-  displayName: `Budget Economy ${code}`,
-  iso2: "ZZ",
-  iso3: "ZZZ",
+  displayName: `Fixture Economy ${code}`,
+  iso2: null,
+  iso3: null,
 }));
 
 const ADDITIONAL_PRODUCTS = [
@@ -565,30 +565,47 @@ describe("Trade Explorer fixture-vs-production adapter equivalence", () => {
 
   it("succeeds at exactly the 25-code grouped-cohort budget boundary", async () => {
     const { runtime, analysisBuildId } = await buildActivatedRuntime();
-    const outcome = await runtime.tradeAnalytics.execute({
-      ...baseRequest(analysisBuildId),
-      shape: "importing-markets-v1",
-      dimensions: ["IMPORT_ECONOMY"],
-      measures: ["TRADE_VALUE_USD"],
+    const fixtureRuntime = createFixtureApplicationRuntime();
+    const request = (buildId: string) => ({
+      ...baseRequest(buildId),
+      shape: "importing-markets-v1" as const,
+      dimensions: ["IMPORT_ECONOMY" as const],
+      measures: ["TRADE_VALUE_USD" as const],
       filters: {
-        year: { mode: "list", years: [2023] },
+        year: { mode: "list" as const, years: [2023] },
         exportEconomy: ["156"],
         importEconomy: BUDGET_IMPORTER_CODES.map(String),
         hsProduct: [PRODUCT_CODE],
       },
       sort: null,
     });
+    const [fixture, outcome] = await Promise.all([
+      fixtureRuntime.tradeAnalytics.execute(
+        request(ACCEPTANCE_FIXTURE_BUILD_IDS.core),
+      ),
+      runtime.tradeAnalytics.execute(request(analysisBuildId)),
+    ]);
     if (outcome.state !== "success") {
       throw new TypeError(`Expected success, received ${outcome.state}.`);
     }
+    if (fixture.state !== "success") {
+      throw new TypeError(
+        `Expected fixture success, received ${fixture.state}.`,
+      );
+    }
     expect(outcome.payload.rows).toHaveLength(25);
+    expect(outcome.payload.rows).toEqual(fixture.payload.rows);
+    expect(outcome.payload.totalRow).toEqual(fixture.payload.totalRow);
+    expect(outcome.payload.qualityWarnings).toEqual(
+      fixture.payload.qualityWarnings,
+    );
     expect(outcome.payload.rows.every((r) => r.state === "RECORDED_POSITIVE")).toBe(
       true,
     );
     const first = outcome.payload.rows.find(
       (r) =>
         r.dimensionValue.dimension === "IMPORT_ECONOMY" &&
-        r.dimensionValue.economy.code === "601",
+        r.dimensionValue.economy.code === "1",
     );
     expect(first).toMatchObject({ tradeValueUsd: "1000" });
   }, 30_000);
@@ -604,7 +621,7 @@ describe("Trade Explorer fixture-vs-production adapter equivalence", () => {
       filters: {
         year: { mode: "list" as const, years: [2023] },
         exportEconomy: ["156"],
-        importEconomy: [...BUDGET_IMPORTER_CODES, 626].map(String),
+        importEconomy: [...BUDGET_IMPORTER_CODES, 26].map(String),
         hsProduct: [PRODUCT_CODE],
       },
       sort: null,

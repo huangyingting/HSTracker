@@ -41,8 +41,8 @@ export const RUNTIME_RELEASE_FIXTURE = {
 export type TradeTrendEquivalenceEconomy = {
   code: number;
   displayName: string;
-  iso2: string;
-  iso3: string;
+  iso2: string | null;
+  iso3: string | null;
 };
 
 export type TradeTrendEquivalenceRow = {
