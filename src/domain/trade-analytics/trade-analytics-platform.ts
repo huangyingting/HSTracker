@@ -8,6 +8,14 @@ import type {
   CandidateMarketResult,
 } from "../candidate-market/result";
 import {
+  isOpportunityDiscoveryAnalysisError,
+  type OpportunityDiscoveryAnalysisError,
+} from "../opportunity-discovery/errors";
+import type {
+  MarketInvestigationPage,
+  OpportunityDiscoveryV1RecipeInput,
+} from "../opportunity-discovery/result";
+import {
   isSupplierCompetitionAnalysisError,
 } from "../supplier-competition/errors";
 import type {
@@ -34,6 +42,7 @@ import type {
   TradeTrendV1RecipeInput,
 } from "../trade-trend/result";
 import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
+import type { OpportunityCandidateIndex } from "../../evidence/opportunity-evidence-source";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
 import type { AnonymousSourceIdentity } from "../../runtime/anonymous-source";
 import {
@@ -70,6 +79,17 @@ import {
   evaluateTradeTrendV1DatasetPackage,
   type TradeTrendDatasetPackage,
 } from "./trade-trend-v1-dataset-package";
+import {
+  createOpportunityDiscoveryV1RecipeExecution,
+} from "./opportunity-discovery-v1-recipe";
+import {
+  normalizeOpportunityDiscoveryV1Request,
+  validateOpportunityDiscoveryV1Request,
+} from "./opportunity-discovery-v1-request";
+import {
+  evaluateOpportunityDiscoveryV1DatasetPackage,
+  type OpportunityDiscoveryDatasetPackage,
+} from "./opportunity-discovery-v1-dataset-package";
 
 export type { DatasetPackageIdentity } from "./dataset-package";
 
@@ -99,6 +119,20 @@ export type SupplierCompetitionV1AnalysisRequest = Readonly<{
   analysisBuildId: string;
   importerCode: string;
   productCode: string;
+}>;
+
+// The closed, public opportunity-discovery-v1 request. `page` and
+// `productFilter` are representation only -- normalizeOpportunityDiscoveryV1Request
+// sorts/de-duplicates the product filter and neither ever participates in
+// Analysis Identity -- so callers cannot fork the analytical feed by reordering
+// or repeating codes. There is deliberately no storage/SQL/table/column
+// vocabulary anywhere in this shape.
+export type OpportunityDiscoveryV1AnalysisRequest = Readonly<{
+  recipe: "opportunity-discovery-v1";
+  analysisBuildId: string;
+  exportEconomyCode: string;
+  page?: Readonly<{ limit?: number; cursor?: string | null }>;
+  productFilter?: Readonly<{ hsRevision: "HS12"; codes: readonly string[] }>;
 }>;
 
 // The closed, public Trade Explorer v1 request. `filters`/`dimensions`/
@@ -145,6 +179,13 @@ export type SupplierCompetitionV1NormalizedInputs = Readonly<{
     hsRevision: "HS12";
     code: string;
   }>;
+}>;
+
+// Only the normalized export economy participates in Analysis Identity; the
+// product projection and paging are representation and are excluded (see the
+// recipe doc: identity binds recipe + package + export economy).
+export type OpportunityDiscoveryV1NormalizedInputs = Readonly<{
+  exportEconomyCode: string;
 }>;
 
 export type { TradeExplorerV1NormalizedInputs } from "../trade-explorer/result";
@@ -232,6 +273,17 @@ type AnalysisRecipeContracts = {
       | Readonly<{ code: "UNKNOWN_EXPORT_ECONOMY"; economyCode: string }>
       | Readonly<{ code: "UNKNOWN_IMPORT_ECONOMY"; economyCode: string }>
       | Readonly<{ code: "UNKNOWN_HS_PRODUCT"; productCode: string }>;
+  };
+  "opportunity-discovery-v1": {
+    request: OpportunityDiscoveryV1AnalysisRequest;
+    normalizedInputs: OpportunityDiscoveryV1NormalizedInputs;
+    payload: MarketInvestigationPage;
+    emptyReason: "NO_ELIGIBLE_MARKET_INVESTIGATION_CANDIDATES";
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNKNOWN_EXPORT_ECONOMY"; exportEconomyCode: string }>
+      | Readonly<{ code: "UNKNOWN_HS_PRODUCT"; productCode: string }>
+      | Readonly<{ code: "INVALID_CURSOR" }>;
   };
 };
 
@@ -392,6 +444,19 @@ export type TradeExplorerV1PlatformInput = Readonly<{
   datasetPackages: ReadonlyMap<string, TradeExplorerDatasetPackage>;
 }>;
 
+export type OpportunityDiscoveryV1IndexBinding =
+  | OpportunityCandidateIndex
+  | ReadonlyMap<string, OpportunityCandidateIndex>;
+
+export type OpportunityDiscoveryV1PlatformInput = Readonly<{
+  // A single value binds every declared analysisBuildId to the same ordered
+  // candidate index (the shape every current caller uses); a `ReadonlyMap`
+  // instead binds each retained build to its own index, mirroring the
+  // per-build binding model the other recipes use for their evidence sources.
+  candidateIndex: OpportunityDiscoveryV1IndexBinding;
+  datasetPackages: ReadonlyMap<string, OpportunityDiscoveryDatasetPackage>;
+}>;
+
 export type TradeAnalyticsPlatformInput = Readonly<{
   candidateMarket?: CandidateMarketV1PlatformInput;
   tradeTrend?: TradeTrendV1PlatformInput;
@@ -404,6 +469,7 @@ export type TradeAnalyticsPlatformInput = Readonly<{
   // fixture application runtime supplies this (see
   // runtime/application-runtime.ts).
   tradeExplorer?: TradeExplorerV1PlatformInput;
+  opportunityDiscovery?: OpportunityDiscoveryV1PlatformInput;
 }>;
 
 export type {
@@ -421,12 +487,14 @@ export function createTradeAnalyticsPlatform({
   tradeTrend,
   supplierCompetition,
   tradeExplorer,
+  opportunityDiscovery,
 }: TradeAnalyticsPlatformInput): TradeAnalyticsPlatform {
   return new InternalTradeAnalyticsPlatform(
     candidateMarket,
     tradeTrend,
     supplierCompetition,
     tradeExplorer,
+    opportunityDiscovery,
   );
 }
 
@@ -450,6 +518,12 @@ type TradeExplorerExecution = (
   options?: AnalysisExecutionOptions,
 ) => Promise<TradeExplorerResult>;
 
+type OpportunityDiscoveryExecution = (
+  request: OpportunityDiscoveryV1RecipeInput,
+  analysisIdentity: string,
+  options?: AnalysisExecutionOptions,
+) => Promise<MarketInvestigationPage>;
+
 class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
   private readonly executeCandidateMarket: ReadonlyMap<
     string,
@@ -464,6 +538,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     string,
     TradeExplorerExecution
   >;
+  private readonly executeOpportunityDiscovery: ReadonlyMap<
+    string,
+    OpportunityDiscoveryExecution
+  >;
 
   constructor(
     private readonly candidateMarket: CandidateMarketV1PlatformInput | undefined,
@@ -472,6 +550,9 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
       | SupplierCompetitionV1PlatformInput
       | undefined,
     private readonly tradeExplorer: TradeExplorerV1PlatformInput | undefined,
+    private readonly opportunityDiscovery:
+      | OpportunityDiscoveryV1PlatformInput
+      | undefined,
   ) {
     this.executeCandidateMarket =
       candidateMarket === undefined
@@ -543,6 +624,22 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
               ],
             ),
           );
+    this.executeOpportunityDiscovery =
+      opportunityDiscovery === undefined
+        ? new Map()
+        : new Map(
+            [...opportunityDiscovery.datasetPackages.keys()].map(
+              (analysisBuildId) => [
+                analysisBuildId,
+                createOpportunityDiscoveryV1RecipeExecution(
+                  requireOpportunityIndexBinding(
+                    opportunityDiscovery.candidateIndex,
+                    analysisBuildId,
+                  ),
+                ),
+              ],
+            ),
+          );
   }
 
   async execute<Request extends AnalysisRequest>(
@@ -567,6 +664,13 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
       }
       case "trade-explorer-v1": {
         const outcome = await this.executeTradeExplorerV1(request, options);
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      case "opportunity-discovery-v1": {
+        const outcome = await this.executeOpportunityDiscoveryV1(
+          request,
+          options,
+        );
         return outcome as AnalysisOutcome<Request["recipe"]>;
       }
       default:
@@ -948,6 +1052,91 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     }
     return { state: "success", ...completed };
   }
+
+  private async executeOpportunityDiscoveryV1(
+    request: OpportunityDiscoveryV1AnalysisRequest,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<"opportunity-discovery-v1">> {
+    try {
+      validateOpportunityDiscoveryV1Request(request);
+    } catch (error) {
+      if (!isOpportunityDiscoveryAnalysisError(error)) {
+        throw error;
+      }
+      return expectedOpportunityDiscoveryFailure(request, error);
+    }
+    const datasetPackage = this.opportunityDiscovery?.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    const execute = this.executeOpportunityDiscovery.get(
+      request.analysisBuildId,
+    );
+    if (datasetPackage === undefined || execute === undefined) {
+      return {
+        state: "retired",
+        ...unresolvedOutcome<"opportunity-discovery-v1">(request),
+        error: {
+          code: "ANALYSIS_BUILD_RETIRED",
+          analysisBuildId: request.analysisBuildId,
+        },
+      };
+    }
+    const compatibility =
+      evaluateOpportunityDiscoveryV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"opportunity-discovery-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const recipeInput = normalizeOpportunityDiscoveryV1Request(request);
+    const normalizedInputs: OpportunityDiscoveryV1NormalizedInputs = {
+      exportEconomyCode: String(Number(request.exportEconomyCode)),
+    };
+    // The ordered index needs the Analysis Identity to bind/validate every
+    // cursor, so -- unlike the other recipes -- identity is computed before
+    // execution rather than only for a completed outcome.
+    const analysisIdentity = analysisIdentityForOpportunityDiscovery(
+      datasetPackage.identity,
+      normalizedInputs,
+    );
+    let page: MarketInvestigationPage;
+    try {
+      page = await execute(recipeInput, analysisIdentity, options);
+    } catch (error) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
+      }
+      if (!isOpportunityDiscoveryAnalysisError(error)) {
+        throw error;
+      }
+      return expectedOpportunityDiscoveryFailure(request, error);
+    }
+    const completed: CompletedAnalysisOutcome<"opportunity-discovery-v1"> = {
+      recipe: request.recipe,
+      analysisIdentity,
+      datasetPackageIdentity: datasetPackage.identity,
+      normalizedInputs,
+      payload: page,
+    };
+    if (page.cohortSize === 0) {
+      if (page.candidates.length !== 0 || page.page.returnedCount !== 0) {
+        throw new TypeError(
+          "Opportunity Discovery empty-result invariants were violated.",
+        );
+      }
+      return {
+        state: "empty",
+        emptyReason: "NO_ELIGIBLE_MARKET_INVESTIGATION_CANDIDATES",
+        ...completed,
+      };
+    }
+    return { state: "success", ...completed };
+  }
 }
 
 function expectedCandidateMarketFailure(
@@ -1180,6 +1369,45 @@ function expectedTradeExplorerFailure(
   }
 }
 
+function expectedOpportunityDiscoveryFailure(
+  request: OpportunityDiscoveryV1AnalysisRequest,
+  error: OpportunityDiscoveryAnalysisError,
+): AnalysisOutcome<"opportunity-discovery-v1"> {
+  const unresolved = unresolvedOutcome<"opportunity-discovery-v1">(request);
+  switch (error.code) {
+    case "INVALID_ANALYSIS_QUERY":
+    case "INVALID_CURSOR":
+      return { state: "invalid-input", ...unresolved, error: { code: error.code } };
+    case "UNKNOWN_EXPORT_ECONOMY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: {
+          code: error.code,
+          exportEconomyCode: error.subject ?? request.exportEconomyCode,
+        },
+      };
+    case "UNKNOWN_HS_PRODUCT":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code: error.code, productCode: error.subject ?? "" },
+      };
+    case "ANALYSIS_BUILD_RETIRED":
+      return {
+        state: "retired",
+        ...unresolved,
+        error: { code: error.code, analysisBuildId: request.analysisBuildId },
+      };
+    case "ANALYSIS_UNAVAILABLE":
+      return {
+        state: "temporary-unavailability",
+        ...unresolved,
+        error: { code: error.code },
+      };
+  }
+}
+
 /**
  * Resolves an evidence-source binding for one retained analysisBuildId: a
  * single value applies to every declared build (legacy shape), while a
@@ -1206,6 +1434,33 @@ function requireEvidenceBinding(
     return source;
   }
   return binding as TradeEvidenceSource;
+}
+
+/**
+ * Resolves an ordered candidate-index binding for one retained
+ * analysisBuildId, mirroring `requireEvidenceBinding`: a single value applies
+ * to every declared build, while a `ReadonlyMap` binds each retained build to
+ * its own index. Throws on a Map binding that is missing the requested build,
+ * since that is a construction-time inconsistency rather than a retirement.
+ */
+function requireOpportunityIndexBinding(
+  binding:
+    | OpportunityCandidateIndex
+    | ReadonlyMap<string, OpportunityCandidateIndex>,
+  analysisBuildId: string,
+): OpportunityCandidateIndex {
+  if (binding instanceof Map) {
+    const index = (
+      binding as ReadonlyMap<string, OpportunityCandidateIndex>
+    ).get(analysisBuildId);
+    if (index === undefined) {
+      throw new TypeError(
+        `No opportunity-discovery-v1 candidate index is bound for analysis build ${analysisBuildId}.`,
+      );
+    }
+    return index;
+  }
+  return binding as OpportunityCandidateIndex;
 }
 
 /**
@@ -1404,6 +1659,26 @@ function analysisIdentityForTradeExplorer(
     normalizedInputs.hsProduct,
     normalizedInputs.sort.key,
     normalizedInputs.sort.direction,
+  ]);
+  const digest = createHash("sha256").update(canonicalIdentity).digest("hex");
+  return `analysis-identity-v1-${digest}` as AnalysisIdentity;
+}
+
+// Opportunity Discovery's identity binds only the recipe, the Dataset Package
+// identity, and the normalized export economy. The product projection and
+// paging are representation (normalizeOpportunityDiscoveryV1Request has already
+// stripped ordering/duplication from the product filter) and never participate,
+// so every product-filtered or paged view of one exporter's feed shares one
+// Analysis Identity.
+function analysisIdentityForOpportunityDiscovery(
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: OpportunityDiscoveryV1NormalizedInputs,
+): AnalysisIdentity {
+  const canonicalIdentity = JSON.stringify([
+    "analysis-identity-v1",
+    "opportunity-discovery-v1",
+    datasetPackageIdentity,
+    normalizedInputs.exportEconomyCode,
   ]);
   const digest = createHash("sha256").update(canonicalIdentity).digest("hex");
   return `analysis-identity-v1-${digest}` as AnalysisIdentity;

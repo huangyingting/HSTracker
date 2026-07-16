@@ -4,8 +4,13 @@ import { validateCandidateMarketV1Request } from "../domain/trade-analytics/cand
 import { validateSupplierCompetitionV1Request } from "../domain/trade-analytics/supplier-competition-v1-request";
 import { validateTradeTrendV1Request } from "../domain/trade-analytics/trade-trend-v1-request";
 import { validateTradeExplorerV1Request } from "../domain/trade-analytics/trade-explorer-v1-request";
+import {
+  normalizeOpportunityDiscoveryV1Request,
+  validateOpportunityDiscoveryV1Request,
+} from "../domain/trade-analytics/opportunity-discovery-v1-request";
 import { isSupplierCompetitionAnalysisError } from "../domain/supplier-competition/errors";
 import { isTradeExplorerAnalysisError } from "../domain/trade-explorer/errors";
+import { isOpportunityDiscoveryAnalysisError } from "../domain/opportunity-discovery/errors";
 import { isTradeTrendAnalysisError } from "../domain/trade-trend/errors";
 import type {
   AnalysisExecutionOptions,
@@ -13,6 +18,7 @@ import type {
   AnalysisOutcome,
   AnalysisRecipe,
   AnalysisRequest,
+  OpportunityDiscoveryV1AnalysisRequest,
   TradeAnalyticsPlatform,
   TradeExplorerV1AnalysisRequest,
 } from "../domain/trade-analytics/trade-analytics-platform";
@@ -39,7 +45,8 @@ type AnalysisResult =
   | AnalysisOutcome<"candidate-market-v1">
   | AnalysisOutcome<"trade-trend-v1">
   | AnalysisOutcome<"supplier-competition-v1">
-  | AnalysisOutcome<"trade-explorer-v1">;
+  | AnalysisOutcome<"trade-explorer-v1">
+  | AnalysisOutcome<"opportunity-discovery-v1">;
 type AnalysisPromise = Promise<AnalysisResult>;
 type ProductSearchQuery = Parameters<
   ApplicationRuntime["searchProducts"]
@@ -257,7 +264,8 @@ export function createBoundedApplicationRuntime(
         !isCandidateMarketAnalysisError(error) &&
         !isTradeTrendAnalysisError(error) &&
         !isSupplierCompetitionAnalysisError(error) &&
-        !isTradeExplorerAnalysisError(error)
+        !isTradeExplorerAnalysisError(error) &&
+        !isOpportunityDiscoveryAnalysisError(error)
       ) {
         return Promise.reject(error);
       }
@@ -643,6 +651,23 @@ function analysisKey(
       cachePartitionKey ?? "",
     ].join("\u0000");
   }
+  if (query.recipe === "opportunity-discovery-v1") {
+    // Paging and product projection are representation, but they change the
+    // page bytes, so the cache key spans them (normalization already sorted /
+    // de-duplicated the product filter and defaulted the limit).
+    const recipeInput = normalizeOpportunityDiscoveryV1Request(query);
+    return [
+      query.recipe,
+      query.analysisBuildId,
+      String(Number(query.exportEconomyCode)),
+      String(recipeInput.limit),
+      recipeInput.cursor ?? "",
+      recipeInput.productCodes === null
+        ? ""
+        : recipeInput.productCodes.join(","),
+      cachePartitionKey ?? "",
+    ].join("\u0000");
+  }
   return [
     query.recipe,
     query.analysisBuildId,
@@ -677,11 +702,18 @@ function validateAnalysisRequest(query: AnalysisQuery): void {
     // cached/queued path rather than the invalid-request bypass path.
     return;
   }
+  if (query.recipe === "opportunity-discovery-v1") {
+    validateOpportunityDiscoveryV1Request(query);
+    return;
+  }
   validateTradeTrendV1Request(query);
 }
 
 function normalizedEconomyCode(
-  query: Exclude<AnalysisQuery, TradeExplorerV1AnalysisRequest>,
+  query: Exclude<
+    AnalysisQuery,
+    TradeExplorerV1AnalysisRequest | OpportunityDiscoveryV1AnalysisRequest
+  >,
 ): string {
   return String(
     Number(
@@ -733,6 +765,9 @@ function analysisResultRows(
       (outcome.payload.totalRow === null ? 0 : 1)
     );
   }
+  if (outcome.recipe === "opportunity-discovery-v1") {
+    return outcome.payload.candidates.length;
+  }
   return (
     outcome.payload.finalizedObservations.length +
     (outcome.payload.provisionalObservation === null ? 0 : 1)
@@ -757,6 +792,17 @@ function inputBudgetOutcome(
       request.recipe,
       request.analysisBuildId,
       tradeExplorerInputKey,
+    ];
+  } else if (request.recipe === "opportunity-discovery-v1") {
+    const recipeInput = normalizeOpportunityDiscoveryV1Request(request);
+    canonicalInputs = [
+      request.recipe,
+      request.analysisBuildId,
+      request.exportEconomyCode,
+      recipeInput.cursor ?? "",
+      recipeInput.productCodes === null
+        ? ""
+        : recipeInput.productCodes.join(","),
     ];
   } else {
     canonicalInputs = [

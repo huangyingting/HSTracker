@@ -17,6 +17,10 @@ import {
   FixtureTradeEvidenceSource,
 } from "../evidence/fixture-trade-evidence-source";
 import {
+  createFixtureOpportunityDiscoveryDatasetPackages,
+  FixtureOpportunityCandidateIndex,
+} from "../evidence/fixture-opportunity-source";
+import {
   FIXTURE_CURRENT_AS_OF,
   resolveFixtureCurrentAnalysisManifest,
   resolveFixtureExportFreshnessStatus,
@@ -155,6 +159,10 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
       tradeExplorer: {
         evidenceSource: new FixtureTradeEvidenceSource(),
         datasetPackages: createFixtureTradeExplorerDatasetPackages(),
+      },
+      opportunityDiscovery: {
+        candidateIndex: new FixtureOpportunityCandidateIndex(),
+        datasetPackages: createFixtureOpportunityDiscoveryDatasetPackages(),
       },
     }),
     currentAnalysis: resolveFixtureCurrentAnalysisManifest,
