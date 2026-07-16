@@ -543,6 +543,7 @@ type PopulateResult = {
   perExporterStats: ExporterStats[];
   populateMs: number;
   computeMs: number;
+  peakRssBytes: number;
   duckdbVersion: string;
 };
 
@@ -591,6 +592,7 @@ async function populateIndex(args: {
   const perExporterStats: ExporterStats[] = [];
   let totalRowCount = 0;
   let computeMs = 0;
+  let peakRssBytes = 0;
   let duckdbVersion: string;
   try {
     const writeConnection = await writeInstance.connect();
@@ -721,6 +723,10 @@ async function populateIndex(args: {
       });
       totalRowCount += cohortRows;
       completedExporters += 1;
+      const rssBytes = process.memoryUsage().rss;
+      if (rssBytes > peakRssBytes) {
+        peakRssBytes = rssBytes;
+      }
       onProgress?.({
         completedExporters,
         totalExporters,
@@ -728,7 +734,7 @@ async function populateIndex(args: {
         cohortRows,
         cumulativeRows: totalRowCount,
         elapsedMs: elapsedMilliseconds(populateStarted),
-        rssBytes: process.memoryUsage().rss,
+        rssBytes,
       });
       if (globalThis.gc !== undefined) {
         globalThis.gc();
@@ -749,6 +755,7 @@ async function populateIndex(args: {
     perExporterStats,
     populateMs: elapsedMilliseconds(populateStarted),
     computeMs,
+    peakRssBytes,
     duckdbVersion,
   };
 }
@@ -1043,7 +1050,7 @@ async function publishIndex(args: {
     benchmarkExporters,
     perExporterStats: buildResult.perExporterStats,
     timingsMs: timings,
-    peakRssBytes: process.memoryUsage().rss,
+    peakRssBytes: Math.max(buildResult.peakRssBytes, process.memoryUsage().rss),
     builtAt,
   };
   const reportBytes = jsonBytes(report);
