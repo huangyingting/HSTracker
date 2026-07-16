@@ -14,6 +14,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:analysis-artifact": "tsx scripts/release/build-analysis-artifact.ts",
+    "build:opportunity-index": "node --max-old-space-size=13312 --expose-gc --import tsx scripts/release/build-opportunity-index.ts",
     "build:product-catalog": "tsx scripts/catalog/build-product-catalog.ts",
     "build:product-translations": "tsx scripts/catalog/build-product-translations.ts",
     "deployment:check": "tsx scripts/deployment/check-deployment.ts",
