@@ -16,6 +16,26 @@ _Avoid_: Trade opportunity, guaranteed opportunity, recommended investment
 A transparent, fixed-weight summary used to rank Candidate Markets, accompanied by component indicators and a data-confidence measure. It is a discovery aid, not a standalone recommendation.
 _Avoid_: Opportunity score, success probability, AI recommendation
 
+**Market Investigation Candidate**:
+One eligible importing economy for one export economy and one HS Product under the cross-product opportunity-discovery recipe. It is public evidence for further investigation, not a commercial recommendation or prediction.
+_Avoid_: Guaranteed opportunity, sales lead, recommended investment
+
+**Market Attractiveness**:
+A cross-product percentile composite of an importing market's recorded product-specific size and nominal growth. It does not measure accessibility, profitability, or fit for a particular company.
+_Avoid_: Addressable market, demand forecast, market potential
+
+**Exporter Fit**:
+A cross-product percentile composite of an export economy's recorded world presence in an HS Product and recorded foothold in one importing market. It describes public trade evidence, not a company's capability, certification, price, or channel fit.
+_Avoid_: Company fit, product-market fit, success probability
+
+**Investigation Priority**:
+The fixed ordinal summary used to order Market Investigation Candidates for one export economy and exact Dataset Package. It does not estimate sales, profit, or commercial value.
+_Avoid_: Opportunity value, revenue potential, recommendation score
+
+**Unvalidated Market Gap**:
+A Market Investigation Candidate with high recorded Market Attractiveness and weak or unrecorded exporter foothold. It is a hypothesis requiring access, competition, capability, and commercial validation.
+_Avoid_: Untapped market, guaranteed whitespace, unmet demand
+
 **HS Product**:
 A six-digit product category under an explicitly named Harmonized System revision. Its identity is the revision and code; source descriptions, auxiliary translations, and search aliases help discovery but do not change that identity.
 _Avoid_: Unversioned HS code, SKU, brand, model, free-text product
@@ -31,6 +51,18 @@ _Avoid_: Final forever, unrevisable year, current year
 **Provisional Year**:
 The newest year in a BACI Release, retained as separately labelled supporting evidence because it may be incomplete or materially revised. It never affects score, rank, or Data Confidence.
 _Avoid_: Latest score year, current data, preliminary score
+
+**Recent Trade Momentum Signal**:
+A source-specific comparison of recently recorded imports for one reporting market and HS Product against the same calendar period one year earlier. It remains separate from annual BACI scores and is not a forecast or exporter-specific opportunity.
+_Avoid_: Real-time demand, leading indicator, monthly Candidate Market Score
+
+**Monthly Source Vintage**:
+One immutable extraction of an official monthly trade source and its metadata at a recorded instant. A later extraction is a different vintage even when its newest reference month is unchanged.
+_Avoid_: Live monthly data, mutable monthly table, latest file
+
+**Opportunity Watch**:
+A user's request to evaluate one reporting-market and HS Product context when a new eligible monthly Dataset Package is activated. It stores evaluation and delivery state, not a mutable copy of analytical facts.
+_Avoid_: Live market monitor, saved analysis result, trading alert
 
 **Release Revision**:
 A difference in same-period BACI evidence between two BACI Releases associated with one selected deployment. It is distinct from change over time within one release, and distinct from replaying an older Retained Deployment: selecting a retained predecessor changes which deployment's own Release Revision evidence applies, and never borrows the current deployment's own comparison evidence.
