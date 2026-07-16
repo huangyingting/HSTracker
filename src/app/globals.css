@@ -368,17 +368,24 @@ a {
   transition: color 0.24s ease;
 }
 
-/* Light active (aria-checked=false): sun rides the thumb. */
-.theme-toggle[aria-checked="false"] .theme-toggle-icon-sun {
+/* The toggle's visual state is driven by the [data-theme] attribute the
+   pre-paint script sets on <html>, so it is correct on first paint with no
+   hydration lag. React only owns aria-checked / aria-label for a11y. */
+
+/* Light (and no-JS default): the sun rides the thumb on the left. */
+.theme-toggle-icon-sun {
   color: var(--paper-light);
 }
 
-/* Dark active (aria-checked=true): thumb slides to the moon. */
-.theme-toggle[aria-checked="true"] .theme-toggle-thumb {
+:root[data-theme="dark"] .theme-toggle-thumb {
   left: calc(50%);
 }
 
-.theme-toggle[aria-checked="true"] .theme-toggle-icon-moon {
+:root[data-theme="dark"] .theme-toggle-icon-sun {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .theme-toggle-icon-moon {
   color: var(--paper-light);
 }
 
@@ -390,6 +397,20 @@ a {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   text-align: left;
+}
+
+/* Both localized labels ship in the markup; CSS reveals the active one so
+   the label never flashes the wrong theme before hydration. */
+.theme-toggle-text-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle-text-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle-text-dark {
+  display: inline;
 }
 
 .theme-toggle:hover .theme-toggle-track {

@@ -74,7 +74,8 @@ export function ThemeToggle({ locale }: { locale: Locale }) {
         <span className="theme-toggle-thumb" />
       </span>
       <span className="theme-toggle-text" aria-hidden="true">
-        {isDark ? messages.dark : messages.light}
+        <span className="theme-toggle-text-light">{messages.light}</span>
+        <span className="theme-toggle-text-dark">{messages.dark}</span>
       </span>
     </button>
   );
