@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
 import {
+  ACCEPTANCE_FIXTURE_BUILD_IDS,
+} from "../../fixtures/acceptance/v1/metadata";
+import {
   OPPORTUNITY_FIXTURE_BUILD_ID,
   OPPORTUNITY_FIXTURE_COHORTS,
 } from "../../fixtures/opportunity-discovery/v1/cohort";
@@ -77,7 +80,7 @@ export class FixtureOpportunityCandidateIndex
         }
       }
     }
-    return pageOpportunityCohort(
+    const page = pageOpportunityCohort(
       cohort,
       {
         limit: query.limit,
@@ -86,6 +89,7 @@ export class FixtureOpportunityCandidateIndex
       },
       analysisIdentity,
     );
+    return { ...page, analysisBuildId: query.analysisBuildId };
   }
 }
 
@@ -125,7 +129,7 @@ export class FixtureOpportunityEvidenceSource
     }
     const cutoffYear = inputs.release.finalizedCutoffYear;
     return {
-      analysisBuildId: inputs.analysisBuildId,
+      analysisBuildId: request.analysisBuildId,
       exporter: inputs.exporter,
       product: marketEvidence.product,
       market: marketEvidence.market,
@@ -153,11 +157,14 @@ export function createFixtureOpportunityDiscoveryDatasetPackages(): ReadonlyMap<
 > {
   const datasetPackage = createOpportunityDiscoveryDatasetPackage({
     schemaVersion: "opportunity-discovery-dataset-package-manifest-v1",
-    baciRelease: "BACI-HS12-fixture",
+    baciRelease: "V202601",
     hsRevision: "HS12",
     finalizedYearCount: 5,
     evidenceSha256: OPPORTUNITY_FIXTURE_CONTENT_SHA256,
     capabilities: OPPORTUNITY_DISCOVERY_V1_CAPABILITY_REQUIREMENTS,
   });
-  return new Map([[OPPORTUNITY_FIXTURE_BUILD_ID, datasetPackage]]);
+  return new Map([
+    [OPPORTUNITY_FIXTURE_BUILD_ID, datasetPackage],
+    [ACCEPTANCE_FIXTURE_BUILD_IDS.core, datasetPackage],
+  ]);
 }

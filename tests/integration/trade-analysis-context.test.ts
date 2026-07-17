@@ -36,14 +36,27 @@ const CURRENT_CANDIDATE_MARKET_PIN = {
 };
 
 describe("Trade Analysis Context: parsing", () => {
-  it("defaults an empty location to an incomplete candidate-market context", () => {
+  it("defaults an empty location to an incomplete opportunity-discovery context", () => {
     expect(parseTradeAnalysisContext("/")).toEqual({
-      recipe: "candidate-market",
+      recipe: "opportunity-discovery",
       locale: "en",
-      productCode: null,
       pin: null,
-      exporterCode: null,
-      focusedMarketCode: null,
+      exportEconomyCode: null,
+      productCodes: null,
+    });
+  });
+
+  it("parses opportunity-discovery exporter scope and an HS12 product projection", () => {
+    expect(
+      parseTradeAnalysisContext(
+        "/?recipe=opportunity-discovery-v1&exporter=100&products=010003,010001",
+      ),
+    ).toEqual({
+      recipe: "opportunity-discovery",
+      locale: "en",
+      pin: null,
+      exportEconomyCode: "100",
+      productCodes: ["010003", "010001"],
     });
   });
 
@@ -91,6 +104,10 @@ describe("Trade Analysis Context: parsing", () => {
 
   it("parses the exact versioned recipe identity", () => {
     expect(
+      parseTradeAnalysisContext("/?recipe=opportunity-discovery-v1&exporter=100")
+        .recipe,
+    ).toBe("opportunity-discovery");
+    expect(
       parseTradeAnalysisContext("/?recipe=trade-trend-v1&importer=528")
         .recipe,
     ).toBe("trade-trend");
@@ -122,7 +139,7 @@ describe("Trade Analysis Context: parsing", () => {
     const context = parseTradeAnalysisContext(
       "/?recipe=trade-trend-v2&task=trade-trend&importer=528",
     );
-    expect(context.recipe).toBe("candidate-market");
+    expect(context.recipe).toBe("opportunity-discovery");
   });
 
   it("falls back to the legacy task alias only when no recipe identity is present", () => {
@@ -140,13 +157,26 @@ describe("Trade Analysis Context: parsing", () => {
     const context = parseTradeAnalysisContext(
       "/?task=trade-explorer&locale=fr",
     );
-    expect(context.recipe).toBe("candidate-market");
+    expect(context.recipe).toBe("opportunity-discovery");
     expect(context.locale).toBe("en");
+  });
+
+  it("keeps legacy candidate-market links on their historical task when no recipe identity is present", () => {
+    expect(
+      parseTradeAnalysisContext(
+        "/?exporter=156&revision=HS12&product=010121&market=484",
+      ),
+    ).toMatchObject({
+      recipe: "candidate-market",
+      exporterCode: "156",
+      productCode: "010121",
+      focusedMarketCode: "484",
+    });
   });
 
   it("discards a malformed economy code", () => {
     const context = parseTradeAnalysisContext("/?exporter=not-a-code");
-    expect(context).toMatchObject({ exporterCode: null });
+    expect(economyCodeOf(context)).toBeNull();
   });
 
   it("discards a product code when the revision is not HS12", () => {
@@ -191,15 +221,34 @@ describe("Trade Analysis Context: parsing", () => {
     const full = parseTradeAnalysisContext(
       "https://hstracker.example/?exporter=156",
     );
-    expect(bare).toMatchObject({ recipe: "candidate-market", exporterCode: "156" });
-    expect(full).toMatchObject({ recipe: "candidate-market", exporterCode: "156" });
+    expect(bare).toMatchObject({
+      recipe: "opportunity-discovery",
+      exportEconomyCode: "156",
+    });
+    expect(full).toMatchObject({
+      recipe: "opportunity-discovery",
+      exportEconomyCode: "156",
+    });
   });
 });
 
 describe("Trade Analysis Context: serializing", () => {
   it("produces a bare pathname when the context is entirely empty", () => {
-    const context = emptyTradeAnalysisContext("candidate-market", "en");
+    const context = emptyTradeAnalysisContext("opportunity-discovery", "en");
     expect(serializeTradeAnalysisContext("/", context)).toBe("/");
+  });
+
+  it("serializes an opportunity-discovery feed and product projection canonically", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "opportunity-discovery",
+      locale: "zh-Hans",
+      pin: null,
+      exportEconomyCode: "100",
+      productCodes: ["010003", "010001", "010001"],
+    };
+    expect(serializeTradeAnalysisContext("/", context)).toBe(
+      "/?recipe=opportunity-discovery-v1&locale=zh-Hans&exporter=100&products=010001%2C010003",
+    );
   });
 
   it("includes the exact versioned recipe identity, first, once the recipe's own inputs are complete — even for the default candidate-market recipe", () => {
@@ -238,7 +287,7 @@ describe("Trade Analysis Context: serializing", () => {
 
   it("includes a non-default locale independently of completeness — it is never lost while inputs are still incomplete", () => {
     const bare: TradeAnalysisContext = emptyTradeAnalysisContext(
-      "candidate-market",
+      "opportunity-discovery",
       "zh-Hans",
     );
     expect(serializeTradeAnalysisContext("/", bare)).toBe(
@@ -246,20 +295,22 @@ describe("Trade Analysis Context: serializing", () => {
     );
 
     const partial: TradeAnalysisContext = {
-      recipe: "candidate-market",
+      recipe: "opportunity-discovery",
       locale: "zh-Hans",
-      productCode: "010121",
       pin: null,
-      exporterCode: null,
-      focusedMarketCode: null,
+      exportEconomyCode: null,
+      productCodes: ["010121"],
     };
     expect(serializeTradeAnalysisContext("/", partial)).toBe(
-      "/?locale=zh-Hans&revision=HS12&product=010121",
+      "/?locale=zh-Hans&products=010121",
     );
 
-    const complete: TradeAnalysisContext = { ...partial, exporterCode: "156" };
+    const complete: TradeAnalysisContext = {
+      ...partial,
+      exportEconomyCode: "156",
+    };
     expect(serializeTradeAnalysisContext("/", complete)).toBe(
-      "/?recipe=candidate-market-v1&locale=zh-Hans&exporter=156&revision=HS12&product=010121",
+      "/?recipe=opportunity-discovery-v1&locale=zh-Hans&exporter=156&products=010121",
     );
   });
 
@@ -332,6 +383,19 @@ describe("Trade Analysis Context: completeness", () => {
       ),
     ).toBe(false);
   });
+
+  it("is complete for opportunity discovery once an export economy is present", () => {
+    expect(
+      hasCompleteRecipeInputs({
+        recipe: "opportunity-discovery",
+        locale: "en",
+        pin: null,
+        exportEconomyCode: "100",
+        productCodes: null,
+      }),
+    ).toBe(true);
+    expect(hasCompleteRecipeInputs(emptyTradeAnalysisContext("opportunity-discovery", "en"))).toBe(false);
+  });
 });
 
 describe("Trade Analysis Context: withRecipe", () => {
@@ -390,6 +454,40 @@ describe("Trade Analysis Context: withRecipe", () => {
       emptyTradeAnalysisContext("candidate-market", "en"),
     );
   });
+
+  it("carries genuine exporter and single-product shape between opportunity discovery and candidate-market", () => {
+    const candidateMarket: TradeAnalysisContext = {
+      recipe: "candidate-market",
+      locale: "en",
+      productCode: "010121",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      exporterCode: "156",
+      focusedMarketCode: "484",
+    };
+    expect(withRecipe(candidateMarket, "opportunity-discovery")).toEqual({
+      recipe: "opportunity-discovery",
+      locale: "en",
+      pin: null,
+      exportEconomyCode: "156",
+      productCodes: ["010121"],
+    });
+
+    const opportunity: TradeAnalysisContext = {
+      recipe: "opportunity-discovery",
+      locale: "zh-Hans",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      exportEconomyCode: "100",
+      productCodes: ["010001"],
+    };
+    expect(withRecipe(opportunity, "candidate-market")).toEqual({
+      recipe: "candidate-market",
+      locale: "zh-Hans",
+      productCode: "010001",
+      pin: null,
+      exporterCode: "100",
+      focusedMarketCode: null,
+    });
+  });
 });
 
 describe("Trade Analysis Context: withoutPin", () => {
@@ -439,6 +537,20 @@ describe("Trade Analysis Context: economyCodeOf / withEconomyCode / withProductC
     }
   });
 
+  it("reads and writes the export economy and one confirmed product projection for opportunity discovery", () => {
+    const context = emptyTradeAnalysisContext("opportunity-discovery", "en");
+    expect(economyCodeOf(context)).toBeNull();
+    expect(productCodeOf(context)).toBeNull();
+    const withExporter = withEconomyCode(context, "100");
+    const withProduct = withProductCode(withExporter, "010001");
+    expect(economyCodeOf(withProduct)).toBe("100");
+    expect(productCodeOf(withProduct)).toBe("010001");
+    expect(withProduct).toMatchObject({
+      exportEconomyCode: "100",
+      productCodes: ["010001"],
+    });
+  });
+
   it("writes the product code without touching the economy code", () => {
     const context = withEconomyCode(
       emptyTradeAnalysisContext("candidate-market", "en"),
@@ -466,6 +578,14 @@ describe("Trade Analysis Context: pinFromManifest", () => {
       analysisBuildId: manifest.analysisBuildId,
       datasetPackageIdentity:
         manifest.recommendation.supplierCompetition!.datasetPackageIdentity,
+    });
+  });
+
+  it("derives the current opportunity-discovery pin", () => {
+    expect(pinFromManifest(manifest, "opportunity-discovery")).toEqual({
+      analysisBuildId: manifest.analysisBuildId,
+      datasetPackageIdentity:
+        manifest.recommendation.opportunityDiscovery!.datasetPackageIdentity,
     });
   });
 
@@ -505,6 +625,17 @@ describe("Trade Analysis Context: withPin", () => {
         pin: pinFromManifest(manifest, recipe),
       });
     }
+  });
+
+  it("applies the current manifest pin to opportunity-discovery contexts", () => {
+    const context = withEconomyCode(
+      emptyTradeAnalysisContext("opportunity-discovery", "en"),
+      "100",
+    );
+    expect(withPin(context, manifest)).toEqual({
+      ...context,
+      pin: pinFromManifest(manifest, "opportunity-discovery"),
+    });
   });
 
   it("replaces an existing (possibly retired) pin rather than merging it", () => {

@@ -175,7 +175,6 @@ export class DuckDbOpportunityCandidateIndex
     private readonly index: DuckDbAnalysisDatabase,
     private readonly dimensions: OpportunityDimensions,
     private readonly provenance: OpportunityProvenance,
-    private readonly analysisBuildId: string,
     private readonly scoreWindow: WindowBounds,
     private readonly hasPreviousRelease: boolean,
   ) {}
@@ -201,7 +200,6 @@ export class DuckDbOpportunityCandidateIndex
       index,
       dimensions,
       provenanceFromManifest(manifest),
-      manifest.sourceArtifact.buildId,
       manifest.scoreWindow,
       manifest.previousReleaseArtifact !== null,
     );
@@ -259,7 +257,7 @@ export class DuckDbOpportunityCandidateIndex
     const window = windowRows.map((entry) => this.reconstruct(entry, exporterCode));
 
     return buildMarketInvestigationPage({
-      analysisBuildId: this.analysisBuildId,
+      analysisBuildId: query.analysisBuildId,
       exporter,
       provenance: this.provenance,
       cohortSize,
@@ -448,7 +446,6 @@ export class DuckDbOpportunityEvidenceSource
   private constructor(
     private readonly artifact: DuckDbAnalysisDatabase,
     private readonly dimensions: OpportunityDimensions,
-    private readonly analysisBuildId: string,
     private readonly scoreWindow: WindowBounds,
   ) {}
 
@@ -470,7 +467,6 @@ export class DuckDbOpportunityEvidenceSource
       return new DuckDbOpportunityEvidenceSource(
         artifact,
         dimensions,
-        manifest.sourceArtifact.buildId,
         manifest.scoreWindow,
       );
     } catch (error) {
@@ -524,7 +520,7 @@ export class DuckDbOpportunityEvidenceSource
     }
 
     return {
-      analysisBuildId: this.analysisBuildId,
+      analysisBuildId: request.analysisBuildId,
       exporter,
       product,
       market,

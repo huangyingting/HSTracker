@@ -1,8 +1,8 @@
 // The single canonical seam for Trade Analysis Context URLs. It owns
 // canonical query-parameter names, their order, locale and legacy-input
 // normalization, recipe-scoped transitions, pin-vs-current resolution, and
-// applying a current manifest pin, for Candidate Market, Trade Trend,
-// Supplier Competition, and Trade Explorer. Every task workspace,
+// applying a current manifest pin, for Opportunity Discovery, Candidate
+// Market, Trade Trend, Supplier Competition, and Trade Explorer. Every task workspace,
 // combobox, task shell, and share link goes through this module rather
 // than reading or writing `URLSearchParams` directly, or hand-constructing
 // a `TradeAnalysisContext` object, so canonical URL rules and the
@@ -23,6 +23,7 @@ import {
 
 export type TradeAnalysisLocale = "en" | "zh-Hans";
 export type TradeAnalysisRecipe =
+  | "opportunity-discovery"
   | "candidate-market"
   | "trade-trend"
   | "supplier-competition"
@@ -34,13 +35,14 @@ export type TradeAnalysisRecipe =
 // a canonical link names precisely the recipe version it reproduces, not
 // just an unversioned task alias.
 export type TradeAnalysisRecipeIdentity =
+  | "opportunity-discovery-v1"
   | "candidate-market-v1"
   | "trade-trend-v1"
   | "supplier-competition-v1"
   | "trade-explorer-v1";
 
 const DEFAULT_LOCALE: TradeAnalysisLocale = "en";
-const DEFAULT_RECIPE: TradeAnalysisRecipe = "candidate-market";
+const DEFAULT_RECIPE: TradeAnalysisRecipe = "opportunity-discovery";
 
 // Matches the analysisBuildId format already validated by every recipe
 // request (see e.g. candidate-market-v1-request.ts) so a pinned build
@@ -50,10 +52,12 @@ const DATASET_PACKAGE_IDENTITY_PATTERN =
   /^dataset-package-v1-[0-9a-f]{64}$/u;
 const ECONOMY_CODE_PATTERN = /^\d{1,3}$/u;
 const PRODUCT_CODE_PATTERN = /^\d{6}$/u;
+const OPPORTUNITY_MAX_PRODUCT_CODES = 20;
 
 const RECIPE_IDENTITY: Readonly<
   Record<TradeAnalysisRecipe, TradeAnalysisRecipeIdentity>
 > = {
+  "opportunity-discovery": "opportunity-discovery-v1",
   "candidate-market": "candidate-market-v1",
   "trade-trend": "trade-trend-v1",
   "supplier-competition": "supplier-competition-v1",
@@ -63,6 +67,7 @@ const RECIPE_IDENTITY: Readonly<
 const RECIPE_BY_IDENTITY: Readonly<
   Record<TradeAnalysisRecipeIdentity, TradeAnalysisRecipe>
 > = {
+  "opportunity-discovery-v1": "opportunity-discovery",
   "candidate-market-v1": "candidate-market",
   "trade-trend-v1": "trade-trend",
   "supplier-competition-v1": "supplier-competition",
@@ -113,6 +118,14 @@ export type CandidateMarketContext = BaseContextFields &
     focusedMarketCode: string | null;
   }>;
 
+export type OpportunityDiscoveryContext = Readonly<{
+  recipe: "opportunity-discovery";
+  locale: TradeAnalysisLocale;
+  pin: TradeAnalysisContextPin | null;
+  exportEconomyCode: string | null;
+  productCodes: readonly string[] | null;
+}>;
+
 export type TradeTrendContext = BaseContextFields &
   Readonly<{
     recipe: "trade-trend";
@@ -146,6 +159,7 @@ export type TradeExplorerContext = Readonly<{
 }>;
 
 export type TradeAnalysisContext =
+  | OpportunityDiscoveryContext
   | CandidateMarketContext
   | TradeTrendContext
   | SupplierCompetitionContext
@@ -244,6 +258,9 @@ function recipeDatasetPackageIdentityFromRecommendation(
   if (recipe === "supplier-competition") {
     return recommendation.supplierCompetition?.datasetPackageIdentity ?? null;
   }
+  if (recipe === "opportunity-discovery") {
+    return recommendation.opportunityDiscovery?.datasetPackageIdentity ?? null;
+  }
   return recommendation.tradeExplorer?.datasetPackageIdentity ?? null;
 }
 
@@ -257,7 +274,7 @@ export function parseTradeAnalysisContext(
   location: string | URL,
 ): TradeAnalysisContext {
   const params = toURL(location).searchParams;
-  const recipe = parseRecipe(params.get("recipe"), params.get("task"));
+  const recipe = parseRecipe(params.get("recipe"), params.get("task"), params);
   const locale = parseLocale(params.get("locale"));
   const pin = parsePin(params.get("build"), params.get("pkg"));
 
@@ -267,6 +284,16 @@ export function parseTradeAnalysisContext(
       locale,
       pin,
       ...parseTradeExplorerFields(params),
+    };
+  }
+
+  if (recipe === "opportunity-discovery") {
+    return {
+      recipe,
+      locale,
+      pin,
+      exportEconomyCode: parseEconomyCode(params.get("exporter")),
+      productCodes: parseOpportunityProductCodes(params),
     };
   }
 
@@ -297,7 +324,7 @@ export function parseTradeAnalysisContext(
 /**
  * Builds the canonical href for a Trade Analysis Context: deterministic
  * parameter order and default-value omission for an entirely empty,
- * unpinned, default-recipe (candidate-market) context with no meaningful
+ * unpinned, default-recipe (opportunity-discovery) context with no meaningful
  * change yet — that one case alone may stay a bare pathname.
  *
  * Locale is independently canonical: it is observable as soon as it is
@@ -331,6 +358,14 @@ export function serializeTradeAnalysisContext(
 
   if (context.recipe === "trade-explorer") {
     appendTradeExplorerFields(params, context);
+  } else if (context.recipe === "opportunity-discovery") {
+    if (context.exportEconomyCode !== null) {
+      params.set("exporter", context.exportEconomyCode);
+    }
+    const productCodes = canonicalProductCodes(context.productCodes ?? []);
+    if (productCodes.length > 0) {
+      params.set("products", productCodes.join(","));
+    }
   } else {
     const economyCode = economyCodeOf(context);
     if (economyCode !== null) {
@@ -359,6 +394,9 @@ export function emptyTradeAnalysisContext(
   recipe: TradeAnalysisRecipe,
   locale: TradeAnalysisLocale,
 ): TradeAnalysisContext {
+  if (recipe === "opportunity-discovery") {
+    return emptyOpportunityDiscoveryContext(locale);
+  }
   if (recipe === "candidate-market") {
     return {
       recipe,
@@ -373,6 +411,18 @@ export function emptyTradeAnalysisContext(
     return emptyTradeExplorerContext(locale);
   }
   return { recipe, locale, productCode: null, pin: null, importerCode: null };
+}
+
+function emptyOpportunityDiscoveryContext(
+  locale: TradeAnalysisLocale,
+): OpportunityDiscoveryContext {
+  return {
+    recipe: "opportunity-discovery",
+    locale,
+    pin: null,
+    exportEconomyCode: null,
+    productCodes: null,
+  };
 }
 
 function emptyTradeExplorerContext(
@@ -394,6 +444,9 @@ function emptyTradeExplorerContext(
 
 /** True once the recipe's own canonical inputs are both present. */
 export function hasCompleteRecipeInputs(context: TradeAnalysisContext): boolean {
+  if (context.recipe === "opportunity-discovery") {
+    return context.exportEconomyCode !== null;
+  }
   if (context.recipe === "trade-explorer") {
     return (
       context.shape !== null &&
@@ -419,6 +472,63 @@ export function withRecipe(
 ): TradeAnalysisContext {
   if (context.recipe === recipe) {
     return context;
+  }
+  if (recipe === "opportunity-discovery") {
+    const opportunity = emptyOpportunityDiscoveryContext(context.locale);
+    if (context.recipe === "candidate-market") {
+      return {
+        ...opportunity,
+        exportEconomyCode: context.exporterCode,
+        productCodes:
+          context.productCode === null ? null : [context.productCode],
+      };
+    }
+    if (context.recipe === "trade-explorer") {
+      return {
+        ...opportunity,
+        exportEconomyCode:
+          context.exportEconomy.length === 1
+            ? context.exportEconomy[0]!
+            : null,
+        productCodes: context.hsProduct.length === 0 ? null : context.hsProduct,
+      };
+    }
+    if (context.recipe === "trade-trend" || context.recipe === "supplier-competition") {
+      return {
+        ...opportunity,
+        productCodes:
+          context.productCode === null ? null : [context.productCode],
+      };
+    }
+    return opportunity;
+  }
+  if (context.recipe === "opportunity-discovery") {
+    const productCode =
+      context.productCodes !== null && context.productCodes.length === 1
+        ? context.productCodes[0]!
+        : null;
+    if (recipe === "candidate-market") {
+      return {
+        recipe: "candidate-market",
+        locale: context.locale,
+        pin: null,
+        exporterCode: context.exportEconomyCode,
+        productCode,
+        focusedMarketCode: null,
+      };
+    }
+    if (recipe === "trade-explorer") {
+      return {
+        ...emptyTradeExplorerContext(context.locale),
+        exportEconomy:
+          context.exportEconomyCode === null ? [] : [context.exportEconomyCode],
+        hsProduct: context.productCodes ?? [],
+      };
+    }
+    return {
+      ...emptyTradeAnalysisContext(recipe, context.locale),
+      productCode,
+    } as TradeTrendContext | SupplierCompetitionContext;
   }
   const sharesImporterShape =
     IMPORTER_SHAPED_RECIPES.has(context.recipe) &&
@@ -495,6 +605,7 @@ export function withoutPin(context: TradeAnalysisContext): TradeAnalysisContext 
  * with a Trade Explorer context is a caller defect, not an expected
  * input, so they throw rather than silently reshaping it. */
 export type SingleEconomyContext =
+  | OpportunityDiscoveryContext
   | CandidateMarketContext
   | TradeTrendContext
   | SupplierCompetitionContext;
@@ -517,6 +628,9 @@ export function withEconomyCode(
   code: string | null,
 ): TradeAnalysisContext {
   const single = asSingleEconomyContext(context);
+  if (single.recipe === "opportunity-discovery") {
+    return { ...single, exportEconomyCode: code };
+  }
   return single.recipe === "candidate-market"
     ? { ...single, exporterCode: code }
     : { ...single, importerCode: code };
@@ -527,7 +641,11 @@ export function withProductCode(
   context: TradeAnalysisContext,
   code: string | null,
 ): TradeAnalysisContext {
-  return { ...asSingleEconomyContext(context), productCode: code };
+  const single = asSingleEconomyContext(context);
+  if (single.recipe === "opportunity-discovery") {
+    return { ...single, productCodes: code === null ? null : [code] };
+  }
+  return { ...single, productCode: code };
 }
 
 /** Returns `context` relabeled to `locale`; the Analysis Identity it may
@@ -579,6 +697,9 @@ export function withPin<T extends TradeAnalysisContext>(
  * name backs it. */
 export function economyCodeOf(context: TradeAnalysisContext): string | null {
   const single = asSingleEconomyContext(context);
+  if (single.recipe === "opportunity-discovery") {
+    return single.exportEconomyCode;
+  }
   return single.recipe === "candidate-market"
     ? single.exporterCode
     : single.importerCode;
@@ -589,7 +710,13 @@ export function economyCodeOf(context: TradeAnalysisContext): string | null {
  * cohort/filter codes are read directly from its own `hsProduct` field
  * instead. */
 export function productCodeOf(context: TradeAnalysisContext): string | null {
-  return asSingleEconomyContext(context).productCode;
+  const single = asSingleEconomyContext(context);
+  if (single.recipe === "opportunity-discovery") {
+    return single.productCodes !== null && single.productCodes.length === 1
+      ? single.productCodes[0]!
+      : null;
+  }
+  return single.productCode;
 }
 
 function economyParamName(
@@ -609,6 +736,7 @@ function economyParamName(
 function parseRecipe(
   recipeIdentity: string | null,
   legacyTask: string | null,
+  params: URLSearchParams,
 ): TradeAnalysisRecipe {
   if (recipeIdentity !== null) {
     return (
@@ -619,7 +747,20 @@ function parseRecipe(
   if (legacyTask !== null) {
     return LEGACY_TASK_RECIPE[legacyTask] ?? DEFAULT_RECIPE;
   }
+  if (hasLegacyCandidateMarketShape(params)) {
+    return "candidate-market";
+  }
   return DEFAULT_RECIPE;
+}
+
+function hasLegacyCandidateMarketShape(params: URLSearchParams): boolean {
+  if (parseEconomyCode(params.get("market")) !== null) {
+    return true;
+  }
+  return (
+    parseEconomyCode(params.get("exporter")) !== null &&
+    parseProductCode(params.get("revision"), params.get("product")) !== null
+  );
 }
 
 function parseLocale(value: string | null): TradeAnalysisLocale {
@@ -639,6 +780,25 @@ function parseProductCode(
     PRODUCT_CODE_PATTERN.test(product)
     ? product
     : null;
+}
+
+function parseOpportunityProductCodes(
+  params: URLSearchParams,
+): readonly string[] | null {
+  const products = parseCodeList<string>(
+    params.get("products"),
+    PRODUCT_CODE_PATTERN.test.bind(PRODUCT_CODE_PATTERN),
+    OPPORTUNITY_MAX_PRODUCT_CODES,
+    6,
+  );
+  if (products.length > 0) {
+    return products;
+  }
+  const productCode = parseProductCode(
+    params.get("revision"),
+    params.get("product"),
+  );
+  return productCode === null ? null : [productCode];
 }
 
 function parsePin(
