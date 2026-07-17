@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "recurring-cost-forecast-v1",
+  "checkedAt": "2026-07-12T00:00:00Z",
+  "currency": "USD",
+  "region": "loc",
+  "machineClass": "local-single-host",
+  "memoryGiB": 2,
+  "volumeGiB": 50,
+  "lineItems": [
+    {
+      "id": "local-compute",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://github.com/huangyingting/HSTracker/blob/333617c33fd2117b33fc0179f14907addfd4b3a4/docs/adr/0004-local-single-host-deployment.md",
+      "assumption": "Self-hosted on operator-owned hardware per ADR-0004; there is no cloud provider Machine charge (region code 'loc' denotes local operation, not a Fly region)."
+    },
+    {
+      "id": "local-volume",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://github.com/huangyingting/HSTracker/blob/333617c33fd2117b33fc0179f14907addfd4b3a4/docs/adr/0004-local-single-host-deployment.md",
+      "assumption": "The 50-GiB release volume is a directory on the host disk (proven free capacity far exceeds the reservation); there is no provisioned-volume charge."
+    },
+    {
+      "id": "local-object-store",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://github.com/huangyingting/HSTracker/blob/333617c33fd2117b33fc0179f14907addfd4b3a4/docs/adr/0004-local-single-host-deployment.md",
+      "assumption": "Private release objects live in the filesystem release object store (a local directory); there is no object-storage service charge."
+    },
+    {
+      "id": "local-egress",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://github.com/huangyingting/HSTracker/blob/333617c33fd2117b33fc0179f14907addfd4b3a4/docs/adr/0004-local-single-host-deployment.md",
+      "assumption": "The service is bound to loopback only; there is no metered public egress."
+    },
+    {
+      "id": "local-monitoring",
+      "monthlyUsd": 0,
+      "sourceUrl": "https://github.com/huangyingting/HSTracker/blob/333617c33fd2117b33fc0179f14907addfd4b3a4/docs/adr/0004-local-single-host-deployment.md",
+      "assumption": "Observability is the built-in /healthz and /metrics endpoints only; there is no paid monitoring service."
+    }
+  ],
+  "forecastMonthlyUsd": 0,
+  "targetMonthlyUsd": 40,
+  "reviewThresholdMonthlyUsd": 50
+}
