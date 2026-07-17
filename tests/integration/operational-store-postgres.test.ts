@@ -15,7 +15,7 @@ afterAll(async () => {
 });
 
 describe.skipIf(pgUrl === null)("PostgresOperationalStore concurrency", () => {
-  const url = pgSchema!.connectionString;
+  const url = pgSchema?.connectionString ?? "";
 
   beforeEach(async () => {
     await pgSchema!.reset();

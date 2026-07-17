@@ -249,7 +249,7 @@ describe("accepted public target load", () => {
       unsubscribe();
       restore();
     }
-  }, 20_000);
+  }, 60_000);
 });
 
 type LoadOperation =

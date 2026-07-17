@@ -12,3 +12,5 @@ const standaloneRequire = createRequire(
   resolve(".next/standalone/server.js"),
 );
 standaloneRequire("@duckdb/node-api");
+standaloneRequire("better-sqlite3");
+standaloneRequire("pg");

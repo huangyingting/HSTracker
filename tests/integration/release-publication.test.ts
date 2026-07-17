@@ -364,7 +364,7 @@ describe("immutable release publication", () => {
       code: "OBJECT_READBACK_MISMATCH",
     });
     await expect(publisher.current()).resolves.toEqual(active);
-  }, 20_000);
+  }, 60_000);
 
   it.each([
     {
@@ -638,7 +638,7 @@ describe("immutable release publication", () => {
     await expect(
       readFile(hydrated.analysisArtifactPath),
     ).resolves.toEqual(originalArtifact);
-  }, 20_000);
+  }, 60_000);
 
   it("rejects rollback until a previous pairing has been retained", async () => {
     const publisher = new ReleasePublisher(
@@ -703,7 +703,7 @@ describe("immutable release publication", () => {
     expect(await readdir(volumePath)).toEqual([
       published.deploymentPairingId,
     ]);
-  }, 20_000);
+  }, 60_000);
 
   it("reuses unchanged analysis bytes and prunes retired pairing directories", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));

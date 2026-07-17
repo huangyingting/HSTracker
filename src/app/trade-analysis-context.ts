@@ -124,6 +124,9 @@ export type OpportunityDiscoveryContext = Readonly<{
   pin: TradeAnalysisContextPin | null;
   exportEconomyCode: string | null;
   productCodes: readonly string[] | null;
+  focusProductCode?: string | null;
+  focusedMarketCode?: string | null;
+  portfolioFilter?: boolean | null;
 }>;
 
 export type TradeTrendContext = BaseContextFields &
@@ -288,12 +291,19 @@ export function parseTradeAnalysisContext(
   }
 
   if (recipe === "opportunity-discovery") {
+    const focusProductCode = parseProductCode("HS12", params.get("focusProduct"));
+    const focusedMarketCode = parseEconomyCode(params.get("market"));
+    const portfolioFilter = params.get("portfolio") === "filter";
     return {
       recipe,
       locale,
       pin,
       exportEconomyCode: parseEconomyCode(params.get("exporter")),
       productCodes: parseOpportunityProductCodes(params),
+      ...(focusProductCode !== null || focusedMarketCode !== null
+        ? { focusProductCode, focusedMarketCode }
+        : {}),
+      ...(portfolioFilter ? { portfolioFilter } : {}),
     };
   }
 
@@ -365,6 +375,15 @@ export function serializeTradeAnalysisContext(
     const productCodes = canonicalProductCodes(context.productCodes ?? []);
     if (productCodes.length > 0) {
       params.set("products", productCodes.join(","));
+    }
+    if (context.focusProductCode != null) {
+      params.set("focusProduct", context.focusProductCode);
+    }
+    if (context.focusedMarketCode != null) {
+      params.set("market", context.focusedMarketCode);
+    }
+    if (context.portfolioFilter === true) {
+      params.set("portfolio", "filter");
     }
   } else {
     const economyCode = economyCodeOf(context);
@@ -629,7 +648,7 @@ export function withEconomyCode(
 ): TradeAnalysisContext {
   const single = asSingleEconomyContext(context);
   if (single.recipe === "opportunity-discovery") {
-    return { ...single, exportEconomyCode: code };
+    return { ...withoutOpportunityFocus(single), exportEconomyCode: code };
   }
   return single.recipe === "candidate-market"
     ? { ...single, exporterCode: code }
@@ -643,7 +662,10 @@ export function withProductCode(
 ): TradeAnalysisContext {
   const single = asSingleEconomyContext(context);
   if (single.recipe === "opportunity-discovery") {
-    return { ...single, productCodes: code === null ? null : [code] };
+    return {
+      ...withoutOpportunityFocus(single),
+      productCodes: code === null ? null : [code],
+    };
   }
   return { ...single, productCode: code };
 }
@@ -723,6 +745,17 @@ function economyParamName(
   recipe: SingleEconomyContext["recipe"],
 ): "exporter" | "importer" {
   return recipe === "candidate-market" ? "exporter" : "importer";
+}
+
+function withoutOpportunityFocus(
+  context: OpportunityDiscoveryContext,
+): OpportunityDiscoveryContext {
+  const next: {
+    -readonly [Key in keyof OpportunityDiscoveryContext]: OpportunityDiscoveryContext[Key];
+  } = { ...context };
+  delete next.focusProductCode;
+  delete next.focusedMarketCode;
+  return next;
 }
 
 /**

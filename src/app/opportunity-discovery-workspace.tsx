@@ -380,6 +380,8 @@ export function OpportunityDiscoveryWorkspace({
           pin: null,
           exportEconomyCode: exporter.code,
           productCodes,
+          focusProductCode: opportunityContext.focusProductCode ?? null,
+          focusedMarketCode: opportunityContext.focusedMarketCode ?? null,
         };
         const pinnedContext =
           pinResolution.state === "retained"

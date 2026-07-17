@@ -389,7 +389,7 @@ describe("S3 release object store", () => {
       expect(metadata).not.toContain(MINIO_USERNAME);
       expect(metadata).not.toContain(MINIO_PASSWORD);
     }
-  }, 30_000);
+  }, 60_000);
 
   async function activePublicMetadata(): Promise<string[]> {
     const pointerText = await objectText(

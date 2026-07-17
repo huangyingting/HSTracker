@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { AccountWorkspace } from "./account-workspace";
 import { AnalysisTaskHome } from "./analysis-task-home";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -16,6 +17,7 @@ const copy = {
     skipToContent: "Skip to the analysis workspace",
     brandTagline: "Public trade intelligence",
     publicWorkspace: "Public workspace",
+    signedWorkspace: "Signed-in workspace",
     eyebrow: "Public merchandise-trade evidence",
     heading: "Find candidate markets worth a closer look.",
     lede:
@@ -52,6 +54,7 @@ const copy = {
     skipToContent: "跳转到分析工作区",
     brandTagline: "公共贸易洞察",
     publicWorkspace: "公共工作区",
+    signedWorkspace: "已登录工作区",
     eyebrow: "公共商品贸易证据",
     heading: "寻找值得深入研究的候选市场。",
     lede:
@@ -97,6 +100,7 @@ function localeFromLocation(): Locale {
 
 export default function Home() {
   const [locale, setLocale] = useState<Locale>(() => localeFromLocation());
+  const [signedIn, setSignedIn] = useState(false);
   const messages = copy[locale];
 
   useEffect(() => {
@@ -141,7 +145,7 @@ export default function Home() {
         <div className="header-tools">
           <p className="public-status">
             <span aria-hidden="true" />
-            {messages.publicWorkspace}
+            {signedIn ? messages.signedWorkspace : messages.publicWorkspace}
           </p>
           <ThemeToggle locale={locale} />
           <div
@@ -211,7 +215,13 @@ export default function Home() {
         </aside>
       </section>
 
-      <AnalysisTaskHome locale={locale} />
+      <AccountWorkspace
+        locale={locale}
+        onSignedInChange={setSignedIn}
+        onAnonymousFallback={() => setSignedIn(false)}
+      />
+
+      {signedIn ? null : <AnalysisTaskHome locale={locale} />}
 
       <section className="reading-guide" aria-labelledby="guide-title">
         <div className="guide-heading">

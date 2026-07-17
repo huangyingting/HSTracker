@@ -87,7 +87,7 @@ async function seedSqlite(filePath: string): Promise<{
 }
 
 describe.skipIf(pgUrl === null)("SQLite to PostgreSQL migration", () => {
-  const url = pgSchema!.connectionString;
+  const url = pgSchema?.connectionString ?? "";
 
   beforeEach(async () => {
     await pgSchema!.reset();

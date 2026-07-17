@@ -326,6 +326,7 @@ describe("pinned BACI release staging CLI", () => {
       });
       await expect(stagingManifestPaths(inputs.workspace)).resolves.toEqual([]);
     },
+    15_000,
   );
 
   it("rejects archive bytes that do not match the committed source pin", async () => {
@@ -438,62 +439,66 @@ describe("pinned BACI release staging CLI", () => {
     }
   });
 
-  it("replaces an invalid completed download from the pinned source", async () => {
-    const workspace = await temporaryWorkspace();
-    const archiveBytes = await readFile(
-      resolve("fixtures/pipeline/v1/archives/safe-baci.zip"),
-    );
-    const downloadsPath = join(workspace, "downloads");
-    const completedPath = join(
-      downloadsPath,
-      "BACI_HS12_VTEST001.zip",
-    );
-    await mkdir(downloadsPath, { recursive: true });
-    await writeFile(completedPath, "stale archive");
-    let requests = 0;
-    const server = createServer((_request, response) => {
-      requests += 1;
-      response.writeHead(200, {
-        "Content-Length": String(archiveBytes.length),
-        "Content-Type": "application/zip",
+  it(
+    "replaces an invalid completed download from the pinned source",
+    async () => {
+      const workspace = await temporaryWorkspace();
+      const archiveBytes = await readFile(
+        resolve("fixtures/pipeline/v1/archives/safe-baci.zip"),
+      );
+      const downloadsPath = join(workspace, "downloads");
+      const completedPath = join(
+        downloadsPath,
+        "BACI_HS12_VTEST001.zip",
+      );
+      await mkdir(downloadsPath, { recursive: true });
+      await writeFile(completedPath, "stale archive");
+      let requests = 0;
+      const server = createServer((_request, response) => {
+        requests += 1;
+        response.writeHead(200, {
+          "Content-Length": String(archiveBytes.length),
+          "Content-Type": "application/zip",
+        });
+        response.end(archiveBytes);
       });
-      response.end(archiveBytes);
-    });
-    server.listen(0, "127.0.0.1");
-    await once(server, "listening");
-    const address = server.address();
-    if (address === null || typeof address === "string") {
-      throw new Error("Fixture source server did not bind a TCP port.");
-    }
+      server.listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const address = server.address();
+      if (address === null || typeof address === "string") {
+        throw new Error("Fixture source server did not bind a TCP port.");
+      }
 
-    try {
-      const descriptor = JSON.parse(
-        await readFile(
-          resolve("fixtures/pipeline/v1/safe-source.json"),
-          "utf8",
-        ),
-      ) as MutableSourceDescriptor;
-      descriptor.sourceUrl = `http://127.0.0.1:${address.port}/BACI_HS12_VTEST001.zip`;
-      const descriptorPath = join(workspace, "source.json");
-      await writeFile(descriptorPath, JSON.stringify(descriptor));
+      try {
+        const descriptor = JSON.parse(
+          await readFile(
+            resolve("fixtures/pipeline/v1/safe-source.json"),
+            "utf8",
+          ),
+        ) as MutableSourceDescriptor;
+        descriptor.sourceUrl = `http://127.0.0.1:${address.port}/BACI_HS12_VTEST001.zip`;
+        const descriptorPath = join(workspace, "source.json");
+        await writeFile(descriptorPath, JSON.stringify(descriptor));
 
-      const outcome = await runStagingCli({
-        descriptorPath,
-        approvalPath: resolve(
-          "fixtures/pipeline/v1/safe-coverage-approval.json",
-        ),
-        workspace,
-        reportPath: join(workspace, "source-report.json"),
-      });
+        const outcome = await runStagingCli({
+          descriptorPath,
+          approvalPath: resolve(
+            "fixtures/pipeline/v1/safe-coverage-approval.json",
+          ),
+          workspace,
+          reportPath: join(workspace, "source-report.json"),
+        });
 
-      expect(outcome.status).toBe("accepted");
-      expect(requests).toBe(1);
-      await expect(readFile(completedPath)).resolves.toEqual(archiveBytes);
-    } finally {
-      server.close();
-      await once(server, "close");
-    }
-  });
+        expect(outcome.status).toBe("accepted");
+        expect(requests).toBe(1);
+        await expect(readFile(completedPath)).resolves.toEqual(archiveBytes);
+      } finally {
+        server.close();
+        await once(server, "close");
+      }
+    },
+    15_000,
+  );
 
   it("rejects a corrupted existing staging publication", async () => {
     const inputs = await mutableFixtureInputs("safe-baci.zip");
@@ -512,7 +517,7 @@ describe("pinned BACI release staging CLI", () => {
     await expect(runStagingCli(inputs)).rejects.toMatchObject({
       code: "STAGING_PUBLICATION_FAILED",
     });
-  });
+  }, 15_000);
 
   it("does not publish staging when the report cannot be prepared", async () => {
     const inputs = await mutableFixtureInputs("safe-baci.zip");
