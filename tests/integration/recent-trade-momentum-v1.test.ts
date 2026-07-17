@@ -257,8 +257,10 @@ function recipeInput(
     }
   }
 
+  const baselineMonthSet = new Set<string>(BASELINE_MONTHS);
+  const recentMonthSet = new Set<string>(RECENT_MONTHS);
   const nonComparisonMonths = HISTORY_MONTHS.filter(
-    (month) => !BASELINE_MONTHS.includes(month) && !RECENT_MONTHS.includes(month),
+    (month) => !baselineMonthSet.has(month) && !recentMonthSet.has(month),
   );
   const missingPositiveCount = Math.max(
     0,
