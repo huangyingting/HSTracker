@@ -10,6 +10,8 @@ import { GET as getCandidateMarketsCsv } from "../../src/app/api/v1/analyses/[an
 import { GET as getEconomies } from "../../src/app/api/v1/analyses/[analysisBuildId]/economies/route";
 import { GET as getProducts } from "../../src/app/api/v1/product-catalogs/[productSearchBuildId]/products/route";
 import { GET as getHealth } from "../../src/app/healthz/route";
+import { GET as getOpportunities } from "../../src/app/api/v1/analyses/[analysisBuildId]/opportunities/route";
+import { GET as getOpportunityDetail } from "../../src/app/api/v1/analyses/[analysisBuildId]/opportunities/[productCode]/[importerCode]/route";
 import { serializeCandidateMarketCsv } from "../../src/export/candidate-market-csv";
 import { InMemoryReleaseObjectStore } from "../../src/release/in-memory-release-object-store";
 import { ReleasePublisher } from "../../src/release/release-publication";
@@ -378,6 +380,85 @@ describe("verified release route integration", () => {
       wrongBuildCsvStatus: 410,
     });
   }, 20_000);
+
+  it("serves Opportunity Discovery feed and detail from each retained build's own verified index", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-routes-"));
+    temporaryDirectories.push(root);
+    const retainedCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "gen1"),
+      {
+        valueOffset: 0,
+        productSearchBuildId: "product-search-v1-1111111111111111",
+        withOpportunityIndex: true,
+      },
+    );
+    const currentCandidate = await writeRuntimeReleaseCandidate(
+      join(root, "gen2"),
+      {
+        valueOffset: 25,
+        productSearchBuildId: "product-search-v1-2222222222222222",
+        withOpportunityIndex: true,
+      },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+    const retained = await publisher.promote({
+      ...retainedCandidate,
+      activatedAt: "2026-07-12T01:00:00Z",
+    });
+    const current = await publisher.promote({
+      ...currentCandidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+    cleanups.push(installApplicationRuntime(runtime));
+
+    const currentFeed = await getOpportunityFeed(current.analysisBuildId);
+    const retainedFeed = await getOpportunityFeed(retained.analysisBuildId);
+    const retainedCandidateRow = retainedFeed.candidates[0];
+    const retainedDetail = await getOpportunityDetail(
+      new Request(
+        `http://localhost/api/v1/analyses/${retained.analysisBuildId}/opportunities/` +
+          `${retainedCandidateRow.product.code}/${retainedCandidateRow.market.code}` +
+          `?exporter=${RUNTIME_RELEASE_FIXTURE.exporterCode}`,
+      ),
+      routeContextMany({
+        analysisBuildId: retained.analysisBuildId,
+        productCode: retainedCandidateRow.product.code,
+        importerCode: retainedCandidateRow.market.code,
+      }),
+    );
+    const retainedDetailBody = await retainedDetail.json();
+
+    expect({
+      currentArtifact: currentFeed.provenance.artifactSha256,
+      retainedArtifact: retainedFeed.provenance.artifactSha256,
+      retainedDeploymentArtifact: runtime.resolveAnalysisManifest(
+        retained.analysisBuildId,
+      )!.source.artifact.sha256,
+      currentDeploymentArtifact: runtime.currentAnalysis().source.artifact.sha256,
+      retainedDetailStatus: retainedDetail.status,
+      retainedDetailProduct: retainedDetailBody.product.code,
+      retainedDetailMarket: retainedDetailBody.market.code,
+      retainedDetailFirstValue:
+        retainedDetailBody.marketYears[0].worldValueKusd,
+    }).toEqual({
+      currentArtifact: runtime.currentAnalysis().source.artifact.sha256,
+      retainedArtifact: runtime.resolveAnalysisManifest(retained.analysisBuildId)!
+        .source.artifact.sha256,
+      retainedDeploymentArtifact: retainedFeed.provenance.artifactSha256,
+      currentDeploymentArtifact: currentFeed.provenance.artifactSha256,
+      retainedDetailStatus: 200,
+      retainedDetailProduct: retainedCandidateRow.product.code,
+      retainedDetailMarket: retainedCandidateRow.market.code,
+      retainedDetailFirstValue: "150.000",
+    });
+  }, 20_000);
 });
 
 function routeContext<Key extends string>(
@@ -385,4 +466,28 @@ function routeContext<Key extends string>(
   value: string,
 ): { params: Promise<Record<Key, string>> } {
   return { params: Promise.resolve({ [key]: value } as Record<Key, string>) };
+}
+
+function routeContextMany<const Params extends Record<string, string>>(
+  params: Params,
+): { params: Promise<Params> } {
+  return { params: Promise.resolve(params) };
+}
+
+async function getOpportunityFeed(analysisBuildId: string) {
+  const response = await getOpportunities(
+    new Request(
+      `http://localhost/api/v1/analyses/${analysisBuildId}/opportunities` +
+        `?exporter=${RUNTIME_RELEASE_FIXTURE.exporterCode}&limit=1`,
+    ),
+    routeContext("analysisBuildId", analysisBuildId),
+  );
+  expect(response.status).toBe(200);
+  return (await response.json()) as {
+    provenance: { artifactSha256: string };
+    candidates: [
+      { product: { code: string }; market: { code: string } },
+      ...unknown[],
+    ];
+  };
 }

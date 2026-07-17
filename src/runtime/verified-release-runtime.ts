@@ -37,6 +37,14 @@ import {
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
+import {
+  DuckDbOpportunityCandidateIndex,
+  DuckDbOpportunityEvidenceSource,
+} from "../evidence/duckdb-opportunity-source";
+import type {
+  OpportunityCandidateIndex,
+  OpportunityEvidenceSource,
+} from "../evidence/opportunity-evidence-source";
 import type { TradeEvidenceSource } from "../evidence/trade-evidence-source";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
 import { evaluateSupplierCompetitionV1DatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
@@ -110,6 +118,8 @@ type RetainedRuntimeBundle = {
   recommendedDatasetMapping: RecommendedDatasetMapping;
   analysisDatabase: DuckDbAnalysisDatabase;
   evidenceSource: DuckDbTradeEvidenceSource;
+  opportunityIndex: DuckDbOpportunityCandidateIndex | null;
+  opportunityEvidence: DuckDbOpportunityEvidenceSource | null;
   previousRelease: CandidateMarketV1PreviousReleaseEvidence | null;
   productCatalog: ImmutableProductCatalog;
   economyDirectory: DuckDbEconomyDirectory;
@@ -314,7 +324,7 @@ export class VerifiedReleaseRuntime {
       );
     } catch (error) {
       for (const bundle of bundles) {
-        bundle.analysisDatabase.close();
+        closeRetainedBundle(bundle);
       }
       throw error;
     }
@@ -591,9 +601,15 @@ export class VerifiedReleaseRuntime {
 
   close(): void {
     for (const bundle of this.bundles) {
-      bundle.analysisDatabase.close();
+      closeRetainedBundle(bundle);
     }
   }
+}
+
+function closeRetainedBundle(bundle: RetainedRuntimeBundle): void {
+  bundle.opportunityIndex?.close();
+  bundle.opportunityEvidence?.close();
+  bundle.analysisDatabase.close();
 }
 
 function assertStatusMicroCacheBudget(
@@ -960,6 +976,7 @@ function currentAnalysisDeployment(
   tradeTrendDatasetPackage: TradeTrendDatasetPackage,
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage,
   tradeExplorerDatasetPackage: TradeExplorerDatasetPackage,
+  opportunityDatasetPackage: OpportunityDiscoveryDatasetPackage | null,
 ): CurrentAnalysisDeployment {
   const cutoff = manifest.finalizedCutoffYear;
   return {
@@ -1008,6 +1025,15 @@ function currentAnalysisDeployment(
               recipe: "trade-explorer-v1",
               datasetPackageIdentity: tradeExplorerDatasetPackage.identity,
             },
+      opportunityDiscovery:
+        mapping.manifest.opportunity === null
+          ? null
+          : {
+              recipe: "opportunity-discovery-v1",
+              datasetPackageIdentity: requireOpportunityDatasetPackage(
+                opportunityDatasetPackage,
+              ).identity,
+            },
     },
     source: {
       baciRelease: manifest.baciRelease,
@@ -1054,6 +1080,17 @@ function currentAnalysisDeployment(
             },
     }),
   };
+}
+
+function requireOpportunityDatasetPackage(
+  datasetPackage: OpportunityDiscoveryDatasetPackage | null,
+): OpportunityDiscoveryDatasetPackage {
+  if (datasetPackage === null) {
+    throw new TypeError(
+      "Opportunity Discovery is declared without an Opportunity Dataset Package.",
+    );
+  }
+  return datasetPackage;
 }
 
 async function loadRecommendedDatasetMapping(
@@ -1293,6 +1330,8 @@ async function openRetainedBundle(
     previousArtifactPath: pairing.previousAnalysis?.artifactPath ?? null,
     servingVolumePath,
   });
+  let opportunityIndex: DuckDbOpportunityCandidateIndex | null = null;
+  let opportunityEvidence: DuckDbOpportunityEvidenceSource | null = null;
   try {
     const evidenceSource = await DuckDbTradeEvidenceSource.openShared({
       database: analysisDatabase,
@@ -1303,6 +1342,11 @@ async function openRetainedBundle(
       analysisReleaseCatalogSha256:
         pairing.deploymentManifest.analysisReleaseCatalogSha256,
     });
+    ({ opportunityIndex, opportunityEvidence } = await openOpportunitySources(
+      pairing,
+      recommendedDatasetMapping,
+      servingVolumePath,
+    ));
     const previousRelease = await openPreviousRelease(
       pairing,
       previousManifest,
@@ -1326,6 +1370,7 @@ async function openRetainedBundle(
       tradeTrendDatasetPackage,
       supplierCompetitionDatasetPackage,
       tradeExplorerDatasetPackage,
+      opportunityDatasetPackage,
     );
     return {
       pairing,
@@ -1339,6 +1384,8 @@ async function openRetainedBundle(
       recommendedDatasetMapping,
       analysisDatabase,
       evidenceSource,
+      opportunityIndex,
+      opportunityEvidence,
       previousRelease,
       productCatalog,
       economyDirectory,
@@ -1349,7 +1396,43 @@ async function openRetainedBundle(
       runTradeExplorerSmoke,
     };
   } catch (error) {
+    opportunityIndex?.close();
+    opportunityEvidence?.close();
     analysisDatabase.close();
+    throw error;
+  }
+}
+
+async function openOpportunitySources(
+  pairing: HydratedDeploymentPairing,
+  mapping: RecommendedDatasetMapping,
+  servingVolumePath: string,
+): Promise<{
+  opportunityIndex: DuckDbOpportunityCandidateIndex | null;
+  opportunityEvidence: DuckDbOpportunityEvidenceSource | null;
+}> {
+  if (mapping.manifest.opportunity === null) {
+    return { opportunityIndex: null, opportunityEvidence: null };
+  }
+  if (pairing.opportunityIndexDirectoryPath === null) {
+    throw new TypeError(
+      "Recommended Dataset Mapping declared Opportunity Discovery without a hydrated Opportunity Index.",
+    );
+  }
+  const opportunityIndex = await DuckDbOpportunityCandidateIndex.open({
+    indexDirectoryPath: pairing.opportunityIndexDirectoryPath,
+    analysisArtifactPath: pairing.analysisArtifactPath,
+    servingVolumePath,
+  });
+  try {
+    const opportunityEvidence = await DuckDbOpportunityEvidenceSource.open({
+      indexDirectoryPath: pairing.opportunityIndexDirectoryPath,
+      analysisArtifactPath: pairing.analysisArtifactPath,
+      servingVolumePath,
+    });
+    return { opportunityIndex, opportunityEvidence };
+  } catch (error) {
+    opportunityIndex.close();
     throw error;
   }
 }
@@ -1388,6 +1471,12 @@ function buildPlatformInput(
     string,
     TradeExplorerDatasetPackage
   >();
+  const opportunityIndexes = new Map<string, OpportunityCandidateIndex>();
+  const opportunityEvidence = new Map<string, OpportunityEvidenceSource>();
+  const opportunityPackages = new Map<
+    string,
+    OpportunityDiscoveryDatasetPackage
+  >();
 
   for (const bundle of bundles) {
     const buildId = bundle.pairing.deploymentManifest.analysisBuildId;
@@ -1412,6 +1501,20 @@ function buildPlatformInput(
     if (bundle.recommendedDatasetMapping.manifest.tradeExplorer !== null) {
       tradeExplorerEvidence.set(buildId, bundle.evidenceSource);
       tradeExplorerPackages.set(buildId, bundle.tradeExplorerDatasetPackage);
+    }
+    if (bundle.recommendedDatasetMapping.manifest.opportunity !== null) {
+      if (
+        bundle.opportunityIndex === null ||
+        bundle.opportunityEvidence === null ||
+        bundle.opportunityDatasetPackage === null
+      ) {
+        throw new TypeError(
+          "Opportunity Discovery was declared without runtime Opportunity sources.",
+        );
+      }
+      opportunityIndexes.set(buildId, bundle.opportunityIndex);
+      opportunityEvidence.set(buildId, bundle.opportunityEvidence);
+      opportunityPackages.set(buildId, bundle.opportunityDatasetPackage);
     }
   }
 
@@ -1443,6 +1546,15 @@ function buildPlatformInput(
           tradeExplorer: {
             evidenceSource: tradeExplorerEvidence,
             datasetPackages: tradeExplorerPackages,
+          },
+        }),
+    ...(opportunityPackages.size === 0
+      ? {}
+      : {
+          opportunityDiscovery: {
+            candidateIndex: opportunityIndexes,
+            evidenceSource: opportunityEvidence,
+            datasetPackages: opportunityPackages,
           },
         }),
   };

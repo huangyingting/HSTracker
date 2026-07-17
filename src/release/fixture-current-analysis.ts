@@ -5,6 +5,7 @@ import {
   ACCEPTANCE_FIXTURE_RELEASE,
   ACCEPTANCE_PRODUCT_SEARCH_BUILD_IDS,
 } from "../../fixtures/acceptance/v1/metadata";
+import { OPPORTUNITY_FIXTURE_BUILD_ID } from "../../fixtures/opportunity-discovery/v1/cohort";
 import {
   resolveCurrentAnalysisManifest,
   type CurrentAnalysisDeployment,
@@ -28,6 +29,7 @@ import {
   createFixtureTradeExplorerDatasetPackages,
   createFixtureTradeTrendDatasetPackages,
 } from "../evidence/fixture-trade-evidence-source";
+import { createFixtureOpportunityDiscoveryDatasetPackages } from "../evidence/fixture-opportunity-source";
 import { releaseObjectIdentity } from "./release-object-store";
 import { releaseJsonBytes } from "./release-manifest";
 
@@ -58,6 +60,10 @@ const fixtureSupplierCompetitionDatasetPackage =
 const fixtureTradeExplorerDatasetPackage =
   createFixtureTradeExplorerDatasetPackages().get(
     ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+  )!;
+const fixtureOpportunityDatasetPackage =
+  createFixtureOpportunityDiscoveryDatasetPackages().get(
+    OPPORTUNITY_FIXTURE_BUILD_ID,
   )!;
 const fixtureDatasetPackageBytes = Buffer.from(
   fixtureDatasetPackage.serializedManifest,
@@ -175,6 +181,10 @@ const fixtureRecommendation: CurrentAnalysisDeployment["recommendation"] = {
   tradeExplorer: {
     recipe: "trade-explorer-v1",
     datasetPackageIdentity: fixtureTradeExplorerDatasetPackage.identity,
+  },
+  opportunityDiscovery: {
+    recipe: "opportunity-discovery-v1",
+    datasetPackageIdentity: fixtureOpportunityDatasetPackage.identity,
   },
 };
 

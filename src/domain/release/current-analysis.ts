@@ -83,6 +83,13 @@ export type CurrentAnalysisDeployment = {
       recipe: "trade-explorer-v1";
       datasetPackageIdentity: DatasetPackageIdentity;
     } | null;
+    // Populated only when the same closed Recommended Dataset Mapping
+    // declares and gates opportunity-discovery-v1; null for legacy or
+    // undeclared mappings.
+    opportunityDiscovery: {
+      recipe: "opportunity-discovery-v1";
+      datasetPackageIdentity: DatasetPackageIdentity;
+    } | null;
   };
   // Every pairing in the active Deployment Retention Window (current
   // first, then up to two retained predecessors), each carrying only its

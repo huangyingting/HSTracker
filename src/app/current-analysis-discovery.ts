@@ -93,17 +93,28 @@ async function loadManifest({
 function normalizeLegacyManifest(candidate: unknown): unknown {
   if (
     !isRecord(candidate) ||
-    !isRecord(candidate.recommendation) ||
-    Object.hasOwn(candidate.recommendation, "tradeExplorer")
+    !isRecord(candidate.recommendation)
   ) {
+    return candidate;
+  }
+  let changed = false;
+  const recommendation: Record<string, unknown> = {
+    ...candidate.recommendation,
+  };
+  if (!Object.hasOwn(recommendation, "tradeExplorer")) {
+    recommendation.tradeExplorer = null;
+    changed = true;
+  }
+  if (!Object.hasOwn(recommendation, "opportunityDiscovery")) {
+    recommendation.opportunityDiscovery = null;
+    changed = true;
+  }
+  if (!changed) {
     return candidate;
   }
   return {
     ...candidate,
-    recommendation: {
-      ...candidate.recommendation,
-      tradeExplorer: null,
-    },
+    recommendation,
   };
 }
 
@@ -208,6 +219,7 @@ function isManifestRecommendation(
   const tradeTrend = value.tradeTrend;
   const supplierCompetition = value.supplierCompetition;
   const tradeExplorer = value.tradeExplorer;
+  const opportunityDiscovery = value.opportunityDiscovery;
   return (
     value.recipe === "candidate-market-v1" &&
     isRecommendedDatasetMappingIdentity(value.mappingIdentity) &&
@@ -217,7 +229,9 @@ function isManifestRecommendation(
     (tradeTrend === null || isTradeTrendRecommendation(tradeTrend)) &&
     (supplierCompetition === null ||
       isSupplierCompetitionRecommendation(supplierCompetition)) &&
-    (tradeExplorer === null || isTradeExplorerRecommendation(tradeExplorer))
+    (tradeExplorer === null || isTradeExplorerRecommendation(tradeExplorer)) &&
+    (opportunityDiscovery === null ||
+      isOpportunityDiscoveryRecommendation(opportunityDiscovery))
   );
 }
 
@@ -247,6 +261,16 @@ function isTradeExplorerRecommendation(
   return (
     isRecord(value) &&
     value.recipe === "trade-explorer-v1" &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity)
+  );
+}
+
+function isOpportunityDiscoveryRecommendation(
+  value: unknown,
+): value is NonNullable<ManifestRecommendation["opportunityDiscovery"]> {
+  return (
+    isRecord(value) &&
+    value.recipe === "opportunity-discovery-v1" &&
     isDatasetPackageIdentity(value.datasetPackageIdentity)
   );
 }
