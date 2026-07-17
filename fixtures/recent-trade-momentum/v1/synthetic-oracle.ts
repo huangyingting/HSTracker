@@ -1,7 +1,53 @@
-import type {
-  RecentTradeMomentumSourceRow,
-  RecentTradeMomentumSourceVintage,
-} from "../../../scripts/release/recent-trade-momentum-package";
+import type { CnToHs12MappingEvidence } from "../../../src/domain/recent-trade-momentum/cn-to-hs12-mapping";
+import type { RecentTradeMomentumUpdateState } from "../../../src/domain/recent-trade-momentum/recent-trade-momentum-v1";
+
+type RecentTradeMomentumSourceRow = Readonly<{
+  referenceMonth: string;
+  reporterSourceCode: string;
+  partnerSourceCode: string;
+  flow: "IMPORT";
+  cnEditionYear: number;
+  cn8Code: string;
+  valueEur: number;
+  sourceSpecialCode: "NONE" | "WORLD_TOTAL" | "CONFIDENTIAL" | "SPECIAL";
+  updateState: RecentTradeMomentumUpdateState;
+}>;
+
+type RecentTradeMomentumSourceVintage = Readonly<{
+  schemaVersion: "recent-trade-momentum-fixtures-v1";
+  sourceVintageId: string;
+  extractionTimestamp: string;
+  sourceMetadataVersion: string;
+  sourceUrl: string;
+  sourceObjects: readonly Readonly<{
+    objectId: string;
+    url: string;
+    content: string;
+  }>[];
+  referenceMonths: readonly string[];
+  eligibleCompleteMonths: readonly string[];
+  reporters: readonly Readonly<{
+    reporterId: number;
+    sourceCode: string;
+    iso2: string;
+    iso3: string;
+    displayName: string;
+    validFrom: string;
+    validTo: string | null;
+  }>[];
+  partners: readonly Readonly<{
+    partnerId: number;
+    sourceCode: string;
+    iso2: string | null;
+    iso3: string | null;
+    kind: "INDIVIDUAL" | "AGGREGATE" | "CONFIDENTIAL" | "UNKNOWN";
+    validFrom: string;
+    validTo: string | null;
+  }>[];
+  hs12Products: readonly string[];
+  mappingEvidence: CnToHs12MappingEvidence;
+  rows: readonly RecentTradeMomentumSourceRow[];
+}>;
 
 const MONTHS_25 = [
   "2024-03",

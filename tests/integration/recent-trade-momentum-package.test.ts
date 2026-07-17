@@ -2,7 +2,7 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { DuckDBInstance } from "@duckdb/node-api";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   buildRecentTradeMomentumPackage,
@@ -11,6 +11,7 @@ import {
   evaluateRecentTradeMomentumArtifactGates,
   RECENT_TRADE_MOMENTUM_ARTIFACT_HARD_LIMIT_BYTES,
   RECENT_TRADE_MOMENTUM_ARTIFACT_TARGET_BYTES,
+  type RecentTradeMomentumBuildOutcome,
 } from "../../scripts/release/recent-trade-momentum-package";
 import {
   EXPECTED_RECENT_TRADE_MOMENTUM_ANALYTICAL_ROWS_JSON,
@@ -21,8 +22,49 @@ import {
 
 const temporaryDirectories: string[] = [];
 let workspaceCounter = 0;
+let fixtureBuilds:
+  | {
+      first: RecentTradeMomentumBuildOutcome;
+      reordered: RecentTradeMomentumBuildOutcome;
+      second: RecentTradeMomentumBuildOutcome;
+      firstReportPath: string;
+    }
+  | null = null;
 
-afterEach(async () => {
+beforeAll(async () => {
+  const firstWorkspace = await temporaryWorkspace();
+  const reorderedWorkspace = await temporaryWorkspace();
+  const secondWorkspace = await temporaryWorkspace();
+  const firstReportPath = join(firstWorkspace, "reports", "vintage-a-report.json");
+  const first = await buildRecentTradeMomentumPackage({
+    sourceVintage: recentTradeMomentumFixtureVintageA,
+    workspacePath: firstWorkspace,
+    reportPath: firstReportPath,
+    builtAt: "2026-07-17T00:00:00.000Z",
+    buildGitSha: "synthetic-build-sha",
+    shadowVintagesPassed: 3,
+  });
+  const reordered = await buildRecentTradeMomentumPackage({
+    sourceVintage: recentTradeMomentumFixtureVintageAReordered,
+    workspacePath: reorderedWorkspace,
+    reportPath: join(reorderedWorkspace, "report.json"),
+    builtAt: "2026-07-17T00:00:00.000Z",
+    buildGitSha: "synthetic-build-sha",
+    shadowVintagesPassed: 3,
+  });
+  const second = await buildRecentTradeMomentumPackage({
+    sourceVintage: recentTradeMomentumFixtureVintageB,
+    previousPackage: first,
+    workspacePath: secondWorkspace,
+    reportPath: join(secondWorkspace, "report.json"),
+    builtAt: "2026-07-17T00:00:00.000Z",
+    buildGitSha: "synthetic-build-sha",
+    shadowVintagesPassed: 3,
+  });
+  fixtureBuilds = { first, reordered, second, firstReportPath };
+}, 30_000);
+
+afterAll(async () => {
   await Promise.all(
     temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
   );
@@ -30,17 +72,7 @@ afterEach(async () => {
 
 describe("Recent Trade Momentum immutable package builder", () => {
   it("builds the pinned synthetic oracle package with deterministic analytical rows and gates", async () => {
-    const workspace = await temporaryWorkspace();
-    const reportPath = join(workspace, "reports", "vintage-a-report.json");
-
-    const outcome = await buildRecentTradeMomentumPackage({
-      sourceVintage: recentTradeMomentumFixtureVintageA,
-      workspacePath: workspace,
-      reportPath,
-      builtAt: "2026-07-17T00:00:00.000Z",
-      buildGitSha: "synthetic-build-sha",
-      shadowVintagesPassed: 3,
-    });
+    const { first: outcome, firstReportPath } = requireFixtureBuilds();
     const analyticalRows = await canonicalRecentTradeMomentumAnalyticalRows(
       outcome.artifactPath,
     );
@@ -69,7 +101,7 @@ describe("Recent Trade Momentum immutable package builder", () => {
       worldTotalExcludedValueEur: "5949999",
     });
     expect(analyticalRows).toBe(EXPECTED_RECENT_TRADE_MOMENTUM_ANALYTICAL_ROWS_JSON);
-    expect(JSON.parse(await readFile(reportPath, "utf8"))).toMatchObject({
+    expect(JSON.parse(await readFile(firstReportPath, "utf8"))).toMatchObject({
       schemaVersion: "recent-trade-momentum-build-report-v1",
       status: "accepted",
       sourceVintageId: "recent-trade-momentum-fixtures-v1-a",
@@ -103,25 +135,7 @@ describe("Recent Trade Momentum immutable package builder", () => {
   });
 
   it("sorts source-grain rows so source-code reorder produces byte-identical analytical output", async () => {
-    const firstWorkspace = await temporaryWorkspace();
-    const secondWorkspace = await temporaryWorkspace();
-
-    const first = await buildRecentTradeMomentumPackage({
-      sourceVintage: recentTradeMomentumFixtureVintageA,
-      workspacePath: firstWorkspace,
-      reportPath: join(firstWorkspace, "report.json"),
-      builtAt: "2026-07-17T00:00:00.000Z",
-      buildGitSha: "synthetic-build-sha",
-      shadowVintagesPassed: 3,
-    });
-    const reordered = await buildRecentTradeMomentumPackage({
-      sourceVintage: recentTradeMomentumFixtureVintageAReordered,
-      workspacePath: secondWorkspace,
-      reportPath: join(secondWorkspace, "report.json"),
-      builtAt: "2026-07-17T00:00:00.000Z",
-      buildGitSha: "synthetic-build-sha",
-      shadowVintagesPassed: 3,
-    });
+    const { first, reordered } = requireFixtureBuilds();
 
     await expect(
       canonicalRecentTradeMomentumAnalyticalRows(reordered.artifactPath),
@@ -129,26 +143,7 @@ describe("Recent Trade Momentum immutable package builder", () => {
   });
 
   it("publishes a new package identity and revision report for changed vintages", async () => {
-    const firstWorkspace = await temporaryWorkspace();
-    const secondWorkspace = await temporaryWorkspace();
-    const first = await buildRecentTradeMomentumPackage({
-      sourceVintage: recentTradeMomentumFixtureVintageA,
-      workspacePath: firstWorkspace,
-      reportPath: join(firstWorkspace, "report.json"),
-      builtAt: "2026-07-17T00:00:00.000Z",
-      buildGitSha: "synthetic-build-sha",
-      shadowVintagesPassed: 3,
-    });
-
-    const second = await buildRecentTradeMomentumPackage({
-      sourceVintage: recentTradeMomentumFixtureVintageB,
-      previousPackage: first,
-      workspacePath: secondWorkspace,
-      reportPath: join(secondWorkspace, "report.json"),
-      builtAt: "2026-07-17T00:00:00.000Z",
-      buildGitSha: "synthetic-build-sha",
-      shadowVintagesPassed: 3,
-    });
+    const { first, second } = requireFixtureBuilds();
 
     expect(second.datasetPackage.identity).not.toBe(first.datasetPackage.identity);
     expect(second.manifest.supersedesPackageIdentity).toBe(first.datasetPackage.identity);
@@ -172,6 +167,13 @@ describe("Recent Trade Momentum immutable package builder", () => {
         ],
       },
     });
+
+    function requireFixtureBuilds(): NonNullable<typeof fixtureBuilds> {
+      if (fixtureBuilds === null) {
+        throw new Error("Recent Trade Momentum fixture builds were not prepared.");
+      }
+      return fixtureBuilds;
+    }
     expect(second.revisionReport.affectedProducts).toEqual(["010121"]);
     expect(second.revisionReport.affectedReporters).toEqual(["BE", "DE"]);
   });
@@ -221,6 +223,13 @@ describe("Recent Trade Momentum immutable package builder", () => {
     });
   });
 });
+
+function requireFixtureBuilds(): NonNullable<typeof fixtureBuilds> {
+  if (fixtureBuilds === null) {
+    throw new Error("Recent Trade Momentum fixture builds were not prepared.");
+  }
+  return fixtureBuilds;
+}
 
 async function temporaryWorkspace(): Promise<string> {
   workspaceCounter += 1;
