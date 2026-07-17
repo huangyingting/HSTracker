@@ -123,4 +123,39 @@ describe.skipIf(pgUrl === null)("PostgresOperationalStore concurrency", () => {
       await store.close();
     }
   });
+
+  it("reuses one delivery idempotency row under concurrent delivery retries", async () => {
+    const { store, accountId } = await seedWatches(1);
+    const [watch] = await store.listWatches(accountId);
+    const { event } = await store.recordAlertEvent({
+      watchId: watch!.id,
+      kind: "MOMENTUM_SIGNAL",
+      dedupeKey: "delivery-signal",
+      detail: {},
+      occurredAt: "2026-01-01T00:00:00.000Z",
+    });
+    const writers = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        PostgresOperationalStore.create({ connectionString: url }),
+      ),
+    );
+    try {
+      const deliveries = await Promise.all(
+        writers.map((writer, index) =>
+          writer.markDelivered(event.id, "email", `receipt-${index}`),
+        ),
+      );
+      expect(new Set(deliveries.map((delivery) => delivery.deliveryId)).size).toBe(1);
+      expect(new Set(deliveries.map((delivery) => delivery.idempotencyKey))).toEqual(
+        new Set([`${event.id}:email`]),
+      );
+      expect(await store.getDeliveryState(event.id, "email")).toMatchObject({
+        attempts: 8,
+        idempotencyKey: `${event.id}:email`,
+      });
+    } finally {
+      await Promise.all(writers.map((writer) => writer.close()));
+      await store.close();
+    }
+  });
 });

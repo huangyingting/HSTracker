@@ -8,6 +8,7 @@ import {
   unknownEntity,
 } from "./errors";
 import {
+  computeWatchContextIdentity,
   normalizeCredentialIdentity,
   requireNonEmpty,
   requireNonNegativeInt,
@@ -26,6 +27,7 @@ import type {
   AuditEvent,
   ClaimedWatch,
   ClaimWatchesInput,
+  CompleteEvaluationInput,
   ConfirmedProduct,
   CreateAccountInput,
   CreateAccountWithCredentialInput,
@@ -43,6 +45,7 @@ import type {
   RecoveryToken,
   UpdateCredentialAttemptsInput,
   UpdateCredentialVerifierInput,
+  WatchId,
 } from "./model";
 import type {
   OperationalStore,
@@ -94,11 +97,19 @@ CREATE TABLE IF NOT EXISTS operational_watch (
   hs_revision TEXT NOT NULL,
   code TEXT NOT NULL,
   market_economy TEXT NOT NULL,
+  reporting_economy_iso2 TEXT NOT NULL,
+  hs12_code TEXT NOT NULL,
+  export_economy_code TEXT NOT NULL,
+  cadence TEXT NOT NULL,
+  delivery_preferences TEXT NOT NULL,
+  context_identity TEXT NOT NULL,
   status TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  paused_at TEXT,
+  deleted_at TEXT,
   last_evaluated_package_id TEXT,
-  UNIQUE (account_id, hs_revision, code, market_economy)
+  UNIQUE (account_id, reporting_economy_iso2, hs_revision, hs12_code, cadence, export_economy_code)
 );
 CREATE TABLE IF NOT EXISTS operational_alert_event (
   id TEXT PRIMARY KEY,
@@ -106,18 +117,40 @@ CREATE TABLE IF NOT EXISTS operational_alert_event (
   account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
   kind TEXT NOT NULL,
   dedupe_key TEXT NOT NULL,
+  recipe_id TEXT,
+  package_id TEXT,
+  superseded_package_id TEXT,
+  cutoff_month TEXT,
+  prior_event_id TEXT REFERENCES operational_alert_event(id) ON DELETE SET NULL,
   detail TEXT NOT NULL,
   occurred_at TEXT NOT NULL,
   created_at TEXT NOT NULL,
   UNIQUE (watch_id, dedupe_key)
 );
+CREATE TABLE IF NOT EXISTS operational_last_evaluation (
+  watch_id TEXT NOT NULL REFERENCES operational_watch(id) ON DELETE CASCADE,
+  recipe_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  cutoff_month TEXT NOT NULL,
+  result_digest TEXT NOT NULL,
+  state TEXT NOT NULL,
+  growth_rate_decimal TEXT,
+  confidence TEXT,
+  evaluated_at TEXT NOT NULL,
+  alert_event_id TEXT REFERENCES operational_alert_event(id) ON DELETE SET NULL,
+  PRIMARY KEY (watch_id, recipe_id)
+);
 CREATE TABLE IF NOT EXISTS operational_delivery_state (
+  delivery_id TEXT PRIMARY KEY,
   event_id TEXT NOT NULL REFERENCES operational_alert_event(id) ON DELETE CASCADE,
   channel TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL,
-  attempts INTEGER NOT NULL,
+  attempt_count INTEGER NOT NULL,
+  last_attempt_at TEXT NOT NULL,
+  provider_receipt TEXT,
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (event_id, channel)
+  UNIQUE (event_id, channel)
 );
 CREATE TABLE IF NOT EXISTS operational_audit_event (
   id TEXT PRIMARY KEY,
@@ -194,10 +227,31 @@ interface WatchRow {
   hs_revision: string;
   code: string;
   market_economy: string;
+  reporting_economy_iso2: string;
+  hs12_code: string;
+  export_economy_code: string;
+  cadence: string;
+  delivery_preferences: string;
+  context_identity: string;
   status: string;
   created_at: string;
   updated_at: string;
+  paused_at: string | null;
+  deleted_at: string | null;
   last_evaluated_package_id: string | null;
+}
+
+interface LastEvaluationRow {
+  watch_id: string;
+  recipe_id: string;
+  package_id: string;
+  cutoff_month: string;
+  result_digest: string;
+  state: string;
+  growth_rate_decimal: string | null;
+  confidence: string | null;
+  evaluated_at: string;
+  alert_event_id: string | null;
 }
 
 interface AlertEventRow {
@@ -206,6 +260,11 @@ interface AlertEventRow {
   account_id: string;
   kind: string;
   dedupe_key: string;
+  recipe_id: string | null;
+  package_id: string | null;
+  superseded_package_id: string | null;
+  cutoff_month: string | null;
+  prior_event_id: string | null;
   detail: string;
   occurred_at: string;
   created_at: string;
@@ -733,35 +792,127 @@ export class PostgresOperationalStore implements OperationalStore {
     );
     const code = requireNonEmpty(input.product.code, "product.code");
     const market = requireNonEmpty(input.marketEconomy, "marketEconomy");
+    const reportingEconomyIso2 = requireNonEmpty(
+      input.reportingEconomyIso2 ?? market,
+      "reportingEconomyIso2",
+    );
+    const hs12Code = requireNonEmpty(input.hs12Code ?? code, "hs12Code");
+    const exportEconomyCode = input.exportEconomyCode ?? "";
+    const cadence = normalizeCadence(input.cadence ?? "MONTHLY");
+    const deliveryPreferences = JSON.stringify(input.deliveryPreferences ?? []);
+    const contextIdentity = computeWatchContextIdentity({
+      reportingEconomyIso2,
+      hsRevision,
+      hs12Code,
+    });
     const ts = toIso(this.now());
     const id = randomUUID();
     const row = await this.withTransaction(async (client) => {
       await requireAccountTx(client, accountId);
       await client.query(
         `INSERT INTO operational_watch
-           (id, account_id, hs_revision, code, market_economy, status, created_at, updated_at, last_evaluated_package_id)
-         VALUES ($1, $2, $3, $4, $5, 'ACTIVE', $6, $6, NULL)
-         ON CONFLICT (account_id, hs_revision, code, market_economy) DO NOTHING`,
-        [id, accountId, hsRevision, code, market, ts],
+           (id, account_id, hs_revision, code, market_economy,
+            reporting_economy_iso2, hs12_code, export_economy_code, cadence,
+            delivery_preferences, context_identity, status, created_at, updated_at,
+            paused_at, deleted_at, last_evaluated_package_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ACTIVE', $12, $12, NULL, NULL, NULL)
+         ON CONFLICT (account_id, reporting_economy_iso2, hs_revision, hs12_code, cadence, export_economy_code)
+         DO NOTHING`,
+        [
+          id,
+          accountId,
+          hsRevision,
+          code,
+          market,
+          reportingEconomyIso2,
+          hs12Code,
+          exportEconomyCode,
+          cadence,
+          deliveryPreferences,
+          contextIdentity,
+          ts,
+        ],
       );
       const { rows } = await client.query<WatchRow>(
         `SELECT * FROM operational_watch
-         WHERE account_id = $1 AND hs_revision = $2 AND code = $3 AND market_economy = $4`,
-        [accountId, hsRevision, code, market],
+         WHERE account_id = $1
+           AND reporting_economy_iso2 = $2
+           AND hs_revision = $3
+           AND hs12_code = $4
+           AND cadence = $5
+           AND export_economy_code = $6`,
+        [
+          accountId,
+          reportingEconomyIso2,
+          hsRevision,
+          hs12Code,
+          cadence,
+          exportEconomyCode,
+        ],
       );
       return rows[0]!;
     });
-    return mapWatch(row);
+    return this.mapWatchWithLastEvaluation(row);
   }
 
   async listWatches(
     accountId: AccountId,
   ): Promise<readonly OpportunityWatch[]> {
     const { rows } = await this.pool.query<WatchRow>(
-      "SELECT * FROM operational_watch WHERE account_id = $1 ORDER BY created_at, id",
+      `SELECT * FROM operational_watch
+       WHERE account_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at, id`,
       [accountId],
     );
-    return rows.map(mapWatch);
+    return Promise.all(rows.map((row) => this.mapWatchWithLastEvaluation(row)));
+  }
+
+  async pauseWatch(watchId: WatchId): Promise<OpportunityWatch> {
+    this.assertWritable();
+    const ts = toIso(this.now());
+    const { rows } = await this.pool.query<WatchRow>(
+      `UPDATE operational_watch
+       SET status = 'PAUSED', paused_at = COALESCE(paused_at, $1), updated_at = $1
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING *`,
+      [ts, watchId],
+    );
+    if (!rows[0]) {
+      throw unknownEntity(`Watch ${watchId} does not exist.`);
+    }
+    return this.mapWatchWithLastEvaluation(rows[0]);
+  }
+
+  async resumeWatch(watchId: WatchId): Promise<OpportunityWatch> {
+    this.assertWritable();
+    const ts = toIso(this.now());
+    const { rows } = await this.pool.query<WatchRow>(
+      `UPDATE operational_watch
+       SET status = 'ACTIVE', paused_at = NULL, updated_at = $1
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING *`,
+      [ts, watchId],
+    );
+    if (!rows[0]) {
+      throw unknownEntity(`Watch ${watchId} does not exist.`);
+    }
+    return this.mapWatchWithLastEvaluation(rows[0]);
+  }
+
+  async deleteWatch(watchId: WatchId): Promise<OpportunityWatch> {
+    this.assertWritable();
+    const ts = toIso(this.now());
+    const { rows } = await this.pool.query<WatchRow>(
+      `UPDATE operational_watch
+       SET status = 'PAUSED', deleted_at = COALESCE(deleted_at, $1), updated_at = $1
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING *`,
+      [ts, watchId],
+    );
+    if (!rows[0]) {
+      throw unknownEntity(`Watch ${watchId} does not exist.`);
+    }
+    return this.mapWatchWithLastEvaluation(rows[0]);
   }
 
   async claimWatchesForEvaluation(
@@ -784,6 +935,7 @@ export class PostgresOperationalStore implements OperationalStore {
            SELECT w.id
            FROM operational_watch w
            WHERE w.status = 'ACTIVE'
+             AND w.deleted_at IS NULL
              AND (w.last_evaluated_package_id IS DISTINCT FROM $1)
              AND NOT EXISTS (
                SELECT 1 FROM operational_evaluation_lease l
@@ -805,17 +957,20 @@ export class PostgresOperationalStore implements OperationalStore {
          ORDER BY w.created_at, w.id`,
         [packageId, nowIso, limit, evaluatorId, expiresAt],
       );
-      return rows.map((row) => ({
-        watch: mapWatch(row),
-        leaseId: row.lease_id,
-        leaseExpiresAt: row.lease_expires_at,
-      }));
+      return Promise.all(
+        rows.map(async (row) => ({
+          watch: await this.mapWatchWithLastEvaluation(row),
+          leaseId: row.lease_id,
+          leaseExpiresAt: row.lease_expires_at,
+        })),
+      );
     });
   }
 
   async completeEvaluation(
     leaseId: EvaluationLeaseId,
     packageId: string,
+    evaluation?: CompleteEvaluationInput,
   ): Promise<void> {
     this.assertWritable();
     await this.withTransaction(async (client) => {
@@ -831,6 +986,36 @@ export class PostgresOperationalStore implements OperationalStore {
         "UPDATE operational_watch SET last_evaluated_package_id = $1, updated_at = $2 WHERE id = $3",
         [packageId, toIso(this.now()), lease.watch_id],
       );
+      if (evaluation !== undefined) {
+        const evaluatedAt = toIso(this.now());
+        await client.query(
+          `INSERT INTO operational_last_evaluation
+             (watch_id, recipe_id, package_id, cutoff_month, result_digest, state,
+              growth_rate_decimal, confidence, evaluated_at, alert_event_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (watch_id, recipe_id) DO UPDATE SET
+             package_id = EXCLUDED.package_id,
+             cutoff_month = EXCLUDED.cutoff_month,
+             result_digest = EXCLUDED.result_digest,
+             state = EXCLUDED.state,
+             growth_rate_decimal = EXCLUDED.growth_rate_decimal,
+             confidence = EXCLUDED.confidence,
+             evaluated_at = EXCLUDED.evaluated_at,
+             alert_event_id = EXCLUDED.alert_event_id`,
+          [
+            lease.watch_id,
+            requireNonEmpty(evaluation.recipeId, "evaluation.recipeId"),
+            packageId,
+            requireNonEmpty(evaluation.cutoffMonth, "evaluation.cutoffMonth"),
+            requireNonEmpty(evaluation.resultDigest, "evaluation.resultDigest"),
+            requireNonEmpty(evaluation.state, "evaluation.state"),
+            evaluation.growthRateDecimal,
+            evaluation.confidence,
+            evaluatedAt,
+            evaluation.alertEventId ?? null,
+          ],
+        );
+      }
       await client.query(
         "DELETE FROM operational_evaluation_lease WHERE lease_id = $1",
         [leaseId],
@@ -846,6 +1031,20 @@ export class PostgresOperationalStore implements OperationalStore {
     const kind = requireNonEmpty(input.kind, "kind");
     const dedupeKey = requireNonEmpty(input.dedupeKey, "dedupeKey");
     const occurredAt = requireNonEmpty(input.occurredAt, "occurredAt");
+    const recipeId = input.recipeId
+      ? requireNonEmpty(input.recipeId, "recipeId")
+      : null;
+    const eventPackageId = input.packageId
+      ? requireNonEmpty(input.packageId, "packageId")
+      : null;
+    const supersededPackageId =
+      input.supersededPackageId === undefined || input.supersededPackageId === null
+        ? null
+        : requireNonEmpty(input.supersededPackageId, "supersededPackageId");
+    const cutoffMonth = input.cutoffMonth
+      ? requireNonEmpty(input.cutoffMonth, "cutoffMonth")
+      : null;
+    const priorEventId = input.priorEventId ?? null;
     const detail = JSON.stringify(input.detail ?? {});
     const id = randomUUID();
     const createdAt = toIso(this.now());
@@ -860,8 +1059,9 @@ export class PostgresOperationalStore implements OperationalStore {
       }
       const inserted = await client.query(
         `INSERT INTO operational_alert_event
-           (id, watch_id, account_id, kind, dedupe_key, detail, occurred_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           (id, watch_id, account_id, kind, dedupe_key, recipe_id, package_id,
+            superseded_package_id, cutoff_month, prior_event_id, detail, occurred_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (watch_id, dedupe_key) DO NOTHING`,
         [
           id,
@@ -869,6 +1069,11 @@ export class PostgresOperationalStore implements OperationalStore {
           watch.rows[0].account_id,
           kind,
           dedupeKey,
+          recipeId,
+          eventPackageId,
+          supersededPackageId,
+          cutoffMonth,
+          priorEventId,
           detail,
           occurredAt,
           createdAt,
@@ -898,10 +1103,12 @@ export class PostgresOperationalStore implements OperationalStore {
   async markDelivered(
     eventId: AlertEventId,
     channel: string,
+    providerReceipt?: string | null,
   ): Promise<DeliveryState> {
     this.assertWritable();
     const chan = requireNonEmpty(channel, "channel");
     const ts = toIso(this.now());
+    const idempotencyKey = deliveryIdempotencyKey(eventId, chan);
     await this.withTransaction(async (client) => {
       const event = await client.query(
         "SELECT 1 FROM operational_alert_event WHERE id = $1",
@@ -911,13 +1118,24 @@ export class PostgresOperationalStore implements OperationalStore {
         throw unknownEntity(`Alert event ${eventId} does not exist.`);
       }
       await client.query(
-        `INSERT INTO operational_delivery_state (event_id, channel, status, attempts, updated_at)
-         VALUES ($1, $2, 'SENT', 1, $3)
-         ON CONFLICT (event_id, channel) DO UPDATE SET
+        `INSERT INTO operational_delivery_state
+           (delivery_id, event_id, channel, idempotency_key, status, attempt_count,
+            last_attempt_at, provider_receipt, updated_at)
+         VALUES ($1, $2, $3, $4, 'SENT', 1, $5, $6, $5)
+         ON CONFLICT (idempotency_key) DO UPDATE SET
            status = 'SENT',
-           attempts = operational_delivery_state.attempts + 1,
+           attempt_count = operational_delivery_state.attempt_count + 1,
+           last_attempt_at = EXCLUDED.last_attempt_at,
+           provider_receipt = EXCLUDED.provider_receipt,
            updated_at = EXCLUDED.updated_at`,
-        [eventId, chan, ts],
+        [
+          randomUUID(),
+          eventId,
+          chan,
+          idempotencyKey,
+          ts,
+          providerReceipt ?? null,
+        ],
       );
     });
     return (await this.getDeliveryState(eventId, chan))!;
@@ -928,10 +1146,14 @@ export class PostgresOperationalStore implements OperationalStore {
     channel: string,
   ): Promise<DeliveryState | null> {
     const { rows } = await this.pool.query<{
+      delivery_id: string;
       event_id: string;
       channel: string;
+      idempotency_key: string;
       status: string;
-      attempts: number;
+      attempt_count: number;
+      last_attempt_at: string;
+      provider_receipt: string | null;
       updated_at: string;
     }>(
       "SELECT * FROM operational_delivery_state WHERE event_id = $1 AND channel = $2",
@@ -942,12 +1164,29 @@ export class PostgresOperationalStore implements OperationalStore {
       return null;
     }
     return {
+      deliveryId: row.delivery_id,
       eventId: row.event_id,
       channel: row.channel,
+      idempotencyKey: row.idempotency_key,
       status: row.status as DeliveryState["status"],
-      attempts: row.attempts,
+      attempts: row.attempt_count,
+      lastAttemptAt: row.last_attempt_at,
+      providerReceipt: row.provider_receipt,
       updatedAt: row.updated_at,
     };
+  }
+
+  private async mapWatchWithLastEvaluation(
+    row: WatchRow,
+  ): Promise<OpportunityWatch> {
+    const { rows } = await this.pool.query<LastEvaluationRow>(
+      `SELECT * FROM operational_last_evaluation
+       WHERE watch_id = $1
+       ORDER BY evaluated_at DESC, recipe_id
+       LIMIT 1`,
+      [row.id],
+    );
+    return mapWatch(row, rows[0] ? mapLastEvaluation(rows[0]) : null);
   }
 
   async close(): Promise<void> {
@@ -1014,16 +1253,28 @@ function mapRecoveryToken(row: RecoveryTokenRow): RecoveryToken {
   };
 }
 
-function mapWatch(row: WatchRow): OpportunityWatch {
+function mapWatch(
+  row: WatchRow,
+  lastEvaluation: OpportunityWatch["lastEvaluation"],
+): OpportunityWatch {
   return {
     id: row.id,
     accountId: row.account_id,
     product: { hsRevision: row.hs_revision, code: row.code },
     marketEconomy: row.market_economy,
+    reportingEconomyIso2: row.reporting_economy_iso2,
+    hs12Code: row.hs12_code,
+    exportEconomyCode: row.export_economy_code === "" ? null : row.export_economy_code,
+    cadence: row.cadence as OpportunityWatch["cadence"],
+    deliveryPreferences: JSON.parse(row.delivery_preferences) as OpportunityWatch["deliveryPreferences"],
+    contextIdentity: row.context_identity,
     status: row.status as OpportunityWatch["status"],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    pausedAt: row.paused_at,
+    deletedAt: row.deleted_at,
     lastEvaluatedPackageId: row.last_evaluated_package_id,
+    lastEvaluation,
   };
 }
 
@@ -1034,9 +1285,29 @@ function mapAlertEvent(row: AlertEventRow): AlertEvent {
     accountId: row.account_id,
     kind: row.kind,
     dedupeKey: row.dedupe_key,
+    recipeId: row.recipe_id,
+    packageId: row.package_id,
+    supersededPackageId: row.superseded_package_id,
+    cutoffMonth: row.cutoff_month,
+    priorEventId: row.prior_event_id,
     detail: JSON.parse(row.detail) as Record<string, unknown>,
     occurredAt: row.occurred_at,
     createdAt: row.created_at,
+  };
+}
+
+function mapLastEvaluation(row: LastEvaluationRow): OpportunityWatch["lastEvaluation"] {
+  return {
+    watchId: row.watch_id,
+    recipeId: row.recipe_id,
+    packageId: row.package_id,
+    cutoffMonth: row.cutoff_month,
+    resultDigest: row.result_digest,
+    state: row.state,
+    growthRateDecimal: row.growth_rate_decimal,
+    confidence: row.confidence,
+    evaluatedAt: row.evaluated_at,
+    alertEventId: row.alert_event_id,
   };
 }
 
@@ -1060,6 +1331,18 @@ function dedupeProducts(
     seen.set(`${hsRevision}|${code}`, { hsRevision, code });
   }
   return [...seen.values()];
+}
+
+function normalizeCadence(value: string): OpportunityWatch["cadence"] {
+  const cadence = requireNonEmpty(value, "cadence");
+  if (cadence !== "MONTHLY" && cadence !== "QUARTERLY") {
+    throw new TypeError("cadence must be MONTHLY or QUARTERLY.");
+  }
+  return cadence;
+}
+
+function deliveryIdempotencyKey(eventId: AlertEventId, channel: string): string {
+  return `${eventId}:${channel}`;
 }
 
 function mapCredentialInsertError(error: unknown, identity: string): never {

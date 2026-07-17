@@ -83,6 +83,31 @@ export interface ConfirmedProduct {
 }
 
 export type WatchStatus = "ACTIVE" | "PAUSED";
+export type WatchCadence = "MONTHLY" | "QUARTERLY";
+export type AlertEventKind =
+  | "MOMENTUM_SIGNAL"
+  | "REVISION_UPDATE"
+  | "REVISION_RETRACTION"
+  | "REVISION_REINSTATEMENT";
+
+export interface WatchDeliveryPreference {
+  readonly channel: string;
+  readonly target: string | null;
+  readonly enabled: boolean;
+}
+
+export interface LastEvaluation {
+  readonly watchId: WatchId;
+  readonly recipeId: string;
+  readonly packageId: string;
+  readonly cutoffMonth: string;
+  readonly resultDigest: string;
+  readonly state: string;
+  readonly growthRateDecimal: string | null;
+  readonly confidence: string | null;
+  readonly evaluatedAt: string;
+  readonly alertEventId: AlertEventId | null;
+}
 
 /**
  * A standing watch that pairs one confirmed product with one supported market.
@@ -94,10 +119,19 @@ export interface OpportunityWatch {
   readonly accountId: AccountId;
   readonly product: ProductRef;
   readonly marketEconomy: string;
+  readonly reportingEconomyIso2: string;
+  readonly hs12Code: string;
+  readonly exportEconomyCode: string | null;
+  readonly cadence: WatchCadence;
+  readonly deliveryPreferences: readonly WatchDeliveryPreference[];
+  readonly contextIdentity: string;
   readonly status: WatchStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly pausedAt: string | null;
+  readonly deletedAt: string | null;
   readonly lastEvaluatedPackageId: string | null;
+  readonly lastEvaluation: LastEvaluation | null;
 }
 
 /**
@@ -109,8 +143,13 @@ export interface AlertEvent {
   readonly id: AlertEventId;
   readonly watchId: WatchId;
   readonly accountId: AccountId;
-  readonly kind: string;
+  readonly kind: AlertEventKind | string;
   readonly dedupeKey: string;
+  readonly recipeId: string | null;
+  readonly packageId: string | null;
+  readonly supersededPackageId: string | null;
+  readonly cutoffMonth: string | null;
+  readonly priorEventId: AlertEventId | null;
   readonly detail: Readonly<Record<string, unknown>>;
   readonly occurredAt: string;
   readonly createdAt: string;
@@ -120,10 +159,14 @@ export type DeliveryStatus = "PENDING" | "SENT" | "FAILED";
 
 /** Per-channel delivery state for one alert event. */
 export interface DeliveryState {
+  readonly deliveryId: string;
   readonly eventId: AlertEventId;
   readonly channel: string;
+  readonly idempotencyKey: string;
   readonly status: DeliveryStatus;
   readonly attempts: number;
+  readonly lastAttemptAt: string;
+  readonly providerReceipt: string | null;
   readonly updatedAt: string;
 }
 
@@ -180,6 +223,11 @@ export interface AppendAuditEventInput {
 export interface OpenWatchInput {
   readonly product: ProductRef;
   readonly marketEconomy: string;
+  readonly reportingEconomyIso2?: string;
+  readonly hs12Code?: string;
+  readonly exportEconomyCode?: string | null;
+  readonly cadence?: WatchCadence;
+  readonly deliveryPreferences?: readonly WatchDeliveryPreference[];
 }
 
 export interface ClaimWatchesInput {
@@ -202,8 +250,13 @@ export interface ClaimedWatch {
 
 export interface RecordAlertEventInput {
   readonly watchId: WatchId;
-  readonly kind: string;
+  readonly kind: AlertEventKind | string;
   readonly dedupeKey: string;
+  readonly recipeId?: string;
+  readonly packageId?: string;
+  readonly supersededPackageId?: string | null;
+  readonly cutoffMonth?: string;
+  readonly priorEventId?: AlertEventId | null;
   readonly detail: Readonly<Record<string, unknown>>;
   readonly occurredAt: string;
 }
@@ -216,4 +269,14 @@ export interface RecordAlertEventInput {
 export interface RecordedAlertEvent {
   readonly event: AlertEvent;
   readonly created: boolean;
+}
+
+export interface CompleteEvaluationInput {
+  readonly recipeId: string;
+  readonly cutoffMonth: string;
+  readonly resultDigest: string;
+  readonly state: string;
+  readonly growthRateDecimal: string | null;
+  readonly confidence: string | null;
+  readonly alertEventId?: AlertEventId | null;
 }

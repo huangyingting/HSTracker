@@ -8,6 +8,7 @@ import type {
   AuditEvent,
   ClaimedWatch,
   ClaimWatchesInput,
+  CompleteEvaluationInput,
   ConfirmedProduct,
   CreateAccountInput,
   CreateAccountWithCredentialInput,
@@ -25,6 +26,7 @@ import type {
   RecoveryToken,
   UpdateCredentialAttemptsInput,
   UpdateCredentialVerifierInput,
+  WatchId,
 } from "./model";
 
 /**
@@ -110,6 +112,15 @@ export interface OperationalStore {
 
   listWatches(accountId: AccountId): Promise<readonly OpportunityWatch[]>;
 
+  /** Pause an active Watch. Paused Watches are retained but not claimed. */
+  pauseWatch(watchId: WatchId): Promise<OpportunityWatch>;
+
+  /** Resume a paused Watch without changing its immutable signal context. */
+  resumeWatch(watchId: WatchId): Promise<OpportunityWatch>;
+
+  /** Soft-delete a Watch. Deleted Watches are hidden from list/claim results. */
+  deleteWatch(watchId: WatchId): Promise<OpportunityWatch>;
+
   /**
    * Atomically claim up to `limit` active Watches that are not already held by
    * a live lease and have not yet been evaluated for the given package. Two
@@ -127,6 +138,7 @@ export interface OperationalStore {
   completeEvaluation(
     leaseId: EvaluationLeaseId,
     packageId: string,
+    evaluation?: CompleteEvaluationInput,
   ): Promise<void>;
 
   /**
@@ -140,6 +152,7 @@ export interface OperationalStore {
   markDelivered(
     eventId: AlertEventId,
     channel: string,
+    providerReceipt?: string | null,
   ): Promise<DeliveryState>;
 
   getDeliveryState(

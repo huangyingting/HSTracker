@@ -264,6 +264,131 @@ export function runOperationalStoreContract(
       expect(await store.listWatches(account.id)).toHaveLength(1);
     });
 
+    it("opens a cadence-aware watch with an immutable signal context identity", async () => {
+      const account = await store.createAccount({
+        displayName: "A",
+        primaryExportEconomy: "076",
+      });
+      const watch = await store.openWatch(account.id, {
+        product: prod("010121"),
+        marketEconomy: "DE",
+        reportingEconomyIso2: "DE",
+        hs12Code: "010121",
+        exportEconomyCode: "076",
+        cadence: "QUARTERLY",
+        deliveryPreferences: [
+          { channel: "email", target: "analyst@example.com", enabled: true },
+        ],
+      });
+
+      expect(watch).toMatchObject({
+        accountId: account.id,
+        reportingEconomyIso2: "DE",
+        hs12Code: "010121",
+        exportEconomyCode: "076",
+        cadence: "QUARTERLY",
+        status: "ACTIVE",
+        pausedAt: null,
+        deletedAt: null,
+        deliveryPreferences: [
+          { channel: "email", target: "analyst@example.com", enabled: true },
+        ],
+      });
+      expect(watch.contextIdentity).toMatch(/^[a-f0-9]{64}$/u);
+
+      const paused = await store.pauseWatch(watch.id);
+      const resumed = await store.resumeWatch(watch.id);
+      expect(paused.status).toBe("PAUSED");
+      expect(paused.contextIdentity).toBe(watch.contextIdentity);
+      expect(resumed.status).toBe("ACTIVE");
+      expect(resumed.contextIdentity).toBe(watch.contextIdentity);
+    });
+
+    it("excludes paused and soft-deleted watches from evaluation claims", async () => {
+      const account = await store.createAccount({
+        displayName: "A",
+        primaryExportEconomy: "076",
+      });
+      const active = await store.openWatch(account.id, {
+        product: prod("010101"),
+        marketEconomy: "DE",
+        reportingEconomyIso2: "DE",
+        hs12Code: "010101",
+        cadence: "MONTHLY",
+      });
+      const paused = await store.openWatch(account.id, {
+        product: prod("020202"),
+        marketEconomy: "DE",
+        reportingEconomyIso2: "DE",
+        hs12Code: "020202",
+        cadence: "MONTHLY",
+      });
+      const deleted = await store.openWatch(account.id, {
+        product: prod("030303"),
+        marketEconomy: "DE",
+        reportingEconomyIso2: "DE",
+        hs12Code: "030303",
+        cadence: "MONTHLY",
+      });
+      await store.pauseWatch(paused.id);
+      await store.deleteWatch(deleted.id);
+
+      const claimed = await store.claimWatchesForEvaluation({
+        evaluatorId: "e1",
+        packageId: "P1",
+        limit: 10,
+        leaseSeconds: 300,
+      });
+      expect(claimed.map((claim) => claim.watch.id)).toEqual([active.id]);
+      expect((await store.listWatches(account.id)).map((watch) => watch.id).sort()).toEqual(
+        [active.id, paused.id].sort(),
+      );
+    });
+
+    it("persists the last evaluated momentum result for transition decisions", async () => {
+      const account = await store.createAccount({
+        displayName: "A",
+        primaryExportEconomy: "076",
+      });
+      const watch = await store.openWatch(account.id, {
+        product: prod("010121"),
+        marketEconomy: "DE",
+        reportingEconomyIso2: "DE",
+        hs12Code: "010121",
+        cadence: "MONTHLY",
+      });
+      const [claim] = await store.claimWatchesForEvaluation({
+        evaluatorId: "e1",
+        packageId: "pkg-2026-06",
+        limit: 1,
+        leaseSeconds: 300,
+      });
+      expect(claim?.watch.lastEvaluation).toBeNull();
+
+      await store.completeEvaluation(claim!.leaseId, "pkg-2026-06", {
+        recipeId: "recent-trade-momentum-v1",
+        cutoffMonth: "2026-06",
+        resultDigest: "evidence-digest-2026-06-de-010121",
+        state: "RISING",
+        growthRateDecimal: "0.142000000000",
+        confidence: "HIGH",
+      });
+
+      const [updated] = await store.listWatches(account.id);
+      expect(updated!.id).toBe(watch.id);
+      expect(updated!.lastEvaluatedPackageId).toBe("pkg-2026-06");
+      expect(updated!.lastEvaluation).toMatchObject({
+        watchId: watch.id,
+        recipeId: "recent-trade-momentum-v1",
+        packageId: "pkg-2026-06",
+        cutoffMonth: "2026-06",
+        resultDigest: "evidence-digest-2026-06-de-010121",
+        state: "RISING",
+        growthRateDecimal: "0.142000000000",
+        confidence: "HIGH",
+      });
+    });
+
     it("claims active watches without double-claiming across packages and completion", async () => {
       const account = await store.createAccount({
         displayName: "A",
@@ -333,15 +458,29 @@ export function runOperationalStoreContract(
         watchId: watch.id,
         kind: "MOMENTUM_SIGNAL",
         dedupeKey: "P1:up",
+        recipeId: "recent-trade-momentum-v1",
+        packageId: "pkg-2026-06",
+        cutoffMonth: "2026-06",
+        priorEventId: null,
         detail: { direction: "up" },
         occurredAt: "2026-01-01T00:00:00.000Z",
       });
       expect(first.created).toBe(true);
+      expect(first.event).toMatchObject({
+        recipeId: "recent-trade-momentum-v1",
+        packageId: "pkg-2026-06",
+        cutoffMonth: "2026-06",
+        priorEventId: null,
+      });
 
       const duplicate = await store.recordAlertEvent({
         watchId: watch.id,
         kind: "MOMENTUM_SIGNAL",
         dedupeKey: "P1:up",
+        recipeId: "recent-trade-momentum-v1",
+        packageId: "pkg-2026-06-retry",
+        cutoffMonth: "2026-06",
+        priorEventId: null,
         detail: { direction: "DIFFERENT" },
         occurredAt: "2026-02-02T00:00:00.000Z",
       });
@@ -390,6 +529,8 @@ export function runOperationalStoreContract(
       const first = await store.markDelivered(event.id, "email");
       expect(first).toMatchObject({ status: "SENT", attempts: 1 });
       const second = await store.markDelivered(event.id, "email");
+      expect(second.deliveryId).toBe(first.deliveryId);
+      expect(second.idempotencyKey).toBe(first.idempotencyKey);
       expect(second.attempts).toBe(2);
     });
 

@@ -67,6 +67,7 @@ export const OPERATIONAL_TABLES = [
   "operational_confirmed_product",
   "operational_watch",
   "operational_alert_event",
+  "operational_last_evaluation",
   "operational_delivery_state",
   "operational_audit_event",
   "operational_evaluation_lease",
@@ -86,6 +87,7 @@ export const MIGRATED_TABLES = [
   "operational_confirmed_product",
   "operational_watch",
   "operational_alert_event",
+  "operational_last_evaluation",
   "operational_delivery_state",
   "operational_audit_event",
 ] as const;
@@ -107,6 +109,23 @@ export function digestRows(
     hash.update("\n");
   }
   return hash.digest("hex");
+}
+
+export function computeWatchContextIdentity(input: {
+  readonly reportingEconomyIso2: string;
+  readonly hsRevision: string;
+  readonly hs12Code: string;
+}): string {
+  return createHash("sha256")
+    .update(
+      [
+        "opportunity-watch-context-v1",
+        input.reportingEconomyIso2,
+        input.hsRevision,
+        input.hs12Code,
+      ].join("|"),
+    )
+    .digest("hex");
 }
 
 function canonicalJson(value: unknown): string {

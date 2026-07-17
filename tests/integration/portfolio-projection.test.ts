@@ -112,7 +112,7 @@ describe("signed-in portfolio projection", () => {
     );
   });
 
-  it("keeps operational SQLite limited to account, credential, exporter, portfolio, and session records after projection", async () => {
+  it("keeps operational SQLite limited to mutable operational records after projection", async () => {
     const { service } = createService();
     const { account } = await service.registerAccount({
       email: `no-copy-${randomUUID()}@example.com`,
@@ -144,6 +144,7 @@ describe("signed-in portfolio projection", () => {
         "operational_credential",
         "operational_delivery_state",
         "operational_evaluation_lease",
+        "operational_last_evaluation",
         "operational_recovery_token",
         "operational_session",
         "operational_watch",
