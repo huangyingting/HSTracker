@@ -44,7 +44,8 @@ const GIB = 1024 * 1024 * 1024;
 // persists the full Market Investigation feed grain so serving is a byte-exact
 // pure index read; that trades disk for zero runtime renormalization. The gates
 // were raised from their original compact-index values (4/8/10 GiB) by an
-// explicit architecture decision recorded on issue #52. See the header of
+// explicit architecture decision recorded in docs/adr/0002-rich-opportunity
+// -index-size-gates.md (issue #52). See the header of
 // data/schemas/opportunity-index-v1.sql. Exceeding a target is a
 // review-required signal, never a silent cohort-row drop; only the hard limit
 // blocks promotion.

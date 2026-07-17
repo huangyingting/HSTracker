@@ -5,9 +5,10 @@
 -- in one exact Dataset Package. It is defined by
 -- docs/research/2026-07-16-cross-product-market-opportunity-recipe.md section 7.
 --
--- Per the architecture decision recorded for issue #52, the index persists the
--- full rich Market Investigation feed grain so serving is a pure index read
--- with byte-identical rows: identities, canonical displays/order, the
+-- Per the architecture decision recorded in
+-- docs/adr/0002-rich-opportunity-index-size-gates.md (issue #52), the index
+-- persists the full rich Market Investigation feed grain so serving is a pure
+-- index read with byte-identical rows: identities, canonical displays/order, the
 -- six-decimal unrounded axis/percentile values, component raw values, component
 -- states, observed/missing years, confidence, stability, and flags. Only truly
 -- derivable data is left out and reconstructed at read time (public copy,
