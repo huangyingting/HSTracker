@@ -8,8 +8,10 @@ import { invalidOpportunityCursor } from "./errors";
 import type { OpportunityCohort } from "./opportunity-discovery-v1";
 import {
   OPPORTUNITY_DISCOVERY_DISCLAIMER,
+  type EconomyIdentity,
   type MarketInvestigationCandidate,
   type MarketInvestigationPage,
+  type OpportunityProvenance,
 } from "./result";
 
 export const OPPORTUNITY_NON_CLAIMS: readonly string[] = [
@@ -34,19 +36,53 @@ export function pageOpportunityCohort(
   const digest = productFilterDigest(request.productCodes);
   const projected = projectCandidates(cohort.candidates, request.productCodes);
 
-  const startIndex = resolveStartIndex(
-    projected,
+  const lastKey = decodeAndValidateCursor(
     request.cursor,
     analysisIdentity,
     digest,
   );
+  const startIndex =
+    lastKey === null ? 0 : resolveStartIndexFromKey(projected, lastKey);
   const window = projected.slice(startIndex, startIndex + request.limit);
   const hasMore = startIndex + request.limit < projected.length;
-  const lastRow = window[window.length - 1];
+
+  return buildMarketInvestigationPage({
+    analysisBuildId: cohort.analysisBuildId,
+    exporter: cohort.exporter,
+    provenance: cohort.provenance,
+    cohortSize: cohort.candidates.length,
+    productCodes: request.productCodes,
+    limit: request.limit,
+    requestedCursor: request.cursor,
+    analysisIdentity,
+    window,
+    hasMore,
+  });
+}
+
+// Assemble the public page envelope from a pre-fetched candidate window. Both
+// the in-memory fixture path (pageOpportunityCohort) and the production DuckDB
+// adapter call this so the two feeds are byte-identical; the adapter supplies a
+// SQL-fetched, reconstructed window plus a SQL COUNT cohort size and hasMore
+// flag, and this function derives the nextCursor from the window's last row.
+export function buildMarketInvestigationPage(input: {
+  analysisBuildId: string;
+  exporter: EconomyIdentity;
+  provenance: OpportunityProvenance;
+  cohortSize: number;
+  productCodes: readonly string[] | null;
+  limit: number;
+  requestedCursor: string | null;
+  analysisIdentity: string;
+  window: readonly MarketInvestigationCandidate[];
+  hasMore: boolean;
+}): MarketInvestigationPage {
+  const digest = productFilterDigest(input.productCodes);
+  const lastRow = input.window[input.window.length - 1];
   const nextCursor =
-    hasMore && lastRow !== undefined
+    input.hasMore && lastRow !== undefined
       ? encodeOpportunityCursor({
-          analysisIdentity,
+          analysisIdentity: input.analysisIdentity,
           productFilterDigest: digest,
           lastKey: orderKeyOf(lastRow),
         })
@@ -54,23 +90,47 @@ export function pageOpportunityCohort(
 
   return {
     schemaVersion: "market-investigation-result-v1",
-    analysisBuildId: cohort.analysisBuildId,
-    exporter: cohort.exporter,
-    provenance: cohort.provenance,
-    cohortSize: cohort.candidates.length,
+    analysisBuildId: input.analysisBuildId,
+    exporter: input.exporter,
+    provenance: input.provenance,
+    cohortSize: input.cohortSize,
     projection: {
-      productCodes: request.productCodes,
+      productCodes: input.productCodes,
     },
     page: {
-      limit: request.limit,
-      requestedCursor: request.cursor,
+      limit: input.limit,
+      requestedCursor: input.requestedCursor,
       nextCursor,
-      returnedCount: window.length,
+      returnedCount: input.window.length,
     },
-    candidates: window,
+    candidates: input.window,
     nonClaims: OPPORTUNITY_NON_CLAIMS,
     discoveryDisclaimer: OPPORTUNITY_DISCOVERY_DISCLAIMER,
   };
+}
+
+// Decode an incoming cursor, failing closed if it was minted for a different
+// analytical feed (different analysis identity or product filter). Returns the
+// keyset lower bound, or `null` for a first page. The production adapter reuses
+// this to translate the cursor into a SQL keyset predicate.
+export function decodeAndValidateCursor(
+  cursor: string | null,
+  analysisIdentity: string,
+  digest: string,
+): OpportunityOrderKey | null {
+  if (cursor === null) {
+    return null;
+  }
+  const payload = decodeOpportunityCursor(cursor);
+  if (
+    payload.analysisIdentity !== analysisIdentity ||
+    payload.productFilterDigest !== digest
+  ) {
+    throw invalidOpportunityCursor(
+      "Cursor was minted for a different analytical feed.",
+    );
+  }
+  return payload.lastKey;
 }
 
 function projectCandidates(
@@ -84,26 +144,12 @@ function projectCandidates(
   return candidates.filter((candidate) => allowed.has(candidate.product.code));
 }
 
-function resolveStartIndex(
+function resolveStartIndexFromKey(
   candidates: readonly MarketInvestigationCandidate[],
-  cursor: string | null,
-  analysisIdentity: string,
-  digest: string,
+  lastKey: OpportunityOrderKey,
 ): number {
-  if (cursor === null) {
-    return 0;
-  }
-  const payload = decodeOpportunityCursor(cursor);
-  if (
-    payload.analysisIdentity !== analysisIdentity ||
-    payload.productFilterDigest !== digest
-  ) {
-    throw invalidOpportunityCursor(
-      "Cursor was minted for a different analytical feed.",
-    );
-  }
   const index = candidates.findIndex(
-    (candidate) => compareToKey(candidate, payload.lastKey) > 0,
+    (candidate) => compareToKey(candidate, lastKey) > 0,
   );
   return index === -1 ? candidates.length : index;
 }

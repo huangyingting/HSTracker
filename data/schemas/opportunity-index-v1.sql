@@ -5,12 +5,18 @@
 -- in one exact Dataset Package. It is defined by
 -- docs/research/2026-07-16-cross-product-market-opportunity-recipe.md section 7.
 --
--- The index persists only what is needed to serve and filter a deterministic
--- feed: identities, canonical displays/order, component percentiles, type,
--- confidence, and flags. Economy/product labels, raw annual values, raw
--- indicators, provisional values, and confidence-reason prose are never
--- duplicated here; serving joins those from the compatible dimensions/catalog
--- and computes drill-down evidence from the existing analysis artifact.
+-- Per the architecture decision recorded for issue #52, the index persists the
+-- full rich Market Investigation feed grain so serving is a pure index read
+-- with byte-identical rows: identities, canonical displays/order, the
+-- six-decimal unrounded axis/percentile values, component raw values, component
+-- states, observed/missing years, confidence, stability, and flags. Only truly
+-- derivable data is left out and reconstructed at read time (public copy,
+-- wording, confidence labels/deductions, the competition tie size, the
+-- drill-down link, and the first-release NOT_COMPARED revision constant).
+-- Economy/product labels are still joined from the compatible dimensions and
+-- never duplicated here; drill-down detail is computed from the analysis
+-- artifact. Storing the rich grain deliberately raises the combined package
+-- size past the original 10 GiB gate (see the build module size constants).
 
 -- One row per eligible (exporter_code, product_id, importer_code) tuple in the
 -- fixed cohort. Rows are physically written in canonical feed order within
@@ -36,7 +42,32 @@ CREATE TABLE opportunity_candidate (
   opportunity_type               UTINYINT  NOT NULL,
   confidence_score               UTINYINT  NOT NULL,
   confidence_flags               UINTEGER  NOT NULL,
-  evidence_flags                 UINTEGER  NOT NULL
+  evidence_flags                 UINTEGER  NOT NULL,
+  -- Rich grain (issue #52). Six-decimal unrounded axis/percentile values are
+  -- stored as scaled integers (value*1e6) parsed straight from their fixed
+  -- strings so the round trip is exact. Growth is signed and may be large, so
+  -- its raw value uses BIGINT micros and is NULL exactly when growth is NEUTRAL.
+  priority_raw_micros                 UINTEGER NOT NULL,
+  attractiveness_raw_micros           UINTEGER NOT NULL,
+  exporter_fit_raw_micros             UINTEGER NOT NULL,
+  market_size_percentile_micros       UINTEGER NOT NULL,
+  market_growth_percentile_micros     UINTEGER NOT NULL,
+  product_presence_percentile_micros  UINTEGER NOT NULL,
+  foothold_percentile_micros          UINTEGER NOT NULL,
+  market_size_percentile_display      UTINYINT NOT NULL,
+  market_growth_percentile_display    UTINYINT NOT NULL,
+  product_presence_percentile_display UTINYINT NOT NULL,
+  foothold_percentile_display         UTINYINT NOT NULL,
+  market_size_raw_value               VARCHAR  NOT NULL,
+  market_growth_raw_value_micros      BIGINT,
+  product_presence_raw_value_micros   UINTEGER NOT NULL,
+  foothold_raw_value_micros           UINTEGER NOT NULL,
+  observed_years_mask                 UTINYINT NOT NULL,
+  growth_neutral_reasons              UTINYINT NOT NULL,
+  stability_three_year_state          UTINYINT NOT NULL,
+  stability_ten_year_state            UTINYINT NOT NULL,
+  stability_three_year_delta_micros   UINTEGER,
+  stability_ten_year_delta_micros     UINTEGER
 );
 
 -- Small immutable index metadata (recipe/result/index versions, source and
@@ -82,4 +113,19 @@ CREATE TABLE opportunity_confidence_flag_dictionary (
 CREATE TABLE opportunity_evidence_flag_dictionary (
   bit  UTINYINT NOT NULL,
   code VARCHAR  NOT NULL
+);
+
+-- Bit dictionary for opportunity_candidate.growth_neutral_reasons (section 4.x
+-- Market Growth neutral reasons). `bit` is the zero-based bit position; a bit is
+-- set only when Market Growth is NEUTRAL.
+CREATE TABLE opportunity_growth_neutral_reason_dictionary (
+  bit  UTINYINT NOT NULL,
+  code VARCHAR  NOT NULL
+);
+
+-- Enum dictionary for the two stability state columns. `code` is the stored
+-- UTINYINT; the ordering is a stable part of the index identity.
+CREATE TABLE opportunity_stability_state_dictionary (
+  code  UTINYINT NOT NULL,
+  label VARCHAR  NOT NULL
 );

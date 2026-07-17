@@ -9,22 +9,44 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildOpportunityIndex,
-  candidateToCompactRow,
   OPPORTUNITY_INDEX_TESTING,
 } from "../../scripts/release/opportunity-index";
+import {
+  candidateToIndexRow,
+  decodeIndexRowCells,
+  indexRowToCandidate,
+  OPPORTUNITY_INDEX_COLUMN_NAMES,
+  type OpportunityIndexRow,
+} from "../../src/evidence/opportunity-index-row";
 import { computeOpportunityCohort } from "../../src/domain/opportunity-discovery/opportunity-discovery-v1";
 import type {
   MarketInvestigationCandidate,
+  MarketInvestigationPage,
   OpportunityAxis,
   OpportunityComponent,
 } from "../../src/domain/opportunity-discovery/result";
 import type {
+  OpportunityCandidateIndex,
+  OpportunityDetailRequest,
+  OpportunityDiscoveryV1CohortInputs,
   OpportunityMarketEvidence,
   OpportunityProductEvidence,
 } from "../../src/evidence/opportunity-evidence-source";
+import {
+  FixtureOpportunityCandidateIndex,
+  FixtureOpportunityEvidenceSource,
+} from "../../src/evidence/fixture-opportunity-source";
+import {
+  DuckDbOpportunityCandidateIndex,
+  DuckDbOpportunityEvidenceSource,
+} from "../../src/evidence/duckdb-opportunity-source";
+import { isOpportunityDiscoveryAnalysisError } from "../../src/domain/opportunity-discovery/errors";
 import { CANDIDATE_MARKET_V1_DATASET_DECLARATION } from "../../src/domain/trade-analytics/dataset-package";
 
 const temporaryDirectories: string[] = [];
+
+// Matches the score window in the synthetic artifact manifest (writeSyntheticManifest).
+const SCORE_WINDOW = { start: 2019, end: 2023 } as const;
 
 afterEach(async () => {
   await Promise.all(
@@ -316,9 +338,19 @@ async function writeSyntheticManifest(
 }
 
 // Reference oracle: build the recipe inputs for one exporter directly from the
-// in-memory fixture (never from the index), run the pure recipe, and project
-// through the same compact mapping the build uses.
-function referenceRows(exporterCode: number): number[][] {
+// in-memory fixture (never from the index) and run the pure recipe. Both the
+// parity check and the reconstruction round-trip consume this cohort. The
+// adapter-equivalence test reuses cohortInputsFor with the real artifact
+// identity so its fixture pages carry the same provenance as the DuckDB feed.
+const DEFAULT_ARTIFACT_IDENTITY = {
+  buildId: "candidate-market-artifact-v1-testbuild0000",
+  sha256: "e".repeat(64),
+} as const;
+
+function cohortInputsFor(
+  exporterCode: number,
+  artifactIdentity: { buildId: string; sha256: string } = DEFAULT_ARTIFACT_IDENTITY,
+): OpportunityDiscoveryV1CohortInputs {
   const marketRows = buildMarketYearRows();
   const productRows = buildProductYearRows();
   const bilateralRows = buildBilateralRows();
@@ -379,13 +411,13 @@ function referenceRows(exporterCode: number): number[][] {
   }
 
   const exporter = economyByCode.get(exporterCode)!;
-  const cohort = computeOpportunityCohort({
-    analysisBuildId: "candidate-market-artifact-v1-testbuild0000",
+  return {
+    analysisBuildId: artifactIdentity.buildId,
     artifact: {
       baciRelease: "VTEST001",
-      buildId: "candidate-market-artifact-v1-testbuild0000",
+      buildId: artifactIdentity.buildId,
       schemaVersion: "candidate-market-artifact-v1",
-      sha256: "e".repeat(64),
+      sha256: artifactIdentity.sha256,
     },
     release: {
       baciRelease: "VTEST001",
@@ -404,51 +436,48 @@ function referenceRows(exporterCode: number): number[][] {
     products,
     markets: [...marketsByPair.values()],
     previousRelease: null,
-  });
+  };
+}
+
+function referenceCohort(exporterCode: number): {
+  candidates: readonly MarketInvestigationCandidate[];
+  pidByHs: Map<string, number>;
+} {
+  const cohort = computeOpportunityCohort(cohortInputsFor(exporterCode));
   const pidByHs = new Map(PRODUCTS.map((p) => [p.hs12, p.productId]));
-  return cohort.candidates.map((candidate) => {
-    const row = candidateToCompactRow(
+  return { candidates: cohort.candidates, pidByHs };
+}
+
+// Project the reference cohort through the same forward mapping the build uses.
+function referenceRows(exporterCode: number): OpportunityIndexRow[] {
+  const { candidates, pidByHs } = referenceCohort(exporterCode);
+  return candidates.map((candidate) =>
+    candidateToIndexRow(
       candidate,
       exporterCode,
       pidByHs.get(candidate.product.code)!,
-    );
-    return compactRowToTuple(row);
-  });
+      SCORE_WINDOW,
+    ),
+  );
 }
 
-function compactRowToTuple(row: ReturnType<typeof candidateToCompactRow>): number[] {
-  return [
-    row.exporterCode,
-    row.productId,
-    row.importerCode,
-    row.priorityDisplay,
-    row.attractivenessDisplay,
-    row.exporterFitDisplay,
-    row.marketSizePercentileBp,
-    row.marketGrowthPercentileBp,
-    row.productPresencePercentileBp,
-    row.footholdPercentileBp,
-    row.competitionRank,
-    row.opportunityType,
-    row.confidenceScore,
-    row.confidenceFlags,
-    row.evidenceFlags,
-  ];
-}
+// Read persisted rows back as OpportunityIndexRow objects using the shared
+// physical column contract, so the round-trip decode matches the adapter's.
+const PERSISTED_COLUMNS = OPPORTUNITY_INDEX_COLUMN_NAMES.join(", ");
 
 async function readPersistedRows(
   indexPath: string,
   exporterCode: number,
-): Promise<number[][]> {
+): Promise<OpportunityIndexRow[]> {
   const instance = await DuckDBInstance.create(indexPath, {
     access_mode: "READ_ONLY",
   });
   try {
     const connection = await instance.connect();
     const reader = await connection.runAndReadAll(
-      `SELECT exporter_code, product_id, importer_code, priority_display, attractiveness_display, exporter_fit_display, market_size_percentile_bp, market_growth_percentile_bp, product_presence_percentile_bp, foothold_percentile_bp, competition_rank, opportunity_type, confidence_score, confidence_flags, evidence_flags FROM opportunity_candidate WHERE exporter_code = ${exporterCode}`,
+      `SELECT ${PERSISTED_COLUMNS} FROM opportunity_candidate WHERE exporter_code = ${exporterCode}`,
     );
-    return reader.getRows().map((row) => row.map((value) => Number(value)));
+    return reader.getRows().map((row) => decodeIndexRowCells(row));
   } finally {
     instance.closeSync();
   }
@@ -476,10 +505,10 @@ async function temporaryWorkspace(): Promise<string> {
 
 // --- Tests -----------------------------------------------------------------
 
-describe("candidateToCompactRow", () => {
-  it("projects axes, percentiles, type code, and flag bitsets", () => {
+describe("candidateToIndexRow", () => {
+  it("projects axes, percentiles, raw values, masks, type code, and flag bitsets", () => {
     const candidate = fakeCandidate();
-    const row = candidateToCompactRow(candidate, 100, 7);
+    const row = candidateToIndexRow(candidate, 100, 7, SCORE_WINDOW);
     expect(row).toStrictEqual({
       exporterCode: 100,
       productId: 7,
@@ -498,6 +527,28 @@ describe("candidateToCompactRow", () => {
       confidenceFlags: 0b1000_0100,
       // NO_RECORDED_BILATERAL_FLOW (bit 0) + IDENTITY_PROXY (bit 3) = 1 + 8 = 9.
       evidenceFlags: 0b1001,
+      priorityRawMicros: 82_000_000,
+      attractivenessRawMicros: 71_000_000,
+      exporterFitRawMicros: 64_000_000,
+      marketSizePercentileMicros: 50_000_000,
+      marketGrowthPercentileMicros: 50_000_000,
+      productPresencePercentileMicros: 50_000_000,
+      footholdPercentileMicros: 50_000_000,
+      marketSizePercentileDisplay: 81,
+      marketGrowthPercentileDisplay: 50,
+      productPresencePercentileDisplay: 25,
+      footholdPercentileDisplay: 0,
+      marketSizeRawValue: "1.000000",
+      marketGrowthRawValueMicros: 1_000_000n,
+      productPresenceRawValueMicros: 1_000_000,
+      footholdRawValueMicros: 1_000_000,
+      // Every year in the 2019-2023 score window observed: 0b11111.
+      observedYearsMask: 0b1_1111,
+      growthNeutralReasons: 0,
+      stabilityThreeYearState: 0,
+      stabilityTenYearState: 0,
+      stabilityThreeYearDeltaMicros: null,
+      stabilityTenYearDeltaMicros: null,
     });
   });
 
@@ -514,6 +565,41 @@ describe("candidateToCompactRow", () => {
     expect(OPPORTUNITY_INDEX_TESTING.EVIDENCE_FLAG_ORDER[3]).toBe(
       "IDENTITY_PROXY",
     );
+    expect(OPPORTUNITY_INDEX_TESTING.GROWTH_NEUTRAL_REASON_ORDER[0]).toBe(
+      "TOO_FEW_OBSERVED_YEARS",
+    );
+    expect(OPPORTUNITY_INDEX_TESTING.GROWTH_NEUTRAL_REASON_ORDER[1]).toBe(
+      "SMALL_MARKET_BASE",
+    );
+    expect(OPPORTUNITY_INDEX_TESTING.STABILITY_STATE_ORDER[0]).toBe(
+      "NOT_FLAGGED",
+    );
+  });
+});
+
+describe("indexRowToCandidate", () => {
+  it("reconstructs every recipe candidate byte-for-byte from its persisted row", () => {
+    for (const exporterCode of [100, 200, 300, 490]) {
+      const { candidates, pidByHs } = referenceCohort(exporterCode);
+      expect(candidates.length).toBeGreaterThan(0);
+      for (const candidate of candidates) {
+        const row = candidateToIndexRow(
+          candidate,
+          exporterCode,
+          pidByHs.get(candidate.product.code)!,
+          SCORE_WINDOW,
+        );
+        const reconstructed = indexRowToCandidate(row, {
+          product: candidate.product,
+          market: candidate.market,
+          exporterCode: String(exporterCode),
+          competitionRankTieSize: candidate.competitionRankTieSize,
+          scoreWindow: SCORE_WINDOW,
+          hasPreviousRelease: false,
+        });
+        expect(reconstructed).toStrictEqual(candidate);
+      }
+    }
   });
 });
 
@@ -608,10 +694,210 @@ describe("buildOpportunityIndex against a synthetic analysis artifact", () => {
   });
 });
 
+// The production DuckDB adapters are held to the fixture oracle: same ordering,
+// keyset pagination, projection, provenance, cursor rebinding, and detail rows.
+// The fixture cohort is built with the real published artifact identity so both
+// feeds emit byte-identical provenance, and every emitted cursor is bound to a
+// per-exporter Analysis Identity exactly as the platform binds them.
+describe("DuckDb opportunity adapters against the fixture oracle", () => {
+  const ELIGIBLE_EXPORTERS = [100, 200, 300, 490];
+  const identityFor = (exporterCode: number): string =>
+    `opportunity-index-equivalence:${exporterCode}`;
+
+  async function paginateAll(
+    index: OpportunityCandidateIndex,
+    exporterCode: number,
+    limit: number,
+    productCodes: readonly string[] | null,
+  ): Promise<{
+    pages: MarketInvestigationPage[];
+    candidates: MarketInvestigationCandidate[];
+  }> {
+    const pages: MarketInvestigationPage[] = [];
+    const candidates: MarketInvestigationCandidate[] = [];
+    let cursor: string | null = null;
+    do {
+      const page: MarketInvestigationPage = await index.page(
+        {
+          analysisBuildId: "unused-by-adapter",
+          exportEconomyCode: String(exporterCode),
+          limit,
+          cursor,
+          productCodes,
+        },
+        identityFor(exporterCode),
+      );
+      pages.push(page);
+      candidates.push(...page.candidates);
+      cursor = page.page.nextCursor;
+    } while (cursor !== null);
+    return { pages, candidates };
+  }
+
+  async function expectInvalidCursor(promise: Promise<unknown>): Promise<void> {
+    let thrown: unknown;
+    try {
+      await promise;
+    } catch (error) {
+      thrown = error;
+    }
+    expect(isOpportunityDiscoveryAnalysisError(thrown)).toBe(true);
+    expect((thrown as { code: string }).code).toBe("INVALID_CURSOR");
+  }
+
+  it("serves feed pages, projections, cursors, and detail identical to the fixture", async () => {
+    const workspace = await temporaryWorkspace();
+    const artifact = await createSyntheticArtifact(workspace);
+    await writeSyntheticManifest(workspace, artifact);
+
+    const outcome = await buildOpportunityIndex({
+      analysisArtifactPath: workspace,
+      workspacePath: join(workspace, "out"),
+      reportPath: join(workspace, "report.json"),
+      buildGitSha: "testsha",
+      builtAt: "2026-07-16T00:00:00Z",
+    });
+    expect(outcome.status).toBe("accepted");
+
+    // The fixture cohort carries the identity the build stamped into the index
+    // manifest so both feeds emit byte-identical provenance and analysisBuildId.
+    const artifactIdentity = {
+      buildId: `candidate-market-artifact-v1-${artifact.sha256.slice(0, 16)}`,
+      sha256: artifact.sha256,
+    };
+    const cohortInputs = ELIGIBLE_EXPORTERS.map((code) =>
+      cohortInputsFor(code, artifactIdentity),
+    );
+    const fixtureIndex = new FixtureOpportunityCandidateIndex(cohortInputs);
+    // Detail evidence is scoped to the W5 score window: the fixture detail
+    // source echoes its inputs, so the oracle inputs are trimmed to the window
+    // that the production detail adapter reads from the artifact.
+    const detailInputs = cohortInputs.map((input) => ({
+      ...input,
+      markets: input.markets.map((market) => ({
+        ...market,
+        marketYears: market.marketYears.filter(
+          (entry) =>
+            entry.year >= SCORE_WINDOW.start && entry.year <= SCORE_WINDOW.end,
+        ),
+      })),
+    }));
+    const fixtureEvidence = new FixtureOpportunityEvidenceSource(detailInputs);
+
+    const servingVolume = await temporaryWorkspace();
+    const duckIndex = await DuckDbOpportunityCandidateIndex.open({
+      indexDirectoryPath: outcome.publicationPath,
+      analysisArtifactPath: artifact.path,
+      servingVolumePath: servingVolume,
+    });
+    const duckEvidence = await DuckDbOpportunityEvidenceSource.open({
+      indexDirectoryPath: outcome.publicationPath,
+      analysisArtifactPath: artifact.path,
+      servingVolumePath: servingVolume,
+    });
+
+    try {
+      // Canonical full-feed order per exporter, straight from the fixture.
+      const canonicalByExporter = new Map<number, MarketInvestigationCandidate[]>();
+      for (const exporterCode of ELIGIBLE_EXPORTERS) {
+        const canonical = await paginateAll(fixtureIndex, exporterCode, 100, null);
+        canonicalByExporter.set(exporterCode, canonical.candidates);
+
+        // Every page size reproduces byte-identical pages between the two feeds
+        // and, concatenated, the same canonical order.
+        for (const limit of [1, 50, 100]) {
+          const fixturePaged = await paginateAll(
+            fixtureIndex,
+            exporterCode,
+            limit,
+            null,
+          );
+          const duckPaged = await paginateAll(duckIndex, exporterCode, limit, null);
+          expect(duckPaged.pages).toStrictEqual(fixturePaged.pages);
+          expect(duckPaged.candidates).toStrictEqual(canonical.candidates);
+        }
+
+        // A product projection is exactly the all-feed subset for that product.
+        if (canonical.candidates.length > 0) {
+          const productCode = canonical.candidates[0]!.product.code;
+          const fixtureProjected = await paginateAll(
+            fixtureIndex,
+            exporterCode,
+            100,
+            [productCode],
+          );
+          const duckProjected = await paginateAll(
+            duckIndex,
+            exporterCode,
+            100,
+            [productCode],
+          );
+          expect(duckProjected.pages).toStrictEqual(fixtureProjected.pages);
+          expect(duckProjected.candidates).toStrictEqual(
+            canonical.candidates.filter(
+              (candidate) => candidate.product.code === productCode,
+            ),
+          );
+        }
+      }
+
+      // A cursor minted for one exporter feed must never be replayed against a
+      // different feed: both adapters fail closed with INVALID_CURSOR.
+      const donor = ELIGIBLE_EXPORTERS.find(
+        (code) => (canonicalByExporter.get(code)?.length ?? 0) >= 2,
+      )!;
+      const other = ELIGIBLE_EXPORTERS.find(
+        (code) => code !== donor && (canonicalByExporter.get(code)?.length ?? 0) > 0,
+      )!;
+      const donorPage = await duckIndex.page(
+        {
+          analysisBuildId: "unused-by-adapter",
+          exportEconomyCode: String(donor),
+          limit: 1,
+          cursor: null,
+          productCodes: null,
+        },
+        identityFor(donor),
+      );
+      const borrowedCursor = donorPage.page.nextCursor;
+      expect(borrowedCursor).not.toBeNull();
+      for (const index of [fixtureIndex, duckIndex]) {
+        await expectInvalidCursor(
+          index.page(
+            {
+              analysisBuildId: "unused-by-adapter",
+              exportEconomyCode: String(other),
+              limit: 1,
+              cursor: borrowedCursor,
+              productCodes: null,
+            },
+            identityFor(other),
+          ),
+        );
+      }
+
+      // Detail evidence regenerates the same displays and drill-down link.
+      const sampleCandidate = canonicalByExporter.get(donor)![0]!;
+      const detailRequest: OpportunityDetailRequest = {
+        analysisBuildId: artifactIdentity.buildId,
+        exportEconomyCode: String(donor),
+        productCode: sampleCandidate.product.code,
+        marketCode: sampleCandidate.market.code,
+      };
+      const fixtureDetail = await fixtureEvidence.loadDetail(detailRequest);
+      const duckDetail = await duckEvidence.loadDetail(detailRequest);
+      expect(duckDetail).toStrictEqual(fixtureDetail);
+    } finally {
+      duckIndex.close();
+      duckEvidence.close();
+    }
+  });
+});
+
 function fakeComponent(percentileBasisPoints: number): OpportunityComponent {
   return {
     state: "COMPUTED",
-    rawValue: "1.0",
+    rawValue: "1.000000",
     percentileUnrounded: "50.000000",
     percentileBasisPoints,
     percentileDisplay: Math.round(percentileBasisPoints / 100),

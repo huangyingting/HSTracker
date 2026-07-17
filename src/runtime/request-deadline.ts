@@ -12,6 +12,8 @@ export const ROUTE_DEADLINE_MS = {
   tradeTrend: 12_000,
   supplierCompetition: 12_000,
   tradeExplorer: 12_000,
+  opportunityFeed: 2_000,
+  opportunityDetail: 12_000,
   candidateMarketCsv: 15_000,
   tradeTrendCsv: 15_000,
   supplierCompetitionCsv: 15_000,

@@ -13,12 +13,17 @@ import { OPPORTUNITY_DISCOVERY_V1_DATASET_DECLARATION } from "../../src/domain/t
 import { computeOpportunityCohort } from "../../src/domain/opportunity-discovery/opportunity-discovery-v1";
 import type {
   EconomyIdentity,
-  MarketInvestigationCandidate,
-  OpportunityConfidenceDeductionCode,
-  OpportunityEvidenceFlag,
-  OpportunityType,
   ProductIdentity,
 } from "../../src/domain/opportunity-discovery/result";
+import {
+  candidateToIndexRow,
+  CONFIDENCE_FLAG_ORDER,
+  EVIDENCE_FLAG_ORDER,
+  GROWTH_NEUTRAL_REASON_ORDER,
+  OPPORTUNITY_TYPE_ORDER,
+  STABILITY_STATE_ORDER,
+  type OpportunityIndexRow,
+} from "../../src/evidence/opportunity-index-row";
 import type {
   OpportunityMarketEvidence,
   OpportunityMarketYearEvidence,
@@ -35,52 +40,22 @@ const INDEX_RELATIVE_PATH = "opportunity-index.duckdb";
 const INDEX_SCHEMA_PATH = "data/schemas/opportunity-index-v1.sql";
 
 const GIB = 1024 * 1024 * 1024;
-// The Opportunity Index product size target (spec 7.5). Exceeding it is a
-// review-required signal, never a silent cohort-row drop.
-const INDEX_SIZE_TARGET_BYTES = 4 * GIB;
+// Size gates for the rich Opportunity Index (issue #52). The index deliberately
+// persists the full Market Investigation feed grain so serving is a byte-exact
+// pure index read; that trades disk for zero runtime renormalization. The gates
+// were raised from their original compact-index values (4/8/10 GiB) by an
+// explicit architecture decision recorded on issue #52. See the header of
+// data/schemas/opportunity-index-v1.sql. Exceeding a target is a
+// review-required signal, never a silent cohort-row drop; only the hard limit
+// blocks promotion.
+const INDEX_SIZE_TARGET_BYTES = 12 * GIB;
 // Existing analysis artifact plus this index.
-const COMBINED_SIZE_TARGET_BYTES = 8 * GIB;
+const COMBINED_SIZE_TARGET_BYTES = 14 * GIB;
 // Hard architecture gate: a combined package above this blocks promotion.
-const COMBINED_SIZE_HARD_LIMIT_BYTES = 10 * GIB;
+const COMBINED_SIZE_HARD_LIMIT_BYTES = 18 * GIB;
 
 const IDENTITY_PROXY_ECONOMY_CODE = "490";
 const APPENDER_FLUSH_ROWS = 250_000;
-
-// Stable enum/bit orderings. These are part of the index identity: the code in
-// opportunity_type and the bit positions in the flag bitsets are the array
-// index below and are also published in the index dictionary tables. The order
-// mirrors the public result contract (result.ts) and must never be reordered.
-const OPPORTUNITY_TYPE_ORDER: readonly OpportunityType[] = [
-  "UNVALIDATED_MARKET_GAP",
-  "EXPANSION_EVIDENCE",
-  "GENERAL_INVESTIGATION_EVIDENCE",
-];
-const CONFIDENCE_FLAG_ORDER: readonly OpportunityConfidenceDeductionCode[] = [
-  "MISSING_FINALIZED_MARKET_YEARS",
-  "MISSING_CUTOFF_YEAR_MARKET_EVIDENCE",
-  "NEUTRAL_MARKET_GROWTH",
-  "NO_EXPORTER_PRODUCT_HISTORY",
-  "POSSIBLE_PRODUCT_SERIES_DISCONTINUITY",
-  "LOW_ALTERNATE_WINDOW_STABILITY",
-  "MATERIAL_RELEASE_REVISION",
-  "IDENTITY_PROXY",
-];
-const EVIDENCE_FLAG_ORDER: readonly OpportunityEvidenceFlag[] = [
-  "NO_RECORDED_BILATERAL_FLOW",
-  "NO_RECORDED_PRODUCT_EXPORT",
-  "EXTREME_NOMINAL_GROWTH",
-  "IDENTITY_PROXY",
-];
-
-const OPPORTUNITY_TYPE_CODE = new Map<OpportunityType, number>(
-  OPPORTUNITY_TYPE_ORDER.map((type, index) => [type, index]),
-);
-const CONFIDENCE_FLAG_BIT = new Map<OpportunityConfidenceDeductionCode, number>(
-  CONFIDENCE_FLAG_ORDER.map((code, index) => [code, index]),
-);
-const EVIDENCE_FLAG_BIT = new Map<OpportunityEvidenceFlag, number>(
-  EVIDENCE_FLAG_ORDER.map((flag, index) => [flag, index]),
-);
 
 export type OpportunityIndexBuildErrorCode =
   | "CLI_ARGUMENT_INVALID"
@@ -139,86 +114,6 @@ export type OpportunityIndexBuildOutcome = {
   reportPath: string;
   indexSizeReviewRequired: boolean;
 };
-
-// The compact persisted grain, one per eligible (exporter, product, importer).
-type CompactCandidateRow = {
-  exporterCode: number;
-  productId: number;
-  importerCode: number;
-  priorityDisplay: number;
-  attractivenessDisplay: number;
-  exporterFitDisplay: number;
-  marketSizePercentileBp: number;
-  marketGrowthPercentileBp: number;
-  productPresencePercentileBp: number;
-  footholdPercentileBp: number;
-  competitionRank: number;
-  opportunityType: number;
-  confidenceScore: number;
-  confidenceFlags: number;
-  evidenceFlags: number;
-};
-
-// Pure projection of one public candidate into the compact persisted row. This
-// is the parity seam: given an identical candidate from computeOpportunityCohort
-// it always yields the same compact row, so tests can assert byte-equality
-// without touching DuckDB.
-export function candidateToCompactRow(
-  candidate: MarketInvestigationCandidate,
-  exporterCode: number,
-  productId: number,
-): CompactCandidateRow {
-  let confidenceFlags = 0;
-  for (const deduction of candidate.confidence.deductions) {
-    confidenceFlags |= 1 << requireBit(CONFIDENCE_FLAG_BIT, deduction.code);
-  }
-  let evidenceFlags = 0;
-  for (const flag of candidate.evidenceFlags) {
-    evidenceFlags |= 1 << requireBit(EVIDENCE_FLAG_BIT, flag);
-  }
-  return {
-    exporterCode,
-    productId,
-    importerCode: Number(candidate.market.code),
-    priorityDisplay: candidate.investigationPriority.display,
-    attractivenessDisplay: candidate.marketAttractiveness.display,
-    exporterFitDisplay: candidate.exporterFit.display,
-    marketSizePercentileBp: candidate.components.marketSize.percentileBasisPoints,
-    marketGrowthPercentileBp:
-      candidate.components.marketGrowth.percentileBasisPoints,
-    productPresencePercentileBp:
-      candidate.components.exporterProductPresence.percentileBasisPoints,
-    footholdPercentileBp:
-      candidate.components.recordedFoothold.percentileBasisPoints,
-    competitionRank: candidate.competitionRank,
-    opportunityType: requireCode(OPPORTUNITY_TYPE_CODE, candidate.opportunityType),
-    confidenceScore: candidate.confidence.score,
-    confidenceFlags,
-    evidenceFlags,
-  };
-}
-
-function requireBit<K>(map: Map<K, number>, key: K): number {
-  const bit = map.get(key);
-  if (bit === undefined) {
-    throw new OpportunityIndexBuildError(
-      "INDEX_BUILD_FAILED",
-      `Unknown flag ${String(key)} has no stable bit assignment.`,
-    );
-  }
-  return bit;
-}
-
-function requireCode<K>(map: Map<K, number>, key: K): number {
-  const code = map.get(key);
-  if (code === undefined) {
-    throw new OpportunityIndexBuildError(
-      "INDEX_BUILD_FAILED",
-      `Unknown opportunity type ${String(key)} has no stable code.`,
-    );
-  }
-  return code;
-}
 
 // Shared, immutable-across-exporters analysis inputs loaded once from the
 // artifact. The market universe (every W10 (product, importer) pair) is the
@@ -678,8 +573,13 @@ async function populateIndex(args: {
       let previousPriority = -1;
       for (const candidate of cohort.candidates) {
         const productId = shared.productIdByCode.get(candidate.product.code)!;
-        const row = candidateToCompactRow(candidate, exporterCode, productId);
-        appendCompactRow(appender, row);
+        const row = candidateToIndexRow(
+          candidate,
+          exporterCode,
+          productId,
+          windows.scoreWindow,
+        );
+        appendRichRow(appender, row);
         rowsSinceFlush += 1;
         if (rowsSinceFlush >= APPENDER_FLUSH_ROWS) {
           appender.flushSync();
@@ -826,9 +726,9 @@ async function applyExporterOverlay(
   return { touchedMarketYears, touchedProductIds };
 }
 
-function appendCompactRow(
+function appendRichRow(
   appender: Awaited<ReturnType<DuckDBConnection["createAppender"]>>,
-  row: CompactCandidateRow,
+  row: OpportunityIndexRow,
 ): void {
   appender.appendUSmallInt(row.exporterCode);
   appender.appendUSmallInt(row.productId);
@@ -845,6 +745,40 @@ function appendCompactRow(
   appender.appendUTinyInt(row.confidenceScore);
   appender.appendUInteger(row.confidenceFlags);
   appender.appendUInteger(row.evidenceFlags);
+  // Rich grain (issue #52), in schema column order.
+  appender.appendUInteger(row.priorityRawMicros);
+  appender.appendUInteger(row.attractivenessRawMicros);
+  appender.appendUInteger(row.exporterFitRawMicros);
+  appender.appendUInteger(row.marketSizePercentileMicros);
+  appender.appendUInteger(row.marketGrowthPercentileMicros);
+  appender.appendUInteger(row.productPresencePercentileMicros);
+  appender.appendUInteger(row.footholdPercentileMicros);
+  appender.appendUTinyInt(row.marketSizePercentileDisplay);
+  appender.appendUTinyInt(row.marketGrowthPercentileDisplay);
+  appender.appendUTinyInt(row.productPresencePercentileDisplay);
+  appender.appendUTinyInt(row.footholdPercentileDisplay);
+  appender.appendVarchar(row.marketSizeRawValue);
+  if (row.marketGrowthRawValueMicros === null) {
+    appender.appendNull();
+  } else {
+    appender.appendBigInt(row.marketGrowthRawValueMicros);
+  }
+  appender.appendUInteger(row.productPresenceRawValueMicros);
+  appender.appendUInteger(row.footholdRawValueMicros);
+  appender.appendUTinyInt(row.observedYearsMask);
+  appender.appendUTinyInt(row.growthNeutralReasons);
+  appender.appendUTinyInt(row.stabilityThreeYearState);
+  appender.appendUTinyInt(row.stabilityTenYearState);
+  if (row.stabilityThreeYearDeltaMicros === null) {
+    appender.appendNull();
+  } else {
+    appender.appendUInteger(row.stabilityThreeYearDeltaMicros);
+  }
+  if (row.stabilityTenYearDeltaMicros === null) {
+    appender.appendNull();
+  } else {
+    appender.appendUInteger(row.stabilityTenYearDeltaMicros);
+  }
   appender.endRow();
 }
 
@@ -878,6 +812,26 @@ async function writeDictionaries(connection: DuckDBConnection): Promise<void> {
     evidenceAppender.endRow();
   });
   evidenceAppender.closeSync();
+
+  const growthReasonAppender = await connection.createAppender(
+    "opportunity_growth_neutral_reason_dictionary",
+  );
+  GROWTH_NEUTRAL_REASON_ORDER.forEach((code, bit) => {
+    growthReasonAppender.appendUTinyInt(bit);
+    growthReasonAppender.appendVarchar(code);
+    growthReasonAppender.endRow();
+  });
+  growthReasonAppender.closeSync();
+
+  const stabilityStateAppender = await connection.createAppender(
+    "opportunity_stability_state_dictionary",
+  );
+  STABILITY_STATE_ORDER.forEach((state, code) => {
+    stabilityStateAppender.appendUTinyInt(code);
+    stabilityStateAppender.appendVarchar(state);
+    stabilityStateAppender.endRow();
+  });
+  stabilityStateAppender.closeSync();
 }
 
 async function reconcileIndex(
@@ -1239,5 +1193,7 @@ export const OPPORTUNITY_INDEX_TESTING = {
   OPPORTUNITY_TYPE_ORDER,
   CONFIDENCE_FLAG_ORDER,
   EVIDENCE_FLAG_ORDER,
+  GROWTH_NEUTRAL_REASON_ORDER,
+  STABILITY_STATE_ORDER,
   IDENTITY_PROXY_ECONOMY_CODE,
 };

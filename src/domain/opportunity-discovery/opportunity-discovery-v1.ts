@@ -26,7 +26,10 @@ const FOOTHOLD_WEIGHT = 0.4;
 const ATTRACTIVENESS_WEIGHT = 0.55;
 const FIT_WEIGHT = 0.45;
 
-const OPPORTUNITY_TYPE_COPY: Record<OpportunityType, string> = {
+// Public, deterministic copy for each opportunity type. Exported so any adapter
+// that reconstructs a candidate from a persisted index derives identical copy
+// from the same source of truth rather than duplicating the strings.
+export const OPPORTUNITY_TYPE_COPY: Record<OpportunityType, string> = {
   UNVALIDATED_MARKET_GAP:
     "Large, attractive market with little or no recorded flow from this exporter — investigate why.",
   EXPANSION_EVIDENCE:
@@ -34,6 +37,11 @@ const OPPORTUNITY_TYPE_COPY: Record<OpportunityType, string> = {
   GENERAL_INVESTIGATION_EVIDENCE:
     "General investigation candidate ranked within this exporter's cross-product cohort.",
 };
+
+// The single wording emitted when an exporter has no recorded positive
+// bilateral flow to a market in the five-year score window.
+export const NO_RECORDED_BILATERAL_FLOW_WORDING =
+  "No recorded bilateral flow from this exporter in the five-year score window";
 
 // The complete, canonically ordered cohort for one export economy. A candidate
 // index serves keyset pages from this; it is the shared reference between the
@@ -535,7 +543,7 @@ function toCandidate({
     bilateralFlowState: row.bilateralFlowState,
     bilateralWording:
       row.bilateralFlowState === "NO_RECORDED_POSITIVE_FLOW"
-        ? "No recorded bilateral flow from this exporter in the five-year score window"
+        ? NO_RECORDED_BILATERAL_FLOW_WORDING
         : null,
     observedMarketYears: row.observedYears,
     missingMarketYears,
