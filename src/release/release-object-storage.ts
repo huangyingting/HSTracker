@@ -1,9 +1,15 @@
+import { isAbsolute } from "node:path";
+
 import { S3Client } from "@aws-sdk/client-s3";
 
 import type {
   ReleaseObjectReader,
   ReleaseObjectStore,
 } from "./release-object-store";
+import {
+  FilesystemReleaseObjectReader,
+  FilesystemReleaseObjectStore,
+} from "./filesystem-release-object-store";
 import {
   S3ReleaseObjectReader,
   S3ReleaseObjectStore,
@@ -24,6 +30,11 @@ export class ReleaseObjectStorageConfigurationError extends Error {
 export function createRuntimeReleaseObjectReader(
   environment: Environment = process.env,
 ): ReleaseObjectReader {
+  if (releaseObjectStoreKind(environment) === "filesystem") {
+    return new FilesystemReleaseObjectReader({
+      directory: filesystemDirectory(environment),
+    });
+  }
   const { client, bucket } = createS3Connection(environment, "READ");
   return new S3ReleaseObjectReader(client, { bucket });
 }
@@ -31,8 +42,41 @@ export function createRuntimeReleaseObjectReader(
 export function createPromotionReleaseObjectStore(
   environment: Environment = process.env,
 ): ReleaseObjectStore {
+  if (releaseObjectStoreKind(environment) === "filesystem") {
+    return new FilesystemReleaseObjectStore({
+      directory: filesystemDirectory(environment),
+    });
+  }
   const { client, bucket } = createS3Connection(environment, "WRITE");
   return new S3ReleaseObjectStore(client, { bucket });
+}
+
+function releaseObjectStoreKind(
+  environment: Environment,
+): "s3" | "filesystem" {
+  const value = environment.HS_TRACKER_RELEASE_OBJECT_STORE;
+  if (value === undefined || value === "" || value === "s3") {
+    return "s3";
+  }
+  if (value === "filesystem") {
+    return "filesystem";
+  }
+  throw new ReleaseObjectStorageConfigurationError(
+    "HS_TRACKER_RELEASE_OBJECT_STORE must be s3 or filesystem.",
+  );
+}
+
+function filesystemDirectory(environment: Environment): string {
+  const directory = required(
+    environment.HS_TRACKER_RELEASE_FILESYSTEM_PATH,
+    "HS_TRACKER_RELEASE_FILESYSTEM_PATH",
+  );
+  if (!isAbsolute(directory)) {
+    throw new ReleaseObjectStorageConfigurationError(
+      "HS_TRACKER_RELEASE_FILESYSTEM_PATH must be an absolute path.",
+    );
+  }
+  return directory;
 }
 
 function createS3Connection(
