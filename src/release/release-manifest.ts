@@ -54,6 +54,12 @@ export type RecommendedDatasetMappingReference = {
   manifest: ReleaseObjectReference;
 };
 
+export type OpportunityIndexReference = {
+  schemaVersion: "opportunity-index-v1";
+  object: ReleaseObjectReference;
+  manifest: ReleaseObjectReference;
+};
+
 export type DeploymentPairingManifest = {
   schemaVersion: "deployment-pairing-manifest-v1";
   deploymentPairingId: string;
@@ -70,6 +76,7 @@ export type DeploymentPairingManifest = {
   recommendedDatasetMapping:
     | RecommendedDatasetMappingReference
     | null;
+  opportunityIndex: OpportunityIndexReference | null;
   // The declared resident-volume footprint (bytes) this one pairing alone
   // requires for its directly referenced objects: its analysis artifact,
   // artifact manifest, analysis release catalog, product catalog, product
@@ -119,6 +126,7 @@ export type PublishedDeployment = {
   activatedAt: string;
   previousDeploymentPairingId: string | null;
   recommendedDatasetMappingIdentity: string | null;
+  opportunityIndex: OpportunityIndexReference | null;
 };
 
 export function parseActiveDeploymentPointer(
@@ -207,6 +215,11 @@ export function parseDeploymentPairingManifest(
       : recommendedDatasetMappingReference(
           deployment.recommendedDatasetMapping,
         );
+  const opportunityIndex =
+    deployment.opportunityIndex === undefined ||
+    deployment.opportunityIndex === null
+      ? null
+      : opportunityIndexReference(deployment.opportunityIndex);
   // Manifests promoted before the retention window existed predate this
   // field entirely; normalize their absent declaration by computing it
   // rather than failing closed on old data (see issue #44 "evolve
@@ -218,6 +231,7 @@ export function parseDeploymentPairingManifest(
         analysis: { artifact: analysisArtifact, releaseCatalog },
         productSearch: productSearchReference,
         recommendedDatasetMapping,
+        opportunityIndex,
       })
     : count(
         deployment.residentFootprintBytes,
@@ -252,11 +266,13 @@ export function parseDeploymentPairingManifest(
     },
     productSearch: productSearchReference,
     recommendedDatasetMapping,
+    opportunityIndex,
     residentFootprintBytes,
   };
   validateDeploymentPairingManifest(parsed, {
     legacyWithoutRecommendedDatasetMapping:
       deployment.recommendedDatasetMapping === undefined,
+    legacyWithoutOpportunityIndex: deployment.opportunityIndex === undefined,
     legacyWithoutResidentFootprint,
   });
   return parsed;
@@ -271,7 +287,8 @@ export function calculatePairingResidentFootprintBytes(
   pairing: Pick<
     DeploymentPairingManifest,
     "analysis" | "productSearch" | "recommendedDatasetMapping"
-  >,
+  > &
+    Readonly<{ opportunityIndex?: OpportunityIndexReference | null }>,
 ): number {
   return (
     pairing.analysis.artifact.artifact.bytes +
@@ -279,7 +296,9 @@ export function calculatePairingResidentFootprintBytes(
     pairing.analysis.releaseCatalog.bytes +
     pairing.productSearch.catalog.bytes +
     pairing.productSearch.manifest.bytes +
-    (pairing.recommendedDatasetMapping?.manifest.bytes ?? 0)
+    (pairing.recommendedDatasetMapping?.manifest.bytes ?? 0) +
+    (pairing.opportunityIndex?.object.bytes ?? 0) +
+    (pairing.opportunityIndex?.manifest.bytes ?? 0)
   );
 }
 
@@ -414,6 +433,7 @@ export function publishedDeployment(
         : deploymentPairingIdFromKey(pointer.history[0].key),
     recommendedDatasetMappingIdentity:
       deployment.recommendedDatasetMapping?.identity ?? null,
+    opportunityIndex: deployment.opportunityIndex,
   };
 }
 
@@ -528,6 +548,21 @@ function recommendedDatasetMappingReference(
   };
 }
 
+function opportunityIndexReference(value: unknown): OpportunityIndexReference {
+  const reference = record(value, "opportunity index reference");
+  if (reference.schemaVersion !== "opportunity-index-v1") {
+    throw new Error("Opportunity Index schema is incompatible.");
+  }
+  return {
+    schemaVersion: "opportunity-index-v1",
+    object: objectReference(reference.object, "opportunity index object"),
+    manifest: objectReference(
+      reference.manifest,
+      "opportunity index manifest",
+    ),
+  };
+}
+
 function objectReference(
   value: unknown,
   label: string,
@@ -544,6 +579,7 @@ function validateDeploymentPairingManifest(
   deployment: DeploymentPairingManifest,
   legacy: {
     legacyWithoutRecommendedDatasetMapping?: boolean;
+    legacyWithoutOpportunityIndex?: boolean;
     legacyWithoutResidentFootprint?: boolean;
   } = {},
 ): void {
@@ -592,6 +628,10 @@ function validateDeploymentPairingManifest(
         !(
           legacy.legacyWithoutRecommendedDatasetMapping &&
           key === "recommendedDatasetMapping"
+        ) &&
+        !(
+          legacy.legacyWithoutOpportunityIndex &&
+          key === "opportunityIndex"
         ) &&
         !(legacy.legacyWithoutResidentFootprint && key === "residentFootprintBytes"),
     ),

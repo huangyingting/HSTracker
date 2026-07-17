@@ -76,6 +76,7 @@ function pairing(
     analysis,
     productSearch,
     recommendedDatasetMapping,
+    opportunityIndex: null,
   });
   return {
     schemaVersion: "deployment-pairing-manifest-v1",
@@ -98,6 +99,7 @@ function pairing(
     analysis,
     productSearch,
     recommendedDatasetMapping,
+    opportunityIndex: null,
     residentFootprintBytes,
   };
 }

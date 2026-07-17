@@ -27,11 +27,12 @@ export { statfsFilesystemCapacityProbe };
 export type DeploymentRetentionFootprintPairing = Readonly<{
   pairing: DeploymentPairingManifest;
   releaseCatalog?: AnalysisReleaseCatalog;
-  // The Dataset Package manifest is referenced inside the parsed Recommended
+  // Dataset Package manifests are referenced inside the parsed Recommended
   // Dataset Mapping rather than directly by the pairing manifest. Promotion
-  // resolves it from object storage and startup resolves it from the verified
-  // resident mapping so the separately materialized object is still counted.
+  // resolves them from object storage and startup resolves them from the verified
+  // resident mapping so the separately materialized objects are still counted.
   datasetPackageManifest?: ReleaseObjectReference;
+  opportunityDatasetPackageManifest?: ReleaseObjectReference;
 }>;
 
 export type DeploymentRetentionFootprint = Readonly<{
@@ -62,7 +63,7 @@ export type DeploymentRetentionHeadroomResult = Readonly<{
  * Sums the resident-volume bytes a retention window of 1-3 deployment
  * pairings requires, deduplicating any content-addressed object (artifact,
  * artifact manifest, release catalog, product catalog, catalog manifest,
- * mapping manifest, Dataset Package manifest, and -- when the caller supplies
+ * mapping manifest, Dataset Package manifests, Opportunity Index objects, and -- when the caller supplies
  * a pairing's own parsed release catalog -- its Release Revision previous
  * artifact and manifest)
  * that more than one pairing references by key, and adding one DuckDB
@@ -90,11 +91,13 @@ export function calculateDeploymentRetentionFootprint(
     pairing,
     releaseCatalog,
     datasetPackageManifest,
+    opportunityDatasetPackageManifest,
   } of entries) {
     for (const reference of pairingReferencedObjects(
       pairing,
       releaseCatalog,
       datasetPackageManifest,
+      opportunityDatasetPackageManifest,
     )) {
       uniqueObjects.set(reference.key, reference.bytes);
     }
@@ -192,6 +195,7 @@ function pairingReferencedObjects(
   pairing: DeploymentPairingManifest,
   releaseCatalog: AnalysisReleaseCatalog | undefined,
   datasetPackageManifest: ReleaseObjectReference | undefined,
+  opportunityDatasetPackageManifest: ReleaseObjectReference | undefined,
 ): readonly ReleaseObjectReference[] {
   const references: ReleaseObjectReference[] = [
     pairing.analysis.artifact.artifact,
@@ -205,6 +209,15 @@ function pairingReferencedObjects(
   }
   if (datasetPackageManifest !== undefined) {
     references.push(datasetPackageManifest);
+  }
+  if (opportunityDatasetPackageManifest !== undefined) {
+    references.push(opportunityDatasetPackageManifest);
+  }
+  if (pairing.opportunityIndex !== null) {
+    references.push(
+      pairing.opportunityIndex.object,
+      pairing.opportunityIndex.manifest,
+    );
   }
   if (releaseCatalog?.previous != null) {
     references.push(

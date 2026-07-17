@@ -20,6 +20,7 @@ import {
   TRADE_TREND_V1_DATASET_DECLARATION,
   type TradeTrendDatasetCapabilityDeclaration,
 } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
+import { buildOpportunityIndex } from "../../scripts/release/opportunity-index";
 import {
   releaseJsonBytes,
 } from "../../src/release/release-manifest";
@@ -144,10 +145,12 @@ export async function writeRuntimeReleaseCandidate(
       description: string;
     }>[];
     additionalTradeExplorerRows?: readonly TradeExplorerEquivalenceRow[];
+    withOpportunityIndex?: boolean;
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
   productCatalogDirectoryPath: string;
+  opportunityIndexDirectoryPath?: string;
 }> {
   const analysisDirectoryPath = join(root, "analysis");
   const productCatalogDirectoryPath = join(root, "product-catalog");
@@ -395,6 +398,22 @@ export async function writeRuntimeReleaseCandidate(
       releaseJsonBytes(catalogReport),
     ),
   ]);
+
+  if (options.withOpportunityIndex === true) {
+    const outcome = await buildOpportunityIndex({
+      analysisArtifactPath: analysisDirectoryPath,
+      workspacePath: join(root, "opportunity-index-work"),
+      reportPath: join(root, "opportunity-index-build-report.json"),
+      buildGitSha: "runtime-release-fixture",
+      builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
+      onlyExporterCodes: [156],
+    });
+    return {
+      analysisDirectoryPath,
+      productCatalogDirectoryPath,
+      opportunityIndexDirectoryPath: outcome.publicationPath,
+    };
+  }
 
   return { analysisDirectoryPath, productCatalogDirectoryPath };
 }

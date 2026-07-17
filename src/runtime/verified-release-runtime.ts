@@ -45,6 +45,10 @@ import { evaluateTradeExplorerV1DatasetPackage } from "../domain/trade-analytics
 import type { TradeExplorerDatasetPackage } from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
+import {
+  createOpportunityDiscoveryDatasetPackage,
+  type OpportunityDiscoveryDatasetPackage,
+} from "../domain/trade-analytics/opportunity-discovery-v1-dataset-package";
 import { currentUtcSecond } from "../operations/utc-clock";
 import {
   type AnalysisArtifactReference,
@@ -102,6 +106,7 @@ type RetainedRuntimeBundle = {
   tradeTrendDatasetPackage: TradeTrendDatasetPackage;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage;
   tradeExplorerDatasetPackage: TradeExplorerDatasetPackage;
+  opportunityDatasetPackage: OpportunityDiscoveryDatasetPackage | null;
   recommendedDatasetMapping: RecommendedDatasetMapping;
   analysisDatabase: DuckDbAnalysisDatabase;
   evidenceSource: DuckDbTradeEvidenceSource;
@@ -205,8 +210,7 @@ export class VerifiedReleaseRuntime {
       hydrated.retained.map(async (pairing) => ({
         pairing: pairing.deploymentManifest,
         releaseCatalog: pairing.analysisReleaseCatalog,
-        datasetPackageManifest:
-          await residentDatasetPackageManifestReference(pairing),
+        ...(await residentDatasetPackageManifestReferences(pairing)),
       })),
     );
     const headroom = evaluateDeploymentRetentionHeadroom(
@@ -219,18 +223,25 @@ export class VerifiedReleaseRuntime {
       );
     }
 
-    async function residentDatasetPackageManifestReference(
+    async function residentDatasetPackageManifestReferences(
       pairing: HydratedDeploymentPairing,
-    ): Promise<ReleaseObjectReference | undefined> {
+    ): Promise<{
+      datasetPackageManifest?: ReleaseObjectReference;
+      opportunityDatasetPackageManifest?: ReleaseObjectReference;
+    }> {
       if (pairing.recommendedDatasetMappingPath === null) {
-        return undefined;
+        return {};
       }
       const mapping = createRecommendedDatasetMapping(
         JSON.parse(
           await readRuntimeFile(pairing.recommendedDatasetMappingPath, "utf8"),
         ),
       );
-      return mapping.manifest.datasetPackage.manifest;
+      return {
+        datasetPackageManifest: mapping.manifest.datasetPackage.manifest,
+        opportunityDatasetPackageManifest:
+          mapping.manifest.opportunity?.datasetPackage.manifest,
+      };
     }
 
     const bundles: RetainedRuntimeBundle[] = [];
@@ -1051,6 +1062,7 @@ async function loadRecommendedDatasetMapping(
   expectedTradeTrendPackage: TradeTrendDatasetPackage,
   expectedSupplierCompetitionPackage: SupplierCompetitionDatasetPackage,
   expectedTradeExplorerPackage: TradeExplorerDatasetPackage,
+  expectedOpportunityPackage: OpportunityDiscoveryDatasetPackage | null,
 ): Promise<RecommendedDatasetMapping> {
   const catalogs = recommendedCatalogs(hydrated);
   let mapping: RecommendedDatasetMapping;
@@ -1067,6 +1079,28 @@ async function loadRecommendedDatasetMapping(
     if (publishedPackage.identity !== expectedPackage.identity) {
       throw new TypeError(
         "Recommended Dataset Mapping selected a different Dataset Package.",
+      );
+    }
+    if (mapping.manifest.opportunity !== null) {
+      if (
+        hydrated.opportunityDatasetPackageManifestPath === null ||
+        expectedOpportunityPackage === null
+      ) {
+        throw new TypeError(
+          "Recommended Dataset Mapping selected a missing Opportunity Dataset Package.",
+        );
+      }
+      if (
+        expectedOpportunityPackage.identity !==
+        mapping.manifest.opportunity.datasetPackage.identity
+      ) {
+        throw new TypeError(
+          "Recommended Dataset Mapping selected a different Opportunity Dataset Package.",
+        );
+      }
+    } else if (expectedOpportunityPackage !== null) {
+      throw new TypeError(
+        "Hydrated Opportunity Dataset Package is undeclared by its mapping.",
       );
     }
   } else {
@@ -1135,7 +1169,8 @@ async function loadRecommendedDatasetMapping(
       mapping.manifest.tradeExplorer === null
         ? null
         : expectedTradeExplorerPackage,
-    opportunityDatasetPackage: null,
+    opportunityDatasetPackage:
+      mapping.manifest.opportunity === null ? null : expectedOpportunityPackage,
     productCatalog: catalogs.productCatalog,
     economyCatalog: catalogs.economyCatalog,
   });
@@ -1221,12 +1256,21 @@ async function openRetainedBundle(
     createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
   const tradeExplorerDatasetPackage =
     createTradeExplorerDatasetPackageFromArtifacts(manifest);
+  const opportunityDatasetPackage =
+    pairing.opportunityDatasetPackageManifestPath === null
+      ? null
+      : createOpportunityDiscoveryDatasetPackage(
+          (await readJson(
+            pairing.opportunityDatasetPackageManifestPath,
+          )) as Parameters<typeof createOpportunityDiscoveryDatasetPackage>[0],
+        );
   const recommendedDatasetMapping = await loadRecommendedDatasetMapping(
     pairing,
     datasetPackage,
     tradeTrendDatasetPackage,
     supplierCompetitionDatasetPackage,
     tradeExplorerDatasetPackage,
+    opportunityDatasetPackage,
   );
   const runAnalyticalSmoke =
     evaluateCandidateMarketV1DatasetPackage(datasetPackage).compatible;
@@ -1291,6 +1335,7 @@ async function openRetainedBundle(
       tradeTrendDatasetPackage,
       supplierCompetitionDatasetPackage,
       tradeExplorerDatasetPackage,
+      opportunityDatasetPackage,
       recommendedDatasetMapping,
       analysisDatabase,
       evidenceSource,

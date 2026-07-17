@@ -26,6 +26,12 @@ import {
   type TradeExplorerDatasetPackage,
 } from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
 import {
+  createOpportunityDiscoveryDatasetPackage,
+  evaluateOpportunityDiscoveryV1DatasetPackage,
+  type OpportunityDiscoveryDatasetPackage,
+  type OpportunityDiscoveryDatasetCapabilityDeclaration,
+} from "../domain/trade-analytics/opportunity-discovery-v1-dataset-package";
+import {
   createCandidateMarketDatasetPackageFromArtifacts,
   createSupplierCompetitionDatasetPackageFromArtifacts,
   createTradeExplorerDatasetPackageFromArtifacts,
@@ -51,6 +57,7 @@ import {
   type AnalysisArtifactReference,
   type AnalysisReleaseCatalog,
   type DeploymentPairingManifest,
+  type OpportunityIndexReference,
   type PublishedDeployment,
   type ProductCatalogReference,
   type ReleaseObjectReference,
@@ -86,6 +93,7 @@ export type { PublishedDeployment } from "./release-manifest";
 export type PromoteReleaseInput = {
   analysisDirectoryPath: string;
   productCatalogDirectoryPath: string;
+  opportunityIndexDirectoryPath?: string;
   activatedAt: string;
   sourceStatusFallback?: SourceStatusSnapshot;
   expectedBaciRelease?: string;
@@ -150,6 +158,44 @@ type ValidatedProductCandidate = {
   manifestIdentity: ReleaseObjectIdentity;
 };
 
+type OpportunityIndexManifest = Readonly<{
+  schemaVersion: "opportunity-index-manifest-v1";
+  indexSchemaVersion: "opportunity-index-v1";
+  baciRelease: string;
+  hsRevision: "HS12";
+  finalizedCutoffYear: number;
+  scoreWindow: Readonly<{ start: number; end: number }>;
+  datasetPackage: OpportunityDiscoveryDatasetCapabilityDeclaration;
+  sourceArtifact: Readonly<{
+    schemaVersion: string;
+    buildId: string;
+    sha256: string;
+    bytes: number;
+  }>;
+  index: Readonly<{
+    relativePath: "opportunity-index.duckdb";
+    buildId: string;
+    bytes: number;
+    sha256: string;
+  }>;
+}>;
+
+type ValidatedOpportunityIndexCandidate = {
+  directoryPath: string;
+  indexPath: string;
+  manifestPath: string;
+  indexIdentity: ReleaseObjectIdentity;
+  manifestBytes: Buffer;
+  manifestIdentity: ReleaseObjectIdentity;
+  manifest: OpportunityIndexManifest;
+};
+
+type PublishedOpportunityIndex = {
+  index: OpportunityIndexReference;
+  datasetPackage: OpportunityDiscoveryDatasetPackage;
+  packageReference: ReleaseObjectReference;
+};
+
 export type ReleasePublisherOptions = {
   // Overrides the declared baseline serving-volume policy the retention
   // headroom gate enforces at promotion time (see
@@ -168,12 +214,19 @@ export class ReleasePublisher {
 
   async promote(input: PromoteReleaseInput): Promise<PublishedDeployment> {
     utcTimestamp(input.activatedAt, "activatedAt");
-    const [analysis, productCatalog, current] = await Promise.all([
-      validateAnalysisCandidate(resolve(input.analysisDirectoryPath)),
-      validateProductCandidate(resolve(input.productCatalogDirectoryPath)),
-      this.loadCurrentState(),
-    ]);
+    const [analysis, productCatalog, current, opportunityIndex] =
+      await Promise.all([
+        validateAnalysisCandidate(resolve(input.analysisDirectoryPath)),
+        validateProductCandidate(resolve(input.productCatalogDirectoryPath)),
+        this.loadCurrentState(),
+        input.opportunityIndexDirectoryPath === undefined
+          ? Promise.resolve(null)
+          : validateOpportunityIndexCandidate(
+              resolve(input.opportunityIndexDirectoryPath),
+            ),
+      ]);
     validatePairing(analysis, productCatalog);
+    validateOpportunityPairing(analysis, opportunityIndex);
     if (
       input.expectedCurrentDeploymentPairingId !== undefined &&
       input.expectedCurrentDeploymentPairingId !==
@@ -207,7 +260,12 @@ export class ReleasePublisher {
     }
     if (
       current !== null &&
-      candidateMatchesDeployment(analysis, productCatalog, current.deployment)
+      candidateMatchesDeployment(
+        analysis,
+        productCatalog,
+        opportunityIndex,
+        current.deployment,
+      )
     ) {
       return publishedDeployment(current.pointer, current.deployment);
     }
@@ -251,9 +309,14 @@ export class ReleasePublisher {
       analysisPublication.releaseCatalogSha256,
       analysisPublication.previousArtifact,
     );
+    const opportunityPublication =
+      opportunityIndex === null
+        ? null
+        : await this.publishOpportunityIndex(opportunityIndex);
     const recommendedDatasetMapping =
       await this.createAndPublishMapping({
         datasetPackage,
+        opportunity: opportunityPublication,
         analysisBuildId: analysisPublication.analysisBuildId,
         artifact: analysisPublication.artifact,
         productCatalogBuildId:
@@ -274,6 +337,7 @@ export class ReleasePublisher {
       },
       productSearch: productCatalogReference,
       recommendedDatasetMapping,
+      opportunityIndex: opportunityPublication?.index ?? null,
       residentFootprintBytes: calculatePairingResidentFootprintBytes({
         analysis: {
           artifact: analysisPublication.artifact,
@@ -281,6 +345,7 @@ export class ReleasePublisher {
         },
         productSearch: productCatalogReference,
         recommendedDatasetMapping,
+        opportunityIndex: opportunityPublication?.index ?? null,
       }),
     } as const;
     const deploymentPairingId = contentAddressedId(
@@ -384,10 +449,12 @@ export class ReleasePublisher {
       analysis: previous.analysis,
       productSearch: previous.productSearch,
       recommendedDatasetMapping,
+      opportunityIndex: previous.opportunityIndex,
       residentFootprintBytes: calculatePairingResidentFootprintBytes({
         analysis: previous.analysis,
         productSearch: previous.productSearch,
         recommendedDatasetMapping,
+        opportunityIndex: previous.opportunityIndex,
       }),
     } as const;
     const deployment: DeploymentPairingManifest = {
@@ -593,6 +660,7 @@ export class ReleasePublisher {
       });
     return this.createAndPublishMapping({
       datasetPackage,
+      opportunity: null,
       analysisBuildId: target.analysisBuildId,
       artifact: target.analysis.artifact,
       productCatalogBuildId:
@@ -635,6 +703,7 @@ export class ReleasePublisher {
       supplierCompetitionPackage: SupplierCompetitionDatasetPackage | null;
       tradeExplorerPackage: TradeExplorerDatasetPackage | null;
     };
+    opportunity: PublishedOpportunityIndex | null;
     analysisBuildId: string;
     artifact: AnalysisArtifactReference;
     productCatalogBuildId: string;
@@ -694,10 +763,20 @@ export class ReleasePublisher {
                 evidenceSha256:
                   tradeExplorerPackage.manifest.evidenceSha256,
               },
-        // Legacy publication path predates the Opportunity Index (#52); a
-        // published mapping never gates opportunity-discovery-v1 until the
-        // verified pipeline pins and reconciles its own index object.
-        opportunity: null,
+        opportunity:
+          input.opportunity === null
+            ? null
+            : {
+                recipe: "opportunity-discovery-v1",
+                datasetPackage: {
+                  identity: input.opportunity.datasetPackage.identity,
+                  manifest: input.opportunity.packageReference,
+                },
+                index: {
+                  schemaVersion: "opportunity-index-v1",
+                  object: input.opportunity.index.object,
+                },
+              },
         productCatalog: {
           identity:
             recommendedProductCatalogIdentity(productCatalog),
@@ -764,6 +843,53 @@ export class ReleasePublisher {
       catalogSchemaVersion: candidate.catalogSchemaVersion,
       catalog,
       manifest,
+    };
+  }
+
+  private async publishOpportunityIndex(
+    candidate: ValidatedOpportunityIndexCandidate,
+  ): Promise<PublishedOpportunityIndex> {
+    const prefix =
+      `opportunity-indexes/${candidate.indexIdentity.sha256}`;
+    const object = await this.publishFile(
+      `${prefix}/opportunity-index.duckdb`,
+      candidate.indexPath,
+      candidate.indexIdentity,
+    );
+    const manifest = await this.publishBytes(
+      `${prefix}/manifests/${candidate.manifestIdentity.sha256}.json`,
+      candidate.manifestBytes,
+    );
+    const datasetPackage = createOpportunityDiscoveryDatasetPackage({
+      schemaVersion:
+        "opportunity-discovery-dataset-package-manifest-v1",
+      baciRelease: candidate.manifest.baciRelease,
+      hsRevision: candidate.manifest.hsRevision,
+      finalizedYearCount: 5,
+      evidenceSha256: object.sha256,
+      capabilities:
+        candidate.manifest.datasetPackage.capabilities,
+    });
+    const compatibility =
+      evaluateOpportunityDiscoveryV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      throw new ReleasePublicationError(
+        "PAIRING_INCOMPATIBLE",
+        `Opportunity Discovery Dataset Package is incompatible: ${compatibility.reason}.`,
+      );
+    }
+    const packageReference = await this.publishBytes(
+      `dataset-packages/${datasetPackage.identity}.json`,
+      Buffer.from(JSON.stringify(datasetPackage.manifest), "utf8"),
+    );
+    return {
+      index: {
+        schemaVersion: "opportunity-index-v1",
+        object,
+        manifest,
+      },
+      datasetPackage,
+      packageReference,
     };
   }
 
@@ -888,14 +1014,17 @@ export class ReleasePublisher {
     // silently omitted from the declared footprint (see issue #44
     // "including unique analysis artifacts/manifests/release catalogs").
     const enriched = await Promise.all(
-      allPairings.map(async (pairing) => ({
-        pairing,
-        releaseCatalog: await this.loadReleaseCatalog(
-          pairing.analysis.releaseCatalog,
-        ),
-        datasetPackageManifest:
-          await this.loadDatasetPackageManifestReference(pairing),
-      })),
+      allPairings.map(async (pairing) => {
+        const packageReferences =
+          await this.loadDatasetPackageManifestReferences(pairing);
+        return {
+          pairing,
+          releaseCatalog: await this.loadReleaseCatalog(
+            pairing.analysis.releaseCatalog,
+          ),
+          ...packageReferences,
+        };
+      }),
     );
     const policy = evaluateDeclaredDeploymentRetentionPolicy(
       enriched,
@@ -916,11 +1045,14 @@ export class ReleasePublisher {
     return parseAnalysisReleaseCatalog(JSON.parse(bytes.toString("utf8")));
   }
 
-  private async loadDatasetPackageManifestReference(
+  private async loadDatasetPackageManifestReferences(
     pairing: DeploymentPairingManifest,
-  ): Promise<ReleaseObjectReference | undefined> {
+  ): Promise<{
+    datasetPackageManifest?: ReleaseObjectReference;
+    opportunityDatasetPackageManifest?: ReleaseObjectReference;
+  }> {
     if (pairing.recommendedDatasetMapping === null) {
-      return undefined;
+      return {};
     }
     const bytes = await readVerifiedReference(
       this.objectStore,
@@ -935,7 +1067,11 @@ export class ReleasePublisher {
         "Recommended Dataset Mapping identity does not match the deployment pairing.",
       );
     }
-    return mapping.manifest.datasetPackage.manifest;
+    return {
+      datasetPackageManifest: mapping.manifest.datasetPackage.manifest,
+      opportunityDatasetPackageManifest:
+        mapping.manifest.opportunity?.datasetPackage.manifest,
+    };
   }
 
   private async loadPairingManifest(
@@ -1052,6 +1188,161 @@ async function validateAnalysisCandidate(
     manifestBytes,
     manifestIdentity,
     manifest: parsedManifest,
+  };
+}
+
+async function validateOpportunityIndexCandidate(
+  directoryPath: string,
+): Promise<ValidatedOpportunityIndexCandidate> {
+  const indexPath = join(directoryPath, "opportunity-index.duckdb");
+  const manifestPath = join(directoryPath, "opportunity-index-manifest.json");
+  const reportPath = join(directoryPath, "opportunity-index-build-report.json");
+  const [indexIdentity, manifestBytes, reportBytes] = await Promise.all([
+    fileIdentity(indexPath),
+    readFile(manifestPath),
+    readFile(reportPath),
+  ]);
+  const manifestIdentity = releaseObjectIdentity(manifestBytes);
+  const rawManifest = record(
+    JSON.parse(manifestBytes.toString("utf8")),
+    "Opportunity Index manifest",
+  );
+  const report = record(
+    JSON.parse(reportBytes.toString("utf8")),
+    "Opportunity Index build report",
+  );
+  if (
+    rawManifest.schemaVersion !== "opportunity-index-manifest-v1" ||
+    rawManifest.indexSchemaVersion !== "opportunity-index-v1" ||
+    report.schemaVersion !== "opportunity-index-build-report-v1" ||
+    report.status !== "accepted"
+  ) {
+    throw new Error("Opportunity Index candidate is not an accepted build.");
+  }
+  if (
+    sha256String(
+      report.indexManifestSha256,
+      "Opportunity Index manifest SHA-256",
+    ) !== manifestIdentity.sha256 ||
+    !releaseJsonBytes(report.indexManifest).equals(manifestBytes)
+  ) {
+    throw new Error(
+      "Opportunity Index build report does not match its manifest.",
+    );
+  }
+  const rawIndex = record(rawManifest.index, "Opportunity Index identity");
+  if (
+    string(rawIndex.relativePath, "Opportunity Index relative path") !==
+      "opportunity-index.duckdb" ||
+    count(rawIndex.bytes, "Opportunity Index bytes") !==
+      indexIdentity.bytes ||
+    sha256String(rawIndex.sha256, "Opportunity Index SHA-256") !==
+      indexIdentity.sha256
+  ) {
+    throw new Error("Opportunity Index does not match its manifest.");
+  }
+  if (
+    report.indexSha256 !== undefined &&
+    sha256String(report.indexSha256, "Opportunity Index report SHA-256") !==
+      indexIdentity.sha256
+  ) {
+    throw new Error("Opportunity Index does not match its build report.");
+  }
+  const sourceArtifact = record(
+    rawManifest.sourceArtifact,
+    "Opportunity Index source artifact",
+  );
+  const scoreWindow = record(
+    rawManifest.scoreWindow,
+    "Opportunity Index score window",
+  );
+  const datasetPackage = parseOpportunityDatasetCapabilities(
+    rawManifest.datasetPackage,
+  );
+  return {
+    directoryPath,
+    indexPath,
+    manifestPath,
+    indexIdentity,
+    manifestBytes,
+    manifestIdentity,
+    manifest: {
+      schemaVersion: "opportunity-index-manifest-v1",
+      indexSchemaVersion: "opportunity-index-v1",
+      baciRelease: string(rawManifest.baciRelease, "Opportunity Index BACI Release"),
+      hsRevision: hs12(rawManifest.hsRevision, "Opportunity Index HS revision"),
+      finalizedCutoffYear: count(
+        rawManifest.finalizedCutoffYear,
+        "Opportunity Index finalized cutoff year",
+      ),
+      scoreWindow: {
+        start: count(scoreWindow.start, "Opportunity Index score window start"),
+        end: count(scoreWindow.end, "Opportunity Index score window end"),
+      },
+      datasetPackage,
+      sourceArtifact: {
+        schemaVersion: string(
+          sourceArtifact.schemaVersion,
+          "Opportunity Index source artifact schema version",
+        ),
+        buildId: string(
+          sourceArtifact.buildId,
+          "Opportunity Index source artifact build ID",
+        ),
+        sha256: sha256String(
+          sourceArtifact.sha256,
+          "Opportunity Index source artifact SHA-256",
+        ),
+        bytes: count(
+          sourceArtifact.bytes,
+          "Opportunity Index source artifact bytes",
+        ),
+      },
+      index: {
+        relativePath: "opportunity-index.duckdb",
+        buildId: string(rawIndex.buildId, "Opportunity Index build ID"),
+        bytes: indexIdentity.bytes,
+        sha256: indexIdentity.sha256,
+      },
+    },
+  };
+}
+
+function parseOpportunityDatasetCapabilities(
+  value: unknown,
+): OpportunityDiscoveryDatasetCapabilityDeclaration {
+  const declaration = record(
+    value,
+    "Opportunity Discovery Dataset Package capabilities",
+  );
+  if (
+    declaration.schemaVersion !==
+    "opportunity-discovery-dataset-capabilities-v1"
+  ) {
+    throw new Error(
+      "Opportunity Discovery Dataset Package capability schema is incompatible.",
+    );
+  }
+  if (!Array.isArray(declaration.capabilities)) {
+    throw new Error(
+      "Opportunity Discovery Dataset Package capabilities must be an array.",
+    );
+  }
+  return {
+    schemaVersion: "opportunity-discovery-dataset-capabilities-v1",
+    capabilities: declaration.capabilities.map((entry, index) => {
+      const capability = record(
+        entry,
+        `Opportunity Discovery capability ${index}`,
+      );
+      return {
+        id: string(capability.id, "Opportunity Discovery capability ID"),
+        version: string(
+          capability.version,
+          "Opportunity Discovery capability version",
+        ),
+      };
+    }),
   };
 }
 
@@ -1189,15 +1480,79 @@ function validatePairing(
   }
 }
 
+function validateOpportunityPairing(
+  analysis: ValidatedAnalysisCandidate,
+  opportunityIndex: ValidatedOpportunityIndexCandidate | null,
+): void {
+  if (opportunityIndex === null) {
+    return;
+  }
+  const manifest = opportunityIndex.manifest;
+  if (
+    manifest.baciRelease !== analysis.baciRelease ||
+    manifest.hsRevision !== analysis.hsRevision ||
+    manifest.finalizedCutoffYear !== analysis.manifest.finalizedCutoffYear ||
+    manifest.scoreWindow.start !== analysis.manifest.scoreWindow.start ||
+    manifest.scoreWindow.end !== analysis.manifest.scoreWindow.end ||
+    manifest.sourceArtifact.schemaVersion !== analysis.artifactSchemaVersion ||
+    manifest.sourceArtifact.buildId !== analysis.artifactBuildId ||
+    manifest.sourceArtifact.sha256 !== analysis.artifactIdentity.sha256 ||
+    manifest.sourceArtifact.bytes !== analysis.artifactIdentity.bytes
+  ) {
+    throw new ReleasePublicationError(
+      "PAIRING_INCOMPATIBLE",
+      "Opportunity Index and analysis candidates are incompatible.",
+    );
+  }
+  const datasetPackage = createOpportunityDiscoveryDatasetPackage({
+    schemaVersion: "opportunity-discovery-dataset-package-manifest-v1",
+    baciRelease: manifest.baciRelease,
+    hsRevision: manifest.hsRevision,
+    finalizedYearCount: 5,
+    evidenceSha256: opportunityIndex.indexIdentity.sha256,
+    capabilities: manifest.datasetPackage.capabilities,
+  });
+  const compatibility =
+    evaluateOpportunityDiscoveryV1DatasetPackage(datasetPackage);
+  if (!compatibility.compatible) {
+    throw new ReleasePublicationError(
+      "PAIRING_INCOMPATIBLE",
+      `Opportunity Discovery Dataset Package is incompatible: ${compatibility.reason}.`,
+    );
+  }
+}
+
 function candidateMatchesDeployment(
   analysis: ValidatedAnalysisCandidate,
   catalog: ValidatedProductCandidate,
+  opportunityIndex: ValidatedOpportunityIndexCandidate | null,
   deployment: DeploymentPairingManifest,
 ): boolean {
   return (
     deployment.recommendedDatasetMapping !== null &&
     analysisCandidateMatchesDeployment(analysis, deployment) &&
-    productCandidateMatchesDeployment(catalog, deployment)
+    productCandidateMatchesDeployment(catalog, deployment) &&
+    opportunityCandidateMatchesDeployment(opportunityIndex, deployment)
+  );
+}
+
+function opportunityCandidateMatchesDeployment(
+  opportunityIndex: ValidatedOpportunityIndexCandidate | null,
+  deployment: DeploymentPairingManifest,
+): boolean {
+  if (opportunityIndex === null) {
+    return deployment.opportunityIndex === null;
+  }
+  return (
+    deployment.opportunityIndex !== null &&
+    sameIdentity(
+      deployment.opportunityIndex.object,
+      opportunityIndex.indexIdentity,
+    ) &&
+    sameIdentity(
+      deployment.opportunityIndex.manifest,
+      opportunityIndex.manifestIdentity,
+    )
   );
 }
 

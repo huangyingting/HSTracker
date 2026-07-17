@@ -79,6 +79,7 @@ function samplePairing(
       ),
     },
     recommendedDatasetMapping: null,
+    opportunityIndex: null,
     ...overrides,
   };
   const residentFootprintBytes = calculatePairingResidentFootprintBytes(base);

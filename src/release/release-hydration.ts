@@ -42,6 +42,9 @@ import {
   createCandidateMarketDatasetPackage,
 } from "../domain/trade-analytics/dataset-package";
 import {
+  createOpportunityDiscoveryDatasetPackage,
+} from "../domain/trade-analytics/opportunity-discovery-v1-dataset-package";
+import {
   createRecommendedDatasetMapping,
 } from "../domain/trade-analytics/recommended-dataset-mapping";
 import {
@@ -70,6 +73,7 @@ export type HydratedDeploymentPairing = {
   productCatalogManifestPath: string;
   recommendedDatasetMappingPath: string | null;
   datasetPackageManifestPath: string | null;
+  opportunityDatasetPackageManifestPath: string | null;
   deploymentManifestPath: string;
   previousAnalysis: {
     reference: AnalysisArtifactReference;
@@ -342,6 +346,23 @@ export class ReleaseHydrator {
             mappingObjects.packageBytes,
           ),
         );
+        if (
+          mappingObjects.opportunityPackageReference !== null &&
+          mappingObjects.opportunityPackageBytes !== null
+        ) {
+          downloads.push(
+            this.materializeVerified(
+              volumePath,
+              mappingObjects.opportunityPackageReference,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "opportunity-dataset-package-manifest.json",
+              ),
+              ["opportunity-dataset-package-manifest.json"],
+              mappingObjects.opportunityPackageBytes,
+            ),
+          );
+        }
       }
       if (releaseCatalog.previous !== null) {
         downloads.push(
@@ -621,6 +642,8 @@ export class ReleaseHydrator {
     mappingBytes: Buffer;
     packageBytes: Buffer;
     packageReference: ReleaseObjectReference;
+    opportunityPackageBytes: Buffer | null;
+    opportunityPackageReference: ReleaseObjectReference | null;
   } | null> {
     if (deployment.recommendedDatasetMapping === null) {
       return null;
@@ -662,7 +685,39 @@ export class ReleaseHydrator {
         "Dataset Package identity does not match.",
       );
     }
-    return { mappingBytes, packageBytes, packageReference };
+    const opportunityPackageReference =
+      mapping.manifest.opportunity?.datasetPackage.manifest ?? null;
+    const opportunityPackageBytes =
+      opportunityPackageReference === null
+        ? null
+        : await this.readVerifiedObject(opportunityPackageReference);
+    if (
+      opportunityPackageReference !== null &&
+      opportunityPackageBytes !== null
+    ) {
+      const opportunityPackage = parseRemoteCandidateMetadata(
+        () =>
+          createOpportunityDiscoveryDatasetPackage(
+            JSON.parse(opportunityPackageBytes.toString("utf8")),
+          ),
+      );
+      if (
+        opportunityPackage.identity !==
+        mapping.manifest.opportunity!.datasetPackage.identity
+      ) {
+        throw new RemoteCandidateActivationError(
+          "CURRENT_DEPLOYMENT_INVALID",
+          "Opportunity Dataset Package identity does not match.",
+        );
+      }
+    }
+    return {
+      mappingBytes,
+      packageBytes,
+      packageReference,
+      opportunityPackageBytes,
+      opportunityPackageReference,
+    };
   }
 
   private async downloadVerified(
@@ -984,6 +1039,49 @@ async function verifyResidentRecommendedDatasetMapping(
       "Resident Dataset Package identity does not match.",
     );
   }
+  if (mapping.manifest.opportunity === null) {
+    if (deployment.opportunityIndex !== null) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index is undeclared by its mapping.",
+      );
+    }
+    return;
+  }
+  if (
+    deployment.opportunityIndex === null ||
+    deployment.opportunityIndex.object.key !==
+      mapping.manifest.opportunity.index.object.key ||
+    deployment.opportunityIndex.object.bytes !==
+      mapping.manifest.opportunity.index.object.bytes ||
+    deployment.opportunityIndex.object.sha256 !==
+      mapping.manifest.opportunity.index.object.sha256
+  ) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Opportunity Index reference does not match its mapping.",
+    );
+  }
+  const opportunityPackagePath = join(
+    /* turbopackIgnore: true */ rootPath,
+    "opportunity-dataset-package-manifest.json",
+  );
+  await verifyFile(
+    opportunityPackagePath,
+    mapping.manifest.opportunity.datasetPackage.manifest,
+  );
+  const opportunityPackage = createOpportunityDiscoveryDatasetPackage(
+    JSON.parse(await readRuntimeFile(opportunityPackagePath, "utf8")),
+  );
+  if (
+    opportunityPackage.identity !==
+    mapping.manifest.opportunity.datasetPackage.identity
+  ) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Opportunity Dataset Package identity does not match.",
+    );
+  }
 }
 
 async function verifyResidentPreviousAnalysis(
@@ -1086,6 +1184,13 @@ function hydratedPairing(
         : join(
             /* turbopackIgnore: true */ rootPath,
             "dataset-package-manifest.json",
+          ),
+    opportunityDatasetPackageManifestPath:
+      deployment.opportunityIndex === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "opportunity-dataset-package-manifest.json",
           ),
     deploymentManifestPath: join(
       /* turbopackIgnore: true */ rootPath,

@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     options: {
       "analysis-directory": { type: "string" },
       "product-catalog-directory": { type: "string" },
+      "opportunity-index-directory": { type: "string" },
       "activated-at": { type: "string" },
       "promotion-input": { type: "string" },
     },
@@ -39,6 +40,8 @@ async function main(): Promise<void> {
     values["activated-at"],
     "activated-at",
   );
+  const opportunityIndexDirectoryPath =
+    values["opportunity-index-directory"];
   const promotionInputPath = requiredOption(
     values["promotion-input"],
     "promotion-input",
@@ -78,6 +81,9 @@ async function main(): Promise<void> {
   const published = await publisher.promote({
     analysisDirectoryPath,
     productCatalogDirectoryPath,
+    ...(opportunityIndexDirectoryPath === undefined
+      ? {}
+      : { opportunityIndexDirectoryPath }),
     sourceStatusFallback: sourceStatusSnapshot(
       createPublishedSourceStatusSnapshot(statusInput),
     ),

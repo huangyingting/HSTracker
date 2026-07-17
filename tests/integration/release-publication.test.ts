@@ -15,8 +15,10 @@ import {
   ACTIVE_DEPLOYMENT_POINTER_KEY,
   contentAddressedId,
   parseActiveDeploymentPointer,
+  parseDeploymentPairingManifest,
   releaseJsonBytes,
 } from "../../src/release/release-manifest";
+import { createRecommendedDatasetMapping } from "../../src/domain/trade-analytics/recommended-dataset-mapping";
 import type {
   ReleaseObject,
   ReleaseObjectIdentity,
@@ -64,6 +66,70 @@ describe("immutable release publication", () => {
       ),
     });
     expect(await publisher.current()).toEqual(published);
+  });
+
+  it("publishes the Opportunity Index object and declares it in the mapping", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-publication-"));
+    const candidate = await writeRuntimeReleaseCandidate(root, {
+      withOpportunityIndex: true,
+    });
+    const objectStore = new InMemoryReleaseObjectStore();
+    const publisher = new ReleasePublisher(objectStore);
+
+    const published = await publisher.promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const pointer = await readActivePointer(objectStore);
+    const deploymentObject = await objectStore.getObject(pointer.current.key);
+    expect(deploymentObject).not.toBeNull();
+    const deployment = parseDeploymentPairingManifest(
+      JSON.parse((await collectReleaseObject(deploymentObject!)).toString("utf8")),
+    );
+    expect(deployment.opportunityIndex).not.toBeNull();
+    expect(published.opportunityIndex).toEqual(deployment.opportunityIndex);
+    const opportunityIndex = deployment.opportunityIndex!;
+    const publishedIndex = await objectStore.getObject(
+      opportunityIndex.object.key,
+    );
+    const publishedIndexManifest = await objectStore.getObject(
+      opportunityIndex.manifest.key,
+    );
+    expect(publishedIndex).not.toBeNull();
+    expect(publishedIndexManifest).not.toBeNull();
+
+    const mappingObject = await objectStore.getObject(
+      deployment.recommendedDatasetMapping!.manifest.key,
+    );
+    expect(mappingObject).not.toBeNull();
+    const mapping = createRecommendedDatasetMapping(
+      JSON.parse((await collectReleaseObject(mappingObject!)).toString("utf8")),
+    );
+    expect(mapping.manifest.opportunity).toMatchObject({
+      recipe: "opportunity-discovery-v1",
+      index: {
+        schemaVersion: "opportunity-index-v1",
+        object: opportunityIndex.object,
+      },
+    });
+    expect(mapping.manifest.opportunity?.datasetPackage.identity).toMatch(
+      /^dataset-package-v1-[a-f0-9]{64}$/u,
+    );
+    const opportunityPackage = await objectStore.getObject(
+      mapping.manifest.opportunity!.datasetPackage.manifest.key,
+    );
+    expect(opportunityPackage).not.toBeNull();
+    const opportunityPackageManifest = JSON.parse(
+      (await collectReleaseObject(opportunityPackage!)).toString("utf8"),
+    );
+    expect(opportunityPackageManifest).toMatchObject({
+      schemaVersion: "opportunity-discovery-dataset-package-manifest-v1",
+      baciRelease: "V202601",
+      hsRevision: "HS12",
+      finalizedYearCount: 5,
+      evidenceSha256: opportunityIndex.object.sha256,
+    });
   });
 
   it("rejects a Source Freshness Status for another BACI Release before activation", async () => {
