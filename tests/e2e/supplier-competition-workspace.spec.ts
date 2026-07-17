@@ -206,7 +206,7 @@ test("Supplier Competition keeps the Provisional Year snapshot separate from fin
   await expect(page.getByText("5000.000000", { exact: true })).toBeVisible();
 });
 
-test("Candidate Market remains the default task alongside Supplier Competition", async ({
+test("Candidate Market remains reachable alongside Supplier Competition", async ({
   page,
 }) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
@@ -239,7 +239,7 @@ test("switching to Supplier Competition starts with a fresh analysis context", a
   await selectSupplierCompetitionContext(page, "124", /Canada/);
   await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
 
-  await expect(page).toHaveURL(/\/$/u);
+  await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).not.toBeVisible();

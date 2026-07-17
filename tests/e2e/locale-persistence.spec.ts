@@ -65,7 +65,7 @@ test("browser back/forward reproduce the exact task and locale carried by each c
   // The locale switch itself only ever replaces the current history
   // entry (it never changes analytical meaning), but the task switch
   // pushed a new one; back returns to the locale-only entry, and the
-  // task reverts to the default Candidate Market while the locale
+  // task reverts to the default Opportunity Discovery while the locale
   // chosen earlier is untouched.
   await page.goBack();
   await expect(page).toHaveURL("/?locale=zh-Hans");
@@ -94,14 +94,14 @@ test("switching locale mid-selection, before completing recipe inputs, is never 
   await expect(page.getByRole("option", { name: /010121/ })).toBeVisible();
   await product.press("ArrowDown");
   await product.press("Enter");
-  await expect(page).toHaveURL("/?revision=HS12&product=010121");
+  await expect(page).toHaveURL("/?products=010121");
 
   await page.getByRole("button", { name: "简体中文" }).click();
 
   // The recipe context is still incomplete (no exporter yet), so it
   // stays unpinned and un-recipe-tagged, but the locale is independently
   // canonical and appears regardless.
-  await expect(page).toHaveURL("/?locale=zh-Hans&revision=HS12&product=010121");
+  await expect(page).toHaveURL("/?locale=zh-Hans&products=010121");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
   await expect(
     page.getByLabel("已选择产品"),

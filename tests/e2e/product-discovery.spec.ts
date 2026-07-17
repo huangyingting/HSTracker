@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const CANDIDATE_MARKET_HOME = "/?recipe=candidate-market-v1";
+
 type SearchFixture = {
   code: string;
   sourceDescriptionEn: string;
@@ -10,7 +12,7 @@ type SearchFixture = {
 test("an analyst explicitly selects a product with the keyboard", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(CANDIDATE_MARKET_HOME);
   const combobox = page.getByRole("combobox", {
     name: "HS 2012 product",
   });
@@ -25,7 +27,7 @@ test("an analyst explicitly selects a product with the keyboard", async ({
   );
   await expect(options.first()).toContainText("纯种繁殖用活马");
   await expect(combobox).toHaveAttribute("aria-expanded", "true");
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL(CANDIDATE_MARKET_HOME);
 
   await combobox.press("ArrowUp");
   await expect(combobox).toHaveAttribute(
@@ -44,7 +46,9 @@ test("an analyst explicitly selects a product with the keyboard", async ({
   );
   await expect(combobox).toBeFocused();
   await expect(combobox).toHaveAttribute("aria-expanded", "false");
-  await expect(page).toHaveURL("/?revision=HS12&product=010121");
+  await expect(page).toHaveURL(
+    "/?recipe=candidate-market-v1&revision=HS12&product=010121",
+  );
   const selection = page.getByLabel("Selected product");
   await expect(selection).toContainText("HS 2012 · 010121");
   await expect(selection).toContainText(
@@ -56,7 +60,7 @@ test("an analyst explicitly selects a product with the keyboard", async ({
 test("locale changes relabel but never replace an explicit selection", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(CANDIDATE_MARKET_HOME);
   const combobox = page.getByRole("combobox", {
     name: "HS 2012 product",
   });
@@ -78,21 +82,26 @@ test("locale changes relabel but never replace an explicit selection", async ({
   // recipe's own inputs (no export economy yet) are still incomplete, so
   // the explicit product selection is never lost or replaced.
   await expect(page).toHaveURL(
-    selectedUrl.replace("?revision=", "?locale=zh-Hans&revision="),
+    selectedUrl.replace(
+      "?recipe=candidate-market-v1&revision=",
+      "?recipe=candidate-market-v1&locale=zh-Hans&revision=",
+    ),
   );
 });
 
 test("a canonical product URL restores the same HS Product identity", async ({
   page,
 }) => {
-  await page.goto("/?revision=HS12&product=010121");
+  await page.goto("/?recipe=candidate-market-v1&revision=HS12&product=010121");
 
   await expect(
     page.getByRole("combobox", { name: "HS 2012 product" }),
   ).toHaveValue(
     "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
   );
-  await expect(page).toHaveURL("/?revision=HS12&product=010121");
+  await expect(page).toHaveURL(
+    "/?recipe=candidate-market-v1&revision=HS12&product=010121",
+  );
 });
 
 test("locale changes preserve an ambiguous result set without selecting it", async ({
@@ -104,7 +113,7 @@ test("locale changes preserve an ambiguous result set without selecting it", asy
       searchRequests += 1;
     }
   });
-  await page.goto("/");
+  await page.goto(CANDIDATE_MARKET_HOME);
   await page
     .getByRole("combobox", { name: "HS 2012 product" })
     .fill("馬");
@@ -123,14 +132,16 @@ test("locale changes preserve an ambiguous result set without selecting it", asy
   await expect(page.getByRole("option").first()).toContainText("纯种繁殖用活马");
   // Locale is independently canonical: even with no product selected at
   // all (still just an ambiguous, unresolved search), the non-default
-  // locale is never lost — it is the one meaningful change so far.
-  await expect(page).toHaveURL("/?locale=zh-Hans");
+  // locale is never lost alongside the explicit Candidate Market task.
+  await expect(page).toHaveURL(
+    "/?recipe=candidate-market-v1&locale=zh-Hans",
+  );
 });
 
 test("the combobox closes on Escape and explains an unsupported revision", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(CANDIDATE_MARKET_HOME);
   const combobox = page.getByRole("combobox", {
     name: "HS 2012 product",
   });
@@ -198,7 +209,7 @@ test("debouncing and request identity prevent stale search results", async ({
     });
   });
 
-  await page.goto("/");
+  await page.goto(CANDIDATE_MARKET_HOME);
   const combobox = page.getByRole("combobox", {
     name: "HS 2012 product",
   });
@@ -223,7 +234,7 @@ test("product choices remain usable without horizontal overflow on mobile", asyn
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto(CANDIDATE_MARKET_HOME);
   await page
     .getByRole("combobox", { name: "HS 2012 product" })
     .fill("horse");

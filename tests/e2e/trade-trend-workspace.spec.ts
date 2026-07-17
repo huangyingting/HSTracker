@@ -152,7 +152,7 @@ test("Trade Trend distinguishes sparse, unavailable, and absent provisional evid
   expect(hasHorizontalOverflow).toBe(false);
 });
 
-test("Candidate Market remains the default task with its original ranking controls and list", async ({
+test("Candidate Market remains reachable with its original ranking controls and list", async ({
   page,
 }) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
@@ -187,7 +187,7 @@ test("switching tasks starts with a fresh analysis context", async ({ page }) =>
   await selectTrendContext(page);
   await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
 
-  await expect(page).toHaveURL(/\/$/u);
+  await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).not.toBeVisible();

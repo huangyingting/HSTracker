@@ -9,7 +9,7 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
     await new Promise((resolve) => setTimeout(resolve, 300));
     await route.continue();
   });
-  await page.goto("/");
+  await page.goto("/?recipe=candidate-market-v1");
 
   const economy = page.getByRole("combobox", { name: "Export economy" });
   await economy.fill("156");
