@@ -11,6 +11,8 @@ import { evaluateTradeExplorerV1DatasetPackage } from "./trade-explorer-v1-datas
 import type { TradeExplorerDatasetPackage } from "./trade-explorer-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "./trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "./trade-trend-v1-dataset-package";
+import { evaluateOpportunityDiscoveryV1DatasetPackage } from "./opportunity-discovery-v1-dataset-package";
+import type { OpportunityDiscoveryDatasetPackage } from "./opportunity-discovery-v1-dataset-package";
 
 declare const recommendedDatasetMappingIdentityBrand: unique symbol;
 declare const recommendedProductCatalogIdentityBrand: unique symbol;
@@ -72,6 +74,34 @@ export type RecommendedTradeExplorerMappingDeclaration = Readonly<{
   evidenceSha256: string;
 }>;
 
+// Declares that this closed mapping also gates opportunity-discovery-v1.
+// Unlike Trade Trend / Supplier Competition / Trade Explorer -- which read the
+// SAME already-pinned economyCatalog artifact and so carry only an
+// `evidenceSha256` -- Opportunity Discovery is served from a SEPARATELY
+// published, immutable, content-addressed Opportunity Index physical object
+// (the byte-identical reconstruction basis). The declaration therefore pins:
+//   * its own published Opportunity Discovery Dataset Package (identity +
+//     manifest object reference), independently re-validated for capability
+//     and schema; and
+//   * the Opportunity Index object itself (schema version + checksummed object
+//     reference).
+// The Dataset Package's `evidenceSha256` binds to the index object SHA-256, so
+// the package and the index it names describe one and the same verified bytes.
+// Full-cohort reconciliation and smoke queries run at hydration when the index
+// object is materialized and reopened read-only; this declaration is the
+// structural gate that must pass before any of that runs.
+export type RecommendedOpportunityMappingDeclaration = Readonly<{
+  recipe: "opportunity-discovery-v1";
+  datasetPackage: Readonly<{
+    identity: DatasetPackageIdentity;
+    manifest: RecommendedMappingObjectReference;
+  }>;
+  index: Readonly<{
+    schemaVersion: "opportunity-index-v1";
+    object: RecommendedMappingObjectReference;
+  }>;
+}>;
+
 export type RecommendedDatasetMappingManifest = Readonly<{
   schemaVersion: "recommended-dataset-mapping-manifest-v1";
   recipe: "candidate-market-v1";
@@ -82,6 +112,7 @@ export type RecommendedDatasetMappingManifest = Readonly<{
   tradeTrend: RecommendedTradeTrendMappingDeclaration | null;
   supplierCompetition: RecommendedSupplierCompetitionMappingDeclaration | null;
   tradeExplorer: RecommendedTradeExplorerMappingDeclaration | null;
+  opportunity: RecommendedOpportunityMappingDeclaration | null;
   productCatalog: Readonly<{
     identity: RecommendedProductCatalogIdentity;
     productSearchBuildId: string;
@@ -163,6 +194,7 @@ export function validateRecommendedDatasetMapping(input: {
   tradeTrendDatasetPackage: TradeTrendDatasetPackage | null;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage | null;
   tradeExplorerDatasetPackage: TradeExplorerDatasetPackage | null;
+  opportunityDatasetPackage: OpportunityDiscoveryDatasetPackage | null;
   productCatalog: Readonly<{
     productSearchBuildId: string;
     schemaVersion: "product-catalog-artifact-v1";
@@ -327,29 +359,92 @@ export function validateRecommendedDatasetMapping(input: {
         "Recommended Dataset Mapping does not declare trade-explorer-v1.",
       );
     }
+  } else {
+    if (input.tradeExplorerDatasetPackage === null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping declares trade-explorer-v1 without a package.",
+      );
+    }
+    if (
+      manifest.tradeExplorer.evidenceSha256 !==
+        input.tradeExplorerDatasetPackage.manifest.evidenceSha256 ||
+      manifest.tradeExplorer.evidenceSha256 !==
+        manifest.economyCatalog.artifact.sha256
+    ) {
+      throw new TypeError(
+        "Recommended Dataset Mapping Trade Explorer evidence is incompatible.",
+      );
+    }
+    const tradeExplorerCompatibility = evaluateTradeExplorerV1DatasetPackage(
+      input.tradeExplorerDatasetPackage,
+    );
+    if (!tradeExplorerCompatibility.compatible) {
+      throw new TypeError(
+        `Recommended Dataset Mapping Trade Explorer package is incompatible: ${tradeExplorerCompatibility.reason}.`,
+      );
+    }
+  }
+
+  // Opportunity Discovery is served from a SEPARATELY published, immutable
+  // Opportunity Index object rather than the shared economyCatalog artifact,
+  // so its gate is stricter than the three evidenceSha256-only recipes above:
+  // the declared Dataset Package identity, the package's own capability/schema
+  // review, the published package-manifest bytes, and the binding of the
+  // package's evidence to the Opportunity Index object SHA-256 must ALL agree.
+  // A legacy or opportunity-undeclared mapping (manifest.opportunity === null)
+  // stays valid and cannot have an Opportunity package smuggled past it.
+  if (manifest.opportunity === null) {
+    if (input.opportunityDatasetPackage !== null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping does not declare opportunity-discovery-v1.",
+      );
+    }
     return;
   }
-  if (input.tradeExplorerDatasetPackage === null) {
+  if (input.opportunityDatasetPackage === null) {
     throw new TypeError(
-      "Recommended Dataset Mapping declares trade-explorer-v1 without a package.",
+      "Recommended Dataset Mapping declares opportunity-discovery-v1 without a package.",
     );
   }
   if (
-    manifest.tradeExplorer.evidenceSha256 !==
-      input.tradeExplorerDatasetPackage.manifest.evidenceSha256 ||
-    manifest.tradeExplorer.evidenceSha256 !==
-      manifest.economyCatalog.artifact.sha256
+    manifest.opportunity.datasetPackage.identity !==
+    input.opportunityDatasetPackage.identity
   ) {
     throw new TypeError(
-      "Recommended Dataset Mapping Trade Explorer evidence is incompatible.",
+      "Recommended Dataset Mapping Opportunity package identity is incompatible.",
     );
   }
-  const tradeExplorerCompatibility = evaluateTradeExplorerV1DatasetPackage(
-    input.tradeExplorerDatasetPackage,
-  );
-  if (!tradeExplorerCompatibility.compatible) {
+  // The Opportunity Index object IS the package's verified evidence: its
+  // SHA-256 is the byte-identical reconstruction basis the package pins.
+  if (
+    input.opportunityDatasetPackage.manifest.evidenceSha256 !==
+    manifest.opportunity.index.object.sha256
+  ) {
     throw new TypeError(
-      `Recommended Dataset Mapping Trade Explorer package is incompatible: ${tradeExplorerCompatibility.reason}.`,
+      "Recommended Dataset Mapping Opportunity evidence is incompatible.",
+    );
+  }
+  const opportunityPackageBytes = Buffer.from(
+    JSON.stringify(input.opportunityDatasetPackage.manifest),
+    "utf8",
+  );
+  if (
+    opportunityPackageBytes.byteLength !==
+      manifest.opportunity.datasetPackage.manifest.bytes ||
+    createHash("sha256").update(opportunityPackageBytes).digest("hex") !==
+      manifest.opportunity.datasetPackage.manifest.sha256
+  ) {
+    throw new TypeError(
+      "Recommended Dataset Mapping Opportunity package reference is incompatible.",
+    );
+  }
+  const opportunityCompatibility =
+    evaluateOpportunityDiscoveryV1DatasetPackage(
+      input.opportunityDatasetPackage,
+    );
+  if (!opportunityCompatibility.compatible) {
+    throw new TypeError(
+      `Recommended Dataset Mapping Opportunity package is incompatible: ${opportunityCompatibility.reason}.`,
     );
   }
 }
@@ -455,6 +550,9 @@ function parseRecommendedDatasetMappingManifest(
   const tradeExplorer = parseTradeExplorerMappingDeclaration(
     mapping.tradeExplorer,
   );
+  const opportunity = parseOpportunityMappingDeclaration(
+    mapping.opportunity,
+  );
 
   return {
     schemaVersion: "recommended-dataset-mapping-manifest-v1",
@@ -469,6 +567,7 @@ function parseRecommendedDatasetMappingManifest(
     tradeTrend,
     supplierCompetition,
     tradeExplorer,
+    opportunity,
     productCatalog: {
       identity: productIdentity,
       ...parsedProductCatalog,
@@ -556,6 +655,65 @@ function parseTradeExplorerMappingDeclaration(
       declaration.evidenceSha256,
       "Trade Explorer declaration evidence SHA-256",
     ),
+  };
+}
+
+function parseOpportunityMappingDeclaration(
+  value: unknown,
+): RecommendedOpportunityMappingDeclaration | null {
+  // Absent/null is the legacy and pre-#52 shape: this mapping does not
+  // declare or gate opportunity-discovery-v1 at all, so it keeps serving
+  // whatever recipes it already declared without an Opportunity Index.
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const declaration = object(
+    value,
+    "Recommended Dataset Mapping Opportunity declaration",
+  );
+  if (declaration.recipe !== "opportunity-discovery-v1") {
+    throw new TypeError(
+      "Recommended Dataset Mapping Opportunity declaration recipe is incompatible.",
+    );
+  }
+  const datasetPackage = object(
+    declaration.datasetPackage,
+    "Recommended Dataset Mapping Opportunity package",
+  );
+  const packageIdentity = nonemptyString(
+    datasetPackage.identity,
+    "Opportunity Dataset Package identity",
+  );
+  if (!/^dataset-package-v1-[a-f0-9]{64}$/u.test(packageIdentity)) {
+    throw new TypeError(
+      "Recommended Dataset Mapping Opportunity package identity is malformed.",
+    );
+  }
+  const index = object(
+    declaration.index,
+    "Recommended Dataset Mapping Opportunity index",
+  );
+  if (index.schemaVersion !== "opportunity-index-v1") {
+    throw new TypeError(
+      "Recommended Dataset Mapping Opportunity index schema is incompatible.",
+    );
+  }
+  return {
+    recipe: "opportunity-discovery-v1",
+    datasetPackage: {
+      identity: packageIdentity as DatasetPackageIdentity,
+      manifest: objectReference(
+        datasetPackage.manifest,
+        "Opportunity Dataset Package manifest",
+      ),
+    },
+    index: {
+      schemaVersion: "opportunity-index-v1",
+      object: objectReference(
+        index.object,
+        "Opportunity index object",
+      ),
+    },
   };
 }
 

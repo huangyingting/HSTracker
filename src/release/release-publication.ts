@@ -694,6 +694,10 @@ export class ReleasePublisher {
                 evidenceSha256:
                   tradeExplorerPackage.manifest.evidenceSha256,
               },
+        // Legacy publication path predates the Opportunity Index (#52); a
+        // published mapping never gates opportunity-discovery-v1 until the
+        // verified pipeline pins and reconciles its own index object.
+        opportunity: null,
         productCatalog: {
           identity:
             recommendedProductCatalogIdentity(productCatalog),

@@ -1105,6 +1105,7 @@ async function loadRecommendedDatasetMapping(
       tradeTrend: null,
       supplierCompetition: null,
       tradeExplorer: null,
+      opportunity: null,
       productCatalog: {
         identity: recommendedProductCatalogIdentity(
           catalogs.productCatalog,
@@ -1134,6 +1135,7 @@ async function loadRecommendedDatasetMapping(
       mapping.manifest.tradeExplorer === null
         ? null
         : expectedTradeExplorerPackage,
+    opportunityDatasetPackage: null,
     productCatalog: catalogs.productCatalog,
     economyCatalog: catalogs.economyCatalog,
   });

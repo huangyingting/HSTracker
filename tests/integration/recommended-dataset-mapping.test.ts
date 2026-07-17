@@ -10,6 +10,10 @@ import {
 } from "../../src/domain/trade-analytics/recommended-dataset-mapping";
 import { createCandidateMarketDatasetPackage } from "../../src/domain/trade-analytics/dataset-package";
 import {
+  createOpportunityDiscoveryDatasetPackage,
+  OPPORTUNITY_DISCOVERY_V1_CAPABILITY_REQUIREMENTS,
+} from "../../src/domain/trade-analytics/opportunity-discovery-v1-dataset-package";
+import {
   createSupplierCompetitionDatasetPackage,
   SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
 } from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
@@ -59,6 +63,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -128,6 +133,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -163,6 +169,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -195,6 +202,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -222,6 +230,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -260,6 +269,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -295,6 +305,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -333,6 +344,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -366,6 +378,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -395,6 +408,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage: null,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -434,6 +448,7 @@ describe("Recommended Dataset Mapping", () => {
         tradeTrendDatasetPackage: null,
         supplierCompetitionDatasetPackage,
         tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
         productCatalog: manifest.productCatalog,
         economyCatalog: manifest.economyCatalog,
       }),
@@ -480,11 +495,219 @@ describe("Recommended Dataset Mapping", () => {
           tradeTrendDatasetPackage: null,
           supplierCompetitionDatasetPackage,
           tradeExplorerDatasetPackage: null,
+          opportunityDatasetPackage: null,
           productCatalog: manifest.productCatalog,
           economyCatalog: manifest.economyCatalog,
         }),
       ).toThrow(
         "Recommended Dataset Mapping Supplier Competition package is incompatible",
+      );
+    },
+  );
+
+  it("validates a mapping that declares and gates opportunity-discovery-v1", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const opportunityDatasetPackage = opportunityPackage();
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      opportunity: opportunityDeclaration(opportunityDatasetPackage),
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects an Opportunity package offered against a mapping that does not declare it", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping: FIXTURE_RECOMMENDED_DATASET_MAPPING,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: opportunityPackage(),
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping does not declare opportunity-discovery-v1",
+    );
+  });
+
+  it("rejects a mapping that declares opportunity-discovery-v1 without a package", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      opportunity: opportunityDeclaration(opportunityPackage()),
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping declares opportunity-discovery-v1 without a package",
+    );
+  });
+
+  it("rejects an Opportunity declaration whose package identity does not match", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const declaredPackage = opportunityPackage({
+      evidenceSha256: "a".repeat(64),
+    });
+    const suppliedPackage = opportunityPackage({
+      evidenceSha256: "b".repeat(64),
+    });
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      opportunity: opportunityDeclaration(declaredPackage),
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: suppliedPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping Opportunity package identity is incompatible",
+    );
+  });
+
+  it("rejects an Opportunity declaration whose index object does not carry the package evidence", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const opportunityDatasetPackage = opportunityPackage();
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      opportunity: opportunityDeclaration(opportunityDatasetPackage, {
+        indexSha256: "c".repeat(64),
+      }),
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping Opportunity evidence is incompatible",
+    );
+  });
+
+  it("rejects an Opportunity declaration whose published package bytes do not match", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const opportunityDatasetPackage = opportunityPackage();
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      opportunity: opportunityDeclaration(opportunityDatasetPackage, {
+        manifestBytes: Buffer.from("tampered opportunity manifest", "utf8"),
+      }),
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping Opportunity package reference is incompatible",
+    );
+  });
+
+  it.each([
+    "opportunity-discovery/bilateral-annual-value",
+    "opportunity-discovery/market-annual-value",
+  ])(
+    "rejects an Opportunity declaration missing required capability %s",
+    (missingCapabilityId) => {
+      const datasetPackage =
+        createFixtureCandidateMarketDatasetPackages().get(
+          "acceptance-fixtures-v1",
+        )!;
+      const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+      const opportunityDatasetPackage = opportunityPackage({
+        capabilities: OPPORTUNITY_DISCOVERY_V1_CAPABILITY_REQUIREMENTS.filter(
+          ({ id }) => id !== missingCapabilityId,
+        ),
+      });
+      const mapping = createRecommendedDatasetMapping({
+        ...manifest,
+        opportunity: opportunityDeclaration(opportunityDatasetPackage),
+      });
+
+      expect(() =>
+        validateRecommendedDatasetMapping({
+          mapping,
+          datasetPackage,
+          tradeTrendDatasetPackage: null,
+          supplierCompetitionDatasetPackage: null,
+          tradeExplorerDatasetPackage: null,
+          opportunityDatasetPackage,
+          productCatalog: manifest.productCatalog,
+          economyCatalog: manifest.economyCatalog,
+        }),
+      ).toThrow(
+        "Recommended Dataset Mapping Opportunity package is incompatible",
       );
     },
   );
@@ -562,5 +785,49 @@ function objectReference(key: string, bytes: Buffer) {
     key,
     bytes: bytes.byteLength,
     sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+function opportunityPackage(overrides?: {
+  evidenceSha256?: string;
+  capabilities?: readonly Readonly<{ id: string; version: string }>[];
+}) {
+  return createOpportunityDiscoveryDatasetPackage({
+    schemaVersion: "opportunity-discovery-dataset-package-manifest-v1",
+    baciRelease: "V202601",
+    hsRevision: "HS12",
+    finalizedYearCount: 5,
+    evidenceSha256: overrides?.evidenceSha256 ?? "a".repeat(64),
+    capabilities:
+      overrides?.capabilities ??
+      OPPORTUNITY_DISCOVERY_V1_CAPABILITY_REQUIREMENTS,
+  });
+}
+
+function opportunityDeclaration(
+  datasetPackage: ReturnType<typeof opportunityPackage>,
+  overrides?: { indexSha256?: string; manifestBytes?: Buffer },
+) {
+  const manifestBytes =
+    overrides?.manifestBytes ??
+    Buffer.from(JSON.stringify(datasetPackage.manifest), "utf8");
+  return {
+    recipe: "opportunity-discovery-v1" as const,
+    datasetPackage: {
+      identity: datasetPackage.identity,
+      manifest: objectReference(
+        "opportunity/dataset-package.json",
+        manifestBytes,
+      ),
+    },
+    index: {
+      schemaVersion: "opportunity-index-v1" as const,
+      object: {
+        key: "opportunity/opportunity-index.duckdb",
+        bytes: 4096,
+        sha256:
+          overrides?.indexSha256 ?? datasetPackage.manifest.evidenceSha256,
+      },
+    },
   };
 }
