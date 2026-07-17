@@ -170,6 +170,10 @@ export type TradeExplorerMeasurementInput = {
   benchmarkQueries: readonly TradeExplorerArtifactBenchmarkQuery[];
 };
 
+export type TargetLoadCpuPressure =
+  | { readonly kind: "shared-cpu-burst-balance"; readonly depleted: boolean }
+  | { readonly kind: "dedicated-cpu" };
+
 export type TargetLoadInput = {
   sessions: number;
   sustainedRequestsPerSecond: number;
@@ -203,7 +207,7 @@ export type TargetLoadInput = {
   peakSpillBytes: number;
   sparseOrMedianSpillCount: number;
   minimumVolumeFreeFraction: number;
-  sharedCpuBurstBalanceDepleted: boolean;
+  cpuPressure: TargetLoadCpuPressure;
 };
 
 export type LifecycleMeasurementInput = {
@@ -424,7 +428,10 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
   const browserLab = evaluateBrowserLab(input.browserLab);
   const origin = evaluateOriginBenchmarks(input.originBenchmarks);
   const tradeExplorer = evaluateTradeExplorer(input.tradeExplorer);
-  const targetLoad = evaluateTargetLoad(input.targetLoad);
+  const targetLoad = evaluateTargetLoad(
+    input.targetLoad,
+    input.identity.machineClass,
+  );
   const lifecycle = evaluateLifecycle(
     input.lifecycle,
     input.measurementClass,
@@ -947,7 +954,65 @@ function evaluateOriginBenchmark(input: OriginBenchmarkInput) {
   };
 }
 
-function evaluateTargetLoad(input: TargetLoadInput) {
+const LOCAL_MACHINE_CLASS = "local";
+
+/**
+ * The kind of CPU-pressure evidence the target-load gate requires for a Machine
+ * class. A shared-CPU Fly Machine must prove it depleted its burst balance under
+ * load; a dedicated local host (ADR-0004) has no burst balance, so its load is
+ * accepted on the SLO, error, and resource-headroom criteria alone.
+ */
+export function machineClassCpuPressureKind(
+  machineClass: string,
+): TargetLoadCpuPressure["kind"] {
+  return machineClass === LOCAL_MACHINE_CLASS
+    ? "dedicated-cpu"
+    : "shared-cpu-burst-balance";
+}
+
+/**
+ * Builds the CPU-pressure evidence for a Machine class from a measured
+ * shared-CPU burst-balance depletion signal, so runners and gate authors classify
+ * a run the same way.
+ */
+export function resolveTargetLoadCpuPressure(
+  machineClass: string,
+  sharedCpuBurstBalanceDepleted: boolean,
+): TargetLoadCpuPressure {
+  return machineClassCpuPressureKind(machineClass) === "dedicated-cpu"
+    ? { kind: "dedicated-cpu" }
+    : {
+        kind: "shared-cpu-burst-balance",
+        depleted: sharedCpuBurstBalanceDepleted,
+      };
+}
+
+function targetLoadCpuPressure(value: TargetLoadCpuPressure): TargetLoadCpuPressure {
+  if (value === null || typeof value !== "object") {
+    throw new PerformanceGateInputError(
+      "target-load CPU pressure evidence is required.",
+    );
+  }
+  if (value.kind === "dedicated-cpu") {
+    return { kind: "dedicated-cpu" };
+  }
+  if (value.kind === "shared-cpu-burst-balance") {
+    if (typeof value.depleted !== "boolean") {
+      throw new PerformanceGateInputError(
+        "target-load shared-CPU burst-balance depletion must be a boolean.",
+      );
+    }
+    return { kind: "shared-cpu-burst-balance", depleted: value.depleted };
+  }
+  throw new PerformanceGateInputError(
+    "target-load CPU pressure kind is unsupported.",
+  );
+}
+
+function evaluateTargetLoad(
+  input: TargetLoadInput,
+  machineClass: string,
+) {
   const sessions = count(input.sessions, "target-load sessions");
   const sustainedRequestsPerSecond = nonnegativeNumber(
     input.sustainedRequestsPerSecond,
@@ -1043,6 +1108,14 @@ function evaluateTargetLoad(input: TargetLoadInput) {
     input.analysisUncachedKeyFraction,
     "target-load uncached-key analysis fraction",
   );
+  const requiredCpuPressureKind = machineClassCpuPressureKind(machineClass);
+  const cpuPressure = targetLoadCpuPressure(input.cpuPressure);
+  const cpuPressureSatisfied =
+    cpuPressure.kind === requiredCpuPressureKind &&
+    (cpuPressure.kind === "dedicated-cpu" || cpuPressure.depleted);
+  const cpuPressureStatus: PerformanceGateStatus = cpuPressureSatisfied
+    ? "accepted"
+    : "blocked";
 
   const hardFailure =
     sessions !== 20 ||
@@ -1079,7 +1152,7 @@ function evaluateTargetLoad(input: TargetLoadInput) {
     peakProcessRssFraction > 0.75 ||
     peakSpillBytes > 4 * GIB ||
     minimumVolumeFreeFraction < 0.25 ||
-    !input.sharedCpuBurstBalanceDepleted;
+    !cpuPressureSatisfied;
   const warning =
     peakCgroupMemoryFraction > 0.75 ||
     sparseOrMedianSpillCount > 0 ||
@@ -1135,8 +1208,9 @@ function evaluateTargetLoad(input: TargetLoadInput) {
     minimumVolumeFreeFraction,
     volumeWarningFreeFraction: 0.3,
     volumeMinimumFreeFraction: 0.25,
-    sharedCpuBurstBalanceDepleted:
-      input.sharedCpuBurstBalanceDepleted,
+    cpuPressure,
+    requiredCpuPressureKind,
+    cpuPressureStatus,
     status,
   };
 }

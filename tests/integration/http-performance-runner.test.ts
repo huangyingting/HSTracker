@@ -1741,7 +1741,10 @@ describe("mixed-load runner", () => {
 
     return runMixedLoad(plan, executor, mixedRunnerDependencies()).then((report) => {
       expect(report.targetLoad.peakCgroupMemoryFraction).toBe(0.91);
-      expect(report.targetLoad.sharedCpuBurstBalanceDepleted).toBe(true);
+      expect(report.targetLoad.cpuPressure).toEqual({
+        kind: "shared-cpu-burst-balance",
+        depleted: true,
+      });
       expect(report.targetLoad.sparseOrMedianSpillCount).toBe(2);
     });
   });

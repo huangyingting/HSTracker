@@ -153,6 +153,73 @@ describe("production performance gates", () => {
     });
   });
 
+  it("accepts a local machine-class load without a shared-CPU burst balance", () => {
+    const input = acceptedInput();
+    input.identity.machineClass = "local";
+    input.identity.region = "loc";
+    input.targetLoad.cpuPressure = { kind: "dedicated-cpu" };
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("accepted");
+    expect(result.gates.targetLoad).toMatchObject({
+      cpuPressure: { kind: "dedicated-cpu" },
+      requiredCpuPressureKind: "dedicated-cpu",
+      cpuPressureStatus: "accepted",
+      status: "accepted",
+    });
+  });
+
+  it("blocks a local machine-class load that reports shared-CPU burst evidence", () => {
+    const input = acceptedInput();
+    input.identity.machineClass = "local";
+    input.identity.region = "loc";
+    input.targetLoad.cpuPressure = {
+      kind: "shared-cpu-burst-balance",
+      depleted: true,
+    };
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.targetLoad).toMatchObject({
+      requiredCpuPressureKind: "dedicated-cpu",
+      cpuPressureStatus: "blocked",
+      status: "blocked",
+    });
+  });
+
+  it("blocks a shared-CPU load whose burst balance was never depleted", () => {
+    const input = acceptedInput();
+    input.targetLoad.cpuPressure = {
+      kind: "shared-cpu-burst-balance",
+      depleted: false,
+    };
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.targetLoad).toMatchObject({
+      requiredCpuPressureKind: "shared-cpu-burst-balance",
+      cpuPressureStatus: "blocked",
+      status: "blocked",
+    });
+  });
+
+  it("blocks a shared-CPU load that reports dedicated-CPU evidence", () => {
+    const input = acceptedInput();
+    input.targetLoad.cpuPressure = { kind: "dedicated-cpu" };
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.targetLoad).toMatchObject({
+      requiredCpuPressureKind: "shared-cpu-burst-balance",
+      cpuPressureStatus: "blocked",
+      status: "blocked",
+    });
+  });
+
   it("fails closed when a required route/product benchmark is absent", () => {
     const input = acceptedInput();
     input.originBenchmarks = input.originBenchmarks.filter(
@@ -564,7 +631,7 @@ function acceptedInput(): PerformanceGateInput {
       peakSpillBytes: 4 * 1024 ** 3,
       sparseOrMedianSpillCount: 0,
       minimumVolumeFreeFraction: 0.3,
-      sharedCpuBurstBalanceDepleted: true,
+      cpuPressure: { kind: "shared-cpu-burst-balance", depleted: true },
     },
     lifecycle: {
       restartToReadyMs: 90_000,

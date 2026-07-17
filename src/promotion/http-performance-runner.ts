@@ -9,6 +9,7 @@ import {
   type BenchmarkSample,
 } from "./benchmark-statistics";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
+import { resolveTargetLoadCpuPressure } from "./performance-gates";
 import type {
   OriginBenchmarkInput,
   OriginBenchmarkOperation,
@@ -2602,7 +2603,10 @@ export async function runMixedLoad(
     peakSpillBytes: observations.peakSpillBytes,
     sparseOrMedianSpillCount: observations.sparseOrMedianSpillCount,
     minimumVolumeFreeFraction: observations.minimumVolumeFreeFraction,
-    sharedCpuBurstBalanceDepleted: observations.sharedCpuBurstBalanceDepleted,
+    cpuPressure: resolveTargetLoadCpuPressure(
+      plan.identity.machineClass,
+      observations.sharedCpuBurstBalanceDepleted,
+    ),
   };
   const orderedCacheViolations = [...cacheViolations].sort(
     (left, right) =>
