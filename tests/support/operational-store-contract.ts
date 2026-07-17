@@ -38,6 +38,185 @@ export function runOperationalStoreContract(
       expect(await store.findAccount("00000000-0000-0000-0000-000000000000")).toBeNull();
     });
 
+    it("stores credentials by normalized email identity and rejects duplicates", async () => {
+      const account = await store.createAccount({
+        displayName: "Acme Exports",
+        primaryExportEconomy: "076",
+      });
+      const credential = await store.createCredential({
+        accountId: account.id,
+        identity: " Analyst@Example.COM ",
+        verifier: "scrypt$16384$8$1$salt$hash",
+      });
+
+      expect(credential).toMatchObject({
+        accountId: account.id,
+        normalizedIdentity: "analyst@example.com",
+        verifier: "scrypt$16384$8$1$salt$hash",
+        failedAttemptCount: 0,
+        lockedUntil: null,
+      });
+      expect(
+        await store.findCredentialByIdentity("analyst@example.com"),
+      ).toEqual(credential);
+      expect(
+        await store.findCredentialByIdentity("ANALYST@example.com"),
+      ).toEqual(credential);
+      expect(await store.findCredentialByAccount(account.id)).toEqual(
+        credential,
+      );
+
+      const updated = await store.updateCredentialAttempts({
+        credentialId: credential.id,
+        failedAttemptCount: 3,
+        lockedUntil: "2026-07-17T06:15:00.000Z",
+      });
+      expect(updated.failedAttemptCount).toBe(3);
+      expect(updated.lockedUntil).toBe("2026-07-17T06:15:00.000Z");
+
+      const rekeyed = await store.updateCredentialVerifier({
+        credentialId: credential.id,
+        verifier: "scrypt$16384$8$1$new$hash",
+      });
+      expect(rekeyed).toMatchObject({
+        verifier: "scrypt$16384$8$1$new$hash",
+        failedAttemptCount: 0,
+        lockedUntil: null,
+      });
+
+      await expect(
+        store.createCredential({
+          accountId: account.id,
+          identity: "analyst@example.com",
+          verifier: "scrypt$16384$8$1$other$hash",
+        }),
+      ).rejects.toSatisfy(
+        (error) =>
+          isOperationalStoreError(error) &&
+          error.code === "DUPLICATE_CREDENTIAL_IDENTITY",
+      );
+    });
+
+    it("creates an account and credential atomically for registration", async () => {
+      const registered = await store.createAccountWithCredential({
+        displayName: "Registry Co",
+        primaryExportEconomy: "076",
+        credentialIdentity: "registry@example.com",
+        credentialVerifier: "scrypt$16384$8$1$salt$hash",
+      });
+
+      expect(registered.account.displayName).toBe("Registry Co");
+      expect(registered.credential.accountId).toBe(registered.account.id);
+      expect(
+        await store.findCredentialByIdentity("REGISTRY@example.com"),
+      ).toEqual(registered.credential);
+
+      await expect(
+        store.createAccountWithCredential({
+          displayName: "Duplicate Co",
+          primaryExportEconomy: "156",
+          credentialIdentity: "registry@example.com",
+          credentialVerifier: "scrypt$16384$8$1$other$hash",
+        }),
+      ).rejects.toSatisfy(
+        (error) =>
+          isOperationalStoreError(error) &&
+          error.code === "DUPLICATE_CREDENTIAL_IDENTITY",
+      );
+    });
+
+    it("creates, expires, and revokes digest-only sessions", async () => {
+      const account = await store.createAccount({
+        displayName: "A",
+        primaryExportEconomy: "076",
+      });
+      const live = await store.createSession({
+        accountId: account.id,
+        tokenDigest:
+          "1111111111111111111111111111111111111111111111111111111111111111",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      });
+      expect(await store.findSession(live.tokenDigest)).toEqual(live);
+
+      const expired = await store.createSession({
+        accountId: account.id,
+        tokenDigest:
+          "2222222222222222222222222222222222222222222222222222222222222222",
+        expiresAt: "2000-01-01T00:00:00.000Z",
+      });
+      expect(await store.findSession(expired.tokenDigest)).toBeNull();
+
+      await store.revokeSession(live.tokenDigest);
+      expect(await store.findSession(live.tokenDigest)).toBeNull();
+
+      const second = await store.createSession({
+        accountId: account.id,
+        tokenDigest:
+          "3333333333333333333333333333333333333333333333333333333333333333",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      });
+      await store.revokeSessionsForAccount(account.id);
+      expect(await store.findSession(second.tokenDigest)).toBeNull();
+    });
+
+    it("consumes recovery token digests once and rejects expired tokens", async () => {
+      const account = await store.createAccount({
+        displayName: "A",
+        primaryExportEconomy: "076",
+      });
+      const issued = await store.issueRecoveryToken({
+        accountId: account.id,
+        tokenDigest:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      });
+      expect(issued.consumedAt).toBeNull();
+
+      const consumed = await store.consumeRecoveryToken(issued.tokenDigest);
+      expect(consumed).toMatchObject({
+        tokenDigest: issued.tokenDigest,
+        accountId: account.id,
+      });
+      expect(consumed?.consumedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
+      expect(await store.consumeRecoveryToken(issued.tokenDigest)).toBeNull();
+
+      const expired = await store.issueRecoveryToken({
+        accountId: account.id,
+        tokenDigest:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        expiresAt: "2000-01-01T00:00:00.000Z",
+      });
+      expect(await store.consumeRecoveryToken(expired.tokenDigest)).toBeNull();
+    });
+
+    it("appends account audit events and explicitly changes only the primary exporter", async () => {
+      const account = await store.createAccount({
+        displayName: "A",
+        primaryExportEconomy: "076",
+      });
+
+      const created = await store.appendAuditEvent({
+        accountId: account.id,
+        kind: "ACCOUNT_CREATED",
+        detail: { primaryExportEconomy: "076" },
+      });
+      await store.appendAuditEvent({
+        accountId: null,
+        kind: "SIGN_IN_REFUSED",
+        detail: { reason: "INVALID_CREDENTIALS" },
+      });
+      const changed = await store.setPrimaryExporter(account.id, "156");
+
+      expect(changed).toMatchObject({
+        id: account.id,
+        displayName: "A",
+        primaryExportEconomy: "156",
+        createdAt: account.createdAt,
+      });
+      expect(await store.findAccount(account.id)).toEqual(changed);
+      expect(await store.listAuditEvents(account.id)).toEqual([created]);
+    });
+
     it("replaces the whole portfolio atomically and dedupes references", async () => {
       const account = await store.createAccount({
         displayName: "A",
@@ -212,6 +391,74 @@ export function runOperationalStoreContract(
       expect(first).toMatchObject({ status: "SENT", attempts: 1 });
       const second = await store.markDelivered(event.id, "email");
       expect(second.attempts).toBe(2);
+    });
+
+    it("deletes an account's operational rows while retaining the deletion audit record", async () => {
+      const account = await store.createAccount({
+        displayName: "Deletable",
+        primaryExportEconomy: "076",
+      });
+      await store.createCredential({
+        accountId: account.id,
+        identity: "delete@example.com",
+        verifier: "scrypt$16384$8$1$salt$hash",
+      });
+      const session = await store.createSession({
+        accountId: account.id,
+        tokenDigest:
+          "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      });
+      const recovery = await store.issueRecoveryToken({
+        accountId: account.id,
+        tokenDigest:
+          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      });
+      await store.confirmPortfolio(account.id, [prod("010101")]);
+      const watch = await store.openWatch(account.id, {
+        product: prod("010101"),
+        marketEconomy: "156",
+      });
+      const { event } = await store.recordAlertEvent({
+        watchId: watch.id,
+        kind: "MOMENTUM_SIGNAL",
+        dedupeKey: "P1:up",
+        detail: { direction: "up" },
+        occurredAt: "2026-01-01T00:00:00.000Z",
+      });
+      await store.markDelivered(event.id, "email");
+      await store.appendAuditEvent({
+        accountId: account.id,
+        kind: "ACCOUNT_CREATED",
+        detail: {},
+      });
+
+      const deletion = await store.deleteAccount(account.id);
+
+      expect(deletion).toMatchObject({
+        accountId: account.id,
+        kind: "ACCOUNT_DELETED",
+        detail: {
+          accountId: account.id,
+          retentionPolicy: "operational-account-deletion-v1",
+        },
+      });
+      expect(await store.findAccount(account.id)).toBeNull();
+      expect(await store.findCredentialByIdentity("delete@example.com")).toBeNull();
+      expect(await store.findSession(session.tokenDigest)).toBeNull();
+      expect(await store.consumeRecoveryToken(recovery.tokenDigest)).toBeNull();
+      expect(await store.listConfirmedProducts(account.id)).toEqual([]);
+      expect(await store.listWatches(account.id)).toEqual([]);
+      expect(await store.listAlertEvents(account.id)).toEqual([]);
+      expect(await store.getDeliveryState(event.id, "email")).toBeNull();
+      const auditKinds = (await store.listAuditEvents(account.id)).map(
+        (audit) => audit.kind,
+      );
+      expect(auditKinds).toHaveLength(2);
+      expect(auditKinds).toEqual(
+        expect.arrayContaining(["ACCOUNT_CREATED", "ACCOUNT_DELETED"]),
+      );
     });
   });
 }

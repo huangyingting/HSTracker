@@ -2,9 +2,15 @@ import { randomUUID } from "node:crypto";
 
 import { Pool, type PoolClient } from "pg";
 
-import { storeInMaintenance, unknownEntity } from "./errors";
 import {
+  duplicateCredentialIdentity,
+  storeInMaintenance,
+  unknownEntity,
+} from "./errors";
+import {
+  normalizeCredentialIdentity,
   requireNonEmpty,
+  requireNonNegativeInt,
   requirePositiveInt,
   systemClock,
   toIso,
@@ -12,19 +18,31 @@ import {
 } from "./internal";
 import type {
   Account,
+  AccountCredentialRegistration,
   AccountId,
   AlertEvent,
   AlertEventId,
+  AppendAuditEventInput,
+  AuditEvent,
   ClaimedWatch,
   ClaimWatchesInput,
   ConfirmedProduct,
   CreateAccountInput,
+  CreateAccountWithCredentialInput,
+  CreateCredentialInput,
+  CreateSessionInput,
+  Credential,
   DeliveryState,
   EvaluationLeaseId,
+  IssueRecoveryTokenInput,
   OpenWatchInput,
   OpportunityWatch,
+  OperationalSession,
   RecordAlertEventInput,
   RecordedAlertEvent,
+  RecoveryToken,
+  UpdateCredentialAttemptsInput,
+  UpdateCredentialVerifierInput,
 } from "./model";
 import type {
   OperationalStore,
@@ -38,6 +56,30 @@ CREATE TABLE IF NOT EXISTS operational_account (
   primary_export_economy TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS operational_credential (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  normalized_identity TEXT NOT NULL UNIQUE,
+  verifier TEXT NOT NULL,
+  failed_attempt_count INTEGER NOT NULL,
+  locked_until TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS operational_session (
+  token_digest TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+CREATE TABLE IF NOT EXISTS operational_recovery_token (
+  token_digest TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT
 );
 CREATE TABLE IF NOT EXISTS operational_confirmed_product (
   account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
@@ -77,6 +119,13 @@ CREATE TABLE IF NOT EXISTS operational_delivery_state (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (event_id, channel)
 );
+CREATE TABLE IF NOT EXISTS operational_audit_event (
+  id TEXT PRIMARY KEY,
+  account_id TEXT,
+  kind TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS operational_evaluation_lease (
   lease_id TEXT PRIMARY KEY,
   watch_id TEXT NOT NULL REFERENCES operational_watch(id) ON DELETE CASCADE,
@@ -95,6 +144,8 @@ CREATE TABLE IF NOT EXISTS operational_application_lease (
 );
 `;
 
+const SCHEMA_ADVISORY_LOCK_ID = 56000056;
+
 export interface PostgresOperationalStoreOptions {
   readonly connectionString: string;
   readonly applicationName?: string;
@@ -109,6 +160,32 @@ interface AccountRow {
   primary_export_economy: string;
   created_at: string;
   updated_at: string;
+}
+
+interface CredentialRow {
+  id: string;
+  account_id: string;
+  normalized_identity: string;
+  verifier: string;
+  failed_attempt_count: number;
+  locked_until: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SessionRow {
+  token_digest: string;
+  account_id: string;
+  created_at: string;
+  expires_at: string;
+}
+
+interface RecoveryTokenRow {
+  token_digest: string;
+  account_id: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
 }
 
 interface WatchRow {
@@ -131,6 +208,14 @@ interface AlertEventRow {
   dedupe_key: string;
   detail: string;
   occurred_at: string;
+  created_at: string;
+}
+
+interface AuditEventRow {
+  id: string;
+  account_id: string | null;
+  kind: string;
+  detail: string;
   created_at: string;
 }
 
@@ -167,7 +252,25 @@ export class PostgresOperationalStore implements OperationalStore {
       pool,
       options.clock ?? systemClock,
     );
-    await pool.query(SCHEMA);
+    const client = await pool.connect();
+    let initialized = false;
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT pg_advisory_xact_lock(${SCHEMA_ADVISORY_LOCK_ID})`,
+      );
+      await client.query(SCHEMA);
+      await client.query("COMMIT");
+      initialized = true;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+      if (!initialized) {
+        await pool.end();
+      }
+    }
     return store;
   }
 
@@ -225,12 +328,353 @@ export class PostgresOperationalStore implements OperationalStore {
     };
   }
 
+  async createAccountWithCredential(
+    input: CreateAccountWithCredentialInput,
+  ): Promise<AccountCredentialRegistration> {
+    this.assertWritable();
+    const displayName = requireNonEmpty(input.displayName, "displayName");
+    const economy = requireNonEmpty(
+      input.primaryExportEconomy,
+      "primaryExportEconomy",
+    );
+    const normalizedIdentity = normalizeCredentialIdentity(
+      input.credentialIdentity,
+    );
+    const verifier = requireNonEmpty(
+      input.credentialVerifier,
+      "credentialVerifier",
+    );
+    const accountId = randomUUID();
+    const credentialId = randomUUID();
+    const ts = toIso(this.now());
+    try {
+      await this.withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO operational_account (id, display_name, primary_export_economy, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $4)`,
+          [accountId, displayName, economy, ts],
+        );
+        await client.query(
+          `INSERT INTO operational_credential
+             (id, account_id, normalized_identity, verifier, failed_attempt_count, locked_until, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 0, NULL, $5, $5)`,
+          [credentialId, accountId, normalizedIdentity, verifier, ts],
+        );
+      });
+    } catch (error) {
+      throw mapCredentialInsertError(error, normalizedIdentity);
+    }
+    return {
+      account: {
+        id: accountId,
+        displayName,
+        primaryExportEconomy: economy,
+        createdAt: ts,
+        updatedAt: ts,
+      },
+      credential: {
+        id: credentialId,
+        accountId,
+        normalizedIdentity,
+        verifier,
+        failedAttemptCount: 0,
+        lockedUntil: null,
+        createdAt: ts,
+        updatedAt: ts,
+      },
+    };
+  }
+
   async findAccount(id: AccountId): Promise<Account | null> {
     const { rows } = await this.pool.query<AccountRow>(
       "SELECT * FROM operational_account WHERE id = $1",
       [id],
     );
     return rows[0] ? mapAccount(rows[0]) : null;
+  }
+
+  async createCredential(input: CreateCredentialInput): Promise<Credential> {
+    this.assertWritable();
+    const accountId = requireNonEmpty(input.accountId, "accountId");
+    const normalizedIdentity = normalizeCredentialIdentity(input.identity);
+    const verifier = requireNonEmpty(input.verifier, "verifier");
+    const id = randomUUID();
+    const ts = toIso(this.now());
+    try {
+      await this.withTransaction(async (client) => {
+        await requireAccountTx(client, accountId);
+        await client.query(
+          `INSERT INTO operational_credential
+             (id, account_id, normalized_identity, verifier, failed_attempt_count, locked_until, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 0, NULL, $5, $5)`,
+          [id, accountId, normalizedIdentity, verifier, ts],
+        );
+      });
+    } catch (error) {
+      throw mapCredentialInsertError(error, normalizedIdentity);
+    }
+    return {
+      id,
+      accountId,
+      normalizedIdentity,
+      verifier,
+      failedAttemptCount: 0,
+      lockedUntil: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+  }
+
+  async findCredentialByIdentity(
+    identity: string,
+  ): Promise<Credential | null> {
+    const normalizedIdentity = normalizeCredentialIdentity(identity);
+    const { rows } = await this.pool.query<CredentialRow>(
+      "SELECT * FROM operational_credential WHERE normalized_identity = $1",
+      [normalizedIdentity],
+    );
+    return rows[0] ? mapCredential(rows[0]) : null;
+  }
+
+  async findCredentialByAccount(
+    accountId: AccountId,
+  ): Promise<Credential | null> {
+    const { rows } = await this.pool.query<CredentialRow>(
+      "SELECT * FROM operational_credential WHERE account_id = $1",
+      [accountId],
+    );
+    return rows[0] ? mapCredential(rows[0]) : null;
+  }
+
+  async updateCredentialAttempts(
+    input: UpdateCredentialAttemptsInput,
+  ): Promise<Credential> {
+    this.assertWritable();
+    const credentialId = requireNonEmpty(input.credentialId, "credentialId");
+    const failedAttemptCount = requireNonNegativeInt(
+      input.failedAttemptCount,
+      "failedAttemptCount",
+    );
+    const lockedUntil =
+      input.lockedUntil === null
+        ? null
+        : requireNonEmpty(input.lockedUntil, "lockedUntil");
+    const { rows } = await this.pool.query<CredentialRow>(
+      `UPDATE operational_credential
+       SET failed_attempt_count = $1, locked_until = $2, updated_at = $3
+       WHERE id = $4
+       RETURNING *`,
+      [failedAttemptCount, lockedUntil, toIso(this.now()), credentialId],
+    );
+    if (!rows[0]) {
+      throw unknownEntity(`Credential ${credentialId} does not exist.`);
+    }
+    return mapCredential(rows[0]);
+  }
+
+  async updateCredentialVerifier(
+    input: UpdateCredentialVerifierInput,
+  ): Promise<Credential> {
+    this.assertWritable();
+    const credentialId = requireNonEmpty(input.credentialId, "credentialId");
+    const verifier = requireNonEmpty(input.verifier, "verifier");
+    const { rows } = await this.pool.query<CredentialRow>(
+      `UPDATE operational_credential
+       SET verifier = $1, failed_attempt_count = 0, locked_until = NULL, updated_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      [verifier, toIso(this.now()), credentialId],
+    );
+    if (!rows[0]) {
+      throw unknownEntity(`Credential ${credentialId} does not exist.`);
+    }
+    return mapCredential(rows[0]);
+  }
+
+  async createSession(input: CreateSessionInput): Promise<OperationalSession> {
+    this.assertWritable();
+    const accountId = requireNonEmpty(input.accountId, "accountId");
+    const tokenDigest = requireNonEmpty(input.tokenDigest, "tokenDigest");
+    const expiresAt = requireNonEmpty(input.expiresAt, "expiresAt");
+    const createdAt = toIso(this.now());
+    await this.withTransaction(async (client) => {
+      await requireAccountTx(client, accountId);
+      await client.query(
+        `INSERT INTO operational_session
+           (token_digest, account_id, created_at, expires_at, revoked_at)
+         VALUES ($1, $2, $3, $4, NULL)`,
+        [tokenDigest, accountId, createdAt, expiresAt],
+      );
+    });
+    return { tokenDigest, accountId, createdAt, expiresAt };
+  }
+
+  async findSession(tokenDigest: string): Promise<OperationalSession | null> {
+    const digest = requireNonEmpty(tokenDigest, "tokenDigest");
+    const { rows } = await this.pool.query<SessionRow>(
+      `SELECT token_digest, account_id, created_at, expires_at
+       FROM operational_session
+       WHERE token_digest = $1 AND revoked_at IS NULL AND expires_at > $2`,
+      [digest, toIso(this.now())],
+    );
+    return rows[0] ? mapSession(rows[0]) : null;
+  }
+
+  async revokeSession(tokenDigest: string): Promise<void> {
+    this.assertWritable();
+    const digest = requireNonEmpty(tokenDigest, "tokenDigest");
+    await this.pool.query(
+      `UPDATE operational_session
+       SET revoked_at = $1
+       WHERE token_digest = $2 AND revoked_at IS NULL`,
+      [toIso(this.now()), digest],
+    );
+  }
+
+  async revokeSessionsForAccount(accountId: AccountId): Promise<void> {
+    this.assertWritable();
+    await this.withTransaction(async (client) => {
+      await requireAccountTx(client, accountId);
+      await client.query(
+        `UPDATE operational_session
+         SET revoked_at = $1
+         WHERE account_id = $2 AND revoked_at IS NULL`,
+        [toIso(this.now()), accountId],
+      );
+    });
+  }
+
+  async issueRecoveryToken(
+    input: IssueRecoveryTokenInput,
+  ): Promise<RecoveryToken> {
+    this.assertWritable();
+    const accountId = requireNonEmpty(input.accountId, "accountId");
+    const tokenDigest = requireNonEmpty(input.tokenDigest, "tokenDigest");
+    const expiresAt = requireNonEmpty(input.expiresAt, "expiresAt");
+    const createdAt = toIso(this.now());
+    await this.withTransaction(async (client) => {
+      await requireAccountTx(client, accountId);
+      await client.query(
+        `INSERT INTO operational_recovery_token
+           (token_digest, account_id, created_at, expires_at, consumed_at)
+         VALUES ($1, $2, $3, $4, NULL)`,
+        [tokenDigest, accountId, createdAt, expiresAt],
+      );
+    });
+    return { tokenDigest, accountId, createdAt, expiresAt, consumedAt: null };
+  }
+
+  async consumeRecoveryToken(
+    tokenDigest: string,
+  ): Promise<RecoveryToken | null> {
+    this.assertWritable();
+    const digest = requireNonEmpty(tokenDigest, "tokenDigest");
+    const consumedAt = toIso(this.now());
+    const { rows } = await this.withTransaction(async (client) =>
+      client.query<RecoveryTokenRow>(
+        `UPDATE operational_recovery_token
+         SET consumed_at = $2
+         WHERE token_digest = $1
+           AND consumed_at IS NULL
+           AND expires_at > $2
+         RETURNING token_digest, account_id, created_at, expires_at, consumed_at`,
+        [digest, consumedAt],
+      ),
+    );
+    return rows[0] ? mapRecoveryToken(rows[0]) : null;
+  }
+
+  async appendAuditEvent(input: AppendAuditEventInput): Promise<AuditEvent> {
+    this.assertWritable();
+    const accountId =
+      input.accountId === null
+        ? null
+        : requireNonEmpty(input.accountId, "accountId");
+    const kind = requireNonEmpty(input.kind, "kind");
+    const detail = JSON.stringify(input.detail ?? {});
+    const id = randomUUID();
+    const createdAt = toIso(this.now());
+    if (accountId !== null) {
+      await this.withTransaction(async (client) => {
+        await requireAccountTx(client, accountId);
+        await client.query(
+          `INSERT INTO operational_audit_event (id, account_id, kind, detail, created_at)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, accountId, kind, detail, createdAt],
+        );
+      });
+    } else {
+      await this.pool.query(
+        `INSERT INTO operational_audit_event (id, account_id, kind, detail, created_at)
+         VALUES ($1, NULL, $2, $3, $4)`,
+        [id, kind, detail, createdAt],
+      );
+    }
+    return {
+      id,
+      accountId,
+      kind,
+      detail: JSON.parse(detail) as Record<string, unknown>,
+      createdAt,
+    };
+  }
+
+  async listAuditEvents(
+    accountId: AccountId,
+  ): Promise<readonly AuditEvent[]> {
+    const { rows } = await this.pool.query<AuditEventRow>(
+      `SELECT * FROM operational_audit_event
+       WHERE account_id = $1
+       ORDER BY created_at, id`,
+      [accountId],
+    );
+    return rows.map(mapAuditEvent);
+  }
+
+  async setPrimaryExporter(
+    accountId: AccountId,
+    economyCode: string,
+  ): Promise<Account> {
+    this.assertWritable();
+    const economy = requireNonEmpty(economyCode, "economyCode");
+    const { rows } = await this.pool.query<AccountRow>(
+      `UPDATE operational_account
+       SET primary_export_economy = $1, updated_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      [economy, toIso(this.now()), accountId],
+    );
+    if (!rows[0]) {
+      throw unknownEntity(`Account ${accountId} does not exist.`);
+    }
+    return mapAccount(rows[0]);
+  }
+
+  async deleteAccount(accountId: AccountId): Promise<AuditEvent> {
+    this.assertWritable();
+    const id = requireNonEmpty(accountId, "accountId");
+    const auditId = randomUUID();
+    const createdAt = toIso(this.now());
+    const detail = JSON.stringify({
+      accountId: id,
+      retentionPolicy: "operational-account-deletion-v1",
+    });
+    await this.withTransaction(async (client) => {
+      await requireAccountTx(client, id);
+      await client.query("DELETE FROM operational_account WHERE id = $1", [id]);
+      await client.query(
+        `INSERT INTO operational_audit_event (id, account_id, kind, detail, created_at)
+         VALUES ($1, $2, 'ACCOUNT_DELETED', $3, $4)`,
+        [auditId, id, detail, createdAt],
+      );
+    });
+    return {
+      id: auditId,
+      accountId: id,
+      kind: "ACCOUNT_DELETED",
+      detail: JSON.parse(detail) as Record<string, unknown>,
+      createdAt,
+    };
   }
 
   async confirmPortfolio(
@@ -538,6 +982,38 @@ function mapAccount(row: AccountRow): Account {
   };
 }
 
+function mapCredential(row: CredentialRow): Credential {
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    normalizedIdentity: row.normalized_identity,
+    verifier: row.verifier,
+    failedAttemptCount: row.failed_attempt_count,
+    lockedUntil: row.locked_until,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapSession(row: SessionRow): OperationalSession {
+  return {
+    tokenDigest: row.token_digest,
+    accountId: row.account_id,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+  };
+}
+
+function mapRecoveryToken(row: RecoveryTokenRow): RecoveryToken {
+  return {
+    tokenDigest: row.token_digest,
+    accountId: row.account_id,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at,
+  };
+}
+
 function mapWatch(row: WatchRow): OpportunityWatch {
   return {
     id: row.id,
@@ -564,6 +1040,16 @@ function mapAlertEvent(row: AlertEventRow): AlertEvent {
   };
 }
 
+function mapAuditEvent(row: AuditEventRow): AuditEvent {
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    kind: row.kind,
+    detail: JSON.parse(row.detail) as Record<string, unknown>,
+    createdAt: row.created_at,
+  };
+}
+
 function dedupeProducts(
   products: readonly ProductRefInput[],
 ): { hsRevision: string; code: string }[] {
@@ -574,4 +1060,16 @@ function dedupeProducts(
     seen.set(`${hsRevision}|${code}`, { hsRevision, code });
   }
   return [...seen.values()];
+}
+
+function mapCredentialInsertError(error: unknown, identity: string): never {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505"
+  ) {
+    throw duplicateCredentialIdentity(identity);
+  }
+  throw error;
 }

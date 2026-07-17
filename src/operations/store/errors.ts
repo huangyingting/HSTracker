@@ -16,6 +16,8 @@ export type OperationalStoreErrorCode =
   | "NON_LOCAL_SQLITE_VOLUME"
   // A migration validation step (count, reference, or digest) failed.
   | "MIGRATION_VALIDATION_FAILED"
+  // The normalized credential identity already belongs to another account.
+  | "DUPLICATE_CREDENTIAL_IDENTITY"
   // The store rejected a write because it was placed in maintenance mode.
   | "STORE_IN_MAINTENANCE";
 
@@ -64,6 +66,15 @@ export function migrationValidationFailed(
   message: string,
 ): OperationalStoreError {
   return new OperationalStoreError("MIGRATION_VALIDATION_FAILED", message);
+}
+
+export function duplicateCredentialIdentity(
+  identity: string,
+): OperationalStoreError {
+  return new OperationalStoreError(
+    "DUPLICATE_CREDENTIAL_IDENTITY",
+    `Credential identity ${identity} already exists.`,
+  );
 }
 
 export function storeInMaintenance(): OperationalStoreError {

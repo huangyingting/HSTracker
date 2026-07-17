@@ -10,16 +10,19 @@ import { PostgresOperationalStore } from "../../src/operations/store/postgres-op
 import { SqliteOperationalStore } from "../../src/operations/store/sqlite-operational-store";
 import type { OperationalStore } from "../../src/operations/store/operational-store";
 import {
+  createScopedPostgresSchema,
   makeTempStoreDir,
   postgresTestUrl,
   removeTempStoreDir,
-  resetPostgres,
 } from "../support/operational-store-env";
 
 const pgUrl = postgresTestUrl();
+const pgSchema =
+  pgUrl === null ? null : createScopedPostgresSchema(pgUrl, "migration");
 const tempDir = makeTempStoreDir();
 
-afterAll(() => {
+afterAll(async () => {
+  await pgSchema?.drop();
   removeTempStoreDir(tempDir);
 });
 
@@ -48,6 +51,28 @@ async function seedSqlite(filePath: string): Promise<{
     occurredAt: "2026-01-01T00:00:00.000Z",
   });
   await store.markDelivered(event.id, "email");
+  await store.createCredential({
+    accountId: account.id,
+    identity: "migrating@example.com",
+    verifier: "scrypt$16384$8$1$salt$hash",
+  });
+  await store.appendAuditEvent({
+    accountId: account.id,
+    kind: "ACCOUNT_CREATED",
+    detail: { source: "sqlite" },
+  });
+  await store.createSession({
+    accountId: account.id,
+    tokenDigest:
+      "9999999999999999999999999999999999999999999999999999999999999999",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+  });
+  await store.issueRecoveryToken({
+    accountId: account.id,
+    tokenDigest:
+      "8888888888888888888888888888888888888888888888888888888888888888",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+  });
   // Model an offline, quiesced source: reject further writes, then release the
   // file so the one-way migration can read it.
   store.enterMaintenance();
@@ -62,10 +87,10 @@ async function seedSqlite(filePath: string): Promise<{
 }
 
 describe.skipIf(pgUrl === null)("SQLite to PostgreSQL migration", () => {
-  const url = pgUrl!;
+  const url = pgSchema!.connectionString;
 
   beforeEach(async () => {
-    await resetPostgres(url);
+    await pgSchema!.reset();
   });
 
   it("dry-runs without writing to the target", async () => {
@@ -122,6 +147,29 @@ describe.skipIf(pgUrl === null)("SQLite to PostgreSQL migration", () => {
       expect(events[0]!.detail).toEqual({ direction: "up" });
       const delivery = await target.getDeliveryState(eventId, "email");
       expect(delivery).toMatchObject({ status: "SENT", attempts: 1 });
+      expect(
+        await target.findCredentialByIdentity("MIGRATING@example.com"),
+      ).toMatchObject({
+        accountId,
+        normalizedIdentity: "migrating@example.com",
+      });
+      expect(await target.listAuditEvents(accountId)).toEqual([
+        expect.objectContaining({
+          accountId,
+          kind: "ACCOUNT_CREATED",
+          detail: { source: "sqlite" },
+        }),
+      ]);
+      expect(
+        await target.findSession(
+          "9999999999999999999999999999999999999999999999999999999999999999",
+        ),
+      ).toBeNull();
+      expect(
+        await target.consumeRecoveryToken(
+          "8888888888888888888888888888888888888888888888888888888888888888",
+        ),
+      ).toBeNull();
     } finally {
       await target.close();
     }

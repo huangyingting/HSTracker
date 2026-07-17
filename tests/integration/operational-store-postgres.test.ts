@@ -1,18 +1,24 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PostgresOperationalStore } from "../../src/operations/store/postgres-operational-store";
 import {
+  createScopedPostgresSchema,
   postgresTestUrl,
-  resetPostgres,
 } from "../support/operational-store-env";
 
 const pgUrl = postgresTestUrl();
+const pgSchema =
+  pgUrl === null ? null : createScopedPostgresSchema(pgUrl, "postgres");
+
+afterAll(async () => {
+  await pgSchema?.drop();
+});
 
 describe.skipIf(pgUrl === null)("PostgresOperationalStore concurrency", () => {
-  const url = pgUrl!;
+  const url = pgSchema!.connectionString;
 
   beforeEach(async () => {
-    await resetPostgres(url);
+    await pgSchema!.reset();
   });
 
   async function seedWatches(count: number): Promise<{

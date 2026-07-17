@@ -21,6 +21,16 @@ const TABLE_COLUMNS: Record<MigratedTable, readonly string[]> = {
     "created_at",
     "updated_at",
   ],
+  operational_credential: [
+    "id",
+    "account_id",
+    "normalized_identity",
+    "verifier",
+    "failed_attempt_count",
+    "locked_until",
+    "created_at",
+    "updated_at",
+  ],
   operational_confirmed_product: [
     "account_id",
     "hs_revision",
@@ -55,6 +65,13 @@ const TABLE_COLUMNS: Record<MigratedTable, readonly string[]> = {
     "attempts",
     "updated_at",
   ],
+  operational_audit_event: [
+    "id",
+    "account_id",
+    "kind",
+    "detail",
+    "created_at",
+  ],
 };
 
 const TARGET_SCHEMA = `
@@ -62,6 +79,16 @@ CREATE TABLE IF NOT EXISTS operational_account (
   id TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
   primary_export_economy TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS operational_credential (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  normalized_identity TEXT NOT NULL UNIQUE,
+  verifier TEXT NOT NULL,
+  failed_attempt_count INTEGER NOT NULL,
+  locked_until TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -102,6 +129,13 @@ CREATE TABLE IF NOT EXISTS operational_delivery_state (
   attempts INTEGER NOT NULL,
   updated_at TEXT NOT NULL,
   PRIMARY KEY (event_id, channel)
+);
+CREATE TABLE IF NOT EXISTS operational_audit_event (
+  id TEXT PRIMARY KEY,
+  account_id TEXT,
+  kind TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );
 `;
 

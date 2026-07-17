@@ -8,12 +8,16 @@
 
 /** Stable UUID identity of a hosted account. */
 export type AccountId = string;
+/** Stable UUID identity of one account credential. */
+export type CredentialId = string;
 /** Stable UUID identity of an Opportunity Watch. */
 export type WatchId = string;
 /** Stable UUID identity of an append-only alert event. */
 export type AlertEventId = string;
 /** Opaque token identifying one evaluation lease over a claimed Watch. */
 export type EvaluationLeaseId = string;
+/** Stable UUID identity of one operational audit event. */
+export type AuditEventId = string;
 
 /**
  * A Harmonized System product identity: the revision and six-digit code.
@@ -31,6 +35,44 @@ export interface Account {
   readonly primaryExportEconomy: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** One normalized email credential and its password verifier bookkeeping. */
+export interface Credential {
+  readonly id: CredentialId;
+  readonly accountId: AccountId;
+  readonly normalizedIdentity: string;
+  readonly verifier: string;
+  readonly failedAttemptCount: number;
+  readonly lockedUntil: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** A server-side session keyed by the digest of an opaque token. */
+export interface OperationalSession {
+  readonly tokenDigest: string;
+  readonly accountId: AccountId;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+}
+
+/** A single-use recovery token keyed by digest only. */
+export interface RecoveryToken {
+  readonly tokenDigest: string;
+  readonly accountId: AccountId;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly consumedAt: string | null;
+}
+
+/** Append-only operational audit event. */
+export interface AuditEvent {
+  readonly id: AuditEventId;
+  readonly accountId: AccountId | null;
+  readonly kind: string;
+  readonly detail: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
 }
 
 /** One confirmed HS product in an account's portfolio. */
@@ -88,6 +130,51 @@ export interface DeliveryState {
 export interface CreateAccountInput {
   readonly displayName: string;
   readonly primaryExportEconomy: string;
+}
+
+export interface CreateAccountWithCredentialInput extends CreateAccountInput {
+  readonly credentialIdentity: string;
+  readonly credentialVerifier: string;
+}
+
+export interface AccountCredentialRegistration {
+  readonly account: Account;
+  readonly credential: Credential;
+}
+
+export interface CreateCredentialInput {
+  readonly accountId: AccountId;
+  readonly identity: string;
+  readonly verifier: string;
+}
+
+export interface UpdateCredentialAttemptsInput {
+  readonly credentialId: CredentialId;
+  readonly failedAttemptCount: number;
+  readonly lockedUntil: string | null;
+}
+
+export interface UpdateCredentialVerifierInput {
+  readonly credentialId: CredentialId;
+  readonly verifier: string;
+}
+
+export interface CreateSessionInput {
+  readonly accountId: AccountId;
+  readonly tokenDigest: string;
+  readonly expiresAt: string;
+}
+
+export interface IssueRecoveryTokenInput {
+  readonly accountId: AccountId;
+  readonly tokenDigest: string;
+  readonly expiresAt: string;
+}
+
+export interface AppendAuditEventInput {
+  readonly accountId: AccountId | null;
+  readonly kind: string;
+  readonly detail: Readonly<Record<string, unknown>>;
 }
 
 export interface OpenWatchInput {

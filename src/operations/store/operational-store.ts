@@ -1,18 +1,30 @@
 import type {
   Account,
+  AccountCredentialRegistration,
   AccountId,
   AlertEvent,
   AlertEventId,
+  AppendAuditEventInput,
+  AuditEvent,
   ClaimedWatch,
   ClaimWatchesInput,
   ConfirmedProduct,
   CreateAccountInput,
+  CreateAccountWithCredentialInput,
+  CreateCredentialInput,
+  CreateSessionInput,
+  Credential,
   DeliveryState,
   EvaluationLeaseId,
+  IssueRecoveryTokenInput,
   OpenWatchInput,
   OpportunityWatch,
+  OperationalSession,
   RecordAlertEventInput,
   RecordedAlertEvent,
+  RecoveryToken,
+  UpdateCredentialAttemptsInput,
+  UpdateCredentialVerifierInput,
 } from "./model";
 
 /**
@@ -28,7 +40,51 @@ export interface OperationalStore {
   /** Create an account with exactly one primary export economy. */
   createAccount(input: CreateAccountInput): Promise<Account>;
 
+  /** Create an account and its initial credential in one transaction. */
+  createAccountWithCredential(
+    input: CreateAccountWithCredentialInput,
+  ): Promise<AccountCredentialRegistration>;
+
   findAccount(id: AccountId): Promise<Account | null>;
+
+  createCredential(input: CreateCredentialInput): Promise<Credential>;
+
+  findCredentialByIdentity(identity: string): Promise<Credential | null>;
+
+  findCredentialByAccount(accountId: AccountId): Promise<Credential | null>;
+
+  updateCredentialAttempts(
+    input: UpdateCredentialAttemptsInput,
+  ): Promise<Credential>;
+
+  updateCredentialVerifier(
+    input: UpdateCredentialVerifierInput,
+  ): Promise<Credential>;
+
+  createSession(input: CreateSessionInput): Promise<OperationalSession>;
+
+  findSession(tokenDigest: string): Promise<OperationalSession | null>;
+
+  revokeSession(tokenDigest: string): Promise<void>;
+
+  revokeSessionsForAccount(accountId: AccountId): Promise<void>;
+
+  issueRecoveryToken(
+    input: IssueRecoveryTokenInput,
+  ): Promise<RecoveryToken>;
+
+  consumeRecoveryToken(tokenDigest: string): Promise<RecoveryToken | null>;
+
+  appendAuditEvent(input: AppendAuditEventInput): Promise<AuditEvent>;
+
+  listAuditEvents(accountId: AccountId): Promise<readonly AuditEvent[]>;
+
+  setPrimaryExporter(
+    accountId: AccountId,
+    economyCode: string,
+  ): Promise<Account>;
+
+  deleteAccount(accountId: AccountId): Promise<AuditEvent>;
 
   /**
    * Replace the account's confirmed portfolio with exactly the given products

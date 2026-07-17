@@ -27,6 +27,21 @@ export function requirePositiveInt(value: number, field: string): number {
   return value;
 }
 
+export function requireNonNegativeInt(value: number, field: string): number {
+  if (!Number.isInteger(value) || value < 0) {
+    throw invalidStoreInput(`${field} must be a non-negative integer.`);
+  }
+  return value;
+}
+
+export function normalizeCredentialIdentity(
+  identity: string,
+): string {
+  return requireNonEmpty(identity, "identity")
+    .trim()
+    .toLocaleLowerCase("und");
+}
+
 export function normalizeProduct(product: ProductRefInput): {
   hsRevision: string;
   code: string;
@@ -46,10 +61,14 @@ export function normalizeProduct(product: ProductRefInput): {
  */
 export const OPERATIONAL_TABLES = [
   "operational_account",
+  "operational_credential",
+  "operational_session",
+  "operational_recovery_token",
   "operational_confirmed_product",
   "operational_watch",
   "operational_alert_event",
   "operational_delivery_state",
+  "operational_audit_event",
   "operational_evaluation_lease",
   "operational_application_lease",
 ] as const;
@@ -63,10 +82,12 @@ export type OperationalTable = (typeof OPERATIONAL_TABLES)[number];
  */
 export const MIGRATED_TABLES = [
   "operational_account",
+  "operational_credential",
   "operational_confirmed_product",
   "operational_watch",
   "operational_alert_event",
   "operational_delivery_state",
+  "operational_audit_event",
 ] as const;
 
 export type MigratedTable = (typeof MIGRATED_TABLES)[number];
