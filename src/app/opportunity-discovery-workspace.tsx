@@ -17,8 +17,10 @@ import { EconomyCombobox } from "./economy-combobox";
 import {
   loadMarketInvestigationPage,
   loadOpportunityDetail,
+  loadRecentTradeMomentum,
   OpportunityDiscoveryClientError,
 } from "./opportunity-discovery-client";
+import type { RecentTradeMomentumV1Payload } from "../domain/trade-analytics/recent-trade-momentum-v1-adapter";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
 import {
@@ -93,6 +95,19 @@ const copy = {
     nonClaims: "What this feed does not claim",
     disclaimer: "Discovery disclaimer",
     adjacent: "Adjacent evidence",
+    recentTradeMomentum: "Recent Trade Momentum Signal",
+    recentTradeMomentumLoading: "Loading Recent Trade Momentum…",
+    recentTradeMomentumUnavailable:
+      "Recent Trade Momentum is not available for this market/product package.",
+    recentTradeMomentumNoClaim:
+      "Monthly momentum is separate context; it does not change the annual BACI opportunity score, rank, type, or confidence.",
+    reportingMarket: "Reporting market",
+    recentPeriod: "Recent period",
+    baselinePeriod: "Baseline period",
+    eurValuation: "EUR valuation",
+    mappingChain: "Mapping chain",
+    monthlyRevision: "Monthly revision",
+    sourceDetails: "Source details",
     candidateMarket: "Open Candidate Market drill-down",
     tradeTrend: "Open Trade Trend evidence",
     supplierCompetition: "Open Supplier Competition evidence",
@@ -157,6 +172,18 @@ const copy = {
     nonClaims: "该列表不声称的内容",
     disclaimer: "发现免责声明",
     adjacent: "相邻证据",
+    recentTradeMomentum: "近期贸易动量信号",
+    recentTradeMomentumLoading: "正在加载近期贸易动量…",
+    recentTradeMomentumUnavailable: "该市场/产品包没有近期贸易动量。",
+    recentTradeMomentumNoClaim:
+      "月度动量只是独立情境；不会改变年度 BACI 机会评分、排名、类型或置信度。",
+    reportingMarket: "报告市场",
+    recentPeriod: "近期期间",
+    baselinePeriod: "基准期间",
+    eurValuation: "欧元估值",
+    mappingChain: "映射链",
+    monthlyRevision: "月度修订",
+    sourceDetails: "来源详情",
     candidateMarket: "打开候选市场深入分析",
     tradeTrend: "打开贸易趋势证据",
     supplierCompetition: "打开供应商竞争证据",
@@ -197,6 +224,7 @@ export function OpportunityDiscoveryWorkspace({
   const requestSequence = useRef(0);
   const feedController = useRef<AbortController | null>(null);
   const detailController = useRef<AbortController | null>(null);
+  const momentumController = useRef<AbortController | null>(null);
   const manifestController = useRef<AbortController | null>(null);
   const feedPinnedInHistory = useRef(false);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
@@ -215,6 +243,12 @@ export function OpportunityDiscoveryWorkspace({
   const [detail, setDetail] = useState<OpportunityDetailEvidence | null>(null);
   const [detailStatus, setDetailStatus] = useState<
     "idle" | "loading" | "failed"
+  >("idle");
+  const [momentum, setMomentum] = useState<RecentTradeMomentumV1Payload | null>(
+    null,
+  );
+  const [momentumStatus, setMomentumStatus] = useState<
+    "idle" | "loading" | "failed" | "unsupported"
   >("idle");
 
   const beginCurrentManifestRequest = useCallback(
@@ -259,17 +293,21 @@ export function OpportunityDiscoveryWorkspace({
       manifestController.current?.abort();
       feedController.current?.abort();
       detailController.current?.abort();
+      momentumController.current?.abort();
     };
   }, [beginCurrentManifestRequest]);
 
   const resetFeed = useCallback(() => {
     feedController.current?.abort();
     detailController.current?.abort();
+    momentumController.current?.abort();
     requestSequence.current += 1;
     setFeed(null);
     setSelectedCandidateKey(null);
     setDetail(null);
     setDetailStatus("idle");
+    setMomentum(null);
+    setMomentumStatus("idle");
     setStatus("idle");
   }, []);
 
@@ -343,6 +381,7 @@ export function OpportunityDiscoveryWorkspace({
 
       feedController.current?.abort();
       detailController.current?.abort();
+      momentumController.current?.abort();
       const controller = new AbortController();
       feedController.current = controller;
       const sequence = requestSequence.current + 1;
@@ -351,6 +390,8 @@ export function OpportunityDiscoveryWorkspace({
       setSelectedCandidateKey(null);
       setDetail(null);
       setDetailStatus("idle");
+      setMomentum(null);
+      setMomentumStatus("idle");
       setStatus(mode === "refresh" ? "refreshing" : "loading");
 
       try {
@@ -438,9 +479,12 @@ export function OpportunityDiscoveryWorkspace({
   useEffect(() => {
     if (selectedCandidate === null || feed === null) {
       detailController.current?.abort();
+      momentumController.current?.abort();
       const resetTimeout = window.setTimeout(() => {
         setDetail(null);
         setDetailStatus("idle");
+        setMomentum(null);
+        setMomentumStatus("idle");
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
@@ -481,6 +525,63 @@ export function OpportunityDiscoveryWorkspace({
       controller.abort();
     };
   }, [feed, selectedCandidate]);
+
+  useEffect(() => {
+    if (selectedCandidate === null || feed === null || currentManifest === null) {
+      return;
+    }
+    momentumController.current?.abort();
+    if (currentManifest.recommendation.recentTradeMomentum === null) {
+      const unsupportedTimeout = window.setTimeout(() => {
+        setMomentum(null);
+        setMomentumStatus("unsupported");
+      }, 0);
+      return () => window.clearTimeout(unsupportedTimeout);
+    }
+    const reporterCode = iso3ToIso2(selectedCandidate.market.iso3);
+    if (reporterCode === null) {
+      const unsupportedTimeout = window.setTimeout(() => {
+        setMomentum(null);
+        setMomentumStatus("unsupported");
+      }, 0);
+      return () => window.clearTimeout(unsupportedTimeout);
+    }
+    const controller = new AbortController();
+    momentumController.current = controller;
+    const loadingTimeout = window.setTimeout(() => {
+      setMomentum(null);
+      setMomentumStatus("loading");
+    }, 0);
+    void loadRecentTradeMomentum({
+      analysisBuildId: feed.analysisBuildId,
+      reporterCode,
+      productCode: selectedCandidate.product.code,
+      exporterCode: feed.exporter.code,
+      fetcher: fetch,
+      signal: controller.signal,
+    })
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setMomentum(payload);
+          setMomentumStatus("idle");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.error("Recent Trade Momentum request failed", error);
+          setMomentumStatus("failed");
+        }
+      })
+      .finally(() => {
+        if (momentumController.current === controller) {
+          momentumController.current = null;
+        }
+      });
+    return () => {
+      window.clearTimeout(loadingTimeout);
+      controller.abort();
+    };
+  }, [currentManifest, feed, selectedCandidate]);
 
   useLayoutEffect(() => {
     function restoreContextFromHistory() {
@@ -705,6 +806,8 @@ export function OpportunityDiscoveryWorkspace({
                   page={feed}
                   detail={detail}
                   detailStatus={detailStatus}
+                  momentum={momentum}
+                  momentumStatus={momentumStatus}
                   locale={locale}
                 />
               </div>
@@ -723,12 +826,16 @@ function OpportunityCandidateDetail({
   page,
   detail,
   detailStatus,
+  momentum,
+  momentumStatus,
   locale,
 }: {
   candidate: MarketInvestigationCandidate;
   page: MarketInvestigationPage;
   detail: OpportunityDetailEvidence | null;
   detailStatus: "idle" | "loading" | "failed";
+  momentum: RecentTradeMomentumV1Payload | null;
+  momentumStatus: "idle" | "loading" | "failed" | "unsupported";
   locale: WorkspaceLocale;
 }) {
   const messages = copy[locale];
@@ -852,9 +959,99 @@ function OpportunityCandidateDetail({
         <a href={links.tradeExplorer}>{messages.tradeExplorer}</a>
       </nav>
 
+      <RecentTradeMomentumPanel
+        candidate={candidate}
+        momentum={momentum}
+        status={momentumStatus}
+        locale={locale}
+      />
+
       <p className="evidence-source">
         {page.provenance.recipeVersion} · {page.provenance.resultSchemaVersion}
       </p>
+    </section>
+  );
+}
+
+function RecentTradeMomentumPanel({
+  candidate,
+  momentum,
+  status,
+  locale,
+}: {
+  candidate: MarketInvestigationCandidate;
+  momentum: RecentTradeMomentumV1Payload | null;
+  status: "idle" | "loading" | "failed" | "unsupported";
+  locale: WorkspaceLocale;
+}) {
+  const messages = copy[locale];
+  return (
+    <section
+      className="opportunity-momentum"
+      aria-label={messages.recentTradeMomentum}
+    >
+      <p>{messages.recentTradeMomentum}</p>
+      <p className="momentum-market">{candidate.market.name}</p>
+      {status === "loading" ? (
+        <p>{messages.recentTradeMomentumLoading}</p>
+      ) : status === "failed" || status === "unsupported" || momentum === null ? (
+        <p>{messages.recentTradeMomentumUnavailable}</p>
+      ) : (
+        <>
+          <dl>
+            <div>
+              <dt>{messages.reportingMarket}</dt>
+              <dd>{momentum.reporterIso2}</dd>
+            </div>
+            <div>
+              <dt>HS 2012</dt>
+              <dd>{momentum.hs12Code}</dd>
+            </div>
+            <div>
+              <dt>{messages.recentPeriod}</dt>
+              <dd>{momentum.recentMonths.join("–")}</dd>
+            </div>
+            <div>
+              <dt>{messages.baselinePeriod}</dt>
+              <dd>{momentum.baselineMonths.join("–")}</dd>
+            </div>
+            <div>
+              <dt>{messages.eurValuation}</dt>
+              <dd>
+                {momentum.recentValueEur ?? "not observed"} /{" "}
+                {momentum.baselineValueEur ?? "not observed"}
+              </dd>
+            </div>
+            <div>
+              <dt>{messages.coverage}</dt>
+              <dd>{momentum.coverageState}</dd>
+            </div>
+            <div>
+              <dt>{messages.confidence}</dt>
+              <dd>{momentum.confidence ?? "not signalled"}</dd>
+            </div>
+            <div>
+              <dt>{messages.mappingChain}</dt>
+              <dd>{momentum.confidenceReasons.includes("MULTI_STEP_EXACT_CORRESPONDENCE") ? "MULTI_STEP_EXACT" : "DIRECT_EXACT"}</dd>
+            </div>
+            <div>
+              <dt>{messages.monthlyRevision}</dt>
+              <dd>{momentum.sourceVintageId}</dd>
+            </div>
+            <div>
+              <dt>{messages.sourceDetails}</dt>
+              <dd>{momentum.datasetPackageIdentity}</dd>
+            </div>
+          </dl>
+          <p>
+            {momentum.signalState ?? momentum.reasonCodes.join(", ")}
+            {momentum.growthPercentDisplay === null
+              ? ""
+              : ` · ${momentum.growthPercentDisplay}%`}
+          </p>
+          <p>{messages.recentTradeMomentumNoClaim}</p>
+        </>
+      )}
     </section>
   );
 }
@@ -1034,6 +1231,30 @@ function isErrorStatus(
 
 function candidateKey(candidate: MarketInvestigationCandidate): string {
   return `${candidate.product.code}:${candidate.market.code}`;
+}
+
+function iso3ToIso2(iso3: string | null): string | null {
+  if (iso3 === null) {
+    return null;
+  }
+  const codes: Record<string, string> = {
+    AUS: "AU",
+    BEL: "BE",
+    BRA: "BR",
+    CAN: "CA",
+    CHL: "CL",
+    DEU: "DE",
+    FRA: "FR",
+    IND: "IN",
+    JPN: "JP",
+    KEN: "KE",
+    MEX: "MX",
+    NLD: "NL",
+    POL: "PL",
+    USA: "US",
+    ZAF: "ZA",
+  };
+  return codes[iso3] ?? null;
 }
 
 function localizedConfidence(

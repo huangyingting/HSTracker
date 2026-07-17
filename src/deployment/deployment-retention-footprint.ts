@@ -32,6 +32,8 @@ export type DeploymentRetentionFootprintPairing = Readonly<{
   // resolves them from object storage and startup resolves them from the verified
   // resident mapping so the separately materialized objects are still counted.
   datasetPackageManifest?: ReleaseObjectReference;
+  recentTradeMomentumDatasetPackageManifest?: ReleaseObjectReference;
+  recentTradeMomentumArtifact?: ReleaseObjectReference;
   opportunityDatasetPackageManifest?: ReleaseObjectReference;
 }>;
 
@@ -91,12 +93,16 @@ export function calculateDeploymentRetentionFootprint(
     pairing,
     releaseCatalog,
     datasetPackageManifest,
+    recentTradeMomentumDatasetPackageManifest,
+    recentTradeMomentumArtifact,
     opportunityDatasetPackageManifest,
   } of entries) {
     for (const reference of pairingReferencedObjects(
       pairing,
       releaseCatalog,
       datasetPackageManifest,
+      recentTradeMomentumDatasetPackageManifest,
+      recentTradeMomentumArtifact,
       opportunityDatasetPackageManifest,
     )) {
       uniqueObjects.set(reference.key, reference.bytes);
@@ -195,6 +201,8 @@ function pairingReferencedObjects(
   pairing: DeploymentPairingManifest,
   releaseCatalog: AnalysisReleaseCatalog | undefined,
   datasetPackageManifest: ReleaseObjectReference | undefined,
+  recentTradeMomentumDatasetPackageManifest: ReleaseObjectReference | undefined,
+  recentTradeMomentumArtifact: ReleaseObjectReference | undefined,
   opportunityDatasetPackageManifest: ReleaseObjectReference | undefined,
 ): readonly ReleaseObjectReference[] {
   const references: ReleaseObjectReference[] = [
@@ -209,6 +217,12 @@ function pairingReferencedObjects(
   }
   if (datasetPackageManifest !== undefined) {
     references.push(datasetPackageManifest);
+  }
+  if (recentTradeMomentumDatasetPackageManifest !== undefined) {
+    references.push(recentTradeMomentumDatasetPackageManifest);
+  }
+  if (recentTradeMomentumArtifact !== undefined) {
+    references.push(recentTradeMomentumArtifact);
   }
   if (opportunityDatasetPackageManifest !== undefined) {
     references.push(opportunityDatasetPackageManifest);

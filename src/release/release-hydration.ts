@@ -50,6 +50,9 @@ import {
   createOpportunityDiscoveryDatasetPackage,
 } from "../domain/trade-analytics/opportunity-discovery-v1-dataset-package";
 import {
+  createRecentTradeMomentumDatasetPackage,
+} from "../domain/trade-analytics/recent-trade-momentum-v1-dataset-package";
+import {
   DuckDbOpportunityCandidateIndex,
   DuckDbOpportunityEvidenceSource,
 } from "../evidence/duckdb-opportunity-source";
@@ -82,6 +85,8 @@ export type HydratedDeploymentPairing = {
   productCatalogManifestPath: string;
   recommendedDatasetMappingPath: string | null;
   datasetPackageManifestPath: string | null;
+  recentTradeMomentumDatasetPackageManifestPath: string | null;
+  recentTradeMomentumArtifactPath: string | null;
   opportunityDatasetPackageManifestPath: string | null;
   opportunityIndexDirectoryPath: string | null;
   opportunityIndexPath: string | null;
@@ -372,6 +377,33 @@ export class ReleaseHydrator {
               ),
               ["opportunity-dataset-package-manifest.json"],
               mappingObjects.opportunityPackageBytes,
+            ),
+          );
+        }
+        if (
+          mappingObjects.recentTradeMomentumPackageReference !== null &&
+          mappingObjects.recentTradeMomentumPackageBytes !== null &&
+          mappingObjects.recentTradeMomentumArtifactReference !== null
+        ) {
+          downloads.push(
+            this.materializeVerified(
+              volumePath,
+              mappingObjects.recentTradeMomentumPackageReference,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "recent-trade-momentum-dataset-package-manifest.json",
+              ),
+              ["recent-trade-momentum-dataset-package-manifest.json"],
+              mappingObjects.recentTradeMomentumPackageBytes,
+            ),
+            this.materializeVerified(
+              volumePath,
+              mappingObjects.recentTradeMomentumArtifactReference,
+              join(
+                /* turbopackIgnore: true */ partialPath,
+                "recent-trade-momentum.duckdb",
+              ),
+              ["recent-trade-momentum.duckdb"],
             ),
           );
         }
@@ -679,6 +711,9 @@ export class ReleaseHydrator {
     packageReference: ReleaseObjectReference;
     opportunityPackageBytes: Buffer | null;
     opportunityPackageReference: ReleaseObjectReference | null;
+    recentTradeMomentumPackageBytes: Buffer | null;
+    recentTradeMomentumPackageReference: ReleaseObjectReference | null;
+    recentTradeMomentumArtifactReference: ReleaseObjectReference | null;
   } | null> {
     if (deployment.recommendedDatasetMapping === null) {
       return null;
@@ -726,6 +761,12 @@ export class ReleaseHydrator {
       opportunityPackageReference === null
         ? null
         : await this.readVerifiedObject(opportunityPackageReference);
+    const recentTradeMomentumPackageReference =
+      mapping.manifest.recentTradeMomentum?.datasetPackage.manifest ?? null;
+    const recentTradeMomentumPackageBytes =
+      recentTradeMomentumPackageReference === null
+        ? null
+        : await this.readVerifiedObject(recentTradeMomentumPackageReference);
     if (
       opportunityPackageReference !== null &&
       opportunityPackageBytes !== null
@@ -746,12 +787,36 @@ export class ReleaseHydrator {
         );
       }
     }
+    if (
+      recentTradeMomentumPackageReference !== null &&
+      recentTradeMomentumPackageBytes !== null
+    ) {
+      const recentTradeMomentumPackage = parseRemoteCandidateMetadata(
+        () =>
+          createRecentTradeMomentumDatasetPackage(
+            JSON.parse(recentTradeMomentumPackageBytes.toString("utf8")),
+          ),
+      );
+      if (
+        recentTradeMomentumPackage.identity !==
+        mapping.manifest.recentTradeMomentum!.datasetPackage.identity
+      ) {
+        throw new RemoteCandidateActivationError(
+          "CURRENT_DEPLOYMENT_INVALID",
+          "Recent Trade Momentum Dataset Package identity does not match.",
+        );
+      }
+    }
     return {
       mappingBytes,
       packageBytes,
       packageReference,
       opportunityPackageBytes,
       opportunityPackageReference,
+      recentTradeMomentumPackageBytes,
+      recentTradeMomentumPackageReference,
+      recentTradeMomentumArtifactReference:
+        mapping.manifest.recentTradeMomentum?.artifact.object ?? null,
     };
   }
 
@@ -1074,6 +1139,40 @@ async function verifyResidentRecommendedDatasetMapping(
       "OBJECT_IDENTITY_MISMATCH",
       "Resident Dataset Package identity does not match.",
     );
+  }
+  if (mapping.manifest.recentTradeMomentum !== null) {
+    const recentPackagePath = join(
+      /* turbopackIgnore: true */ rootPath,
+      "recent-trade-momentum-dataset-package-manifest.json",
+    );
+    const recentArtifactPath = join(
+      /* turbopackIgnore: true */ rootPath,
+      "recent-trade-momentum.duckdb",
+    );
+    await Promise.all([
+      verifyFile(
+        recentPackagePath,
+        mapping.manifest.recentTradeMomentum.datasetPackage.manifest,
+      ),
+      verifyFile(
+        recentArtifactPath,
+        mapping.manifest.recentTradeMomentum.artifact.object,
+      ),
+    ]);
+    const recentPackage = createRecentTradeMomentumDatasetPackage(
+      JSON.parse(await readRuntimeFile(recentPackagePath, "utf8")),
+    );
+    if (
+      recentPackage.identity !==
+        mapping.manifest.recentTradeMomentum.datasetPackage.identity ||
+      recentPackage.manifest.artifactSha256 !==
+        mapping.manifest.recentTradeMomentum.artifact.object.sha256
+    ) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Recent Trade Momentum package does not match its mapping.",
+      );
+    }
   }
   if (mapping.manifest.opportunity === null) {
     if (deployment.opportunityIndex !== null) {
@@ -1482,6 +1581,20 @@ function hydratedPairing(
         : join(
             /* turbopackIgnore: true */ rootPath,
             "dataset-package-manifest.json",
+          ),
+    recentTradeMomentumDatasetPackageManifestPath:
+      deployment.recommendedDatasetMapping === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "recent-trade-momentum-dataset-package-manifest.json",
+          ),
+    recentTradeMomentumArtifactPath:
+      deployment.recommendedDatasetMapping === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "recent-trade-momentum.duckdb",
           ),
     opportunityDatasetPackageManifestPath:
       deployment.opportunityIndex === null

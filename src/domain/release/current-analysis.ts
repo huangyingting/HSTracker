@@ -76,6 +76,12 @@ export type CurrentAnalysisDeployment = {
       recipe: "supplier-competition-v1";
       datasetPackageIdentity: DatasetPackageIdentity;
     } | null;
+    // Populated only when the Recommended Dataset Mapping declares and gates
+    // recent-trade-momentum-v1; null for legacy or annual-only mappings.
+    recentTradeMomentum: {
+      recipe: "recent-trade-momentum-v1";
+      datasetPackageIdentity: DatasetPackageIdentity;
+    } | null;
     // Populated only when the same closed Recommended Dataset Mapping
     // declares and gates trade-explorer-v1; null for legacy or undeclared
     // mappings.

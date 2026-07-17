@@ -218,6 +218,7 @@ function isManifestRecommendation(
   }
   const tradeTrend = value.tradeTrend;
   const supplierCompetition = value.supplierCompetition;
+  const recentTradeMomentum = value.recentTradeMomentum ?? null;
   const tradeExplorer = value.tradeExplorer;
   const opportunityDiscovery = value.opportunityDiscovery;
   return (
@@ -229,6 +230,8 @@ function isManifestRecommendation(
     (tradeTrend === null || isTradeTrendRecommendation(tradeTrend)) &&
     (supplierCompetition === null ||
       isSupplierCompetitionRecommendation(supplierCompetition)) &&
+    (recentTradeMomentum === null ||
+      isRecentTradeMomentumRecommendation(recentTradeMomentum)) &&
     (tradeExplorer === null || isTradeExplorerRecommendation(tradeExplorer)) &&
     (opportunityDiscovery === null ||
       isOpportunityDiscoveryRecommendation(opportunityDiscovery))
@@ -251,6 +254,16 @@ function isSupplierCompetitionRecommendation(
   return (
     isRecord(value) &&
     value.recipe === "supplier-competition-v1" &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity)
+  );
+}
+
+function isRecentTradeMomentumRecommendation(
+  value: unknown,
+): value is NonNullable<ManifestRecommendation["recentTradeMomentum"]> {
+  return (
+    isRecord(value) &&
+    value.recipe === "recent-trade-momentum-v1" &&
     isDatasetPackageIdentity(value.datasetPackageIdentity)
   );
 }

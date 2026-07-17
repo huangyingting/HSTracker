@@ -38,6 +38,7 @@ CREATE TABLE market_month (
   excluded_special_value_eur BIGINT NOT NULL,
   observation_state VARCHAR NOT NULL,
   update_state VARCHAR NOT NULL,
+  mapping_chain VARCHAR NOT NULL DEFAULT 'DIRECT_EXACT',
   PRIMARY KEY (reference_month, reporter_id, hs12_code)
 );
 

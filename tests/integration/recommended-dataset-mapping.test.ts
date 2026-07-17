@@ -14,6 +14,9 @@ import {
   OPPORTUNITY_DISCOVERY_V1_CAPABILITY_REQUIREMENTS,
 } from "../../src/domain/trade-analytics/opportunity-discovery-v1-dataset-package";
 import {
+  createRecentTradeMomentumDatasetPackage,
+} from "../../src/domain/trade-analytics/recent-trade-momentum-v1-dataset-package";
+import {
   createSupplierCompetitionDatasetPackage,
   SUPPLIER_COMPETITION_V1_CAPABILITY_REQUIREMENTS,
 } from "../../src/domain/trade-analytics/supplier-competition-v1-dataset-package";
@@ -22,6 +25,9 @@ import {
   TRADE_TREND_V1_CAPABILITY_REQUIREMENTS,
 } from "../../src/domain/trade-analytics/trade-trend-v1-dataset-package";
 import { createFixtureCandidateMarketDatasetPackages } from "../../src/evidence/fixture-trade-evidence-source";
+import {
+  createFixtureRecentTradeMomentumDatasetPackages,
+} from "../../src/evidence/fixture-recent-trade-momentum-source";
 import {
   FIXTURE_RECOMMENDED_DATASET_MAPPING,
   FIXTURE_RECOMMENDED_DATASET_OBJECT_BYTES,
@@ -68,6 +74,141 @@ describe("Recommended Dataset Mapping", () => {
         economyCatalog: manifest.economyCatalog,
       }),
     ).not.toThrow();
+  });
+
+  it("accepts legacy-absent and explicit-null Recent Trade Momentum slots while annual mappings remain valid", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const withoutMonthly = createRecommendedDatasetMapping({
+      schemaVersion: manifest.schemaVersion,
+      recipe: manifest.recipe,
+      datasetPackage: manifest.datasetPackage,
+      tradeTrend: manifest.tradeTrend,
+      supplierCompetition: manifest.supplierCompetition,
+      tradeExplorer: manifest.tradeExplorer,
+      opportunity: manifest.opportunity,
+      productCatalog: manifest.productCatalog,
+      economyCatalog: manifest.economyCatalog,
+    });
+    const explicitNone = createRecommendedDatasetMapping({
+      ...manifest,
+      recentTradeMomentum: null,
+    });
+
+    for (const mapping of [withoutMonthly, explicitNone]) {
+      expect(mapping.manifest.recentTradeMomentum).toBeNull();
+      expect(() =>
+        validateRecommendedDatasetMapping({
+          mapping,
+          datasetPackage,
+          tradeTrendDatasetPackage: null,
+          supplierCompetitionDatasetPackage: null,
+          recentTradeMomentumDatasetPackage: null,
+          tradeExplorerDatasetPackage: null,
+          opportunityDatasetPackage: null,
+          productCatalog: manifest.productCatalog,
+          economyCatalog: manifest.economyCatalog,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("declares, validates, and rejects incompatible Recent Trade Momentum monthly packages without changing annual declarations", () => {
+    const datasetPackage =
+      createFixtureCandidateMarketDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const recentTradeMomentumDatasetPackage =
+      createFixtureRecentTradeMomentumDatasetPackages().get(
+        "acceptance-fixtures-v1",
+      )!;
+    const manifest = FIXTURE_RECOMMENDED_DATASET_MAPPING.manifest;
+    const mapping = createRecommendedDatasetMapping({
+      ...manifest,
+      recentTradeMomentum: {
+        recipe: "recent-trade-momentum-v1",
+        datasetPackage: {
+          identity: recentTradeMomentumDatasetPackage.identity,
+          manifest: objectReference(
+            "fixtures/recent-trade-momentum/v1/dataset-package.json",
+            Buffer.from(
+              recentTradeMomentumDatasetPackage.serializedManifest,
+              "utf8",
+            ),
+          ),
+        },
+        artifact: {
+          schemaVersion: "monthly-trade-artifact-v1",
+          object: {
+            key: "fixtures/recent-trade-momentum/v1/recent-trade-momentum.duckdb",
+            bytes:
+              recentTradeMomentumDatasetPackage.manifest.artifact.bytes,
+            sha256:
+              recentTradeMomentumDatasetPackage.manifest.artifactSha256,
+          },
+        },
+      },
+    });
+
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        recentTradeMomentumDatasetPackage,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).not.toThrow();
+    expect(mapping.manifest.tradeTrend).toBeNull();
+    expect(mapping.manifest.supplierCompetition).toBeNull();
+    expect(mapping.manifest.opportunity).toBeNull();
+
+    const incompatibleRecentTradeMomentumDatasetPackage =
+      createRecentTradeMomentumDatasetPackage({
+        ...recentTradeMomentumDatasetPackage.manifest,
+        capabilities:
+          recentTradeMomentumDatasetPackage.manifest.capabilities.slice(1),
+      });
+    const incompatibleMapping = createRecommendedDatasetMapping({
+      ...manifest,
+      recentTradeMomentum: {
+        recipe: "recent-trade-momentum-v1",
+        datasetPackage: {
+          identity: incompatibleRecentTradeMomentumDatasetPackage.identity,
+          manifest: objectReference(
+            "fixtures/recent-trade-momentum/v1/incompatible-dataset-package.json",
+            Buffer.from(
+              incompatibleRecentTradeMomentumDatasetPackage.serializedManifest,
+              "utf8",
+            ),
+          ),
+        },
+        artifact: mapping.manifest.recentTradeMomentum!.artifact,
+      },
+    });
+    expect(() =>
+      validateRecommendedDatasetMapping({
+        mapping: incompatibleMapping,
+        datasetPackage,
+        tradeTrendDatasetPackage: null,
+        supplierCompetitionDatasetPackage: null,
+        recentTradeMomentumDatasetPackage:
+          incompatibleRecentTradeMomentumDatasetPackage,
+        tradeExplorerDatasetPackage: null,
+        opportunityDatasetPackage: null,
+        productCatalog: manifest.productCatalog,
+        economyCatalog: manifest.economyCatalog,
+      }),
+    ).toThrow(
+      "Recommended Dataset Mapping Recent Trade Momentum package is incompatible: MISSING_REQUIRED_CAPABILITY",
+    );
   });
 
   it("references the exact canonical serialized fixture objects", () => {

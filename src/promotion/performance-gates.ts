@@ -60,6 +60,10 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "supplier-competition-analysis-process-hit",
   "supplier-competition-csv-uncached",
   "supplier-competition-csv-analysis-hit",
+  // Recent Trade Momentum is a small, monthly side-evidence route. Its
+  // uncached target is deliberately tighter than annual BACI analysis:
+  // p95 ≤ 200 ms and p99 ≤ 500 ms on the intended Machine class.
+  "recent-trade-momentum-uncached",
   // Opportunity Discovery serves a precomputed exporter-scoped feed from its
   // own index; its recipe doc sets a tighter loaded-artifact uncached budget
   // than the heavier analysis routes.
@@ -365,6 +369,12 @@ const ORIGIN_THRESHOLDS: Record<
     p99LimitMs: 500,
     routeDeadlineMs: 15_000,
     payloadLimitBytes: 5 * 1024 * KIB,
+  },
+  "recent-trade-momentum-uncached": {
+    p95LimitMs: 200,
+    p99LimitMs: 500,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 64 * KIB,
   },
   "opportunity-feed-uncached": {
     p95LimitMs: 500,

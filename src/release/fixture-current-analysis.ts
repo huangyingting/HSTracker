@@ -29,6 +29,9 @@ import {
   createFixtureTradeExplorerDatasetPackages,
   createFixtureTradeTrendDatasetPackages,
 } from "../evidence/fixture-trade-evidence-source";
+import {
+  createFixtureRecentTradeMomentumDatasetPackages,
+} from "../evidence/fixture-recent-trade-momentum-source";
 import { createFixtureOpportunityDiscoveryDatasetPackages } from "../evidence/fixture-opportunity-source";
 import { releaseObjectIdentity } from "./release-object-store";
 import { releaseJsonBytes } from "./release-manifest";
@@ -49,6 +52,10 @@ const fixtureTradeTrendDatasetPackage =
   )!;
 const fixtureSupplierCompetitionDatasetPackage =
   createFixtureSupplierCompetitionDatasetPackages().get(
+    ACCEPTANCE_FIXTURE_BUILD_IDS.core,
+  )!;
+const fixtureRecentTradeMomentumDatasetPackage =
+  createFixtureRecentTradeMomentumDatasetPackages().get(
     ACCEPTANCE_FIXTURE_BUILD_IDS.core,
   )!;
 // Trade Explorer stays fixture-only through issue #47: the browser-facing
@@ -177,6 +184,10 @@ const fixtureRecommendation: CurrentAnalysisDeployment["recommendation"] = {
   supplierCompetition: {
     recipe: "supplier-competition-v1",
     datasetPackageIdentity: fixtureSupplierCompetitionDatasetPackage.identity,
+  },
+  recentTradeMomentum: {
+    recipe: "recent-trade-momentum-v1",
+    datasetPackageIdentity: fixtureRecentTradeMomentumDatasetPackage.identity,
   },
   tradeExplorer: {
     recipe: "trade-explorer-v1",

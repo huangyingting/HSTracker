@@ -653,7 +653,7 @@ async function writeArtifact(input: {
             ${row.valueEur === null ? "NULL" : row.valueEur.toString()},
             ${row.contributingPartnerCount}, ${row.contributingCn8Count},
             ${row.excludedSpecialValueEur.toString()}, ${sqlString(row.observationState)},
-            ${sqlString(row.updateState)}
+            ${sqlString(row.updateState)}, ${sqlString(row.mappingChain)}
           )
         `);
       }

@@ -17,6 +17,10 @@ import {
   FixtureTradeEvidenceSource,
 } from "../evidence/fixture-trade-evidence-source";
 import {
+  createFixtureRecentTradeMomentumDatasetPackages,
+  FixtureRecentTradeMomentumEvidenceSource,
+} from "../evidence/fixture-recent-trade-momentum-source";
+import {
   createFixtureOpportunityDiscoveryDatasetPackages,
   FixtureOpportunityCandidateIndex,
   FixtureOpportunityEvidenceSource,
@@ -156,6 +160,10 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
       supplierCompetition: {
         evidenceSource: new FixtureTradeEvidenceSource(),
         datasetPackages: createFixtureSupplierCompetitionDatasetPackages(),
+      },
+      recentTradeMomentum: {
+        evidenceSource: new FixtureRecentTradeMomentumEvidenceSource(),
+        datasetPackages: createFixtureRecentTradeMomentumDatasetPackages(),
       },
       tradeExplorer: {
         evidenceSource: new FixtureTradeEvidenceSource(),

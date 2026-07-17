@@ -37,6 +37,7 @@ import {
   type AnalysisArtifactManifest,
 } from "../evidence/analysis-artifact-manifest";
 import { DuckDbAnalysisDatabase } from "../evidence/duckdb-analysis-database";
+import { DuckDbRecentTradeMomentumEvidenceSource } from "../evidence/duckdb-recent-trade-momentum-source";
 import {
   DuckDbOpportunityCandidateIndex,
   DuckDbOpportunityEvidenceSource,
@@ -45,6 +46,7 @@ import type {
   OpportunityCandidateIndex,
   OpportunityEvidenceSource,
 } from "../evidence/opportunity-evidence-source";
+import type { RecentTradeMomentumEvidenceSource } from "../evidence/recent-trade-momentum-evidence-source";
 import type { TradeEvidenceSource } from "../evidence/trade-evidence-source";
 import { DuckDbTradeEvidenceSource } from "../evidence/duckdb-trade-evidence-source";
 import { evaluateSupplierCompetitionV1DatasetPackage } from "../domain/trade-analytics/supplier-competition-v1-dataset-package";
@@ -53,6 +55,10 @@ import { evaluateTradeExplorerV1DatasetPackage } from "../domain/trade-analytics
 import type { TradeExplorerDatasetPackage } from "../domain/trade-analytics/trade-explorer-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "../domain/trade-analytics/trade-trend-v1-dataset-package";
+import {
+  createRecentTradeMomentumDatasetPackage,
+} from "../domain/trade-analytics/recent-trade-momentum-v1-dataset-package";
+import type { RecentTradeMomentumDatasetPackage } from "../domain/trade-analytics/recent-trade-momentum-v1-dataset-package";
 import {
   createOpportunityDiscoveryDatasetPackage,
   type OpportunityDiscoveryDatasetPackage,
@@ -113,11 +119,13 @@ type RetainedRuntimeBundle = {
   datasetPackage: CandidateMarketDatasetPackage;
   tradeTrendDatasetPackage: TradeTrendDatasetPackage;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage;
+  recentTradeMomentumDatasetPackage: RecentTradeMomentumDatasetPackage | null;
   tradeExplorerDatasetPackage: TradeExplorerDatasetPackage;
   opportunityDatasetPackage: OpportunityDiscoveryDatasetPackage | null;
   recommendedDatasetMapping: RecommendedDatasetMapping;
   analysisDatabase: DuckDbAnalysisDatabase;
   evidenceSource: DuckDbTradeEvidenceSource;
+  recentTradeMomentumEvidence: DuckDbRecentTradeMomentumEvidenceSource | null;
   opportunityIndex: DuckDbOpportunityCandidateIndex | null;
   opportunityEvidence: DuckDbOpportunityEvidenceSource | null;
   previousRelease: CandidateMarketV1PreviousReleaseEvidence | null;
@@ -238,6 +246,8 @@ export class VerifiedReleaseRuntime {
     ): Promise<{
       datasetPackageManifest?: ReleaseObjectReference;
       opportunityDatasetPackageManifest?: ReleaseObjectReference;
+      recentTradeMomentumDatasetPackageManifest?: ReleaseObjectReference;
+      recentTradeMomentumArtifact?: ReleaseObjectReference;
     }> {
       if (pairing.recommendedDatasetMappingPath === null) {
         return {};
@@ -249,6 +259,10 @@ export class VerifiedReleaseRuntime {
       );
       return {
         datasetPackageManifest: mapping.manifest.datasetPackage.manifest,
+        recentTradeMomentumDatasetPackageManifest:
+          mapping.manifest.recentTradeMomentum?.datasetPackage.manifest,
+        recentTradeMomentumArtifact:
+          mapping.manifest.recentTradeMomentum?.artifact.object,
         opportunityDatasetPackageManifest:
           mapping.manifest.opportunity?.datasetPackage.manifest,
       };
@@ -609,6 +623,7 @@ export class VerifiedReleaseRuntime {
 function closeRetainedBundle(bundle: RetainedRuntimeBundle): void {
   bundle.opportunityIndex?.close();
   bundle.opportunityEvidence?.close();
+  bundle.recentTradeMomentumEvidence?.close();
   bundle.analysisDatabase.close();
 }
 
@@ -975,6 +990,7 @@ function currentAnalysisDeployment(
   mapping: RecommendedDatasetMapping,
   tradeTrendDatasetPackage: TradeTrendDatasetPackage,
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage,
+  recentTradeMomentumDatasetPackage: RecentTradeMomentumDatasetPackage | null,
   tradeExplorerDatasetPackage: TradeExplorerDatasetPackage,
   opportunityDatasetPackage: OpportunityDiscoveryDatasetPackage | null,
 ): CurrentAnalysisDeployment {
@@ -1013,6 +1029,16 @@ function currentAnalysisDeployment(
               recipe: "supplier-competition-v1",
               datasetPackageIdentity:
                 supplierCompetitionDatasetPackage.identity,
+            },
+      recentTradeMomentum:
+        mapping.manifest.recentTradeMomentum === null
+          ? null
+          : {
+              recipe: "recent-trade-momentum-v1",
+              datasetPackageIdentity:
+                requireRecentTradeMomentumDatasetPackage(
+                  recentTradeMomentumDatasetPackage,
+                ).identity,
             },
       // trade-explorer-v1 activates only when the same closed Recommended
       // Dataset Mapping also declares and gates it (see issue #47), just
@@ -1093,11 +1119,23 @@ function requireOpportunityDatasetPackage(
   return datasetPackage;
 }
 
+function requireRecentTradeMomentumDatasetPackage(
+  datasetPackage: RecentTradeMomentumDatasetPackage | null,
+): RecentTradeMomentumDatasetPackage {
+  if (datasetPackage === null) {
+    throw new TypeError(
+      "Recent Trade Momentum is declared without a monthly Dataset Package.",
+    );
+  }
+  return datasetPackage;
+}
+
 async function loadRecommendedDatasetMapping(
   hydrated: HydratedDeploymentPairing,
   expectedPackage: CandidateMarketDatasetPackage,
   expectedTradeTrendPackage: TradeTrendDatasetPackage,
   expectedSupplierCompetitionPackage: SupplierCompetitionDatasetPackage,
+  expectedRecentTradeMomentumPackage: RecentTradeMomentumDatasetPackage | null,
   expectedTradeExplorerPackage: TradeExplorerDatasetPackage,
   expectedOpportunityPackage: OpportunityDiscoveryDatasetPackage | null,
 ): Promise<RecommendedDatasetMapping> {
@@ -1175,6 +1213,7 @@ async function loadRecommendedDatasetMapping(
       // default declaration it never published.
       tradeTrend: null,
       supplierCompetition: null,
+      recentTradeMomentum: null,
       tradeExplorer: null,
       opportunity: null,
       productCatalog: {
@@ -1202,6 +1241,10 @@ async function loadRecommendedDatasetMapping(
       mapping.manifest.supplierCompetition === null
         ? null
         : expectedSupplierCompetitionPackage,
+    recentTradeMomentumDatasetPackage:
+      mapping.manifest.recentTradeMomentum === null
+        ? null
+        : expectedRecentTradeMomentumPackage,
     tradeExplorerDatasetPackage:
       mapping.manifest.tradeExplorer === null
         ? null
@@ -1293,6 +1336,8 @@ async function openRetainedBundle(
     createSupplierCompetitionDatasetPackageFromArtifacts(manifest);
   const tradeExplorerDatasetPackage =
     createTradeExplorerDatasetPackageFromArtifacts(manifest);
+  const recentTradeMomentumDatasetPackage =
+    await readRecentTradeMomentumDatasetPackage(pairing);
   const opportunityDatasetPackage =
     pairing.opportunityDatasetPackageManifestPath === null
       ? null
@@ -1306,6 +1351,7 @@ async function openRetainedBundle(
     datasetPackage,
     tradeTrendDatasetPackage,
     supplierCompetitionDatasetPackage,
+    recentTradeMomentumDatasetPackage,
     tradeExplorerDatasetPackage,
     opportunityDatasetPackage,
   );
@@ -1332,6 +1378,8 @@ async function openRetainedBundle(
   });
   let opportunityIndex: DuckDbOpportunityCandidateIndex | null = null;
   let opportunityEvidence: DuckDbOpportunityEvidenceSource | null = null;
+  let recentTradeMomentumEvidence: DuckDbRecentTradeMomentumEvidenceSource | null =
+    null;
   try {
     const evidenceSource = await DuckDbTradeEvidenceSource.openShared({
       database: analysisDatabase,
@@ -1347,6 +1395,11 @@ async function openRetainedBundle(
       recommendedDatasetMapping,
       servingVolumePath,
     ));
+    recentTradeMomentumEvidence = await openRecentTradeMomentumSource(
+      pairing,
+      recommendedDatasetMapping,
+      recentTradeMomentumDatasetPackage,
+    );
     const previousRelease = await openPreviousRelease(
       pairing,
       previousManifest,
@@ -1369,6 +1422,7 @@ async function openRetainedBundle(
       recommendedDatasetMapping,
       tradeTrendDatasetPackage,
       supplierCompetitionDatasetPackage,
+      recentTradeMomentumDatasetPackage,
       tradeExplorerDatasetPackage,
       opportunityDatasetPackage,
     );
@@ -1379,11 +1433,13 @@ async function openRetainedBundle(
       datasetPackage,
       tradeTrendDatasetPackage,
       supplierCompetitionDatasetPackage,
+      recentTradeMomentumDatasetPackage,
       tradeExplorerDatasetPackage,
       opportunityDatasetPackage,
       recommendedDatasetMapping,
       analysisDatabase,
       evidenceSource,
+      recentTradeMomentumEvidence,
       opportunityIndex,
       opportunityEvidence,
       previousRelease,
@@ -1398,9 +1454,64 @@ async function openRetainedBundle(
   } catch (error) {
     opportunityIndex?.close();
     opportunityEvidence?.close();
+    recentTradeMomentumEvidence?.close();
     analysisDatabase.close();
     throw error;
   }
+}
+
+async function readRecentTradeMomentumDatasetPackage(
+  pairing: HydratedDeploymentPairing,
+): Promise<RecentTradeMomentumDatasetPackage | null> {
+  if (
+    pairing.recommendedDatasetMappingPath === null ||
+    pairing.recentTradeMomentumDatasetPackageManifestPath === null
+  ) {
+    return null;
+  }
+  const mapping = createRecommendedDatasetMapping(
+    await readJson(pairing.recommendedDatasetMappingPath),
+  );
+  if (mapping.manifest.recentTradeMomentum === null) {
+    return null;
+  }
+  const datasetPackage = createRecentTradeMomentumDatasetPackage(
+    (await readJson(
+      pairing.recentTradeMomentumDatasetPackageManifestPath,
+    )) as Parameters<typeof createRecentTradeMomentumDatasetPackage>[0],
+  );
+  if (
+    datasetPackage.identity !==
+    mapping.manifest.recentTradeMomentum.datasetPackage.identity
+  ) {
+    throw new TypeError(
+      "Recommended Dataset Mapping selected a different Recent Trade Momentum Dataset Package.",
+    );
+  }
+  return datasetPackage;
+}
+
+async function openRecentTradeMomentumSource(
+  pairing: HydratedDeploymentPairing,
+  mapping: RecommendedDatasetMapping,
+  datasetPackage: RecentTradeMomentumDatasetPackage | null,
+): Promise<DuckDbRecentTradeMomentumEvidenceSource | null> {
+  if (mapping.manifest.recentTradeMomentum === null) {
+    return null;
+  }
+  if (
+    datasetPackage === null ||
+    pairing.recentTradeMomentumArtifactPath === null
+  ) {
+    throw new TypeError(
+      "Recommended Dataset Mapping declared Recent Trade Momentum without hydrated monthly evidence.",
+    );
+  }
+  return DuckDbRecentTradeMomentumEvidenceSource.open({
+    artifactPath: pairing.recentTradeMomentumArtifactPath,
+    analysisBuildId: pairing.deploymentManifest.analysisBuildId,
+    datasetPackage,
+  });
 }
 
 async function openOpportunitySources(
@@ -1466,6 +1577,14 @@ function buildPlatformInput(
     string,
     SupplierCompetitionDatasetPackage
   >();
+  const recentTradeMomentumEvidence = new Map<
+    string,
+    RecentTradeMomentumEvidenceSource
+  >();
+  const recentTradeMomentumPackages = new Map<
+    string,
+    RecentTradeMomentumDatasetPackage
+  >();
   const tradeExplorerEvidence = new Map<string, TradeEvidenceSource>();
   const tradeExplorerPackages = new Map<
     string,
@@ -1496,6 +1615,24 @@ function buildPlatformInput(
       supplierCompetitionPackages.set(
         buildId,
         bundle.supplierCompetitionDatasetPackage,
+      );
+    }
+    if (bundle.recommendedDatasetMapping.manifest.recentTradeMomentum !== null) {
+      if (
+        bundle.recentTradeMomentumEvidence === null ||
+        bundle.recentTradeMomentumDatasetPackage === null
+      ) {
+        throw new TypeError(
+          "Recent Trade Momentum was declared without runtime monthly evidence.",
+        );
+      }
+      recentTradeMomentumEvidence.set(
+        buildId,
+        bundle.recentTradeMomentumEvidence,
+      );
+      recentTradeMomentumPackages.set(
+        buildId,
+        bundle.recentTradeMomentumDatasetPackage,
       );
     }
     if (bundle.recommendedDatasetMapping.manifest.tradeExplorer !== null) {
@@ -1538,6 +1675,14 @@ function buildPlatformInput(
           supplierCompetition: {
             evidenceSource: supplierCompetitionEvidence,
             datasetPackages: supplierCompetitionPackages,
+          },
+        }),
+    ...(recentTradeMomentumPackages.size === 0
+      ? {}
+      : {
+          recentTradeMomentum: {
+            evidenceSource: recentTradeMomentumEvidence,
+            datasetPackages: recentTradeMomentumPackages,
           },
         }),
     ...(tradeExplorerPackages.size === 0

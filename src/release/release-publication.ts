@@ -753,6 +753,7 @@ export class ReleasePublisher {
                 evidenceSha256:
                   supplierCompetitionPackage.manifest.evidenceSha256,
               },
+        recentTradeMomentum: null,
         tradeExplorer:
           tradeExplorerPackage === null ||
           tradeExplorerPackage.manifest.evidenceSha256 !==

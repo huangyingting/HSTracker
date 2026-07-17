@@ -35,7 +35,7 @@ describe("origin-benchmark plan parsing", () => {
 
     expect(plan.measurementClass).toBe("candidate");
     expect(plan.origin).toBe("https://staging.example.com");
-    expect(plan.requests).toHaveLength(87);
+    expect(plan.requests).toHaveLength(91);
     expect(plan.warmupSamples).toBe(5);
   });
 
@@ -193,10 +193,10 @@ describe("runOriginBenchmark", () => {
 
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
-        // 1 health check + 87 routes * (5 warmups + timedSamples).
+        // 1 health check + 91 routes * (5 warmups + timedSamples).
         const perRoute = 5 + plan.timedSamples;
-        expect(calls.length).toBe(1 + 87 * perRoute);
-        expect(report.originBenchmarks).toHaveLength(87);
+        expect(calls.length).toBe(1 + 91 * perRoute);
+        expect(report.originBenchmarks).toHaveLength(91);
         expect(report.status).toBe("measurement-complete");
         expect(report.meetsAcceptanceEvidenceSampleSize).toBe(true);
         expect(report.firstFailure).toBeNull();
@@ -712,6 +712,7 @@ function acceptedPlanInput(
     "supplier-competition-analysis-process-hit",
     "supplier-competition-csv-uncached",
     "supplier-competition-csv-analysis-hit",
+    "recent-trade-momentum-uncached",
     "opportunity-feed-uncached",
     "trade-explorer-analysis-uncached",
     "trade-explorer-analysis-process-hit",
@@ -727,6 +728,7 @@ function acceptedPlanInput(
     "trade-trend-csv-uncached",
     "supplier-competition-analysis-uncached",
     "supplier-competition-csv-uncached",
+    "recent-trade-momentum-uncached",
     "opportunity-feed-uncached",
     "trade-explorer-analysis-uncached",
     "trade-explorer-csv-uncached",
@@ -753,6 +755,8 @@ function acceptedPlanInput(
           path:
             operation === "opportunity-feed-uncached"
               ? "/api/v1/analyses/analysis-build-v1-620a5047a1a306ca/opportunities?exporter=156&limit=50"
+              : operation === "recent-trade-momentum-uncached"
+              ? `/api/v1/analyses/analysis-build-v1-620a5047a1a306ca/recent-trade-momentum?reporter=NL&product=${roleProductCodes[role]}`
               : operation.startsWith("trade-explorer")
               ? `/api/v1/${operation}/${role}?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct=${roleProductCodes[role]}`
               : operation.startsWith("candidate-analysis") ||
@@ -763,6 +767,7 @@ function acceptedPlanInput(
         const attestedUncachedOperation =
           operation === "candidate-analysis-uncached" ||
           operation === "csv-uncached" ||
+          operation === "recent-trade-momentum-uncached" ||
           operation === "opportunity-feed-uncached" ||
           operation === "trade-explorer-analysis-uncached" ||
           operation === "trade-explorer-csv-uncached";

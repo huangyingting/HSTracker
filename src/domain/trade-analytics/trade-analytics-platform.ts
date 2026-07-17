@@ -18,6 +18,12 @@ import type {
 import {
   isSupplierCompetitionAnalysisError,
 } from "../supplier-competition/errors";
+import {
+  isRecentTradeMomentumAnalysisError,
+} from "../recent-trade-momentum/errors";
+import type {
+  RecentTradeMomentumOutcome,
+} from "../recent-trade-momentum/recent-trade-momentum-v1";
 import type {
   SupplierCompetitionResult,
   SupplierCompetitionV1RecipeInput,
@@ -48,6 +54,10 @@ import type {
   OpportunityDetailRequest,
   OpportunityEvidenceSource,
 } from "../../evidence/opportunity-evidence-source";
+import type {
+  RecentTradeMomentumEvidenceSource,
+  RecentTradeMomentumV1RecipeInput,
+} from "../../evidence/recent-trade-momentum-evidence-source";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
 import type { AnonymousSourceIdentity } from "../../runtime/anonymous-source";
 import {
@@ -80,6 +90,14 @@ import {
   createTradeTrendV1RecipeExecution,
 } from "./trade-trend-v1-recipe";
 import { validateTradeTrendV1Request } from "./trade-trend-v1-request";
+import {
+  createRecentTradeMomentumV1RecipeExecution,
+} from "./recent-trade-momentum-v1-recipe";
+import { validateRecentTradeMomentumV1Request } from "./recent-trade-momentum-v1-request";
+import {
+  evaluateRecentTradeMomentumV1DatasetPackage,
+  type RecentTradeMomentumDatasetPackage,
+} from "./recent-trade-momentum-v1-dataset-package";
 import {
   evaluateTradeTrendV1DatasetPackage,
   type TradeTrendDatasetPackage,
@@ -128,6 +146,14 @@ export type SupplierCompetitionV1AnalysisRequest = Readonly<{
   analysisBuildId: string;
   importerCode: string;
   productCode: string;
+}>;
+
+export type RecentTradeMomentumV1AnalysisRequest = Readonly<{
+  recipe: "recent-trade-momentum-v1";
+  analysisBuildId: string;
+  reporterCode: string;
+  productCode: string;
+  exporterCode?: string;
 }>;
 
 // The closed, public opportunity-discovery-v1 request. `page` and
@@ -184,6 +210,14 @@ export type TradeTrendV1NormalizedInputs = Readonly<{
 
 export type SupplierCompetitionV1NormalizedInputs = Readonly<{
   importerCode: string;
+  product: Readonly<{
+    hsRevision: "HS12";
+    code: string;
+  }>;
+}>;
+
+export type RecentTradeMomentumV1NormalizedInputs = Readonly<{
+  reporterIso2: string;
   product: Readonly<{
     hsRevision: "HS12";
     code: string;
@@ -280,6 +314,16 @@ type AnalysisRecipeContracts = {
     invalidError:
       | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
       | Readonly<{ code: "UNKNOWN_IMPORTER"; importerCode: string }>
+      | Readonly<{ code: "UNKNOWN_PRODUCT"; productCode: string }>;
+  };
+  "recent-trade-momentum-v1": {
+    request: RecentTradeMomentumV1AnalysisRequest;
+    normalizedInputs: RecentTradeMomentumV1NormalizedInputs;
+    payload: RecentTradeMomentumOutcome;
+    emptyReason: never;
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNKNOWN_REPORTER"; reporterCode: string }>
       | Readonly<{ code: "UNKNOWN_PRODUCT"; productCode: string }>;
   };
   "trade-explorer-v1": {
@@ -475,6 +519,15 @@ export type SupplierCompetitionV1PlatformInput = Readonly<{
   datasetPackages: ReadonlyMap<string, SupplierCompetitionDatasetPackage>;
 }>;
 
+export type RecentTradeMomentumV1EvidenceBinding =
+  | RecentTradeMomentumEvidenceSource
+  | ReadonlyMap<string, RecentTradeMomentumEvidenceSource>;
+
+export type RecentTradeMomentumV1PlatformInput = Readonly<{
+  evidenceSource: RecentTradeMomentumV1EvidenceBinding;
+  datasetPackages: ReadonlyMap<string, RecentTradeMomentumDatasetPackage>;
+}>;
+
 export type TradeExplorerV1EvidenceBinding =
   | TradeEvidenceSource
   | ReadonlyMap<string, TradeEvidenceSource>;
@@ -511,6 +564,7 @@ export type TradeAnalyticsPlatformInput = Readonly<{
   candidateMarket?: CandidateMarketV1PlatformInput;
   tradeTrend?: TradeTrendV1PlatformInput;
   supplierCompetition?: SupplierCompetitionV1PlatformInput;
+  recentTradeMomentum?: RecentTradeMomentumV1PlatformInput;
   // Deliberately omitted by the production verified runtime until #47:
   // an undeclared `tradeExplorer` input leaves every trade-explorer-v1
   // request retired (no dataset package is ever registered for any
@@ -536,6 +590,7 @@ export function createTradeAnalyticsPlatform({
   candidateMarket,
   tradeTrend,
   supplierCompetition,
+  recentTradeMomentum,
   tradeExplorer,
   opportunityDiscovery,
 }: TradeAnalyticsPlatformInput): TradeAnalyticsPlatform {
@@ -543,6 +598,7 @@ export function createTradeAnalyticsPlatform({
     candidateMarket,
     tradeTrend,
     supplierCompetition,
+    recentTradeMomentum,
     tradeExplorer,
     opportunityDiscovery,
   );
@@ -562,6 +618,11 @@ type SupplierCompetitionExecution = (
   request: SupplierCompetitionV1RecipeInput,
   options?: AnalysisExecutionOptions,
 ) => Promise<SupplierCompetitionResult>;
+
+type RecentTradeMomentumExecution = (
+  request: RecentTradeMomentumV1RecipeInput,
+  options?: AnalysisExecutionOptions,
+) => Promise<RecentTradeMomentumOutcome>;
 
 type TradeExplorerExecution = (
   request: TradeExplorerV1EvidenceRequest,
@@ -589,6 +650,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     string,
     SupplierCompetitionExecution
   >;
+  private readonly executeRecentTradeMomentum: ReadonlyMap<
+    string,
+    RecentTradeMomentumExecution
+  >;
   private readonly executeTradeExplorer: ReadonlyMap<
     string,
     TradeExplorerExecution
@@ -607,6 +672,9 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     private readonly tradeTrend: TradeTrendV1PlatformInput | undefined,
     private readonly supplierCompetition:
       | SupplierCompetitionV1PlatformInput
+      | undefined,
+    private readonly recentTradeMomentum:
+      | RecentTradeMomentumV1PlatformInput
       | undefined,
     private readonly tradeExplorer: TradeExplorerV1PlatformInput | undefined,
     private readonly opportunityDiscovery:
@@ -661,6 +729,22 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
                     supplierCompetition.evidenceSource,
                     analysisBuildId,
                     "supplier-competition-v1",
+                  ),
+                ),
+              ],
+            ),
+          );
+    this.executeRecentTradeMomentum =
+      recentTradeMomentum === undefined
+        ? new Map()
+        : new Map(
+            [...recentTradeMomentum.datasetPackages.keys()].map(
+              (analysisBuildId) => [
+                analysisBuildId,
+                createRecentTradeMomentumV1RecipeExecution(
+                  requireRecentTradeMomentumEvidenceBinding(
+                    recentTradeMomentum.evidenceSource,
+                    analysisBuildId,
                   ),
                 ),
               ],
@@ -734,6 +818,13 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
       }
       case "supplier-competition-v1": {
         const outcome = await this.executeSupplierCompetitionV1(
+          request,
+          options,
+        );
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      case "recent-trade-momentum-v1": {
+        const outcome = await this.executeRecentTradeMomentumV1(
           request,
           options,
         );
@@ -1014,6 +1105,94 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
       );
     }
     return { state: "success", ...completed };
+  }
+
+  private async executeRecentTradeMomentumV1(
+    request: RecentTradeMomentumV1AnalysisRequest,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<"recent-trade-momentum-v1">> {
+    try {
+      validateRecentTradeMomentumV1Request(request);
+    } catch (error) {
+      if (!isRecentTradeMomentumAnalysisError(error)) {
+        throw error;
+      }
+      return expectedRecentTradeMomentumFailure(request, error.code);
+    }
+    const datasetPackage = this.recentTradeMomentum?.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    const execute = this.executeRecentTradeMomentum.get(
+      request.analysisBuildId,
+    );
+    if (datasetPackage === undefined || execute === undefined) {
+      return expectedRecentTradeMomentumFailure(
+        request,
+        "ANALYSIS_BUILD_RETIRED",
+      );
+    }
+    const compatibility =
+      evaluateRecentTradeMomentumV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"recent-trade-momentum-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const normalizedInputs: RecentTradeMomentumV1NormalizedInputs = {
+      reporterIso2: request.reporterCode,
+      product: {
+        hsRevision: "HS12",
+        code: request.productCode,
+      },
+    };
+    let result: RecentTradeMomentumOutcome;
+    try {
+      result = await execute(
+        {
+          analysisBuildId: request.analysisBuildId,
+          reporterCode: request.reporterCode,
+          productCode: request.productCode,
+        },
+        options,
+      );
+    } catch (error) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
+      }
+      if (!isRecentTradeMomentumAnalysisError(error)) {
+        throw error;
+      }
+      return expectedRecentTradeMomentumFailure(request, error.code);
+    }
+    if (
+      result.monthlyPackageId !== datasetPackage.identity ||
+      result.sourceVintageId !== datasetPackage.manifest.sourceVintageId ||
+      result.reporterIso2 !== request.reporterCode ||
+      result.hs12Code !== request.productCode
+    ) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"recent-trade-momentum-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: "PACKAGE_IDENTITY_MISMATCH",
+        },
+      };
+    }
+    return {
+      state: "success",
+      ...completedRecentTradeMomentumOutcome(
+        request.recipe,
+        result,
+        datasetPackage.identity,
+        normalizedInputs,
+      ),
+    };
   }
 
   // Trade Explorer resolves its Dataset Package before full normalization
@@ -1436,6 +1615,50 @@ function expectedSupplierCompetitionFailure(
   }
 }
 
+function expectedRecentTradeMomentumFailure(
+  request: RecentTradeMomentumV1AnalysisRequest,
+  code:
+    | "INVALID_ANALYSIS_QUERY"
+    | "UNKNOWN_REPORTER"
+    | "UNKNOWN_PRODUCT"
+    | "ANALYSIS_BUILD_RETIRED"
+    | "ANALYSIS_UNAVAILABLE",
+): AnalysisOutcome<"recent-trade-momentum-v1"> {
+  const unresolved = unresolvedOutcome<"recent-trade-momentum-v1">(request);
+  switch (code) {
+    case "INVALID_ANALYSIS_QUERY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code },
+      };
+    case "UNKNOWN_REPORTER":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code, reporterCode: request.reporterCode },
+      };
+    case "UNKNOWN_PRODUCT":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code, productCode: request.productCode },
+      };
+    case "ANALYSIS_BUILD_RETIRED":
+      return {
+        state: "retired",
+        ...unresolved,
+        error: { code, analysisBuildId: request.analysisBuildId },
+      };
+    case "ANALYSIS_UNAVAILABLE":
+      return {
+        state: "temporary-unavailability",
+        ...unresolved,
+        error: { code },
+      };
+  }
+}
+
 function expectedTradeExplorerFailure(
   request: TradeExplorerV1AnalysisRequest,
   error: TradeExplorerAnalysisError,
@@ -1639,6 +1862,26 @@ function requireEvidenceBinding(
   return binding as TradeEvidenceSource;
 }
 
+function requireRecentTradeMomentumEvidenceBinding(
+  binding:
+    | RecentTradeMomentumEvidenceSource
+    | ReadonlyMap<string, RecentTradeMomentumEvidenceSource>,
+  analysisBuildId: string,
+): RecentTradeMomentumEvidenceSource {
+  if (binding instanceof Map) {
+    const source = (
+      binding as ReadonlyMap<string, RecentTradeMomentumEvidenceSource>
+    ).get(analysisBuildId);
+    if (source === undefined) {
+      throw new TypeError(
+        `No recent-trade-momentum-v1 evidence source is bound for analysis build ${analysisBuildId}.`,
+      );
+    }
+    return source;
+  }
+  return binding as RecentTradeMomentumEvidenceSource;
+}
+
 /**
  * Resolves an ordered candidate-index binding for one retained
  * analysisBuildId, mirroring `requireEvidenceBinding`: a single value applies
@@ -1807,6 +2050,24 @@ function completedSupplierCompetitionOutcome(
   };
 }
 
+function completedRecentTradeMomentumOutcome(
+  recipe: "recent-trade-momentum-v1",
+  payload: RecentTradeMomentumOutcome,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: RecentTradeMomentumV1NormalizedInputs,
+): CompletedAnalysisOutcome<"recent-trade-momentum-v1"> {
+  return {
+    recipe,
+    analysisIdentity: analysisIdentityForRecentTradeMomentum(
+      datasetPackageIdentity,
+      normalizedInputs,
+    ),
+    datasetPackageIdentity,
+    normalizedInputs,
+    payload,
+  };
+}
+
 function completedTradeExplorerOutcome(
   recipe: "trade-explorer-v1",
   payload: TradeExplorerResult,
@@ -1876,6 +2137,24 @@ function analysisIdentityFor(
     recipe,
     datasetPackageIdentity,
     economyCode,
+    normalizedInputs.product.hsRevision,
+    normalizedInputs.product.code,
+  ]);
+  const digest = createHash("sha256")
+    .update(canonicalIdentity)
+    .digest("hex");
+  return `analysis-identity-v1-${digest}` as AnalysisIdentity;
+}
+
+function analysisIdentityForRecentTradeMomentum(
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: RecentTradeMomentumV1NormalizedInputs,
+): AnalysisIdentity {
+  const canonicalIdentity = JSON.stringify([
+    "analysis-identity-v1",
+    "recent-trade-momentum-v1",
+    datasetPackageIdentity,
+    normalizedInputs.reporterIso2,
     normalizedInputs.product.hsRevision,
     normalizedInputs.product.code,
   ]);

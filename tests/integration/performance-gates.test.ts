@@ -28,7 +28,7 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 87,
+          benchmarkCount: 91,
         },
         tradeExplorer: { status: "accepted" },
         targetLoad: {
@@ -217,6 +217,57 @@ describe("production performance gates", () => {
     expect(() => evaluatePerformanceGates(input)).toThrowError(
       new PerformanceGateInputError(
         "Missing origin benchmark opportunity-feed-uncached:median.",
+      ),
+    );
+  });
+
+  it("gates Recent Trade Momentum uncached p95 at 200 ms and p99 at 500 ms", () => {
+    const input = acceptedInput();
+    const accepted = input.originBenchmarks.find(
+      (benchmark) =>
+        benchmark.operation === "recent-trade-momentum-uncached" &&
+        benchmark.productRole === "median",
+    )!;
+    expect(accepted).toMatchObject({
+      p95Ms: 200,
+      p99Ms: 500,
+      maximumRouteMs: 2_000,
+      cacheStatesVerified: true,
+    });
+
+    accepted.p95Ms = 201;
+    accepted.p99Ms = 501;
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.gates.origin.benchmarks.find(
+        (evaluated) =>
+          evaluated.operation === "recent-trade-momentum-uncached" &&
+          evaluated.productRole === "median",
+      ),
+    ).toMatchObject({
+      p95Ms: 201,
+      p95LimitMs: 200,
+      p99Ms: 501,
+      p99LimitMs: 500,
+      status: "blocked",
+    });
+  });
+
+  it("requires Recent Trade Momentum uncached evidence for every representative role", () => {
+    const input = acceptedInput();
+    input.originBenchmarks = input.originBenchmarks.filter(
+      (benchmark) =>
+        !(
+          benchmark.operation === "recent-trade-momentum-uncached" &&
+          benchmark.productRole === "sparse"
+        ),
+    );
+
+    expect(() => evaluatePerformanceGates(input)).toThrowError(
+      new PerformanceGateInputError(
+        "Missing origin benchmark recent-trade-momentum-uncached:sparse.",
       ),
     );
   });
@@ -549,6 +600,7 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "supplier-competition-analysis-process-hit",
     "supplier-competition-csv-uncached",
     "supplier-competition-csv-analysis-hit",
+    "recent-trade-momentum-uncached",
     "opportunity-feed-uncached",
     "trade-explorer-analysis-uncached",
     "trade-explorer-analysis-process-hit",
@@ -594,6 +646,7 @@ function benchmark(
     "supplier-competition-analysis-process-hit": [100, 250, 2_000],
     "supplier-competition-csv-uncached": [3_000, 6_000, 15_000],
     "supplier-competition-csv-analysis-hit": [250, 500, 15_000],
+    "recent-trade-momentum-uncached": [200, 500, 2_000],
     "opportunity-feed-uncached": [500, 1_000, 2_000],
     "trade-explorer-analysis-uncached": [2_000, 4_000, 12_000],
     "trade-explorer-analysis-process-hit": [100, 250, 2_000],
@@ -605,6 +658,8 @@ function benchmark(
       ? 16 * KIB
      : operation === "opportunity-feed-uncached"
        ? 256 * KIB
+     : operation === "recent-trade-momentum-uncached"
+       ? 64 * KIB
      : operation.includes("search")
         ? 64 * KIB
         : operation.startsWith("trade-explorer")

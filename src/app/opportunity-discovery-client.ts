@@ -3,11 +3,13 @@ import type {
   MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
 import type { OpportunityDetailEvidence } from "../evidence/opportunity-evidence-source";
+import type { RecentTradeMomentumV1Payload } from "../domain/trade-analytics/recent-trade-momentum-v1-adapter";
 
 type OpportunityClientErrorCode =
   | "HTTP_ERROR"
   | "INVALID_PAGE"
-  | "INVALID_DETAIL";
+  | "INVALID_DETAIL"
+  | "INVALID_RECENT_TRADE_MOMENTUM";
 
 export class OpportunityDiscoveryClientError extends Error {
   constructor(
@@ -107,6 +109,47 @@ export async function loadOpportunityDetail({
   return payload;
 }
 
+export async function loadRecentTradeMomentum({
+  analysisBuildId,
+  reporterCode,
+  productCode,
+  exporterCode,
+  fetcher,
+  signal,
+}: {
+  analysisBuildId: string;
+  reporterCode: string;
+  productCode: string;
+  exporterCode: string;
+  fetcher: typeof fetch;
+  signal: AbortSignal;
+}): Promise<RecentTradeMomentumV1Payload> {
+  const parameters = new URLSearchParams({
+    reporter: reporterCode,
+    product: productCode,
+    exporter: exporterCode,
+  });
+  const response = await fetcher(
+    `/api/v1/analyses/${encodeURIComponent(analysisBuildId)}/recent-trade-momentum?${parameters}`,
+    { signal },
+  );
+  if (!response.ok) {
+    throw new OpportunityDiscoveryClientError(
+      "HTTP_ERROR",
+      `Recent Trade Momentum returned ${response.status}.`,
+      response.status,
+    );
+  }
+  const payload: unknown = await response.json();
+  if (!isRecentTradeMomentumPayload(payload)) {
+    throw new OpportunityDiscoveryClientError(
+      "INVALID_RECENT_TRADE_MOMENTUM",
+      "Recent Trade Momentum payload is malformed.",
+    );
+  }
+  return payload;
+}
+
 function isMarketInvestigationPage(
   value: unknown,
 ): value is MarketInvestigationPage {
@@ -201,6 +244,43 @@ function isOpportunityDetailEvidence(
         (year.bilateralValueKusd === null ||
           isNonemptyString(year.bilateralValueKusd)),
     )
+  );
+}
+
+function isRecentTradeMomentumPayload(
+  value: unknown,
+): value is RecentTradeMomentumV1Payload {
+  return (
+    isRecord(value) &&
+    value.schemaVersion === "recent-trade-momentum-result-v1" &&
+    value.recipe === "recent-trade-momentum-v1" &&
+    isNonemptyString(value.monthlyPackageId) &&
+    isNonemptyString(value.sourceVintageId) &&
+    /^[A-Z]{2}$/u.test(String(value.reporterIso2)) &&
+    isProductCode(value.hs12Code) &&
+    isNonemptyString(value.cutoffMonth) &&
+    Array.isArray(value.recentMonths) &&
+    value.recentMonths.every(isNonemptyString) &&
+    Array.isArray(value.baselineMonths) &&
+    value.baselineMonths.every(isNonemptyString) &&
+    isNonemptyString(value.coverageState) &&
+    (value.signalState === null || isNonemptyString(value.signalState)) &&
+    Array.isArray(value.reasonCodes) &&
+    value.reasonCodes.every(isNonemptyString) &&
+    (value.recentValueEur === null || isNonemptyString(value.recentValueEur)) &&
+    (value.baselineValueEur === null ||
+      isNonemptyString(value.baselineValueEur)) &&
+    (value.growthRateDecimal === null ||
+      isNonemptyString(value.growthRateDecimal)) &&
+    (value.growthPercentDisplay === null ||
+      isNonemptyString(value.growthPercentDisplay)) &&
+    (value.confidence === null || isNonemptyString(value.confidence)) &&
+    Array.isArray(value.confidenceReasons) &&
+    value.confidenceReasons.every(isNonemptyString) &&
+    Number.isInteger(value.recordedHistoryMonths) &&
+    value.expectedHistoryMonths === 24 &&
+    isNonemptyString(value.analysisIdentity) &&
+    isNonemptyString(value.datasetPackageIdentity)
   );
 }
 

@@ -2,6 +2,7 @@ import { validateProductSearchQuery } from "../catalog/validate-product-search-q
 import { isCandidateMarketAnalysisError } from "../domain/candidate-market/errors";
 import { validateCandidateMarketV1Request } from "../domain/trade-analytics/candidate-market-v1-request";
 import { validateSupplierCompetitionV1Request } from "../domain/trade-analytics/supplier-competition-v1-request";
+import { validateRecentTradeMomentumV1Request } from "../domain/trade-analytics/recent-trade-momentum-v1-request";
 import { validateTradeTrendV1Request } from "../domain/trade-analytics/trade-trend-v1-request";
 import { validateTradeExplorerV1Request } from "../domain/trade-analytics/trade-explorer-v1-request";
 import {
@@ -13,6 +14,7 @@ import { isSupplierCompetitionAnalysisError } from "../domain/supplier-competiti
 import { isTradeExplorerAnalysisError } from "../domain/trade-explorer/errors";
 import { isOpportunityDiscoveryAnalysisError } from "../domain/opportunity-discovery/errors";
 import { isTradeTrendAnalysisError } from "../domain/trade-trend/errors";
+import { isRecentTradeMomentumAnalysisError } from "../domain/recent-trade-momentum/errors";
 import type {
   AnalysisExecutionOptions,
   AnalysisOperationObservation,
@@ -21,6 +23,7 @@ import type {
   AnalysisRequest,
   OpportunityDetailV1AnalysisRequest,
   OpportunityDiscoveryV1AnalysisRequest,
+  RecentTradeMomentumV1AnalysisRequest,
   TradeAnalyticsPlatform,
   TradeExplorerV1AnalysisRequest,
 } from "../domain/trade-analytics/trade-analytics-platform";
@@ -47,6 +50,7 @@ type AnalysisResult =
   | AnalysisOutcome<"candidate-market-v1">
   | AnalysisOutcome<"trade-trend-v1">
   | AnalysisOutcome<"supplier-competition-v1">
+  | AnalysisOutcome<"recent-trade-momentum-v1">
   | AnalysisOutcome<"trade-explorer-v1">
   | AnalysisOutcome<"opportunity-discovery-v1">
   | AnalysisOutcome<"opportunity-detail-v1">;
@@ -267,6 +271,7 @@ export function createBoundedApplicationRuntime(
         !isCandidateMarketAnalysisError(error) &&
         !isTradeTrendAnalysisError(error) &&
         !isSupplierCompetitionAnalysisError(error) &&
+        !isRecentTradeMomentumAnalysisError(error) &&
         !isTradeExplorerAnalysisError(error) &&
         !isOpportunityDiscoveryAnalysisError(error)
       ) {
@@ -683,6 +688,15 @@ function analysisKey(
       cachePartitionKey ?? "",
     ].join("\u0000");
   }
+  if (query.recipe === "recent-trade-momentum-v1") {
+    return [
+      query.recipe,
+      query.analysisBuildId,
+      query.reporterCode,
+      query.productCode,
+      cachePartitionKey ?? "",
+    ].join("\u0000");
+  }
   return [
     query.recipe,
     query.analysisBuildId,
@@ -705,6 +719,10 @@ function validateAnalysisRequest(query: AnalysisQuery): void {
   }
   if (query.recipe === "supplier-competition-v1") {
     validateSupplierCompetitionV1Request(query);
+    return;
+  }
+  if (query.recipe === "recent-trade-momentum-v1") {
+    validateRecentTradeMomentumV1Request(query);
     return;
   }
   if (query.recipe === "trade-explorer-v1") {
@@ -734,6 +752,7 @@ function normalizedEconomyCode(
     | TradeExplorerV1AnalysisRequest
     | OpportunityDiscoveryV1AnalysisRequest
     | OpportunityDetailV1AnalysisRequest
+    | RecentTradeMomentumV1AnalysisRequest
   >,
 ): string {
   return String(
@@ -792,6 +811,9 @@ function analysisResultRows(
   if (outcome.recipe === "opportunity-detail-v1") {
     return outcome.payload.marketYears.length;
   }
+  if (outcome.recipe === "recent-trade-momentum-v1") {
+    return 1;
+  }
   return (
     outcome.payload.finalizedObservations.length +
     (outcome.payload.provisionalObservation === null ? 0 : 1)
@@ -835,6 +857,14 @@ function inputBudgetOutcome(
       request.exportEconomyCode,
       request.productCode,
       request.marketCode,
+    ];
+  } else if (request.recipe === "recent-trade-momentum-v1") {
+    canonicalInputs = [
+      request.recipe,
+      request.analysisBuildId,
+      request.reporterCode,
+      request.productCode,
+      request.exporterCode ?? "",
     ];
   } else {
     canonicalInputs = [

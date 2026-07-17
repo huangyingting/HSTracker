@@ -11,6 +11,8 @@ import { evaluateTradeExplorerV1DatasetPackage } from "./trade-explorer-v1-datas
 import type { TradeExplorerDatasetPackage } from "./trade-explorer-v1-dataset-package";
 import { evaluateTradeTrendV1DatasetPackage } from "./trade-trend-v1-dataset-package";
 import type { TradeTrendDatasetPackage } from "./trade-trend-v1-dataset-package";
+import { evaluateRecentTradeMomentumV1DatasetPackage } from "./recent-trade-momentum-v1-dataset-package";
+import type { RecentTradeMomentumDatasetPackage } from "./recent-trade-momentum-v1-dataset-package";
 import { evaluateOpportunityDiscoveryV1DatasetPackage } from "./opportunity-discovery-v1-dataset-package";
 import type { OpportunityDiscoveryDatasetPackage } from "./opportunity-discovery-v1-dataset-package";
 
@@ -74,6 +76,18 @@ export type RecommendedTradeExplorerMappingDeclaration = Readonly<{
   evidenceSha256: string;
 }>;
 
+export type RecommendedRecentTradeMomentumMappingDeclaration = Readonly<{
+  recipe: "recent-trade-momentum-v1";
+  datasetPackage: Readonly<{
+    identity: DatasetPackageIdentity;
+    manifest: RecommendedMappingObjectReference;
+  }>;
+  artifact: Readonly<{
+    schemaVersion: "monthly-trade-artifact-v1";
+    object: RecommendedMappingObjectReference;
+  }>;
+}>;
+
 // Declares that this closed mapping also gates opportunity-discovery-v1.
 // Unlike Trade Trend / Supplier Competition / Trade Explorer -- which read the
 // SAME already-pinned economyCatalog artifact and so carry only an
@@ -111,6 +125,7 @@ export type RecommendedDatasetMappingManifest = Readonly<{
   }>;
   tradeTrend: RecommendedTradeTrendMappingDeclaration | null;
   supplierCompetition: RecommendedSupplierCompetitionMappingDeclaration | null;
+  recentTradeMomentum: RecommendedRecentTradeMomentumMappingDeclaration | null;
   tradeExplorer: RecommendedTradeExplorerMappingDeclaration | null;
   opportunity: RecommendedOpportunityMappingDeclaration | null;
   productCatalog: Readonly<{
@@ -193,6 +208,7 @@ export function validateRecommendedDatasetMapping(input: {
   datasetPackage: CandidateMarketDatasetPackage;
   tradeTrendDatasetPackage: TradeTrendDatasetPackage | null;
   supplierCompetitionDatasetPackage: SupplierCompetitionDatasetPackage | null;
+  recentTradeMomentumDatasetPackage?: RecentTradeMomentumDatasetPackage | null;
   tradeExplorerDatasetPackage: TradeExplorerDatasetPackage | null;
   opportunityDatasetPackage: OpportunityDiscoveryDatasetPackage | null;
   productCatalog: Readonly<{
@@ -345,6 +361,61 @@ export function validateRecommendedDatasetMapping(input: {
     if (!supplierCompetitionCompatibility.compatible) {
       throw new TypeError(
         `Recommended Dataset Mapping Supplier Competition package is incompatible: ${supplierCompetitionCompatibility.reason}.`,
+      );
+    }
+  }
+
+  const recentTradeMomentumDatasetPackage =
+    input.recentTradeMomentumDatasetPackage ?? null;
+  if (manifest.recentTradeMomentum === null) {
+    if (recentTradeMomentumDatasetPackage !== null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping does not declare recent-trade-momentum-v1.",
+      );
+    }
+  } else {
+    if (recentTradeMomentumDatasetPackage === null) {
+      throw new TypeError(
+        "Recommended Dataset Mapping declares recent-trade-momentum-v1 without a package.",
+      );
+    }
+    if (
+      manifest.recentTradeMomentum.datasetPackage.identity !==
+      recentTradeMomentumDatasetPackage.identity
+    ) {
+      throw new TypeError(
+        "Recommended Dataset Mapping Recent Trade Momentum package identity is incompatible.",
+      );
+    }
+    if (
+      recentTradeMomentumDatasetPackage.manifest.artifactSha256 !==
+      manifest.recentTradeMomentum.artifact.object.sha256
+    ) {
+      throw new TypeError(
+        "Recommended Dataset Mapping Recent Trade Momentum evidence is incompatible.",
+      );
+    }
+    const monthlyPackageBytes = Buffer.from(
+      recentTradeMomentumDatasetPackage.serializedManifest,
+      "utf8",
+    );
+    if (
+      monthlyPackageBytes.byteLength !==
+        manifest.recentTradeMomentum.datasetPackage.manifest.bytes ||
+      createHash("sha256").update(monthlyPackageBytes).digest("hex") !==
+        manifest.recentTradeMomentum.datasetPackage.manifest.sha256
+    ) {
+      throw new TypeError(
+        "Recommended Dataset Mapping Recent Trade Momentum package reference is incompatible.",
+      );
+    }
+    const monthlyCompatibility =
+      evaluateRecentTradeMomentumV1DatasetPackage(
+        recentTradeMomentumDatasetPackage,
+      );
+    if (!monthlyCompatibility.compatible) {
+      throw new TypeError(
+        `Recommended Dataset Mapping Recent Trade Momentum package is incompatible: ${monthlyCompatibility.reason}.`,
       );
     }
   }
@@ -547,6 +618,9 @@ function parseRecommendedDatasetMappingManifest(
   const supplierCompetition = parseSupplierCompetitionMappingDeclaration(
     mapping.supplierCompetition,
   );
+  const recentTradeMomentum = parseRecentTradeMomentumMappingDeclaration(
+    mapping.recentTradeMomentum,
+  );
   const tradeExplorer = parseTradeExplorerMappingDeclaration(
     mapping.tradeExplorer,
   );
@@ -566,6 +640,7 @@ function parseRecommendedDatasetMappingManifest(
     },
     tradeTrend,
     supplierCompetition,
+    recentTradeMomentum,
     tradeExplorer,
     opportunity,
     productCatalog: {
@@ -628,6 +703,62 @@ function parseSupplierCompetitionMappingDeclaration(
       declaration.evidenceSha256,
       "Supplier Competition declaration evidence SHA-256",
     ),
+  };
+}
+
+function parseRecentTradeMomentumMappingDeclaration(
+  value: unknown,
+): RecommendedRecentTradeMomentumMappingDeclaration | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const declaration = object(
+    value,
+    "Recommended Dataset Mapping Recent Trade Momentum declaration",
+  );
+  if (declaration.recipe !== "recent-trade-momentum-v1") {
+    throw new TypeError(
+      "Recommended Dataset Mapping Recent Trade Momentum declaration recipe is incompatible.",
+    );
+  }
+  const datasetPackage = object(
+    declaration.datasetPackage,
+    "Recommended Dataset Mapping Recent Trade Momentum package",
+  );
+  const packageIdentity = nonemptyString(
+    datasetPackage.identity,
+    "Recent Trade Momentum Dataset Package identity",
+  );
+  if (!/^dataset-package-v1-[a-f0-9]{64}$/u.test(packageIdentity)) {
+    throw new TypeError(
+      "Recommended Dataset Mapping Recent Trade Momentum package identity is malformed.",
+    );
+  }
+  const artifact = object(
+    declaration.artifact,
+    "Recommended Dataset Mapping Recent Trade Momentum artifact",
+  );
+  if (artifact.schemaVersion !== "monthly-trade-artifact-v1") {
+    throw new TypeError(
+      "Recommended Dataset Mapping Recent Trade Momentum artifact schema is incompatible.",
+    );
+  }
+  return {
+    recipe: "recent-trade-momentum-v1",
+    datasetPackage: {
+      identity: packageIdentity as DatasetPackageIdentity,
+      manifest: objectReference(
+        datasetPackage.manifest,
+        "Recent Trade Momentum Dataset Package manifest",
+      ),
+    },
+    artifact: {
+      schemaVersion: "monthly-trade-artifact-v1",
+      object: objectReference(
+        artifact.object,
+        "Recent Trade Momentum artifact object",
+      ),
+    },
   };
 }
 
