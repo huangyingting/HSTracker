@@ -42,7 +42,12 @@ import type {
   TradeTrendV1RecipeInput,
 } from "../trade-trend/result";
 import type { TradeEvidenceSource } from "../../evidence/trade-evidence-source";
-import type { OpportunityCandidateIndex } from "../../evidence/opportunity-evidence-source";
+import type {
+  OpportunityCandidateIndex,
+  OpportunityDetailEvidence,
+  OpportunityDetailRequest,
+  OpportunityEvidenceSource,
+} from "../../evidence/opportunity-evidence-source";
 import { isAnalysisCapacityExceededError } from "../../runtime/analysis-capacity-error";
 import type { AnonymousSourceIdentity } from "../../runtime/anonymous-source";
 import {
@@ -82,6 +87,10 @@ import {
 import {
   createOpportunityDiscoveryV1RecipeExecution,
 } from "./opportunity-discovery-v1-recipe";
+import {
+  createOpportunityDetailV1RecipeExecution,
+} from "./opportunity-detail-v1-recipe";
+import { validateOpportunityDetailV1Request } from "./opportunity-detail-v1-request";
 import {
   normalizeOpportunityDiscoveryV1Request,
   validateOpportunityDiscoveryV1Request,
@@ -188,6 +197,27 @@ export type OpportunityDiscoveryV1NormalizedInputs = Readonly<{
   exportEconomyCode: string;
 }>;
 
+// The closed, public Opportunity Detail v1 request. It identifies exactly one
+// Market Investigation Candidate (exporter + HS12 product + market) whose
+// evidence should be reconstructed. There is deliberately no storage, SQL,
+// table, column, or path vocabulary anywhere in this shape.
+export type OpportunityDetailV1AnalysisRequest = Readonly<{
+  recipe: "opportunity-detail-v1";
+  analysisBuildId: string;
+  exportEconomyCode: string;
+  productCode: string;
+  marketCode: string;
+}>;
+
+// Detail identity binds the recipe, the Dataset Package identity, and the
+// normalized exporter/product/market triple -- one Analysis Identity per
+// candidate detail view.
+export type OpportunityDetailV1NormalizedInputs = Readonly<{
+  exportEconomyCode: string;
+  productCode: string;
+  marketCode: string;
+}>;
+
 export type { TradeExplorerV1NormalizedInputs } from "../trade-explorer/result";
 
 export type AnalysisExecutionOptions = Readonly<{
@@ -284,6 +314,16 @@ type AnalysisRecipeContracts = {
       | Readonly<{ code: "UNKNOWN_EXPORT_ECONOMY"; exportEconomyCode: string }>
       | Readonly<{ code: "UNKNOWN_HS_PRODUCT"; productCode: string }>
       | Readonly<{ code: "INVALID_CURSOR" }>;
+  };
+  "opportunity-detail-v1": {
+    request: OpportunityDetailV1AnalysisRequest;
+    normalizedInputs: OpportunityDetailV1NormalizedInputs;
+    payload: OpportunityDetailEvidence;
+    emptyReason: never;
+    invalidError:
+      | Readonly<{ code: "INVALID_ANALYSIS_QUERY" }>
+      | Readonly<{ code: "UNKNOWN_EXPORT_ECONOMY"; exportEconomyCode: string }>
+      | Readonly<{ code: "UNKNOWN_HS_PRODUCT"; productCode: string }>;
   };
 };
 
@@ -448,12 +488,22 @@ export type OpportunityDiscoveryV1IndexBinding =
   | OpportunityCandidateIndex
   | ReadonlyMap<string, OpportunityCandidateIndex>;
 
+export type OpportunityDiscoveryV1EvidenceBinding =
+  | OpportunityEvidenceSource
+  | ReadonlyMap<string, OpportunityEvidenceSource>;
+
 export type OpportunityDiscoveryV1PlatformInput = Readonly<{
   // A single value binds every declared analysisBuildId to the same ordered
   // candidate index (the shape every current caller uses); a `ReadonlyMap`
   // instead binds each retained build to its own index, mirroring the
   // per-build binding model the other recipes use for their evidence sources.
   candidateIndex: OpportunityDiscoveryV1IndexBinding;
+  // The optional detail evidence source backs opportunity-detail-v1. A single
+  // value applies to every declared build; a `ReadonlyMap` binds each retained
+  // build to its own evidence. When omitted, every opportunity-detail-v1
+  // request is retired (no execution is bound) -- the same safe "undeclared"
+  // state the platform keeps for any capability it has not yet activated.
+  evidenceSource?: OpportunityDiscoveryV1EvidenceBinding;
   datasetPackages: ReadonlyMap<string, OpportunityDiscoveryDatasetPackage>;
 }>;
 
@@ -524,6 +574,11 @@ type OpportunityDiscoveryExecution = (
   options?: AnalysisExecutionOptions,
 ) => Promise<MarketInvestigationPage>;
 
+type OpportunityDetailExecution = (
+  request: OpportunityDetailRequest,
+  options?: AnalysisExecutionOptions,
+) => Promise<OpportunityDetailEvidence>;
+
 class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
   private readonly executeCandidateMarket: ReadonlyMap<
     string,
@@ -541,6 +596,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
   private readonly executeOpportunityDiscovery: ReadonlyMap<
     string,
     OpportunityDiscoveryExecution
+  >;
+  private readonly executeOpportunityDetail: ReadonlyMap<
+    string,
+    OpportunityDetailExecution
   >;
 
   constructor(
@@ -640,6 +699,24 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
               ],
             ),
           );
+    const opportunityEvidenceSource = opportunityDiscovery?.evidenceSource;
+    this.executeOpportunityDetail =
+      opportunityDiscovery === undefined ||
+      opportunityEvidenceSource === undefined
+        ? new Map()
+        : new Map(
+            [...opportunityDiscovery.datasetPackages.keys()].map(
+              (analysisBuildId) => [
+                analysisBuildId,
+                createOpportunityDetailV1RecipeExecution(
+                  requireOpportunityEvidenceBinding(
+                    opportunityEvidenceSource,
+                    analysisBuildId,
+                  ),
+                ),
+              ],
+            ),
+          );
   }
 
   async execute<Request extends AnalysisRequest>(
@@ -671,6 +748,10 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
           request,
           options,
         );
+        return outcome as AnalysisOutcome<Request["recipe"]>;
+      }
+      case "opportunity-detail-v1": {
+        const outcome = await this.executeOpportunityDetailV1(request, options);
         return outcome as AnalysisOutcome<Request["recipe"]>;
       }
       default:
@@ -1137,6 +1218,80 @@ class InternalTradeAnalyticsPlatform implements TradeAnalyticsPlatform {
     }
     return { state: "success", ...completed };
   }
+
+  private async executeOpportunityDetailV1(
+    request: OpportunityDetailV1AnalysisRequest,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisOutcome<"opportunity-detail-v1">> {
+    try {
+      validateOpportunityDetailV1Request(request);
+    } catch (error) {
+      if (!isOpportunityDiscoveryAnalysisError(error)) {
+        throw error;
+      }
+      return expectedOpportunityDetailFailure(request, error);
+    }
+    const datasetPackage = this.opportunityDiscovery?.datasetPackages.get(
+      request.analysisBuildId,
+    );
+    const execute = this.executeOpportunityDetail.get(request.analysisBuildId);
+    if (datasetPackage === undefined || execute === undefined) {
+      return {
+        state: "retired",
+        ...unresolvedOutcome<"opportunity-detail-v1">(request),
+        error: {
+          code: "ANALYSIS_BUILD_RETIRED",
+          analysisBuildId: request.analysisBuildId,
+        },
+      };
+    }
+    const compatibility =
+      evaluateOpportunityDiscoveryV1DatasetPackage(datasetPackage);
+    if (!compatibility.compatible) {
+      return {
+        state: "incompatible-package",
+        ...unresolvedOutcome<"opportunity-detail-v1">(request),
+        error: {
+          code: "NO_COMPATIBLE_DATASET_PACKAGE",
+          reason: compatibility.reason,
+        },
+      };
+    }
+    const normalizedInputs: OpportunityDetailV1NormalizedInputs = {
+      exportEconomyCode: String(Number(request.exportEconomyCode)),
+      productCode: request.productCode,
+      marketCode: String(Number(request.marketCode)),
+    };
+    let detail: OpportunityDetailEvidence;
+    try {
+      detail = await execute(
+        {
+          analysisBuildId: request.analysisBuildId,
+          exportEconomyCode: request.exportEconomyCode,
+          productCode: request.productCode,
+          marketCode: request.marketCode,
+        },
+        options,
+      );
+    } catch (error) {
+      if (isAnalysisCapacityExceededError(error)) {
+        return capacityOutcome(request, error.reason, error.retryAfterSeconds);
+      }
+      if (!isOpportunityDiscoveryAnalysisError(error)) {
+        throw error;
+      }
+      return expectedOpportunityDetailFailure(request, error);
+    }
+    return {
+      state: "success",
+      ...completedOpportunityDetailOutcome(
+        request.recipe,
+        detail,
+        datasetPackage.identity,
+        normalizedInputs,
+      ),
+    };
+  }
 }
 
 function expectedCandidateMarketFailure(
@@ -1408,6 +1563,54 @@ function expectedOpportunityDiscoveryFailure(
   }
 }
 
+function expectedOpportunityDetailFailure(
+  request: OpportunityDetailV1AnalysisRequest,
+  error: OpportunityDiscoveryAnalysisError,
+): AnalysisOutcome<"opportunity-detail-v1"> {
+  const unresolved = unresolvedOutcome<"opportunity-detail-v1">(request);
+  switch (error.code) {
+    case "INVALID_ANALYSIS_QUERY":
+    // Detail requests never carry a cursor, so a cursor error can only mean a
+    // malformed query; both collapse onto the public INVALID_ANALYSIS_QUERY.
+    case "INVALID_CURSOR":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: { code: "INVALID_ANALYSIS_QUERY" },
+      };
+    case "UNKNOWN_EXPORT_ECONOMY":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: {
+          code: error.code,
+          exportEconomyCode: error.subject ?? request.exportEconomyCode,
+        },
+      };
+    case "UNKNOWN_HS_PRODUCT":
+      return {
+        state: "invalid-input",
+        ...unresolved,
+        error: {
+          code: error.code,
+          productCode: error.subject ?? request.productCode,
+        },
+      };
+    case "ANALYSIS_BUILD_RETIRED":
+      return {
+        state: "retired",
+        ...unresolved,
+        error: { code: error.code, analysisBuildId: request.analysisBuildId },
+      };
+    case "ANALYSIS_UNAVAILABLE":
+      return {
+        state: "temporary-unavailability",
+        ...unresolved,
+        error: { code: error.code },
+      };
+  }
+}
+
 /**
  * Resolves an evidence-source binding for one retained analysisBuildId: a
  * single value applies to every declared build (legacy shape), while a
@@ -1461,6 +1664,34 @@ function requireOpportunityIndexBinding(
     return index;
   }
   return binding as OpportunityCandidateIndex;
+}
+
+/**
+ * Resolves a detail evidence-source binding for one retained analysisBuildId,
+ * mirroring `requireOpportunityIndexBinding`: a single value applies to every
+ * declared build, while a `ReadonlyMap` binds each retained build to its own
+ * evidence source. Throws on a Map binding that is missing the requested
+ * build, since that is a construction-time inconsistency rather than a
+ * retirement.
+ */
+function requireOpportunityEvidenceBinding(
+  binding:
+    | OpportunityEvidenceSource
+    | ReadonlyMap<string, OpportunityEvidenceSource>,
+  analysisBuildId: string,
+): OpportunityEvidenceSource {
+  if (binding instanceof Map) {
+    const source = (
+      binding as ReadonlyMap<string, OpportunityEvidenceSource>
+    ).get(analysisBuildId);
+    if (source === undefined) {
+      throw new TypeError(
+        `No opportunity-detail-v1 evidence source is bound for analysis build ${analysisBuildId}.`,
+      );
+    }
+    return source;
+  }
+  return binding as OpportunityEvidenceSource;
 }
 
 /**
@@ -1594,6 +1825,24 @@ function completedTradeExplorerOutcome(
   };
 }
 
+function completedOpportunityDetailOutcome(
+  recipe: "opportunity-detail-v1",
+  payload: OpportunityDetailEvidence,
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: OpportunityDetailV1NormalizedInputs,
+): CompletedAnalysisOutcome<"opportunity-detail-v1"> {
+  return {
+    recipe,
+    analysisIdentity: analysisIdentityForOpportunityDetail(
+      datasetPackageIdentity,
+      normalizedInputs,
+    ),
+    datasetPackageIdentity,
+    normalizedInputs,
+    payload,
+  };
+}
+
 function analysisIdentityFor(
   recipe: "candidate-market-v1",
   datasetPackageIdentity: DatasetPackageIdentity,
@@ -1679,6 +1928,25 @@ function analysisIdentityForOpportunityDiscovery(
     "opportunity-discovery-v1",
     datasetPackageIdentity,
     normalizedInputs.exportEconomyCode,
+  ]);
+  const digest = createHash("sha256").update(canonicalIdentity).digest("hex");
+  return `analysis-identity-v1-${digest}` as AnalysisIdentity;
+}
+
+// Opportunity Detail's identity binds the recipe, the Dataset Package identity,
+// and the normalized exporter/product/market triple so each candidate detail
+// view has one stable Analysis Identity.
+function analysisIdentityForOpportunityDetail(
+  datasetPackageIdentity: DatasetPackageIdentity,
+  normalizedInputs: OpportunityDetailV1NormalizedInputs,
+): AnalysisIdentity {
+  const canonicalIdentity = JSON.stringify([
+    "analysis-identity-v1",
+    "opportunity-detail-v1",
+    datasetPackageIdentity,
+    normalizedInputs.exportEconomyCode,
+    normalizedInputs.productCode,
+    normalizedInputs.marketCode,
   ]);
   const digest = createHash("sha256").update(canonicalIdentity).digest("hex");
   return `analysis-identity-v1-${digest}` as AnalysisIdentity;

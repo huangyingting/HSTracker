@@ -8,6 +8,7 @@ import {
   normalizeOpportunityDiscoveryV1Request,
   validateOpportunityDiscoveryV1Request,
 } from "../domain/trade-analytics/opportunity-discovery-v1-request";
+import { validateOpportunityDetailV1Request } from "../domain/trade-analytics/opportunity-detail-v1-request";
 import { isSupplierCompetitionAnalysisError } from "../domain/supplier-competition/errors";
 import { isTradeExplorerAnalysisError } from "../domain/trade-explorer/errors";
 import { isOpportunityDiscoveryAnalysisError } from "../domain/opportunity-discovery/errors";
@@ -18,6 +19,7 @@ import type {
   AnalysisOutcome,
   AnalysisRecipe,
   AnalysisRequest,
+  OpportunityDetailV1AnalysisRequest,
   OpportunityDiscoveryV1AnalysisRequest,
   TradeAnalyticsPlatform,
   TradeExplorerV1AnalysisRequest,
@@ -46,7 +48,8 @@ type AnalysisResult =
   | AnalysisOutcome<"trade-trend-v1">
   | AnalysisOutcome<"supplier-competition-v1">
   | AnalysisOutcome<"trade-explorer-v1">
-  | AnalysisOutcome<"opportunity-discovery-v1">;
+  | AnalysisOutcome<"opportunity-discovery-v1">
+  | AnalysisOutcome<"opportunity-detail-v1">;
 type AnalysisPromise = Promise<AnalysisResult>;
 type ProductSearchQuery = Parameters<
   ApplicationRuntime["searchProducts"]
@@ -668,6 +671,18 @@ function analysisKey(
       cachePartitionKey ?? "",
     ].join("\u0000");
   }
+  if (query.recipe === "opportunity-detail-v1") {
+    // Detail is not paginated; the key spans the exporter/product/market triple
+    // that identifies the one candidate whose evidence is reconstructed.
+    return [
+      query.recipe,
+      query.analysisBuildId,
+      String(Number(query.exportEconomyCode)),
+      query.productCode,
+      String(Number(query.marketCode)),
+      cachePartitionKey ?? "",
+    ].join("\u0000");
+  }
   return [
     query.recipe,
     query.analysisBuildId,
@@ -706,13 +721,19 @@ function validateAnalysisRequest(query: AnalysisQuery): void {
     validateOpportunityDiscoveryV1Request(query);
     return;
   }
+  if (query.recipe === "opportunity-detail-v1") {
+    validateOpportunityDetailV1Request(query);
+    return;
+  }
   validateTradeTrendV1Request(query);
 }
 
 function normalizedEconomyCode(
   query: Exclude<
     AnalysisQuery,
-    TradeExplorerV1AnalysisRequest | OpportunityDiscoveryV1AnalysisRequest
+    | TradeExplorerV1AnalysisRequest
+    | OpportunityDiscoveryV1AnalysisRequest
+    | OpportunityDetailV1AnalysisRequest
   >,
 ): string {
   return String(
@@ -768,6 +789,9 @@ function analysisResultRows(
   if (outcome.recipe === "opportunity-discovery-v1") {
     return outcome.payload.candidates.length;
   }
+  if (outcome.recipe === "opportunity-detail-v1") {
+    return outcome.payload.marketYears.length;
+  }
   return (
     outcome.payload.finalizedObservations.length +
     (outcome.payload.provisionalObservation === null ? 0 : 1)
@@ -803,6 +827,14 @@ function inputBudgetOutcome(
       recipeInput.productCodes === null
         ? ""
         : recipeInput.productCodes.join(","),
+    ];
+  } else if (request.recipe === "opportunity-detail-v1") {
+    canonicalInputs = [
+      request.recipe,
+      request.analysisBuildId,
+      request.exportEconomyCode,
+      request.productCode,
+      request.marketCode,
     ];
   } else {
     canonicalInputs = [

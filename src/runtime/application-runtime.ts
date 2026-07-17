@@ -19,6 +19,7 @@ import {
 import {
   createFixtureOpportunityDiscoveryDatasetPackages,
   FixtureOpportunityCandidateIndex,
+  FixtureOpportunityEvidenceSource,
 } from "../evidence/fixture-opportunity-source";
 import {
   FIXTURE_CURRENT_AS_OF,
@@ -162,6 +163,7 @@ export function createFixtureApplicationRuntime(): ApplicationRuntime {
       },
       opportunityDiscovery: {
         candidateIndex: new FixtureOpportunityCandidateIndex(),
+        evidenceSource: new FixtureOpportunityEvidenceSource(),
         datasetPackages: createFixtureOpportunityDiscoveryDatasetPackages(),
       },
     }),
