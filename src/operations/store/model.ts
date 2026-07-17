@@ -96,6 +96,30 @@ export interface WatchDeliveryPreference {
   readonly enabled: boolean;
 }
 
+export type DeliverySuppressionReason = "UNSUBSCRIBE" | "BOUNCE" | "COMPLAINT";
+
+export interface DeliveryConsentState {
+  readonly accountId: AccountId;
+  readonly channel: string;
+  readonly target: string;
+  readonly consentedAt: string;
+  readonly verifiedAt: string | null;
+  readonly unsubscribedAt: string | null;
+  readonly verificationToken: string;
+  readonly unsubscribeToken: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface DeliverySuppressionState {
+  readonly accountId: AccountId;
+  readonly channel: string;
+  readonly target: string;
+  readonly reason: DeliverySuppressionReason;
+  readonly providerReceipt: string | null;
+  readonly createdAt: string;
+}
+
 export interface LastEvaluation {
   readonly watchId: WatchId;
   readonly recipeId: string;
@@ -155,7 +179,21 @@ export interface AlertEvent {
   readonly createdAt: string;
 }
 
-export type DeliveryStatus = "PENDING" | "SENT" | "FAILED";
+export type DeliveryStatus =
+  | "PENDING"
+  | "SENT"
+  | "FAILED"
+  | "DEAD_LETTER"
+  | "SUPPRESSED";
+
+export type DeliveryAttemptOutcome =
+  | "ACCEPTED"
+  | "TRANSIENT_FAILURE"
+  | "PERMANENT_FAILURE"
+  | "BOUNCE"
+  | "COMPLAINT"
+  | "SUPPRESSED"
+  | "DUPLICATE_SUPPRESSED";
 
 /** Per-channel delivery state for one alert event. */
 export interface DeliveryState {
@@ -167,6 +205,8 @@ export interface DeliveryState {
   readonly attempts: number;
   readonly lastAttemptAt: string;
   readonly providerReceipt: string | null;
+  readonly lastOutcome: DeliveryAttemptOutcome | null;
+  readonly failureReason: string | null;
   readonly updatedAt: string;
 }
 
@@ -200,6 +240,38 @@ export interface UpdateCredentialAttemptsInput {
 export interface UpdateCredentialVerifierInput {
   readonly credentialId: CredentialId;
   readonly verifier: string;
+}
+
+export interface RequestDeliveryConsentInput {
+  readonly accountId: AccountId;
+  readonly channel: string;
+  readonly target: string;
+  readonly verificationToken?: string;
+  readonly unsubscribeToken?: string;
+}
+
+export interface VerifyDeliveryConsentInput {
+  readonly accountId: AccountId;
+  readonly channel: string;
+  readonly target: string;
+  readonly verificationToken: string;
+}
+
+export interface RecordDeliverySuppressionInput {
+  readonly accountId: AccountId;
+  readonly channel: string;
+  readonly target: string;
+  readonly reason: DeliverySuppressionReason;
+  readonly providerReceipt?: string | null;
+}
+
+export interface RecordDeliveryAttemptInput {
+  readonly eventId: AlertEventId;
+  readonly channel: string;
+  readonly status: Exclude<DeliveryStatus, "PENDING">;
+  readonly outcome: DeliveryAttemptOutcome;
+  readonly providerReceipt?: string | null;
+  readonly failureReason?: string | null;
 }
 
 export interface CreateSessionInput {

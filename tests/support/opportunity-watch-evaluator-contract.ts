@@ -169,7 +169,8 @@ export function runOpportunityWatchEvaluatorContract(
       expect(delivery).toMatchObject({
         deliveryId: expect.stringMatching(/[0-9a-f-]{36}/u),
         idempotencyKey: `${events[0]!.id}:email`,
-        attempts: 1,
+        status: "PENDING",
+        attempts: 0,
       });
     });
 

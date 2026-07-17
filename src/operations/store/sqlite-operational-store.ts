@@ -39,6 +39,11 @@ import type {
   CreateCredentialInput,
   CreateSessionInput,
   Credential,
+  DeliveryAttemptOutcome,
+  DeliveryConsentState,
+  DeliveryStatus,
+  DeliverySuppressionReason,
+  DeliverySuppressionState,
   DeliveryState,
   EvaluationLeaseId,
   IssueRecoveryTokenInput,
@@ -46,10 +51,14 @@ import type {
   OpportunityWatch,
   OperationalSession,
   RecordAlertEventInput,
+  RecordDeliveryAttemptInput,
+  RecordDeliverySuppressionInput,
   RecordedAlertEvent,
   RecoveryToken,
+  RequestDeliveryConsentInput,
   UpdateCredentialAttemptsInput,
   UpdateCredentialVerifierInput,
+  VerifyDeliveryConsentInput,
   WatchId,
 } from "./model";
 import type {
@@ -95,6 +104,28 @@ CREATE TABLE IF NOT EXISTS operational_confirmed_product (
   code TEXT NOT NULL,
   confirmed_at TEXT NOT NULL,
   PRIMARY KEY (account_id, hs_revision, code)
+);
+CREATE TABLE IF NOT EXISTS operational_delivery_consent (
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL,
+  target TEXT NOT NULL,
+  consented_at TEXT NOT NULL,
+  verified_at TEXT,
+  unsubscribed_at TEXT,
+  verification_token TEXT NOT NULL UNIQUE,
+  unsubscribe_token TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (account_id, channel, target)
+);
+CREATE TABLE IF NOT EXISTS operational_delivery_suppression (
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL,
+  target TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  provider_receipt TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (account_id, channel, target, reason)
 );
 CREATE TABLE IF NOT EXISTS operational_watch (
   id TEXT PRIMARY KEY,
@@ -154,6 +185,8 @@ CREATE TABLE IF NOT EXISTS operational_delivery_state (
   attempt_count INTEGER NOT NULL,
   last_attempt_at TEXT NOT NULL,
   provider_receipt TEXT,
+  last_outcome TEXT,
+  failure_reason TEXT,
   updated_at TEXT NOT NULL,
   UNIQUE (event_id, channel)
 );
@@ -226,6 +259,28 @@ interface RecoveryTokenRow {
   created_at: string;
   expires_at: string;
   consumed_at: string | null;
+}
+
+interface DeliveryConsentRow {
+  account_id: string;
+  channel: string;
+  target: string;
+  consented_at: string;
+  verified_at: string | null;
+  unsubscribed_at: string | null;
+  verification_token: string;
+  unsubscribe_token: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DeliverySuppressionRow {
+  account_id: string;
+  channel: string;
+  target: string;
+  reason: string;
+  provider_receipt: string | null;
+  created_at: string;
 }
 
 interface WatchRow {
@@ -313,6 +368,7 @@ export class SqliteOperationalStore implements OperationalStore {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.db.exec(SCHEMA);
+    this.upgradeSchema();
     this.acquireApplicationLease();
   }
 
@@ -364,6 +420,21 @@ export class SqliteOperationalStore implements OperationalStore {
     if (this.maintenance) {
       throw storeInMaintenance();
     }
+  }
+
+  private upgradeSchema(): void {
+    addColumnIfMissing(
+      this.db,
+      "operational_delivery_state",
+      "last_outcome",
+      "TEXT",
+    );
+    addColumnIfMissing(
+      this.db,
+      "operational_delivery_state",
+      "failure_reason",
+      "TEXT",
+    );
   }
 
   /** Place the store in maintenance mode, rejecting further writes. */
@@ -577,6 +648,189 @@ export class SqliteOperationalStore implements OperationalStore {
       .prepare("SELECT * FROM operational_credential WHERE id = ?")
       .get(credentialId) as CredentialRow;
     return mapCredential(row);
+  }
+
+  async requestDeliveryConsent(
+    input: RequestDeliveryConsentInput,
+  ): Promise<DeliveryConsentState> {
+    this.assertWritable();
+    const accountId = requireNonEmpty(input.accountId, "accountId");
+    const channel = normalizeDeliveryChannel(input.channel);
+    const target = normalizeDeliveryTarget(input.target);
+    const verificationToken = input.verificationToken
+      ? requireNonEmpty(input.verificationToken, "verificationToken")
+      : randomUUID();
+    const unsubscribeToken = input.unsubscribeToken
+      ? requireNonEmpty(input.unsubscribeToken, "unsubscribeToken")
+      : randomUUID();
+    const ts = toIso(this.now());
+    const tx = this.db.transaction(() => {
+      this.requireAccount(accountId);
+      this.db
+        .prepare(
+          `INSERT INTO operational_delivery_consent
+             (account_id, channel, target, consented_at, verified_at, unsubscribed_at,
+              verification_token, unsubscribe_token, created_at, updated_at)
+           VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?)
+           ON CONFLICT (account_id, channel, target) DO UPDATE SET
+             consented_at = excluded.consented_at,
+             verified_at = NULL,
+             unsubscribed_at = NULL,
+             verification_token = excluded.verification_token,
+             unsubscribe_token = excluded.unsubscribe_token,
+             updated_at = excluded.updated_at`,
+        )
+        .run(
+          accountId,
+          channel,
+          target,
+          ts,
+          verificationToken,
+          unsubscribeToken,
+          ts,
+          ts,
+        );
+    });
+    tx();
+    return (await this.findDeliveryConsent(accountId, channel, target))!;
+  }
+
+  async verifyDeliveryConsent(
+    input: VerifyDeliveryConsentInput,
+  ): Promise<DeliveryConsentState | null> {
+    this.assertWritable();
+    const accountId = requireNonEmpty(input.accountId, "accountId");
+    const channel = normalizeDeliveryChannel(input.channel);
+    const target = normalizeDeliveryTarget(input.target);
+    const verificationToken = requireNonEmpty(
+      input.verificationToken,
+      "verificationToken",
+    );
+    const ts = toIso(this.now());
+    const result = this.db
+      .prepare(
+        `UPDATE operational_delivery_consent
+         SET verified_at = COALESCE(verified_at, ?), updated_at = ?
+         WHERE account_id = ? AND channel = ? AND target = ?
+           AND verification_token = ? AND unsubscribed_at IS NULL`,
+      )
+      .run(ts, ts, accountId, channel, target, verificationToken);
+    if (result.changes === 0) {
+      return null;
+    }
+    return this.findDeliveryConsent(accountId, channel, target);
+  }
+
+  async findDeliveryConsent(
+    accountId: AccountId,
+    channel: string,
+    target: string,
+  ): Promise<DeliveryConsentState | null> {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM operational_delivery_consent
+         WHERE account_id = ? AND channel = ? AND target = ?`,
+      )
+      .get(
+        requireNonEmpty(accountId, "accountId"),
+        normalizeDeliveryChannel(channel),
+        normalizeDeliveryTarget(target),
+      ) as DeliveryConsentRow | undefined;
+    return row ? mapDeliveryConsent(row) : null;
+  }
+
+  async unsubscribeDeliveryTarget(
+    unsubscribeToken: string,
+  ): Promise<DeliveryConsentState | null> {
+    this.assertWritable();
+    const token = requireNonEmpty(unsubscribeToken, "unsubscribeToken");
+    const ts = toIso(this.now());
+    let consent: DeliveryConsentRow | undefined;
+    const tx = this.db.transaction(() => {
+      consent = this.db
+        .prepare(
+          "SELECT * FROM operational_delivery_consent WHERE unsubscribe_token = ?",
+        )
+        .get(token) as DeliveryConsentRow | undefined;
+      if (!consent) {
+        return;
+      }
+      this.db
+        .prepare(
+          `UPDATE operational_delivery_consent
+           SET unsubscribed_at = COALESCE(unsubscribed_at, ?), updated_at = ?
+           WHERE unsubscribe_token = ?`,
+        )
+        .run(ts, ts, token);
+      this.db
+        .prepare(
+          `INSERT INTO operational_delivery_suppression
+             (account_id, channel, target, reason, provider_receipt, created_at)
+           VALUES (?, ?, ?, 'UNSUBSCRIBE', NULL, ?)
+           ON CONFLICT (account_id, channel, target, reason) DO NOTHING`,
+        )
+        .run(consent.account_id, consent.channel, consent.target, ts);
+    });
+    tx();
+    if (!consent) {
+      return null;
+    }
+    return this.findDeliveryConsent(
+      consent.account_id,
+      consent.channel,
+      consent.target,
+    );
+  }
+
+  async recordDeliverySuppression(
+    input: RecordDeliverySuppressionInput,
+  ): Promise<DeliverySuppressionState> {
+    this.assertWritable();
+    const accountId = requireNonEmpty(input.accountId, "accountId");
+    const channel = normalizeDeliveryChannel(input.channel);
+    const target = normalizeDeliveryTarget(input.target);
+    const reason = normalizeSuppressionReason(input.reason);
+    const providerReceipt = input.providerReceipt ?? null;
+    const ts = toIso(this.now());
+    const tx = this.db.transaction(() => {
+      this.requireAccount(accountId);
+      this.db
+        .prepare(
+          `INSERT INTO operational_delivery_suppression
+             (account_id, channel, target, reason, provider_receipt, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (account_id, channel, target, reason) DO UPDATE SET
+             provider_receipt = COALESCE(operational_delivery_suppression.provider_receipt, excluded.provider_receipt)`,
+        )
+        .run(accountId, channel, target, reason, providerReceipt, ts);
+    });
+    tx();
+    return (await this.getDeliverySuppression(accountId, channel, target))!;
+  }
+
+  async getDeliverySuppression(
+    accountId: AccountId,
+    channel: string,
+    target: string,
+  ): Promise<DeliverySuppressionState | null> {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM operational_delivery_suppression
+         WHERE account_id = ? AND channel = ? AND target = ?
+         ORDER BY CASE reason
+           WHEN 'BOUNCE' THEN 1
+           WHEN 'COMPLAINT' THEN 2
+           WHEN 'UNSUBSCRIBE' THEN 3
+           ELSE 4
+         END, created_at, reason
+         LIMIT 1`,
+      )
+      .get(
+        requireNonEmpty(accountId, "accountId"),
+        normalizeDeliveryChannel(channel),
+        normalizeDeliveryTarget(target),
+      ) as DeliverySuppressionRow | undefined;
+    return row ? mapDeliverySuppression(row) : null;
   }
 
   async createSession(input: CreateSessionInput): Promise<OperationalSession> {
@@ -1184,10 +1438,9 @@ export class SqliteOperationalStore implements OperationalStore {
     return rows.map(mapAlertEvent);
   }
 
-  async markDelivered(
+  async ensureDeliveryState(
     eventId: AlertEventId,
     channel: string,
-    providerReceipt?: string | null,
   ): Promise<DeliveryState> {
     this.assertWritable();
     const chan = requireNonEmpty(channel, "channel");
@@ -1204,14 +1457,9 @@ export class SqliteOperationalStore implements OperationalStore {
         .prepare(
           `INSERT INTO operational_delivery_state
              (delivery_id, event_id, channel, idempotency_key, status, attempt_count,
-              last_attempt_at, provider_receipt, updated_at)
-           VALUES (?, ?, ?, ?, 'SENT', 1, ?, ?, ?)
-           ON CONFLICT (idempotency_key) DO UPDATE SET
-             status = 'SENT',
-             attempt_count = operational_delivery_state.attempt_count + 1,
-             last_attempt_at = excluded.last_attempt_at,
-             provider_receipt = excluded.provider_receipt,
-             updated_at = excluded.updated_at`,
+              last_attempt_at, provider_receipt, last_outcome, failure_reason, updated_at)
+           VALUES (?, ?, ?, ?, 'PENDING', 0, ?, NULL, NULL, NULL, ?)
+           ON CONFLICT (event_id, channel) DO NOTHING`,
         )
         .run(
           randomUUID(),
@@ -1219,12 +1467,79 @@ export class SqliteOperationalStore implements OperationalStore {
           chan,
           idempotencyKey,
           ts,
-          providerReceipt ?? null,
           ts,
         );
     });
     tx();
     return (await this.getDeliveryState(eventId, chan))!;
+  }
+
+  async recordDeliveryAttempt(
+    input: RecordDeliveryAttemptInput,
+  ): Promise<DeliveryState> {
+    this.assertWritable();
+    const eventId = requireNonEmpty(input.eventId, "eventId");
+    const chan = requireNonEmpty(input.channel, "channel");
+    const status = normalizeDeliveryStatus(input.status);
+    const outcome = normalizeDeliveryAttemptOutcome(input.outcome);
+    const providerReceipt = input.providerReceipt ?? null;
+    const failureReason =
+      input.failureReason === undefined || input.failureReason === null
+        ? null
+        : requireNonEmpty(input.failureReason, "failureReason");
+    const ts = toIso(this.now());
+    const idempotencyKey = deliveryIdempotencyKey(eventId, chan);
+    const tx = this.db.transaction(() => {
+      const event = this.db
+        .prepare("SELECT 1 FROM operational_alert_event WHERE id = ?")
+        .get(eventId);
+      if (!event) {
+        throw unknownEntity(`Alert event ${eventId} does not exist.`);
+      }
+      this.db
+        .prepare(
+          `INSERT INTO operational_delivery_state
+             (delivery_id, event_id, channel, idempotency_key, status, attempt_count,
+              last_attempt_at, provider_receipt, last_outcome, failure_reason, updated_at)
+           VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+           ON CONFLICT (event_id, channel) DO UPDATE SET
+             status = excluded.status,
+             attempt_count = operational_delivery_state.attempt_count + 1,
+             last_attempt_at = excluded.last_attempt_at,
+             provider_receipt = COALESCE(excluded.provider_receipt, operational_delivery_state.provider_receipt),
+             last_outcome = excluded.last_outcome,
+             failure_reason = excluded.failure_reason,
+             updated_at = excluded.updated_at`,
+        )
+        .run(
+          randomUUID(),
+          eventId,
+          chan,
+          idempotencyKey,
+          status,
+          ts,
+          providerReceipt,
+          outcome,
+          failureReason,
+          ts,
+        );
+    });
+    tx();
+    return (await this.getDeliveryState(eventId, chan))!;
+  }
+
+  async markDelivered(
+    eventId: AlertEventId,
+    channel: string,
+    providerReceipt?: string | null,
+  ): Promise<DeliveryState> {
+    return this.recordDeliveryAttempt({
+      eventId,
+      channel,
+      status: "SENT",
+      outcome: "ACCEPTED",
+      providerReceipt,
+    });
   }
 
   async getDeliveryState(
@@ -1245,6 +1560,8 @@ export class SqliteOperationalStore implements OperationalStore {
           attempt_count: number;
           last_attempt_at: string;
           provider_receipt: string | null;
+          last_outcome: string | null;
+          failure_reason: string | null;
           updated_at: string;
         }
       | undefined;
@@ -1260,6 +1577,8 @@ export class SqliteOperationalStore implements OperationalStore {
       attempts: row.attempt_count,
       lastAttemptAt: row.last_attempt_at,
       providerReceipt: row.provider_receipt,
+      lastOutcome: row.last_outcome as DeliveryState["lastOutcome"],
+      failureReason: row.failure_reason,
       updatedAt: row.updated_at,
     };
   }
@@ -1372,6 +1691,34 @@ function mapRecoveryToken(row: RecoveryTokenRow): RecoveryToken {
   };
 }
 
+function mapDeliveryConsent(row: DeliveryConsentRow): DeliveryConsentState {
+  return {
+    accountId: row.account_id,
+    channel: row.channel,
+    target: row.target,
+    consentedAt: row.consented_at,
+    verifiedAt: row.verified_at,
+    unsubscribedAt: row.unsubscribed_at,
+    verificationToken: row.verification_token,
+    unsubscribeToken: row.unsubscribe_token,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapDeliverySuppression(
+  row: DeliverySuppressionRow,
+): DeliverySuppressionState {
+  return {
+    accountId: row.account_id,
+    channel: row.channel,
+    target: row.target,
+    reason: row.reason as DeliverySuppressionReason,
+    providerReceipt: row.provider_receipt,
+    createdAt: row.created_at,
+  };
+}
+
 function mapWatch(
   row: WatchRow,
   lastEvaluation: OpportunityWatch["lastEvaluation"],
@@ -1464,6 +1811,68 @@ function normalizeCadence(value: string): OpportunityWatch["cadence"] {
 
 function deliveryIdempotencyKey(eventId: AlertEventId, channel: string): string {
   return `${eventId}:${channel}`;
+}
+
+function normalizeDeliveryChannel(channel: string): string {
+  return requireNonEmpty(channel, "channel").trim().toLocaleLowerCase("und");
+}
+
+function normalizeDeliveryTarget(target: string): string {
+  return requireNonEmpty(target, "target").trim().toLocaleLowerCase("und");
+}
+
+function normalizeSuppressionReason(
+  reason: DeliverySuppressionReason,
+): DeliverySuppressionReason {
+  if (reason === "UNSUBSCRIBE" || reason === "BOUNCE" || reason === "COMPLAINT") {
+    return reason;
+  }
+  throw invalidStoreInput("suppression reason must be UNSUBSCRIBE, BOUNCE, or COMPLAINT.");
+}
+
+function normalizeDeliveryStatus(
+  status: Exclude<DeliveryStatus, "PENDING">,
+): Exclude<DeliveryStatus, "PENDING"> {
+  if (
+    status === "SENT" ||
+    status === "FAILED" ||
+    status === "DEAD_LETTER" ||
+    status === "SUPPRESSED"
+  ) {
+    return status;
+  }
+  throw invalidStoreInput("delivery attempt status cannot be PENDING.");
+}
+
+function normalizeDeliveryAttemptOutcome(
+  outcome: DeliveryAttemptOutcome,
+): DeliveryAttemptOutcome {
+  if (
+    outcome === "ACCEPTED" ||
+    outcome === "TRANSIENT_FAILURE" ||
+    outcome === "PERMANENT_FAILURE" ||
+    outcome === "BOUNCE" ||
+    outcome === "COMPLAINT" ||
+    outcome === "SUPPRESSED" ||
+    outcome === "DUPLICATE_SUPPRESSED"
+  ) {
+    return outcome;
+  }
+  throw invalidStoreInput("delivery attempt outcome is not supported.");
+}
+
+function addColumnIfMissing(
+  db: SqliteDatabase,
+  table: string,
+  column: string,
+  definition: string,
+): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string;
+  }[];
+  if (!columns.some((entry) => entry.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 function mapCredentialInsertError(error: unknown, identity: string): never {

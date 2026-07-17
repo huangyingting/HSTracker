@@ -37,6 +37,26 @@ const TABLE_COLUMNS: Record<MigratedTable, readonly string[]> = {
     "code",
     "confirmed_at",
   ],
+  operational_delivery_consent: [
+    "account_id",
+    "channel",
+    "target",
+    "consented_at",
+    "verified_at",
+    "unsubscribed_at",
+    "verification_token",
+    "unsubscribe_token",
+    "created_at",
+    "updated_at",
+  ],
+  operational_delivery_suppression: [
+    "account_id",
+    "channel",
+    "target",
+    "reason",
+    "provider_receipt",
+    "created_at",
+  ],
   operational_watch: [
     "id",
     "account_id",
@@ -92,6 +112,8 @@ const TABLE_COLUMNS: Record<MigratedTable, readonly string[]> = {
     "attempt_count",
     "last_attempt_at",
     "provider_receipt",
+    "last_outcome",
+    "failure_reason",
     "updated_at",
   ],
   operational_audit_event: [
@@ -127,6 +149,28 @@ CREATE TABLE IF NOT EXISTS operational_confirmed_product (
   code TEXT NOT NULL,
   confirmed_at TEXT NOT NULL,
   PRIMARY KEY (account_id, hs_revision, code)
+);
+CREATE TABLE IF NOT EXISTS operational_delivery_consent (
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL,
+  target TEXT NOT NULL,
+  consented_at TEXT NOT NULL,
+  verified_at TEXT,
+  unsubscribed_at TEXT,
+  verification_token TEXT NOT NULL UNIQUE,
+  unsubscribe_token TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (account_id, channel, target)
+);
+CREATE TABLE IF NOT EXISTS operational_delivery_suppression (
+  account_id TEXT NOT NULL REFERENCES operational_account(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL,
+  target TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  provider_receipt TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (account_id, channel, target, reason)
 );
 CREATE TABLE IF NOT EXISTS operational_watch (
   id TEXT PRIMARY KEY,
@@ -186,6 +230,8 @@ CREATE TABLE IF NOT EXISTS operational_delivery_state (
   attempt_count INTEGER NOT NULL,
   last_attempt_at TEXT NOT NULL,
   provider_receipt TEXT,
+  last_outcome TEXT,
+  failure_reason TEXT,
   updated_at TEXT NOT NULL,
   UNIQUE (event_id, channel)
 );

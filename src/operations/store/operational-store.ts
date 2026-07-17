@@ -15,6 +15,8 @@ import type {
   CreateCredentialInput,
   CreateSessionInput,
   Credential,
+  DeliveryConsentState,
+  DeliverySuppressionState,
   DeliveryState,
   EvaluationLeaseId,
   IssueRecoveryTokenInput,
@@ -22,10 +24,14 @@ import type {
   OpportunityWatch,
   OperationalSession,
   RecordAlertEventInput,
+  RecordDeliveryAttemptInput,
+  RecordDeliverySuppressionInput,
   RecordedAlertEvent,
   RecoveryToken,
+  RequestDeliveryConsentInput,
   UpdateCredentialAttemptsInput,
   UpdateCredentialVerifierInput,
+  VerifyDeliveryConsentInput,
   WatchId,
 } from "./model";
 
@@ -62,6 +68,34 @@ export interface OperationalStore {
   updateCredentialVerifier(
     input: UpdateCredentialVerifierInput,
   ): Promise<Credential>;
+
+  requestDeliveryConsent(
+    input: RequestDeliveryConsentInput,
+  ): Promise<DeliveryConsentState>;
+
+  verifyDeliveryConsent(
+    input: VerifyDeliveryConsentInput,
+  ): Promise<DeliveryConsentState | null>;
+
+  findDeliveryConsent(
+    accountId: AccountId,
+    channel: string,
+    target: string,
+  ): Promise<DeliveryConsentState | null>;
+
+  unsubscribeDeliveryTarget(
+    unsubscribeToken: string,
+  ): Promise<DeliveryConsentState | null>;
+
+  recordDeliverySuppression(
+    input: RecordDeliverySuppressionInput,
+  ): Promise<DeliverySuppressionState>;
+
+  getDeliverySuppression(
+    accountId: AccountId,
+    channel: string,
+    target: string,
+  ): Promise<DeliverySuppressionState | null>;
 
   createSession(input: CreateSessionInput): Promise<OperationalSession>;
 
@@ -148,6 +182,15 @@ export interface OperationalStore {
   recordAlertEvent(input: RecordAlertEventInput): Promise<RecordedAlertEvent>;
 
   listAlertEvents(accountId: AccountId): Promise<readonly AlertEvent[]>;
+
+  ensureDeliveryState(
+    eventId: AlertEventId,
+    channel: string,
+  ): Promise<DeliveryState>;
+
+  recordDeliveryAttempt(
+    input: RecordDeliveryAttemptInput,
+  ): Promise<DeliveryState>;
 
   markDelivered(
     eventId: AlertEventId,

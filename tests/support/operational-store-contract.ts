@@ -534,6 +534,166 @@ export function runOperationalStoreContract(
       expect(second.attempts).toBe(2);
     });
 
+    it("records opt-in delivery consent, address verification, and unsubscribe suppression", async () => {
+      const account = await store.createAccount({
+        displayName: "Consent Co",
+        primaryExportEconomy: "076",
+      });
+
+      const requested = await store.requestDeliveryConsent({
+        accountId: account.id,
+        channel: "Email",
+        target: " Analyst@Example.COM ",
+        verificationToken: "verify-consent-contract",
+        unsubscribeToken: "unsubscribe-consent-contract",
+      });
+      expect(requested).toMatchObject({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+        verifiedAt: null,
+        unsubscribedAt: null,
+        verificationToken: "verify-consent-contract",
+        unsubscribeToken: "unsubscribe-consent-contract",
+      });
+      expect(
+        await store.findDeliveryConsent(account.id, "EMAIL", "analyst@example.com"),
+      ).toEqual(requested);
+      expect(
+        await store.verifyDeliveryConsent({
+          accountId: account.id,
+          channel: "email",
+          target: "analyst@example.com",
+          verificationToken: "wrong-token",
+        }),
+      ).toBeNull();
+
+      const verified = await store.verifyDeliveryConsent({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+        verificationToken: "verify-consent-contract",
+      });
+      expect(verified).toMatchObject({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+        verificationToken: "verify-consent-contract",
+        unsubscribeToken: "unsubscribe-consent-contract",
+      });
+      expect(verified?.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
+
+      const unsubscribed = await store.unsubscribeDeliveryTarget(
+        "unsubscribe-consent-contract",
+      );
+      expect(unsubscribed).toMatchObject({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+      });
+      expect(unsubscribed?.unsubscribedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
+      expect(
+        await store.getDeliverySuppression(account.id, "email", "analyst@example.com"),
+      ).toMatchObject({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+        reason: "UNSUBSCRIBE",
+      });
+      expect(await store.unsubscribeDeliveryTarget("missing-token")).toBeNull();
+    });
+
+    it("records bounce and complaint suppression by normalized address", async () => {
+      const account = await store.createAccount({
+        displayName: "Suppression Co",
+        primaryExportEconomy: "076",
+      });
+
+      const bounce = await store.recordDeliverySuppression({
+        accountId: account.id,
+        channel: "EMAIL",
+        target: " Analyst@Example.COM ",
+        reason: "BOUNCE",
+        providerReceipt: "bounce-receipt",
+      });
+      expect(bounce).toMatchObject({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+        reason: "BOUNCE",
+        providerReceipt: "bounce-receipt",
+      });
+      await store.recordDeliverySuppression({
+        accountId: account.id,
+        channel: "email",
+        target: "analyst@example.com",
+        reason: "COMPLAINT",
+        providerReceipt: "complaint-receipt",
+      });
+
+      expect(
+        await store.getDeliverySuppression(account.id, "email", "analyst@example.com"),
+      ).toMatchObject({
+        reason: "BOUNCE",
+        providerReceipt: "bounce-receipt",
+      });
+    });
+
+    it("audits delivery attempts, receipts, and dead-letter status under one idempotency key", async () => {
+      const account = await store.createAccount({
+        displayName: "Attempt Co",
+        primaryExportEconomy: "076",
+      });
+      const watch = await store.openWatch(account.id, {
+        product: prod("010101"),
+        marketEconomy: "156",
+      });
+      const { event } = await store.recordAlertEvent({
+        watchId: watch.id,
+        kind: "MOMENTUM_SIGNAL",
+        dedupeKey: "P1:attempt",
+        detail: {},
+        occurredAt: "2026-01-01T00:00:00.000Z",
+      });
+
+      const pending = await store.ensureDeliveryState(event.id, "email");
+      expect(pending).toMatchObject({
+        status: "PENDING",
+        attempts: 0,
+        idempotencyKey: `${event.id}:email`,
+        lastAttemptAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
+      });
+      const failed = await store.recordDeliveryAttempt({
+        eventId: event.id,
+        channel: "email",
+        status: "FAILED",
+        outcome: "TRANSIENT_FAILURE",
+        providerReceipt: "transient-receipt",
+      });
+      expect(failed).toMatchObject({
+        deliveryId: pending.deliveryId,
+        status: "FAILED",
+        attempts: 1,
+        providerReceipt: "transient-receipt",
+        lastOutcome: "TRANSIENT_FAILURE",
+      });
+      const dead = await store.recordDeliveryAttempt({
+        eventId: event.id,
+        channel: "email",
+        status: "DEAD_LETTER",
+        outcome: "PERMANENT_FAILURE",
+        providerReceipt: "permanent-receipt",
+      });
+      expect(dead).toMatchObject({
+        deliveryId: pending.deliveryId,
+        idempotencyKey: `${event.id}:email`,
+        status: "DEAD_LETTER",
+        attempts: 2,
+        providerReceipt: "permanent-receipt",
+        lastOutcome: "PERMANENT_FAILURE",
+      });
+    });
+
     it("deletes an account's operational rows while retaining the deletion audit record", async () => {
       const account = await store.createAccount({
         displayName: "Deletable",
@@ -574,6 +734,20 @@ export function runOperationalStoreContract(
         kind: "ACCOUNT_CREATED",
         detail: {},
       });
+      const consent = await store.requestDeliveryConsent({
+        accountId: account.id,
+        channel: "email",
+        target: "delete@example.com",
+        verificationToken: "verify-delete",
+        unsubscribeToken: "unsubscribe-delete",
+      });
+      await store.recordDeliverySuppression({
+        accountId: account.id,
+        channel: "email",
+        target: "delete@example.com",
+        reason: "BOUNCE",
+        providerReceipt: "delete-bounce",
+      });
 
       const deletion = await store.deleteAccount(account.id);
 
@@ -593,6 +767,16 @@ export function runOperationalStoreContract(
       expect(await store.listWatches(account.id)).toEqual([]);
       expect(await store.listAlertEvents(account.id)).toEqual([]);
       expect(await store.getDeliveryState(event.id, "email")).toBeNull();
+      expect(
+        await store.findDeliveryConsent(
+          consent.accountId,
+          consent.channel,
+          consent.target,
+        ),
+      ).toBeNull();
+      expect(
+        await store.getDeliverySuppression(account.id, "email", "delete@example.com"),
+      ).toBeNull();
       const auditKinds = (await store.listAuditEvents(account.id)).map(
         (audit) => audit.kind,
       );

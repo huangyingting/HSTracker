@@ -56,6 +56,26 @@ async function seedSqlite(filePath: string): Promise<{
     identity: "migrating@example.com",
     verifier: "scrypt$16384$8$1$salt$hash",
   });
+  await store.requestDeliveryConsent({
+    accountId: account.id,
+    channel: "email",
+    target: "migrating@example.com",
+    verificationToken: "verify-migration",
+    unsubscribeToken: "unsubscribe-migration",
+  });
+  await store.verifyDeliveryConsent({
+    accountId: account.id,
+    channel: "email",
+    target: "migrating@example.com",
+    verificationToken: "verify-migration",
+  });
+  await store.recordDeliverySuppression({
+    accountId: account.id,
+    channel: "email",
+    target: "bounce@example.com",
+    reason: "BOUNCE",
+    providerReceipt: "migration-bounce",
+  });
   await store.appendAuditEvent({
     accountId: account.id,
     kind: "ACCOUNT_CREATED",
@@ -152,6 +172,21 @@ describe.skipIf(pgUrl === null)("SQLite to PostgreSQL migration", () => {
       ).toMatchObject({
         accountId,
         normalizedIdentity: "migrating@example.com",
+      });
+      expect(
+        await target.findDeliveryConsent(accountId, "email", "migrating@example.com"),
+      ).toMatchObject({
+        accountId,
+        target: "migrating@example.com",
+        verifiedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
+        unsubscribedAt: null,
+      });
+      expect(
+        await target.getDeliverySuppression(accountId, "email", "bounce@example.com"),
+      ).toMatchObject({
+        accountId,
+        reason: "BOUNCE",
+        providerReceipt: "migration-bounce",
       });
       expect(await target.listAuditEvents(accountId)).toEqual([
         expect.objectContaining({

@@ -355,7 +355,7 @@ async function recordDeliveries(
 ): Promise<void> {
   for (const preference of watch.deliveryPreferences) {
     if (preference.enabled) {
-      await store.markDelivered(eventId, preference.channel);
+      await store.ensureDeliveryState(eventId, preference.channel);
     }
   }
 }
