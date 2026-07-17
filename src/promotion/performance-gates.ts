@@ -60,6 +60,10 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "supplier-competition-analysis-process-hit",
   "supplier-competition-csv-uncached",
   "supplier-competition-csv-analysis-hit",
+  // Opportunity Discovery serves a precomputed exporter-scoped feed from its
+  // own index; its recipe doc sets a tighter loaded-artifact uncached budget
+  // than the heavier analysis routes.
+  "opportunity-feed-uncached",
   "trade-explorer-analysis-uncached",
   "trade-explorer-analysis-process-hit",
   "trade-explorer-csv-uncached",
@@ -361,6 +365,12 @@ const ORIGIN_THRESHOLDS: Record<
     p99LimitMs: 500,
     routeDeadlineMs: 15_000,
     payloadLimitBytes: 5 * 1024 * KIB,
+  },
+  "opportunity-feed-uncached": {
+    p95LimitMs: 500,
+    p99LimitMs: 1_000,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 256 * KIB,
   },
   "trade-explorer-analysis-uncached": {
     p95LimitMs: 2_000,

@@ -53,16 +53,17 @@ analysis semantic keys. Cache-hit entries reuse their one declared request
 after five warmups. The origin report verifies the deployment-owned
 `X-HS-Tracker-Cache-State` header: every uncached request must report
 `miss`, and cache-hit warmups after the first request plus every timed
-cache-hit sample must report `hit`. The 83 route/role cases cover all four
+cache-hit sample must report `hit`. The 87 route/role cases cover all four
 artifact-attested representative roles for each product operation --
-including Trade Trend, Supplier Competition, and Trade Explorer analysis
-and CSV operations, measured and gated the same way as Candidate Market's
--- plus the three singleton routes.
+including Trade Trend, Supplier Competition, Trade Explorer analysis/CSV,
+and Opportunity feed operations -- plus the three singleton routes.
 
 Every executed Candidate Market or Trade Explorer analysis and CSV sample
 retains the artifact-attested exporter/product pair for its role. Trade
 Explorer binds the same identity through its `exportEconomy` and `hsProduct`
-parameters. Uncached samples vary only the
+parameters. Opportunity feed samples bind the representative role's
+artifact-attested exporter and must meet p95 <= 500 ms, p99 <= 1 s, 2 s route
+deadline, and <= 256 KiB serialized page size. Uncached samples vary only the
 `X-HS-Tracker-Cache-Partition` value, which must equal the sample's unique
 semantic key; the bounded runtime includes that partition in its process-cache
 key without changing the query sent to DuckDB. This provides real misses

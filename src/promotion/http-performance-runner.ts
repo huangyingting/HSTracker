@@ -329,6 +329,7 @@ const PRODUCT_OPERATIONS = [
   "supplier-competition-analysis-process-hit",
   "supplier-competition-csv-uncached",
   "supplier-competition-csv-analysis-hit",
+  "opportunity-feed-uncached",
   "trade-explorer-analysis-uncached",
   "trade-explorer-analysis-process-hit",
   "trade-explorer-csv-uncached",
@@ -343,6 +344,7 @@ const UNCACHED_OPERATIONS = [
   "trade-trend-csv-uncached",
   "supplier-competition-analysis-uncached",
   "supplier-competition-csv-uncached",
+  "opportunity-feed-uncached",
   "trade-explorer-analysis-uncached",
   "trade-explorer-csv-uncached",
 ] as const satisfies readonly OriginBenchmarkOperation[];
@@ -376,6 +378,7 @@ const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
   "supplier-competition-analysis-process-hit": 2_000,
   "supplier-competition-csv-uncached": 15_000,
   "supplier-competition-csv-analysis-hit": 15_000,
+  "opportunity-feed-uncached": 2_000,
   "trade-explorer-analysis-uncached": 12_000,
   "trade-explorer-analysis-process-hit": 2_000,
   "trade-explorer-csv-uncached": 15_000,
@@ -781,6 +784,7 @@ function assertAttestedOriginBenchmarks(
         requestCase.operation !== "candidate-analysis-process-hit" &&
         requestCase.operation !== "csv-uncached" &&
         requestCase.operation !== "csv-analysis-hit" &&
+        requestCase.operation !== "opportunity-feed-uncached" &&
         requestCase.operation !== "trade-explorer-analysis-uncached" &&
         requestCase.operation !== "trade-explorer-analysis-process-hit" &&
         requestCase.operation !== "trade-explorer-csv-uncached" &&
@@ -789,6 +793,8 @@ function assertAttestedOriginBenchmarks(
       continue;
     }
     const tradeExplorer = requestCase.operation.startsWith("trade-explorer-");
+    const opportunityFeed =
+      requestCase.operation === "opportunity-feed-uncached";
     const benchmark = (
       tradeExplorer
         ? attestation.tradeExplorerBenchmarkQueries
@@ -806,6 +812,13 @@ function assertAttestedOriginBenchmarks(
         benchmark as RuntimeIdentityAttestation["tradeExplorerBenchmarkQueries"][number],
         `${requestCase.operation}:${requestCase.productRole}`,
       );
+    } else if (opportunityFeed) {
+      assertOpportunityFeedRequestMatchesBenchmark(
+        plan.origin,
+        requestCase.request,
+        benchmark as RuntimeIdentityAttestation["benchmarkQueries"][number],
+        `${requestCase.operation}:${requestCase.productRole}`,
+      );
     } else {
       assertRequestMatchesBenchmark(
         plan.origin,
@@ -817,6 +830,7 @@ function assertAttestedOriginBenchmarks(
     if (
       requestCase.operation === "candidate-analysis-uncached" ||
       requestCase.operation === "csv-uncached" ||
+      requestCase.operation === "opportunity-feed-uncached" ||
       requestCase.operation === "trade-explorer-analysis-uncached" ||
       requestCase.operation === "trade-explorer-csv-uncached"
     ) {
@@ -827,6 +841,13 @@ function assertAttestedOriginBenchmarks(
             plan.origin,
             sample.request,
             benchmark as RuntimeIdentityAttestation["tradeExplorerBenchmarkQueries"][number],
+            label,
+          );
+        } else if (opportunityFeed) {
+          assertOpportunityFeedRequestMatchesBenchmark(
+            plan.origin,
+            sample.request,
+            benchmark as RuntimeIdentityAttestation["benchmarkQueries"][number],
             label,
           );
         } else {
@@ -865,6 +886,23 @@ function assertRequestMatchesBenchmark(
   ) {
     throw planError(
       `${label} does not match the deployed artifact benchmark query.`,
+    );
+  }
+}
+
+function assertOpportunityFeedRequestMatchesBenchmark(
+  origin: string,
+  request: HttpRequestCase,
+  benchmark: RuntimeIdentityAttestation["benchmarkQueries"][number],
+  label: string,
+): void {
+  const requestUrl = resolveRequestUrl(origin, request.path);
+  if (
+    !requestUrl.pathname.endsWith("/opportunities") ||
+    requestUrl.searchParams.get("exporter") !== benchmark.exporterCode
+  ) {
+    throw planError(
+      `${label} does not match the deployed artifact Opportunity feed benchmark query.`,
     );
   }
 }

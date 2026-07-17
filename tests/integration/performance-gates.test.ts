@@ -28,7 +28,7 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 83,
+          benchmarkCount: 87,
         },
         tradeExplorer: { status: "accepted" },
         targetLoad: {
@@ -204,6 +204,23 @@ describe("production performance gates", () => {
     );
   });
 
+  it("requires Opportunity feed origin evidence for every representative role", () => {
+    const input = acceptedInput();
+    input.originBenchmarks = input.originBenchmarks.filter(
+      (benchmark) =>
+        !(
+          benchmark.operation === "opportunity-feed-uncached" &&
+          benchmark.productRole === "median"
+        ),
+    );
+
+    expect(() => evaluatePerformanceGates(input)).toThrowError(
+      new PerformanceGateInputError(
+        "Missing origin benchmark opportunity-feed-uncached:median.",
+      ),
+    );
+  });
+
   it("blocks a Trade Trend origin benchmark that misses its accept/block threshold", () => {
     const input = acceptedInput();
     const benchmark = input.originBenchmarks.find(
@@ -223,6 +240,37 @@ describe("production performance gates", () => {
           evaluated.productRole === "maximum-row",
       ),
     ).toMatchObject({ p95Ms: 2_001, status: "blocked" });
+  });
+
+  it("blocks an Opportunity feed benchmark outside its latency or page budget", () => {
+    const input = acceptedInput();
+    const benchmark = input.originBenchmarks.find(
+      (candidate) =>
+        candidate.operation === "opportunity-feed-uncached" &&
+        candidate.productRole === "maximum-row",
+    )!;
+    benchmark.p95Ms = 501;
+    benchmark.p99Ms = 1_001;
+    benchmark.payloadBytes = 256 * KIB + 1;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.gates.origin.benchmarks.find(
+        (evaluated) =>
+          evaluated.operation === "opportunity-feed-uncached" &&
+          evaluated.productRole === "maximum-row",
+      ),
+    ).toMatchObject({
+      p95Ms: 501,
+      p95LimitMs: 500,
+      p99Ms: 1_001,
+      p99LimitMs: 1_000,
+      payloadBytes: 256 * KIB + 1,
+      payloadLimitBytes: 256 * KIB,
+      status: "blocked",
+    });
   });
 
   it("blocks a Trade Explorer query that exceeds its scan budget", () => {
@@ -501,6 +549,7 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "supplier-competition-analysis-process-hit",
     "supplier-competition-csv-uncached",
     "supplier-competition-csv-analysis-hit",
+    "opportunity-feed-uncached",
     "trade-explorer-analysis-uncached",
     "trade-explorer-analysis-process-hit",
     "trade-explorer-csv-uncached",
@@ -545,6 +594,7 @@ function benchmark(
     "supplier-competition-analysis-process-hit": [100, 250, 2_000],
     "supplier-competition-csv-uncached": [3_000, 6_000, 15_000],
     "supplier-competition-csv-analysis-hit": [250, 500, 15_000],
+    "opportunity-feed-uncached": [500, 1_000, 2_000],
     "trade-explorer-analysis-uncached": [2_000, 4_000, 12_000],
     "trade-explorer-analysis-process-hit": [100, 250, 2_000],
     "trade-explorer-csv-uncached": [3_000, 6_000, 15_000],
@@ -553,7 +603,9 @@ function benchmark(
   const payloadBytes =
     operation === "current-manifest"
       ? 16 * KIB
-      : operation.includes("search")
+     : operation === "opportunity-feed-uncached"
+       ? 256 * KIB
+     : operation.includes("search")
         ? 64 * KIB
         : operation.startsWith("trade-explorer")
           ? 1024 * KIB
