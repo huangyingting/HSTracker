@@ -3,6 +3,11 @@ import { constants } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import {
+  DuckDBInstance,
+  type DuckDBConnection,
+} from "@duckdb/node-api";
+
+import {
   accessRuntimePath,
   linkRuntimePath,
   makeRuntimeDirectory,
@@ -45,6 +50,10 @@ import {
   createOpportunityDiscoveryDatasetPackage,
 } from "../domain/trade-analytics/opportunity-discovery-v1-dataset-package";
 import {
+  DuckDbOpportunityCandidateIndex,
+  DuckDbOpportunityEvidenceSource,
+} from "../evidence/duckdb-opportunity-source";
+import {
   createRecommendedDatasetMapping,
 } from "../domain/trade-analytics/recommended-dataset-mapping";
 import {
@@ -54,7 +63,7 @@ import {
   type ReleaseObjectIdentity,
   type ReleaseObjectReader,
 } from "./release-object-store";
-import { record, string } from "./release-validation";
+import { count, record, string } from "./release-validation";
 
 export type HydrateCurrentReleaseInput = {
   volumePath: string;
@@ -74,6 +83,9 @@ export type HydratedDeploymentPairing = {
   recommendedDatasetMappingPath: string | null;
   datasetPackageManifestPath: string | null;
   opportunityDatasetPackageManifestPath: string | null;
+  opportunityIndexDirectoryPath: string | null;
+  opportunityIndexPath: string | null;
+  opportunityIndexManifestPath: string | null;
   deploymentManifestPath: string;
   previousAnalysis: {
     reference: AnalysisArtifactReference;
@@ -364,6 +376,28 @@ export class ReleaseHydrator {
           );
         }
       }
+      if (deployment.opportunityIndex !== null) {
+        downloads.push(
+          this.materializeVerified(
+            volumePath,
+            deployment.opportunityIndex.object,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "opportunity-index.duckdb",
+            ),
+            ["opportunity-index.duckdb"],
+          ),
+          this.materializeVerified(
+            volumePath,
+            deployment.opportunityIndex.manifest,
+            join(
+              /* turbopackIgnore: true */ partialPath,
+              "opportunity-index-manifest.json",
+            ),
+            ["opportunity-index-manifest.json"],
+          ),
+        );
+      }
       if (releaseCatalog.previous !== null) {
         downloads.push(
           this.materializeVerified(
@@ -393,6 +427,7 @@ export class ReleaseHydrator {
         );
       }
       await Promise.all(downloads);
+      await verifyResidentOpportunityIndex(partialPath, deployment);
       await syncDirectory(partialPath);
       try {
         await renameRuntimePath(partialPath, finalPath);
@@ -990,6 +1025,7 @@ async function verifyResidentReleaseBase(
       deployment,
     ),
   ]);
+  await verifyResidentOpportunityIndex(rootPath, deployment);
 }
 
 async function verifyResidentRecommendedDatasetMapping(
@@ -1084,6 +1120,219 @@ async function verifyResidentRecommendedDatasetMapping(
   }
 }
 
+async function verifyResidentOpportunityIndex(
+  rootPath: string,
+  deployment: DeploymentPairingManifest,
+): Promise<void> {
+  if (deployment.opportunityIndex === null) {
+    return;
+  }
+  const indexPath = join(
+    /* turbopackIgnore: true */ rootPath,
+    "opportunity-index.duckdb",
+  );
+  const manifestPath = join(
+    /* turbopackIgnore: true */ rootPath,
+    "opportunity-index-manifest.json",
+  );
+  await Promise.all([
+    verifyFile(indexPath, deployment.opportunityIndex.object),
+    verifyFile(manifestPath, deployment.opportunityIndex.manifest),
+  ]);
+  const manifest = record(
+    JSON.parse(await readRuntimeFile(manifestPath, "utf8")),
+    "resident Opportunity Index manifest",
+  );
+  const sourceArtifact = record(
+    manifest.sourceArtifact,
+    "resident Opportunity Index source artifact",
+  );
+  const index = record(manifest.index, "resident Opportunity Index object");
+  if (
+    manifest.schemaVersion !== "opportunity-index-manifest-v1" ||
+    manifest.indexSchemaVersion !== "opportunity-index-v1" ||
+    string(index.relativePath, "resident Opportunity Index relative path") !==
+      "opportunity-index.duckdb" ||
+    string(sourceArtifact.sha256, "resident Opportunity Index source SHA-256") !==
+      deployment.analysis.artifact.artifact.sha256 ||
+    string(sourceArtifact.buildId, "resident Opportunity Index source build ID") !==
+      deployment.analysis.artifact.artifactBuildId ||
+    count(sourceArtifact.bytes, "resident Opportunity Index source bytes") !==
+      deployment.analysis.artifact.artifact.bytes ||
+    count(index.bytes, "resident Opportunity Index bytes") !==
+      deployment.opportunityIndex.object.bytes ||
+    string(index.sha256, "resident Opportunity Index SHA-256") !==
+      deployment.opportunityIndex.object.sha256
+  ) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Opportunity Index manifest does not match its deployment.",
+    );
+  }
+  await reconcileOpportunityIndexCohorts(rootPath, manifest);
+  await smokeOpportunityIndex(rootPath, deployment);
+}
+
+async function reconcileOpportunityIndexCohorts(
+  rootPath: string,
+  manifest: Record<string, unknown>,
+): Promise<void> {
+  const scoreWindow = record(
+    manifest.scoreWindow,
+    "resident Opportunity Index score window",
+  );
+  const startYear = count(scoreWindow.start, "Opportunity Index score start");
+  const endYear = count(scoreWindow.end, "Opportunity Index score end");
+  const indexInstance = await DuckDBInstance.create(
+    join(/* turbopackIgnore: true */ rootPath, "opportunity-index.duckdb"),
+    { access_mode: "READ_ONLY" },
+  );
+  const artifactInstance = await DuckDBInstance.create(
+    join(/* turbopackIgnore: true */ rootPath, "candidate-market.duckdb"),
+    { access_mode: "READ_ONLY" },
+  );
+  try {
+    const [indexConnection, artifactConnection] = await Promise.all([
+      indexInstance.connect(),
+      artifactInstance.connect(),
+    ]);
+    const duplicateKeys = await queryScalarNumber(
+      indexConnection,
+      "SELECT COUNT(*) FROM (SELECT exporter_code, product_id, importer_code FROM opportunity_candidate GROUP BY 1,2,3 HAVING COUNT(*) > 1)",
+    );
+    if (duplicateKeys !== 0) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index contains duplicate candidate keys.",
+      );
+    }
+    const persisted = await queryNumberPairs(
+      indexConnection,
+      "SELECT exporter_code, COUNT(*) FROM opportunity_candidate GROUP BY exporter_code ORDER BY exporter_code",
+    );
+    const exporterCount = count(
+      manifest.exporterCount,
+      "resident Opportunity Index exporter count",
+    );
+    if (persisted.size === 0 || persisted.size !== exporterCount) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index exporter set is incomplete.",
+      );
+    }
+    const eligible = await queryNumberPairs(
+      artifactConnection,
+      eligibleCohortSql([...persisted.keys()], startYear, endYear),
+    );
+    for (const [exporterCode, persistedCount] of persisted) {
+      if (
+        eligible.get(exporterCode) !== persistedCount
+      ) {
+        throw new ReleaseHydrationError(
+          "OBJECT_IDENTITY_MISMATCH",
+          `Resident Opportunity Index cohort reconciliation failed for exporter ${exporterCode}.`,
+        );
+      }
+    }
+    if (eligible.size !== persisted.size) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index cohort exporter set is incomplete.",
+      );
+    }
+  } finally {
+    indexInstance.closeSync();
+    artifactInstance.closeSync();
+  }
+}
+
+async function smokeOpportunityIndex(
+  rootPath: string,
+  deployment: DeploymentPairingManifest,
+): Promise<void> {
+  const first = await firstOpportunityCandidate(rootPath);
+  const candidateIndex = await DuckDbOpportunityCandidateIndex.open({
+    indexDirectoryPath: rootPath,
+    analysisArtifactPath: join(
+      /* turbopackIgnore: true */ rootPath,
+      "candidate-market.duckdb",
+    ),
+    servingVolumePath: rootPath,
+  });
+  const evidenceSource = await DuckDbOpportunityEvidenceSource.open({
+    indexDirectoryPath: rootPath,
+    analysisArtifactPath: join(
+      /* turbopackIgnore: true */ rootPath,
+      "candidate-market.duckdb",
+    ),
+    servingVolumePath: rootPath,
+  });
+  try {
+    const page = await candidateIndex.page(
+      {
+        analysisBuildId: deployment.analysisBuildId,
+        exportEconomyCode: String(first.exporterCode),
+        limit: 1,
+        cursor: null,
+        productCodes: null,
+      },
+      `hydration-opportunity-smoke:${deployment.analysisBuildId}`,
+    );
+    if (page.cohortSize < 1 || page.candidates.length !== 1) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index smoke page is inconsistent.",
+      );
+    }
+    const candidate = page.candidates[0]!;
+    const detail = await evidenceSource.loadDetail({
+      analysisBuildId: deployment.analysisBuildId,
+      exportEconomyCode: String(first.exporterCode),
+      productCode: candidate.product.code,
+      marketCode: candidate.market.code,
+    });
+    if (
+      detail.analysisBuildId !== page.analysisBuildId ||
+      detail.product.code !== candidate.product.code ||
+      detail.market.code !== candidate.market.code ||
+      detail.marketYears.length !== 5
+    ) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index smoke detail is inconsistent.",
+      );
+    }
+  } finally {
+    candidateIndex.close();
+    evidenceSource.close();
+  }
+}
+
+async function firstOpportunityCandidate(
+  rootPath: string,
+): Promise<{ exporterCode: number }> {
+  const instance = await DuckDBInstance.create(
+    join(/* turbopackIgnore: true */ rootPath, "opportunity-index.duckdb"),
+    { access_mode: "READ_ONLY" },
+  );
+  try {
+    const connection = await instance.connect();
+    const reader = await connection.runAndReadAll(
+      "SELECT exporter_code FROM opportunity_candidate ORDER BY exporter_code LIMIT 1",
+    );
+    const exporterCode = reader.getRows()[0]?.[0];
+    if (exporterCode === undefined) {
+      throw new ReleaseHydrationError(
+        "OBJECT_IDENTITY_MISMATCH",
+        "Resident Opportunity Index has no smoke candidate.",
+      );
+    }
+    return { exporterCode: Number(exporterCode) };
+  } finally {
+    instance.closeSync();
+  }
+}
+
 async function verifyResidentPreviousAnalysis(
   rootPath: string,
   releaseCatalog: AnalysisReleaseCatalog,
@@ -1125,6 +1374,55 @@ async function verifyFile(
     await handle.close();
   }
   verifyIdentity({ bytes, sha256: digest.digest("hex") }, expected);
+}
+
+async function queryScalarNumber(
+  connection: DuckDBConnection,
+  sql: string,
+): Promise<number> {
+  const reader = await connection.runAndReadAll(sql);
+  const value = reader.getRows()[0]?.[0];
+  if (value === undefined) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Opportunity Index reconciliation returned no scalar.",
+    );
+  }
+  return Number(value);
+}
+
+async function queryNumberPairs(
+  connection: DuckDBConnection,
+  sql: string,
+): Promise<Map<number, number>> {
+  const reader = await connection.runAndReadAll(sql);
+  return new Map(
+    reader.getRows().map((row) => [Number(row[0]), Number(row[1])]),
+  );
+}
+
+function eligibleCohortSql(
+  exporterCodes: readonly number[],
+  startYear: number,
+  endYear: number,
+): string {
+  if (exporterCodes.length === 0) {
+    throw new ReleaseHydrationError(
+      "OBJECT_IDENTITY_MISMATCH",
+      "Resident Opportunity Index has no exporters to reconcile.",
+    );
+  }
+  const values = exporterCodes.map((code) => `(${code})`).join(", ");
+  return (
+    `WITH stats(exporter_code) AS (VALUES ${values}), ` +
+    `eligible_pairs AS (` +
+    `SELECT DISTINCT product_id, importer_code FROM market_year ` +
+    `WHERE year BETWEEN ${startYear} AND ${endYear}) ` +
+    `SELECT stats.exporter_code, COUNT(*) ` +
+    `FROM stats CROSS JOIN eligible_pairs ` +
+    `WHERE eligible_pairs.importer_code <> stats.exporter_code ` +
+    `GROUP BY stats.exporter_code ORDER BY stats.exporter_code`
+  );
 }
 
 function verifyIdentity(
@@ -1191,6 +1489,22 @@ function hydratedPairing(
         : join(
             /* turbopackIgnore: true */ rootPath,
             "opportunity-dataset-package-manifest.json",
+          ),
+    opportunityIndexDirectoryPath:
+      deployment.opportunityIndex === null ? null : rootPath,
+    opportunityIndexPath:
+      deployment.opportunityIndex === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "opportunity-index.duckdb",
+          ),
+    opportunityIndexManifestPath:
+      deployment.opportunityIndex === null
+        ? null
+        : join(
+            /* turbopackIgnore: true */ rootPath,
+            "opportunity-index-manifest.json",
           ),
     deploymentManifestPath: join(
       /* turbopackIgnore: true */ rootPath,

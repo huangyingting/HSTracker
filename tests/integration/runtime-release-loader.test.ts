@@ -139,6 +139,51 @@ describe("verified release runtime", () => {
     });
   }, 20_000);
 
+  it("hydrates and smoke-verifies a declared Opportunity Index before readiness", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+      { withOpportunityIndex: true },
+    );
+    const objectStore = new InMemoryReleaseObjectStore();
+    const published = await new ReleasePublisher(objectStore).promote({
+      ...candidate,
+      activatedAt: "2026-07-12T02:00:00Z",
+    });
+
+    const runtime = await VerifiedReleaseRuntime.load({
+      objectStore,
+      volumePath: join(root, "volume"),
+      now: () => "2026-07-12T02:00:00Z",
+    });
+    runtimes.push(runtime);
+
+    const residentRoot = join(root, "volume", published.deploymentPairingId);
+    await expect(
+      readFile(join(residentRoot, "opportunity-index.duckdb")),
+    ).resolves.toBeInstanceOf(Buffer);
+    await expect(
+      readFile(join(residentRoot, "opportunity-index-manifest.json"), "utf8"),
+    ).resolves.toContain('"opportunity-index-manifest-v1"');
+  }, 20_000);
+
+  it("fails closed when a declared Opportunity Index cohort does not reconcile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
+    temporaryDirectories.push(root);
+    const candidate = await writeRuntimeReleaseCandidate(
+      join(root, "candidate"),
+      { withOpportunityIndex: true, opportunityIndexStatsOffset: 1 },
+    );
+
+    await expect(
+      new ReleasePublisher(new InMemoryReleaseObjectStore()).promote({
+        ...candidate,
+        activatedAt: "2026-07-12T02:00:00Z",
+      }),
+    ).rejects.toMatchObject({ code: "PAIRING_INCOMPATIBLE" });
+  }, 20_000);
+
   it("rejects activated Trade Explorer without every representative benchmark role", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);

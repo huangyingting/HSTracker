@@ -146,6 +146,7 @@ export async function writeRuntimeReleaseCandidate(
     }>[];
     additionalTradeExplorerRows?: readonly TradeExplorerEquivalenceRow[];
     withOpportunityIndex?: boolean;
+    opportunityIndexStatsOffset?: number;
   } = {},
 ): Promise<{
   analysisDirectoryPath: string;
@@ -408,6 +409,12 @@ export async function writeRuntimeReleaseCandidate(
       builtAt: options.builtAt ?? "2026-07-12T01:00:00Z",
       onlyExporterCodes: [156],
     });
+    if (options.opportunityIndexStatsOffset !== undefined) {
+      await shiftOpportunityIndexStats(
+        outcome.publicationPath,
+        options.opportunityIndexStatsOffset,
+      );
+    }
     return {
       analysisDirectoryPath,
       productCatalogDirectoryPath,
@@ -416,6 +423,43 @@ export async function writeRuntimeReleaseCandidate(
   }
 
   return { analysisDirectoryPath, productCatalogDirectoryPath };
+}
+
+async function shiftOpportunityIndexStats(
+  publicationPath: string,
+  offset: number,
+): Promise<void> {
+  const indexPath = join(publicationPath, "opportunity-index.duckdb");
+  const instance = await DuckDBInstance.create(indexPath);
+  const connection = await instance.connect();
+  try {
+    if (offset !== 0) {
+      await connection.run(
+        "DELETE FROM opportunity_candidate WHERE rowid = (SELECT rowid FROM opportunity_candidate LIMIT 1)",
+      );
+    }
+    await connection.run("CHECKPOINT");
+  } finally {
+    connection.closeSync();
+    instance.closeSync();
+  }
+  const indexIdentity = releaseObjectIdentity(await readFile(indexPath));
+  const manifestPath = join(publicationPath, "opportunity-index-manifest.json");
+  const reportPath = join(publicationPath, "opportunity-index-build-report.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.index = {
+    ...manifest.index,
+    buildId: `opportunity-index-v1-${indexIdentity.sha256.slice(0, 16)}`,
+    bytes: indexIdentity.bytes,
+    sha256: indexIdentity.sha256,
+  };
+  const manifestBytes = releaseJsonBytes(manifest);
+  await writeFile(manifestPath, manifestBytes);
+  const report = JSON.parse(await readFile(reportPath, "utf8"));
+  report.indexManifestSha256 = releaseObjectIdentity(manifestBytes).sha256;
+  report.indexManifest = manifest;
+  report.sizeGate.indexBytes = indexIdentity.bytes;
+  await writeFile(reportPath, releaseJsonBytes(report));
 }
 
 async function writeRuntimeDuckDb(
