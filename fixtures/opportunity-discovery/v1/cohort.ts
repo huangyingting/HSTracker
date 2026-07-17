@@ -50,6 +50,30 @@ const GAMMA: EconomyIdentity = {
   iso3: "GAM",
   identityNote: null,
 };
+const CHINA: EconomyIdentity = {
+  code: "156",
+  name: "China",
+  iso3: "CHN",
+  identityNote: null,
+};
+const NETHERLANDS: EconomyIdentity = {
+  code: "528",
+  name: "Netherlands",
+  iso3: "NLD",
+  identityNote: null,
+};
+const MEXICO: EconomyIdentity = {
+  code: "484",
+  name: "Mexico",
+  iso3: "MEX",
+  identityNote: null,
+};
+const CANADA: EconomyIdentity = {
+  code: "124",
+  name: "Canada",
+  iso3: "CAN",
+  identityNote: null,
+};
 
 export const OPPORTUNITY_FIXTURE_ECONOMIES = {
   HOMELAND,
@@ -74,11 +98,24 @@ const PRODUCT_THREE: ProductIdentity = {
   code: "010003",
   descriptionEn: "Fixture product three",
 };
+const PURE_BRED_HORSES: ProductIdentity = {
+  hsRevision: "HS12",
+  code: "010121",
+  descriptionEn: "Horses: live, pure-bred breeding animals",
+};
+const MOBILE_PHONES: ProductIdentity = {
+  hsRevision: "HS12",
+  code: "851712",
+  descriptionEn:
+    "Telephones for cellular networks or for other wireless networks",
+};
 
 export const OPPORTUNITY_FIXTURE_PRODUCTS = {
   PRODUCT_ONE,
   PRODUCT_TWO,
   PRODUCT_THREE,
+  PURE_BRED_HORSES,
+  MOBILE_PHONES,
 } as const;
 
 const W5_YEARS = [2019, 2020, 2021, 2022, 2023];
@@ -147,6 +184,51 @@ const EXPORTER_100_PRODUCTS: readonly OpportunityProductEvidence[] = [
     worldYearTotals: yearTotals([5000, 5000, 5000, 5000, 5000]),
     exporterExportTotals: [],
   },
+];
+
+// --- Exporter 156 cohort: acceptance-browser friendly rows that use the
+// existing public economy directory and product catalog identities. ---
+
+const EXPORTER_156_PRODUCTS: readonly OpportunityProductEvidence[] = [
+  {
+    product: PURE_BRED_HORSES,
+    worldYearTotals: yearTotals([12000, 12000, 12000, 12000, 12000]),
+    exporterExportTotals: exporterTotals([5000, 5000, 5000, 5000, 5000]),
+  },
+  {
+    product: MOBILE_PHONES,
+    worldYearTotals: yearTotals([40000, 40000, 40000, 40000, 40000]),
+    exporterExportTotals: exporterTotals([12000, 12000, 12000, 12000, 12000]),
+  },
+];
+
+const EXPORTER_156_MARKETS: readonly OpportunityMarketEvidence[] = [
+  market(
+    PURE_BRED_HORSES,
+    NETHERLANDS,
+    [2200, 2400, 2600, 2800, 3200],
+    [500, 520, 540, 560, 600],
+  ),
+  market(
+    PURE_BRED_HORSES,
+    MEXICO,
+    [5000, 6000, 7000, 8000, 10000],
+    [null, null, null, null, null],
+  ),
+  market(MOBILE_PHONES, CANADA, [1200, 1300, 1400, 1500, 1700], [
+    220,
+    230,
+    240,
+    250,
+    260,
+  ]),
+  market(MOBILE_PHONES, MEXICO, [900, 1000, 1100, 1200, 1400], [
+    null,
+    null,
+    null,
+    null,
+    null,
+  ]),
 ];
 
 const EXPORTER_100_MARKETS: readonly OpportunityMarketEvidence[] = [
@@ -238,8 +320,8 @@ const EXPORTER_200_MARKETS: readonly OpportunityMarketEvidence[] = [
 ];
 
 const RELEASE = {
-  baciRelease: "BACI-HS12-fixture",
-  sourceUpdateDate: "2026-07-16",
+  baciRelease: "V202601",
+  sourceUpdateDate: "2026-01-22",
   hsRevision: "HS12" as const,
   ingestedYears: { start: 2019, end: 2024 },
   finalizedCutoffYear: OPPORTUNITY_FIXTURE_CUTOFF_YEAR,
@@ -247,7 +329,7 @@ const RELEASE = {
 };
 
 const ARTIFACT = {
-  baciRelease: "BACI-HS12-fixture",
+  baciRelease: "V202601",
   buildId: OPPORTUNITY_FIXTURE_BUILD_ID,
   schemaVersion: "opportunity-index-v1",
   sha256: "f".repeat(64),
@@ -270,5 +352,13 @@ export const OPPORTUNITY_FIXTURE_COHORTS: readonly OpportunityDiscoveryV1CohortI
       exporter: RIVAL,
       products: EXPORTER_200_PRODUCTS,
       markets: EXPORTER_200_MARKETS,
+    },
+    {
+      analysisBuildId: OPPORTUNITY_FIXTURE_BUILD_ID,
+      artifact: ARTIFACT,
+      release: RELEASE,
+      exporter: CHINA,
+      products: EXPORTER_156_PRODUCTS,
+      markets: EXPORTER_156_MARKETS,
     },
   ];

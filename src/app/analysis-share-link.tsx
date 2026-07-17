@@ -12,6 +12,8 @@ const copy = {
       "The address bar already carries this exact context — importing economy and HS Product. Copy it to share the same evidence.",
     explorerContextHint:
       "The address bar already carries this exact bounded analysis — shape, filters, measures, and sort. Copy it to share the same evidence.",
+    opportunityContextHint:
+      "The address bar already carries this exact Opportunity Discovery context — export economy and any confirmed HS12 projection. Copy it to share the same public evidence.",
   },
   "zh-Hans": {
     kicker: "分享此分析",
@@ -22,6 +24,8 @@ const copy = {
       "地址栏已包含当前完整情境——进口经济体与 HS 产品。复制它即可分享相同的证据。",
     explorerContextHint:
       "地址栏已包含此确切的有界分析——形态、筛选条件、度量与排序。复制它即可分享相同的证据。",
+    opportunityContextHint:
+      "地址栏已包含此确切的机会发现情境——出口经济体与任何已确认 HS12 投影。复制它即可分享相同的公共证据。",
   },
 } as const;
 
@@ -32,7 +36,12 @@ export function AnalysisShareLink({
   task = "candidate-market",
 }: {
   locale: ShareLocale;
-  task?: "candidate-market" | "trade-trend" | "supplier-competition" | "trade-explorer";
+  task?:
+    | "opportunity-discovery"
+    | "candidate-market"
+    | "trade-trend"
+    | "supplier-competition"
+    | "trade-explorer";
 }) {
   const messages = copy[locale];
   const [copied, setCopied] = useState(false);
@@ -69,6 +78,8 @@ export function AnalysisShareLink({
         <span>
           {task === "candidate-market"
             ? messages.hint
+            : task === "opportunity-discovery"
+              ? messages.opportunityContextHint
             : task === "trade-explorer"
               ? messages.explorerContextHint
               : messages.importingContextHint}

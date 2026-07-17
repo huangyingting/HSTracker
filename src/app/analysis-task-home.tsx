@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { DiscoveryWorkspace } from "./discovery-workspace";
+import { OpportunityDiscoveryWorkspace } from "./opportunity-discovery-workspace";
 import { SupplierCompetitionWorkspace } from "./supplier-competition-workspace";
 import { TradeExplorerWorkspace } from "./trade-explorer-workspace";
 import { TradeTrendWorkspace } from "./trade-trend-workspace";
@@ -16,8 +17,12 @@ import {
 const copy = {
   en: {
     title: "Choose an analysis task",
+    opportunityDiscovery: "Opportunity Discovery",
+    opportunityDiscoveryDetail:
+      "Browse public Market Investigation Candidates for one exporter.",
     candidateMarket: "Candidate Markets",
-    candidateMarketDetail: "Rank markets worth deeper investigation.",
+    candidateMarketBadge: "Evidence",
+    candidateMarketDetail: "Drill into one exporter-product Candidate Market ranking.",
     tradeTrend: "Trade Trend",
     tradeTrendDetail: "Inspect annual import evidence for one economy.",
     supplierCompetition: "Supplier Competition",
@@ -30,8 +35,11 @@ const copy = {
   },
   "zh-Hans": {
     title: "选择分析任务",
+    opportunityDiscovery: "机会发现",
+    opportunityDiscoveryDetail: "按一个出口经济体浏览公共市场调查候选项。",
     candidateMarket: "候选市场",
-    candidateMarketDetail: "为深入调查排列市场优先级。",
+    candidateMarketBadge: "证据",
+    candidateMarketDetail: "深入查看一个出口经济体和产品的候选市场排名。",
     tradeTrend: "贸易趋势",
     tradeTrendDetail: "查看一个经济体的年度进口证据。",
     supplierCompetition: "供应商竞争",
@@ -44,6 +52,7 @@ const copy = {
 
 type Locale = keyof typeof copy;
 type AnalysisTask =
+  | "opportunity-discovery"
   | "candidate-market"
   | "trade-trend"
   | "supplier-competition"
@@ -79,10 +88,23 @@ export function AnalysisTaskHome({ locale }: { locale: Locale }) {
         <div>
           <button
             type="button"
+            aria-pressed={task === "opportunity-discovery"}
+            onClick={() => selectTask("opportunity-discovery")}
+          >
+            <strong>{messages.opportunityDiscovery}</strong>
+            <span>{messages.opportunityDiscoveryDetail}</span>
+          </button>
+          <button
+            type="button"
             aria-pressed={task === "candidate-market"}
             onClick={() => selectTask("candidate-market")}
           >
-            <strong>{messages.candidateMarket}</strong>
+            <strong>
+              {messages.candidateMarket}{" "}
+              <span className="analysis-task-badge">
+                {messages.candidateMarketBadge}
+              </span>
+            </strong>
             <span>{messages.candidateMarketDetail}</span>
           </button>
           <button
@@ -114,7 +136,9 @@ export function AnalysisTaskHome({ locale }: { locale: Locale }) {
           </button>
         </div>
       </nav>
-      {task === "candidate-market" ? (
+      {task === "opportunity-discovery" ? (
+        <OpportunityDiscoveryWorkspace locale={locale} />
+      ) : task === "candidate-market" ? (
         <DiscoveryWorkspace locale={locale} />
       ) : task === "trade-trend" ? (
         <TradeTrendWorkspace locale={locale} />
@@ -129,7 +153,7 @@ export function AnalysisTaskHome({ locale }: { locale: Locale }) {
 
 function taskFromLocation(): AnalysisTask {
   if (typeof window === "undefined") {
-    return "candidate-market";
+    return "opportunity-discovery";
   }
   return parseTradeAnalysisContext(window.location.href).recipe;
 }
