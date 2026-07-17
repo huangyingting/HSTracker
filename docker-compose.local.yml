@@ -1,0 +1,70 @@
+# Local single-host deployment (ADR-0004).
+#
+# Runs the complete application as one production container on the operator's
+# own machine, reachable only over loopback. The private release bucket is a
+# local directory (the filesystem release object store), the release volume is
+# a named Docker volume, and the operational data plane is a local PostgreSQL
+# service. No hosted provider, no public URL, no TLS termination proxy.
+#
+# Before `up`, promote an accepted release into ./data/local-deploy/objectstore
+# with `HS_TRACKER_RELEASE_OBJECT_STORE=filesystem` (see docs/local-deployment.md).
+
+name: hs-tracker-local
+
+services:
+  postgres:
+    image: postgres:16.14-bookworm@sha256:92620daddcd947f8d5ab5ba66e848702fe443d87fed30c4cea8e389fd78dfc55
+    environment:
+      POSTGRES_USER: hstracker
+      POSTGRES_PASSWORD: hstracker
+      POSTGRES_DB: hstracker
+    volumes:
+      - hs_tracker_operational:/var/lib/postgresql/data
+    # Bind only to loopback on the host; the app reaches it over the compose network.
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hstracker -d hstracker"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: on-failure
+
+  hs-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_BUILD_ID: ${APP_BUILD_ID:-local}
+    # Loopback only. Do NOT publish on 0.0.0.0: on loopback the client IP is the
+    # connecting socket, and no ingress may pass a client-supplied rate-limit header.
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      HS_TRACKER_MACHINE_CLASS: local
+      HS_TRACKER_RUNTIME_MODE: release
+      HS_TRACKER_RELEASE_VOLUME_PATH: /data/releases
+      HS_TRACKER_RELEASE_OBJECT_STORE: filesystem
+      HS_TRACKER_RELEASE_FILESYSTEM_PATH: /objectstore
+      HS_TRACKER_OPERATIONAL_DRIVER: postgres
+      HS_TRACKER_OPERATIONAL_PG_URL: postgres://hstracker:hstracker@postgres:5432/hstracker
+      HS_TRACKER_OPERATIONAL_PG_APP_NAME: hs-tracker-local
+    volumes:
+      # Private release bucket: a local directory, mounted read-only.
+      - ./data/local-deploy/objectstore:/objectstore:ro
+      # Serving volume: hydrated from the object store on startup.
+      - hs_tracker_releases:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    restart: on-failure
+
+volumes:
+  hs_tracker_releases:
+  hs_tracker_operational:

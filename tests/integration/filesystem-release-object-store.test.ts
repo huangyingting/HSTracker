@@ -1,6 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -8,8 +7,6 @@ import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
-import { PROMOTION_GATE_REQUIRED_CHECKS } from "../../src/promotion/promotion-evidence";
 import {
   FilesystemReleaseObjectStore,
 } from "../../src/release/filesystem-release-object-store";
@@ -25,6 +22,7 @@ import {
 } from "../../src/release/release-object-store";
 import { SourceStatusReader } from "../../src/release/source-status-publication";
 import { writeAcceptedReleaseCandidate } from "../support/release-candidate";
+import { writeAcceptedPromotionInput } from "../support/local-release-deployment";
 
 const execFileAsync = promisify(execFile);
 
@@ -257,103 +255,6 @@ async function collect(
     collected.push(Buffer.from(chunk));
   }
   return Buffer.concat(collected);
-}
-
-async function writeAcceptedPromotionInput(
-  root: string,
-  label: string,
-  candidate: {
-    analysisDirectoryPath: string;
-    productCatalogDirectoryPath: string;
-  },
-): Promise<string> {
-  const [analysisManifest, catalogManifest] = await Promise.all([
-    readFile(
-      join(candidate.analysisDirectoryPath, "artifact-manifest.json"),
-      "utf8",
-    ).then(
-      (value) =>
-        JSON.parse(value) as {
-          baciRelease: string;
-          artifact: { sha256: string };
-        },
-    ),
-    readFile(
-      join(candidate.productCatalogDirectoryPath, "catalog-manifest.json"),
-      "utf8",
-    ).then((value) => JSON.parse(value) as { productSearchBuildId: string }),
-  ]);
-  const identity = {
-    fixtureManifestSha256: ACCEPTANCE_FIXTURE_CONTENT_SHA256,
-    buildId: `fs-release-${label}`,
-    baciRelease: analysisManifest.baciRelease,
-    analysisBuildId: `analysis-${label}`,
-    productSearchBuildId: catalogManifest.productSearchBuildId,
-    artifactSha256: analysisManifest.artifact.sha256,
-    deploymentPairingId: `deployment-${label}`,
-    sourceStatusSnapshotId: `source-status-${label}`,
-    machineId: `machine-${label}`,
-    machineClass: "local",
-    region: "loc",
-  };
-  const evidence = [];
-  for (const [gate, requiredChecks] of Object.entries(
-    PROMOTION_GATE_REQUIRED_CHECKS,
-  )) {
-    const relativePath = `reports/promotion/${label}/${gate}.json`;
-    const reportBytes = Buffer.from(
-      `${JSON.stringify({
-        schemaVersion: `${gate}-report-v1`,
-        gate,
-        measurementClass: "candidate",
-        status: "accepted",
-        identity,
-        checks: requiredChecks.map((name) => ({ name, status: "accepted" })),
-      })}\n`,
-    );
-    const reportSha256 = createHash("sha256")
-      .update(reportBytes)
-      .digest("hex");
-    await mkdir(join(root, "reports/promotion", label), { recursive: true });
-    await writeFile(join(root, relativePath), reportBytes);
-    evidence.push({
-      gate,
-      schemaVersion: `${gate}-report-v1`,
-      status: "accepted",
-      identity,
-      reportSha256,
-      measuredAt: "2026-07-12T01:30:00Z",
-      windowStartedAt: "2026-07-12T01:00:00Z",
-      windowEndedAt: "2026-07-12T01:30:00Z",
-      sampleCount: 100,
-      retainedLogs: [relativePath],
-      attempts: [
-        {
-          attemptedAt: "2026-07-12T01:30:00Z",
-          status: "accepted",
-          logSha256: reportSha256,
-        },
-      ],
-    });
-  }
-  const inputPath = join(root, `promotion-${label}.json`);
-  await writeFile(
-    inputPath,
-    `${JSON.stringify({
-      schemaVersion: "production-promotion-input-v1",
-      evaluatedAt: "2026-07-12T01:45:00Z",
-      identity,
-      toolVersions: {
-        node: "24.17.0",
-        npm: "11.13.0",
-        next: "16.2.10",
-        duckdb: "1.5.4-r.1",
-        playwright: "1.61.1",
-      },
-      evidence,
-    })}\n`,
-  );
-  return inputPath;
 }
 
 async function runReleaseCommand(
