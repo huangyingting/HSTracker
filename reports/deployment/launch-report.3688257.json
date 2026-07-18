@@ -1,0 +1,138 @@
+{
+  "input": {
+    "schemaVersion": "local-launch-report-input-v1",
+    "launchedAt": "2026-07-18T23:42:21Z",
+    "buildId": "36882575baca659a9930ff736d4d5c9910957d0f",
+    "localOrigin": {
+      "adr": "docs/adr/0004-local-single-host-deployment.md",
+      "machineClass": "local",
+      "bind": "127.0.0.1:3000",
+      "hosting": "single-host container over loopback"
+    },
+    "providerDecisions": {
+      "recurringCostUsd": 0,
+      "objectStore": "filesystem",
+      "operationalStore": "postgres",
+      "hosting": "local-container",
+      "adr": "docs/adr/0004-local-single-host-deployment.md"
+    },
+    "identities": {
+      "buildId": "36882575baca659a9930ff736d4d5c9910957d0f",
+      "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+      "baciRelease": "V202601",
+      "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+      "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+      "analysisReleaseCatalogSha256": "fc8322c4e04efd6935d5b6ee9833df4b1504d515eee5ff9c805bba3445274d42",
+      "analysisArtifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+      "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+      "machineClass": "local"
+    },
+    "manifests": {
+      "currentReleaseId": "V202601",
+      "retainedReleaseIds": [
+        "V202601"
+      ],
+      "objectStorePointer": "data/local-deploy/objectstore/deployment-pointers/current.json"
+    },
+    "reports": [
+      {
+        "gate": "local-single-host-gates",
+        "path": "reports/deployment/ee7313f.local-single-host-gates.json",
+        "sha256": "bd685ac6f35635eec59db910cb1a09bc78a52b855f885e3d046ad26faf4f862e",
+        "status": "accepted"
+      },
+      {
+        "gate": "local-single-host-gates",
+        "path": "reports/deployment/8f34ce4.local-single-host-gates.json",
+        "sha256": "7e861b80b575a56b3d0b5eb3dd87a30504c27d12235ce2228225ede4c1c7a8bb",
+        "status": "accepted"
+      }
+    ],
+    "probes": [
+      {
+        "name": "health",
+        "status": "ok",
+        "detail": "status ok"
+      },
+      {
+        "name": "readiness",
+        "status": "ok",
+        "detail": "readiness ready"
+      },
+      {
+        "name": "machine-class",
+        "status": "ok",
+        "detail": "x-hs-tracker-machine-class: local"
+      },
+      {
+        "name": "activation-current",
+        "status": "ok",
+        "detail": "activation.mode CURRENT"
+      },
+      {
+        "name": "candidate-market-smoke",
+        "status": "ok",
+        "detail": "182 candidates"
+      },
+      {
+        "name": "secret-leakage",
+        "status": "ok",
+        "detail": "no leakage tokens found in public responses"
+      },
+      {
+        "name": "restart-rehearsal",
+        "status": "ok",
+        "detail": "docker compose restart hs-tracker preserved pairing/artifact identities and returned CURRENT + ready"
+      },
+      {
+        "name": "resident-fallback-rehearsal",
+        "status": "ok",
+        "detail": "object-store outage -> activation.mode LAST_VERIFIED_RESIDENT_FALLBACK (OBJECT_STORE_UNAVAILABLE), prior pairing/artifact stayed active; restore -> CURRENT"
+      }
+    ],
+    "privacyAndRunbooks": [
+      {
+        "title": "Local single-host deployment and restore runbook",
+        "path": "docs/local-deployment.md"
+      },
+      {
+        "title": "ADR-0004 local single-host deployment",
+        "path": "docs/adr/0004-local-single-host-deployment.md"
+      },
+      {
+        "title": "Eurostat Comext momentum build and conformance record",
+        "path": "docs/research/2026-07-19-eurostat-comext-momentum-package-build-conformance.md"
+      }
+    ],
+    "rollbackEvidence": {
+      "rollbackCommand": "npm run release:rollback",
+      "residentFallbackVerified": true,
+      "currentPlusTwoRetained": true,
+      "priorDeploymentPreservedOnFailure": true
+    }
+  },
+  "report": {
+    "schemaVersion": "local-launch-report-v1",
+    "status": "launched",
+    "buildId": "36882575baca659a9930ff736d4d5c9910957d0f",
+    "launchedAt": "2026-07-18T23:42:21Z",
+    "identities": {
+      "buildId": "36882575baca659a9930ff736d4d5c9910957d0f",
+      "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+      "baciRelease": "V202601",
+      "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+      "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+      "analysisReleaseCatalogSha256": "fc8322c4e04efd6935d5b6ee9833df4b1504d515eee5ff9c805bba3445274d42",
+      "analysisArtifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+      "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+      "machineClass": "local"
+    },
+    "reportCount": 2,
+    "probeCount": 8,
+    "runbookCount": 3,
+    "retainedReleaseCount": 1,
+    "recurringCostUsd": 0,
+    "heldLeavesPriorDeploymentActive": true,
+    "failures": []
+  }
+}
