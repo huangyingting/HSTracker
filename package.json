@@ -34,6 +34,7 @@
     "promotion:build-input": "tsx scripts/promotion/build-promotion-input.ts",
     "promotion:measure-recurring-cost": "tsx scripts/promotion/measure-recurring-cost.ts",
     "promotion:measure-origin-benchmarks": "tsx scripts/promotion/measure-origin-benchmarks.ts",
+    "promotion:measure-http-cache-and-deadlines": "tsx scripts/promotion/measure-http-cache-and-deadlines.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "next typegen && tsc --noEmit",
