@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "production-deployment-check-v1",
+  "evaluatedAt": "2026-07-18T03:28:30Z",
+  "status": "accepted",
+  "evidence": {
+    "image": {
+      "reference": "hs-tracker:ee7313f",
+      "imageId": "sha256:6f9f3ba341dd4425743e32bc070a8ec8f56f32b3d9eccaad25ba7a30702b7767",
+      "compressedBytes": 149465524,
+      "compressedSizeMeasurement": "docker-image-save-gzip-v1",
+      "nodeVersion": "24.17.0",
+      "nativeDuckDb": "loaded",
+      "nativeBindingPath": "/app/node_modules/@duckdb/node-bindings-linux-x64/duckdb.node",
+      "codeOnly": true
+    },
+    "artifact": {
+      "reportSha256": "7f026d3c22d52df19e9fc57ba7b0333f97af16143400401ff1d79085210bdf89",
+      "bytes": 1001926656
+    },
+    "catalog": {
+      "reportSha256": "9bce817d4a26ab34635982df5222884f894c5296991b6a0e23eb1a3adfadb263",
+      "residentBytes": 5153712
+    },
+    "volume": {
+      "observationClass": "projected",
+      "capacityBytes": 53687091200,
+      "freeBytesAtPeak": 51269568229,
+      "freeBytesAfterActivation": 52679789962
+    },
+    "cost": {
+      "forecastSha256": "d26792dce7538f37421199446c427c24534d4a1a13f9cdeeb2c722abd841b5ac",
+      "checkedAt": "2026-07-12T00:00:00Z",
+      "forecastMonthlyUsd": 0
+    }
+  },
+  "gates": {
+    "image": {
+      "measuredBytes": 149465524,
+      "limitBytes": 524288000,
+      "status": "accepted"
+    },
+    "artifact": {
+      "measuredBytes": 1001926656,
+      "targetBytes": 8589934592,
+      "limitBytes": 10737418240,
+      "status": "accepted"
+    },
+    "catalog": {
+      "measuredResidentBytes": 5153712,
+      "limitBytes": 33554432,
+      "status": "accepted"
+    },
+    "volume": {
+      "capacityBytes": 53687091200,
+      "minimumCapacityBytes": 53687091200,
+      "requiredCapacityBytes": 9734329686,
+      "freeBytesAtPeak": 51269568229,
+      "freeFractionAtPeak": 0.9549701256491244,
+      "freeBytesAfterActivation": 52679789962,
+      "freeFractionAfterActivation": 0.9812375523522496,
+      "warningFreeFraction": 0.3,
+      "minimumFreeFraction": 0.25,
+      "status": "accepted"
+    },
+    "cost": {
+      "forecastUsd": 0,
+      "targetUsd": 40,
+      "reviewThresholdUsd": 50,
+      "architectureDecision": "local-single-host-v1",
+      "status": "accepted"
+    }
+  }
+}
