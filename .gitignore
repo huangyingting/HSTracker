@@ -24,6 +24,10 @@
 /data/artifacts/
 /data/staging/
 /data/work/
+# Local single-host deployment object store + serving volume (issue #30 measurement env).
+# Large, regenerable via scripts/promotion/assemble-local-release-store.ts.
+/data/local-deploy/objectstore/
+/data/local-deploy/releases/
 
 # misc
 .DS_Store

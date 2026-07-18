@@ -1,0 +1,12 @@
+# Measurement-run override (issue #30) for a SHARED host where 127.0.0.1:5432
+# is already taken and 127.0.0.1:3000 may collide with peers.
+#
+# Drops the postgres host-port publication (the app still reaches postgres over
+# the compose network) and moves the app's loopback publication to :3300.
+# The app still listens on container port 3000; only the host mapping changes.
+services:
+  postgres:
+    ports: !reset []
+  hs-tracker:
+    ports:
+      - "127.0.0.1:3300:3000"
