@@ -1,6 +1,6 @@
 {
   "schemaVersion": "production-deployment-check-v1",
-  "evaluatedAt": "2026-07-18T03:28:30Z",
+  "evaluatedAt": "2026-07-18T03:43:44Z",
   "status": "accepted",
   "evidence": {
     "image": {
@@ -28,7 +28,7 @@
       "freeBytesAfterActivation": 52679789962
     },
     "cost": {
-      "forecastSha256": "d26792dce7538f37421199446c427c24534d4a1a13f9cdeeb2c722abd841b5ac",
+      "forecastSha256": "2e64be80b8c2867b558379aacc43b865724034a17703fe6e368fc3364c33293a",
       "checkedAt": "2026-07-12T00:00:00Z",
       "forecastMonthlyUsd": 0
     }

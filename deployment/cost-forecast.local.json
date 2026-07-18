@@ -4,7 +4,7 @@
   "currency": "USD",
   "region": "loc",
   "machineClass": "local-single-host",
-  "memoryGiB": 2,
+  "memoryGiB": 4,
   "volumeGiB": 50,
   "lineItems": [
     {

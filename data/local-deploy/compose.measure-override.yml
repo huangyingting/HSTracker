@@ -8,7 +8,13 @@ services:
   postgres:
     ports: !reset []
   hs-tracker:
-    mem_limit: 2g
-    memswap_limit: 2g
+    # 4 GiB (not 2) because the real ~955 MiB V202601 candidate-market artifact
+    # inflates cgroup memory.current with reclaimable page cache: at a 2 GiB
+    # limit the idle fraction is already ~0.8 (RSS only ~0.5), which would push
+    # a 600s target-load drill over the 0.85 cap purely from the undersized
+    # envelope. 4 GiB is the honest local machine-class reservation for real
+    # data and matches deployment/cost-forecast.local.json memoryGiB.
+    mem_limit: 4g
+    memswap_limit: 4g
     ports:
       - "127.0.0.1:3300:3000"
