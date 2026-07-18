@@ -136,6 +136,24 @@ const MODELED_COMBOS: ReadonlyMap<string, TradeExplorerFixtureCombo> = new Map([
     },
   ],
   [
+    // Germany (276) is the export-economy pairing advertised by the
+    // current-analysis trade-explorer benchmark queries
+    // (fixture-current-analysis.ts) and enforced by the verified-release
+    // startup smoke (verified-release-runtime.ts requires rowCount ===
+    // groupedRowCount). Model the same five-year finalized-trend cohort so
+    // the fixture faithfully serves the benchmark it advertises.
+    "156:276:010121:*",
+    {
+      cellsByCode: new Map([
+        ["2019", recorded("45000")],
+        ["2020", recorded("55000")],
+        ["2021", noFlow],
+        // 2022 intentionally omitted: MISSING_OBSERVATION by default.
+        ["2023", recorded("85000")],
+      ]),
+    },
+  ],
+  [
     "156:36:010121:*",
     {
       cellsByCode: new Map([
