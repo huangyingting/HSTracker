@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 const copy = {
   en: {
@@ -31,7 +31,7 @@ const copy = {
 
 type ShareLocale = keyof typeof copy;
 
-export function AnalysisShareLink({
+export const AnalysisShareLink = memo(function AnalysisShareLink({
   locale,
   task = "candidate-market",
 }: {
@@ -90,4 +90,4 @@ export function AnalysisShareLink({
       </button>
     </div>
   );
-}
+});

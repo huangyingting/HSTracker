@@ -237,7 +237,7 @@ type ScoreInput = {
   interpretation: string;
 };
 
-export function CandidateMarketEvidence({
+export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
   candidate,
   result,
   locale,
@@ -418,7 +418,7 @@ export function CandidateMarketEvidence({
       </p>
     </section>
   );
-}
+});
 
 function ReleaseRevisionEvidence({
   candidate,

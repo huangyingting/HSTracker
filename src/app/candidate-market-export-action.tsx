@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import type { CandidateMarketResult } from "../domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
@@ -69,7 +69,7 @@ class CandidateMarketCsvDownloadError extends Error {
   }
 }
 
-export function CandidateMarketExportAction({
+export const CandidateMarketExportAction = memo(function CandidateMarketExportAction({
   result,
   locale,
   onManifestRevalidated,
@@ -209,7 +209,7 @@ export function CandidateMarketExportAction({
       ) : null}
     </section>
   );
-}
+});
 
 async function revalidateAfterDownloadConflict(
   result: CandidateMarketResult,

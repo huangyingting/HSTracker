@@ -1,3 +1,5 @@
+import { memo, useMemo } from "react";
+
 import type {
   CandidateMarket,
   CandidateMarketResult,
@@ -60,7 +62,7 @@ type ComparisonLocale = keyof typeof copy;
 
 export const MAX_COMPARISON_CANDIDATES = 3;
 
-export function CandidateMarketComparison({
+export const CandidateMarketComparison = memo(function CandidateMarketComparison({
   result,
   comparedCodes,
   locale,
@@ -72,8 +74,12 @@ export function CandidateMarketComparison({
   onRemove: (code: string) => void;
 }) {
   const messages = copy[locale];
-  const candidates = result.candidates.filter(({ economy }) =>
-    comparedCodes.includes(economy.code),
+  const candidates = useMemo(
+    () =>
+      result.candidates.filter(({ economy }) =>
+        comparedCodes.includes(economy.code),
+      ),
+    [result.candidates, comparedCodes],
   );
 
   return (
@@ -125,7 +131,7 @@ export function CandidateMarketComparison({
       )}
     </section>
   );
-}
+});
 
 function ComparisonRow({
   candidate,

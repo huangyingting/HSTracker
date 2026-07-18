@@ -532,7 +532,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     window.history.pushState(null, "", url);
   }, []);
 
-  function toggleCandidateComparison(candidate: CandidateMarket) {
+  const toggleCandidateComparison = useCallback((candidate: CandidateMarket) => {
     setComparedCandidateCodes((current) =>
       current.includes(candidate.economy.code)
         ? current.filter((code) => code !== candidate.economy.code)
@@ -540,7 +540,13 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           ? [...current, candidate.economy.code]
           : current,
     );
-  }
+  }, []);
+
+  const removeComparedCandidate = useCallback((code: string) => {
+    setComparedCandidateCodes((current) =>
+      current.filter((candidateCode) => candidateCode !== code),
+    );
+  }, []);
 
   const selectedCandidate =
     result?.candidates.find(
@@ -749,11 +755,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
             result={result}
             comparedCodes={comparedCandidateCodes}
             locale={locale}
-            onRemove={(code) =>
-              setComparedCandidateCodes((current) =>
-                current.filter((candidateCode) => candidateCode !== code),
-              )
-            }
+            onRemove={removeComparedCandidate}
           />
         </>
       ) : null}
