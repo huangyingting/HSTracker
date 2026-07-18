@@ -1,6 +1,6 @@
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import { RELEASE_REVISION_NOT_COMPARED_REASONS } from "../domain/release/release-revision";
-import { SOURCE_FRESHNESS_STATES } from "../domain/release/source-freshness";
+import { SOURCE_FRESHNESS_STATES } from "../domain/release/source-freshness-states";
 
 type DiscoveryErrorCode = "HTTP_ERROR" | "INVALID_MANIFEST";
 type ManifestSource = CurrentAnalysisManifest["source"];

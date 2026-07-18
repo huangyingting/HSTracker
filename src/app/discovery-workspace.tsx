@@ -3,6 +3,7 @@
 import {
   memo,
   useCallback,
+  useDeferredValue,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -546,6 +547,16 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       ({ economy }) => economy.code === selectedCandidateCode,
     ) ?? null;
 
+  // The evidence panel is an expensive subtree. Selecting a candidate updates
+  // the ranking highlight urgently (so the click paints immediately) while the
+  // panel re-renders from a deferred code, keeping interaction-to-next-paint
+  // low without changing what the user ultimately sees.
+  const deferredSelectedCandidateCode = useDeferredValue(selectedCandidateCode);
+  const evidenceCandidate =
+    result?.candidates.find(
+      ({ economy }) => economy.code === deferredSelectedCandidateCode,
+    ) ?? selectedCandidate;
+
   return (
     <section
       className="analysis-workspace"
@@ -660,7 +671,10 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         </>
       ) : null}
 
-      {status === "success" && result !== null && selectedCandidate !== null ? (
+      {status === "success" &&
+      result !== null &&
+      selectedCandidate !== null &&
+      evidenceCandidate !== null ? (
         <>
           <div className="candidate-workspace">
             <section
@@ -676,26 +690,40 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   {result.cohortSize} {messages.candidates}
                 </strong>
               </div>
-              <ol aria-label={messages.candidateList}>
-                {result.candidates.map((candidate) => (
-                  <CandidateRankingRow
-                    key={candidate.economy.code}
-                    candidate={candidate}
-                    selected={candidate.economy.code === selectedCandidateCode}
-                    locale={locale}
-                    confidenceLabel={messages.confidence}
-                    onSelect={selectCandidateMarket}
-                  />
-                ))}
-              </ol>
+              {result.candidates.length > VIRTUALIZED_LIST_THRESHOLD ? (
+                <VirtualizedCandidateList
+                  candidates={result.candidates}
+                  selectedCandidateCode={selectedCandidateCode}
+                  locale={locale}
+                  confidenceLabel={messages.confidence}
+                  listLabel={messages.candidateList}
+                  onSelect={selectCandidateMarket}
+                />
+              ) : (
+                <ol aria-label={messages.candidateList}>
+                  {result.candidates.map((candidate) => (
+                    <CandidateRankingRow
+                      key={candidate.economy.code}
+                      candidate={candidate}
+                      selected={
+                        candidate.economy.code === selectedCandidateCode
+                      }
+                      locale={locale}
+                      confidenceLabel={messages.confidence}
+                      onSelect={selectCandidateMarket}
+                    />
+                  ))}
+                </ol>
+              )}
             </section>
 
+
             <CandidateMarketEvidence
-              candidate={selectedCandidate}
+              candidate={evidenceCandidate}
               result={result}
               locale={locale}
               isCompared={comparedCandidateCodes.includes(
-                selectedCandidate.economy.code,
+                evidenceCandidate.economy.code,
               )}
               comparisonFull={
                 comparedCandidateCodes.length >= MAX_COMPARISON_CANDIDATES
@@ -704,14 +732,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               tradeTrendHref={serializeTradeAnalysisContext("/", {
                 recipe: "trade-trend",
                 locale,
-                importerCode: selectedCandidate.economy.code,
+                importerCode: evidenceCandidate.economy.code,
                 productCode: result.query.product.code,
                 pin: null,
               })}
               supplierCompetitionHref={serializeTradeAnalysisContext("/", {
                 recipe: "supplier-competition",
                 locale,
-                importerCode: selectedCandidate.economy.code,
+                importerCode: evidenceCandidate.economy.code,
                 productCode: result.query.product.code,
                 pin: null,
               })}
@@ -771,15 +799,20 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   locale,
   confidenceLabel,
   onSelect,
+  offsetTop,
 }: {
   candidate: CandidateMarket;
   selected: boolean;
   locale: WorkspaceLocale;
   confidenceLabel: string;
   onSelect: (candidate: CandidateMarket) => void;
+  offsetTop?: number;
 }) {
   return (
-    <li>
+    <li
+      className={offsetTop === undefined ? undefined : "candidate-row-virtual"}
+      style={offsetTop === undefined ? undefined : { top: offsetTop }}
+    >
       <button
         type="button"
         aria-pressed={selected}
@@ -804,6 +837,112 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
     </li>
   );
 });
+
+const VIRTUALIZED_LIST_THRESHOLD = 40;
+const CANDIDATE_ROW_HEIGHT = 79;
+const CANDIDATE_ROW_OVERSCAN = 6;
+const CANDIDATE_LIST_VIEWPORT_FALLBACK = 760;
+
+function VirtualizedCandidateList({
+  candidates,
+  selectedCandidateCode,
+  locale,
+  confidenceLabel,
+  listLabel,
+  onSelect,
+}: {
+  candidates: readonly CandidateMarket[];
+  selectedCandidateCode: string | null;
+  locale: WorkspaceLocale;
+  confidenceLabel: string;
+  listLabel: string;
+  onSelect: (candidate: CandidateMarket) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(
+    CANDIDATE_LIST_VIEWPORT_FALLBACK,
+  );
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (element !== null && element.clientHeight > 0) {
+      setViewportHeight(element.clientHeight);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    if (frameRef.current !== null) {
+      return;
+    }
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null;
+      const element = scrollRef.current;
+      if (element !== null) {
+        setScrollTop(element.scrollTop);
+      }
+    });
+  }, []);
+
+  const total = candidates.length;
+  const start = Math.max(
+    0,
+    Math.floor(scrollTop / CANDIDATE_ROW_HEIGHT) - CANDIDATE_ROW_OVERSCAN,
+  );
+  const end = Math.min(
+    total,
+    Math.ceil((scrollTop + viewportHeight) / CANDIDATE_ROW_HEIGHT) +
+      CANDIDATE_ROW_OVERSCAN,
+  );
+
+  const rows: number[] = [];
+  for (let index = start; index < end; index += 1) {
+    rows.push(index);
+  }
+  const selectedIndex =
+    selectedCandidateCode === null
+      ? -1
+      : candidates.findIndex(
+          ({ economy }) => economy.code === selectedCandidateCode,
+        );
+  if (selectedIndex >= 0 && (selectedIndex < start || selectedIndex >= end)) {
+    rows.push(selectedIndex);
+  }
+
+  return (
+    <div className="candidate-scroll" ref={scrollRef} onScroll={handleScroll}>
+      <ol
+        aria-label={listLabel}
+        className="candidate-ranking-virtual"
+        style={{ height: total * CANDIDATE_ROW_HEIGHT }}
+      >
+        {rows.map((index) => {
+          const candidate = candidates[index];
+          return (
+            <CandidateRankingRow
+              key={candidate.economy.code}
+              candidate={candidate}
+              selected={candidate.economy.code === selectedCandidateCode}
+              locale={locale}
+              confidenceLabel={confidenceLabel}
+              onSelect={onSelect}
+              offsetTop={index * CANDIDATE_ROW_HEIGHT}
+            />
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
 
 function analysisErrorStatus(
   status: number,

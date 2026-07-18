@@ -13,7 +13,7 @@ import {
   type RuntimeRouteFamily,
 } from "../runtime/runtime-metrics";
 import { jsonErrorResponseFor } from "./json-error-response";
-import { withoutResponseBody } from "./response";
+import { gzipResponseWhenRequested, withoutResponseBody } from "./response";
 
 type MeasuredRuntimeRouteContext<Context> = Readonly<{
   request: Request;
@@ -66,7 +66,10 @@ export function createMeasuredRuntimeRoute<Context>(
             signal: deadline.signal,
             measurement,
           });
-          return headOnly ? withoutResponseBody(response) : response;
+          if (headOnly) {
+            return withoutResponseBody(response);
+          }
+          return await gzipResponseWhenRequested(request, response);
         } catch (error) {
           const response = isRequestDeadlineExceededError(error)
             ? jsonErrorResponseFor(error)

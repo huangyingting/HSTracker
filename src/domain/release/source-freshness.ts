@@ -5,15 +5,12 @@ import {
   type DeploymentActivation,
   type PublicDeploymentActivation,
 } from "./deployment-activation";
+import type { SourceFreshnessState } from "./source-freshness-states";
 
-export const SOURCE_FRESHNESS_STATES = [
-  "LATEST_KNOWN",
-  "UPDATE_IN_PROGRESS",
-  "REFRESH_DELAYED",
-  "CHECK_OVERDUE",
-] as const;
-
-export type SourceFreshnessState = (typeof SOURCE_FRESHNESS_STATES)[number];
+export {
+  SOURCE_FRESHNESS_STATES,
+  type SourceFreshnessState,
+} from "./source-freshness-states";
 
 export type SourceStatusSnapshot = {
   schemaVersion: "source-status-v1";

@@ -224,7 +224,7 @@ export function AccountWorkspace({
 
   if (sessionStatus === "loading") {
     return (
-      <section className="account-panel" aria-live="polite">
+      <section className="account-panel account-panel--pending" aria-live="polite">
         <p>{messages.loadingSession}</p>
       </section>
     );

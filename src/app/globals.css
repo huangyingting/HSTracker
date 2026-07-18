@@ -755,6 +755,16 @@ a {
   box-shadow: var(--shadow-md);
 }
 
+/*
+ * Reserve the resolved anonymous auth-panel height while the portfolio
+ * session check is in flight, so swapping the loading placeholder for the
+ * auth panel does not shove the analysis workspace below it (cumulative
+ * layout shift). Heights track the measured auth panel at each breakpoint.
+ */
+.account-panel--pending {
+  min-height: 354px;
+}
+
 .account-auth {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.7fr);
@@ -2354,6 +2364,27 @@ a {
   list-style: none;
 }
 
+.candidate-scroll {
+  max-height: 760px;
+  overflow-y: auto;
+}
+
+.candidate-scroll .candidate-ranking-virtual {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: none;
+  overflow: visible;
+}
+
+.candidate-row-virtual {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 79px;
+}
+
 .analysis-output[data-analyzing="true"] {
   min-height: 100vh;
 }
@@ -2364,8 +2395,6 @@ a {
 
 .candidate-ranking li {
   border-bottom: 1px solid var(--line);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 79px;
 }
 
 .candidate-ranking li:last-child {
@@ -3618,6 +3647,10 @@ a {
     margin-right: -4px;
     margin-left: -4px;
     padding: 20px;
+  }
+
+  .account-panel--pending {
+    min-height: 683px;
   }
 
   .portfolio-header,
