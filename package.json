@@ -37,6 +37,7 @@
     "promotion:measure-http-cache-and-deadlines": "tsx scripts/promotion/measure-http-cache-and-deadlines.ts",
     "promotion:measure-trade-explorer": "tsx scripts/promotion/measure-trade-explorer.ts",
     "promotion:measure-coalescing-and-capacity": "tsx scripts/promotion/measure-coalescing-and-capacity.ts",
+    "promotion:measure-source-and-domain": "tsx scripts/promotion/measure-source-and-domain.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "next typegen && tsc --noEmit",
