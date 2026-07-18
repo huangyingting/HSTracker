@@ -2,18 +2,6 @@ import { parseArgs } from "node:util";
 
 import { loadPromotionEvaluation } from "../../src/promotion/promotion-acceptance";
 
-void main().catch((error: unknown) => {
-  const code = stringProperty(error, "code") ?? "PROMOTION_CHECK_FAILED";
-  const message =
-    error instanceof Error
-      ? error.message
-      : "Promotion check failed with an unknown error.";
-  process.stderr.write(
-    `${JSON.stringify({ error: { code, message } })}\n`,
-  );
-  process.exitCode = 1;
-});
-
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -60,3 +48,15 @@ class PromotionCheckError extends Error {
     this.name = "PromotionCheckError";
   }
 }
+
+void main().catch((error: unknown) => {
+  const code = stringProperty(error, "code") ?? "PROMOTION_CHECK_FAILED";
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Promotion check failed with an unknown error.";
+  process.stderr.write(
+    `${JSON.stringify({ error: { code, message } })}\n`,
+  );
+  process.exitCode = 1;
+});
