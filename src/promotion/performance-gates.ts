@@ -790,7 +790,7 @@ function validateBrowserTrial(
   return input;
 }
 
-function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
+export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
   const benchmarks = new Map<
     string,
     ReturnType<typeof evaluateOriginBenchmark>
