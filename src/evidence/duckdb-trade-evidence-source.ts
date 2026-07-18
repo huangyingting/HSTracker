@@ -425,41 +425,60 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     // never observed at all (MISSING_OBSERVATION). This must stay in sync
     // with the exact same distinction asserted by the fixture evidence in
     // fixtures/supplier-competition/v1/evidence.ts.
+    // Rather than joining every cohort exporter to the whole of its
+    // bilateral_year activity (which scans the full table for each supplier
+    // and does not fit the analysis time budget on a production-scale
+    // artifact), the exporter-year presence and the importer/product value
+    // are resolved separately: "observed_years" bounds the presence scan to
+    // the small cohort of exporters, and "product_values" is the targeted
+    // importer/product lookup. A LEFT JOIN reproduces the identical
+    // (exporter, year) grain and NULL-when-absent product value.
     const activityRows = await queryRows(connection, `
       WITH cohort AS (
         SELECT DISTINCT
-          bilateral.exporter_code AS exporter_code,
-          economy.display_name AS display_name,
-          economy.iso3 AS iso3,
-          economy.identity_note AS identity_note
+          bilateral.exporter_code AS exporter_code
         FROM ${this.tablePrefix}bilateral_year AS bilateral
-        JOIN ${this.tablePrefix}economy AS economy
-          ON economy.code = bilateral.exporter_code
-          AND economy.kind = 'ECONOMY'
         WHERE bilateral.importer_code = $importer_code
           AND bilateral.product_id = $product_id
           AND bilateral.year BETWEEN $window_start AND $window_end
+      ),
+      observed_years AS (
+        SELECT
+          activity.exporter_code AS exporter_code,
+          activity.year AS year
+        FROM ${this.tablePrefix}bilateral_year AS activity
+        WHERE activity.year BETWEEN $window_start AND $window_end
+          AND activity.exporter_code IN (
+            SELECT exporter_code FROM cohort
+          )
+        GROUP BY activity.exporter_code, activity.year
+      ),
+      product_values AS (
+        SELECT
+          bilateral.exporter_code AS exporter_code,
+          bilateral.year AS year,
+          MAX(bilateral.value_kusd) AS product_value_kusd
+        FROM ${this.tablePrefix}bilateral_year AS bilateral
+        WHERE bilateral.importer_code = $importer_code
+          AND bilateral.product_id = $product_id
+          AND bilateral.year BETWEEN $window_start AND $window_end
+        GROUP BY bilateral.exporter_code, bilateral.year
       )
       SELECT
-        cohort.exporter_code,
-        cohort.display_name,
-        cohort.iso3,
-        cohort.identity_note,
-        activity.year AS year,
-        MAX(
-          CASE WHEN activity.importer_code = $importer_code
-            AND activity.product_id = $product_id
-            THEN activity.value_kusd
-          END
-        ) AS product_value_kusd
-      FROM cohort
-      JOIN ${this.tablePrefix}bilateral_year AS activity
-        ON activity.exporter_code = cohort.exporter_code
-      WHERE activity.year BETWEEN $window_start AND $window_end
-      GROUP BY
-        cohort.exporter_code, cohort.display_name, cohort.iso3,
-        cohort.identity_note, activity.year
-      ORDER BY cohort.exporter_code, activity.year
+        observed_years.exporter_code,
+        economy.display_name,
+        economy.iso3,
+        economy.identity_note,
+        observed_years.year AS year,
+        product_values.product_value_kusd
+      FROM observed_years
+      JOIN ${this.tablePrefix}economy AS economy
+        ON economy.code = observed_years.exporter_code
+        AND economy.kind = 'ECONOMY'
+      LEFT JOIN product_values
+        ON product_values.exporter_code = observed_years.exporter_code
+        AND product_values.year = observed_years.year
+      ORDER BY observed_years.exporter_code, observed_years.year
     `, {
       importer_code: importerCode,
       product_id: productId,
