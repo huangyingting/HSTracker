@@ -8,7 +8,7 @@ import {
   type ProbeInterval,
   type RequestOutcomeSample,
   type RouteObservationIdentity,
-} from "../../src/operations/service-levels.ts";
+} from "../../src/operations/service-levels";
 
 // -- Real deployment identity (issue #30 candidate, build ee7313f) -----------
 const ORIGIN = "http://127.0.0.1:3300";

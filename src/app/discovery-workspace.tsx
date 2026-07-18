@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -517,7 +518,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       window.removeEventListener("popstate", restoreContextFromHistory);
   }, [result]);
 
-  function selectCandidateMarket(candidate: CandidateMarket) {
+  const selectCandidateMarket = useCallback((candidate: CandidateMarket) => {
     setSelectedCandidateCode(candidate.economy.code);
     const context = parseTradeAnalysisContext(window.location.href);
     if (context.recipe !== "candidate-market") {
@@ -528,7 +529,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       focusedMarketCode: candidate.economy.code,
     });
     window.history.pushState(null, "", url);
-  }
+  }, []);
 
   function toggleCandidateComparison(candidate: CandidateMarket) {
     setComparedCandidateCodes((current) =>
@@ -637,6 +638,10 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         </>
       )}
 
+      <div
+        className="analysis-output"
+        data-analyzing={status === "idle" ? "false" : "true"}
+      >
       {status === "loading" || status === "refreshing" ? (
         <div className="analysis-state analysis-loading" role="status">
           <span aria-hidden="true" />
@@ -673,39 +678,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               </div>
               <ol aria-label={messages.candidateList}>
                 {result.candidates.map((candidate) => (
-                  <li key={candidate.economy.code}>
-                    <button
-                      type="button"
-                      aria-pressed={
-                        candidate.economy.code === selectedCandidateCode
-                      }
-                      onClick={() => selectCandidateMarket(candidate)}
-                    >
-                      <span className="candidate-rank">#{candidate.rank}</span>
-                      <span>
-                        <strong>
-                          {candidateDisplayName(candidate, locale)}
-                        </strong>
-                        <small>
-                          BACI {candidate.economy.code} · {messages.confidence}:{" "}
-                          {localizedConfidence(
-                            candidate.confidence.label,
-                            locale,
-                          )}
-                        </small>
-                        <span
-                          className="candidate-score-bar"
-                          aria-hidden="true"
-                        >
-                          <span style={{ width: `${candidate.score}%` }} />
-                        </span>
-                      </span>
-                      <span className="candidate-score">
-                        {candidate.score}
-                        <small>/100</small>
-                      </span>
-                    </button>
-                  </li>
+                  <CandidateRankingRow
+                    key={candidate.economy.code}
+                    candidate={candidate}
+                    selected={candidate.economy.code === selectedCandidateCode}
+                    locale={locale}
+                    confidenceLabel={messages.confidence}
+                    onSelect={selectCandidateMarket}
+                  />
                 ))}
               </ol>
             </section>
@@ -778,11 +758,52 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           ) : null}
         </div>
       ) : null}
+      </div>
 
       <p className="workspace-disclaimer">{messages.disclaimer}</p>
     </section>
   );
 }
+
+const CandidateRankingRow = memo(function CandidateRankingRow({
+  candidate,
+  selected,
+  locale,
+  confidenceLabel,
+  onSelect,
+}: {
+  candidate: CandidateMarket;
+  selected: boolean;
+  locale: WorkspaceLocale;
+  confidenceLabel: string;
+  onSelect: (candidate: CandidateMarket) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={() => onSelect(candidate)}
+      >
+        <span className="candidate-rank">#{candidate.rank}</span>
+        <span>
+          <strong>{candidateDisplayName(candidate, locale)}</strong>
+          <small>
+            BACI {candidate.economy.code} · {confidenceLabel}:{" "}
+            {localizedConfidence(candidate.confidence.label, locale)}
+          </small>
+          <span className="candidate-score-bar" aria-hidden="true">
+            <span style={{ width: `${candidate.score}%` }} />
+          </span>
+        </span>
+        <span className="candidate-score">
+          {candidate.score}
+          <small>/100</small>
+        </span>
+      </button>
+    </li>
+  );
+});
 
 function analysisErrorStatus(
   status: number,

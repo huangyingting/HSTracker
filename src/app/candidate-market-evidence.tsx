@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { memo, useId, useMemo, useState } from "react";
 
 import type {
   CandidateMarket,
@@ -250,7 +250,10 @@ export function CandidateMarketEvidence({
   const messages = copy[locale];
   const scoreDetailsId = useId();
   const [scoreDetailsOpen, setScoreDetailsOpen] = useState(false);
-  const scoreInputs = buildScoreInputs(candidate, result, locale);
+  const scoreInputs = useMemo(
+    () => buildScoreInputs(candidate, result, locale),
+    [candidate, result, locale],
+  );
   const displayName = candidateDisplayName(candidate, locale);
   const finalizedYearCount =
     result.provenance.scoreWindow.end - result.provenance.scoreWindow.start + 1;
@@ -303,73 +306,7 @@ export function CandidateMarketEvidence({
         role="region"
         aria-label={messages.scoreDetails}
       >
-        <section className="formula-banner" aria-label={messages.formulaLabel}>
-          <div>
-            <p>{messages.formulaLabel}</p>
-            <strong>{messages.formula}</strong>
-          </div>
-          <span>{messages.rounding}</span>
-        </section>
-
-        <div className="score-inputs-wrap">
-          <table aria-label={messages.scoreInputs}>
-            <thead>
-              <tr>
-                <th scope="col">{messages.component}</th>
-                <th scope="col">{messages.rawEvidence}</th>
-                <th scope="col">{messages.state}</th>
-                <th scope="col">{messages.percentile}</th>
-                <th scope="col">{messages.weight}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scoreInputs.map((input) => (
-                <tr key={input.label} data-state={input.state}>
-                  <th scope="row">{input.label}</th>
-                  <td>
-                    <strong>{input.raw}</strong>
-                    <small>{input.period}</small>
-                    <small className="score-interpretation">
-                      {input.interpretation}
-                    </small>
-                  </td>
-                  <td>
-                    <span
-                      className={`evidence-state ${input.state.toLowerCase()}`}
-                    >
-                      {input.state === "COMPUTED"
-                        ? messages.computed
-                        : messages.neutral}
-                    </span>
-                  </td>
-                  <td
-                    aria-label={
-                      input.state === "NEUTRAL"
-                        ? messages.neutralStanding
-                        : `${messages.percentile} ${input.percentile}`
-                    }
-                  >
-                    {input.state === "NEUTRAL" ? (
-                      <strong>{messages.neutralStanding}</strong>
-                    ) : (
-                      <>
-                        <small>{messages.percentile}</small>{" "}
-                        <strong>{input.percentile}</strong>
-                        <small>{messages.observedCohort}</small>
-                      </>
-                    )}
-                  </td>
-                  <td>
-                    <strong>{input.weight}%</strong>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="score-audit-note">
-          {messages.hiddenPrecision} {messages.sharedRank}
-        </p>
+        <ScoreDetailRegion messages={messages} scoreInputs={scoreInputs} />
       </div>
 
       <section className="confidence-ledger" aria-label={messages.confidence}>
@@ -680,6 +617,88 @@ function ProvisionalEvidence({
     </section>
   );
 }
+
+type EvidenceMessages = (typeof copy)[EvidenceLocale];
+
+const ScoreDetailRegion = memo(function ScoreDetailRegion({
+  messages,
+  scoreInputs,
+}: {
+  messages: EvidenceMessages;
+  scoreInputs: readonly ScoreInput[];
+}) {
+  return (
+    <>
+      <section className="formula-banner" aria-label={messages.formulaLabel}>
+        <div>
+          <p>{messages.formulaLabel}</p>
+          <strong>{messages.formula}</strong>
+        </div>
+        <span>{messages.rounding}</span>
+      </section>
+
+      <div className="score-inputs-wrap">
+        <table aria-label={messages.scoreInputs}>
+          <thead>
+            <tr>
+              <th scope="col">{messages.component}</th>
+              <th scope="col">{messages.rawEvidence}</th>
+              <th scope="col">{messages.state}</th>
+              <th scope="col">{messages.percentile}</th>
+              <th scope="col">{messages.weight}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scoreInputs.map((input) => (
+              <tr key={input.label} data-state={input.state}>
+                <th scope="row">{input.label}</th>
+                <td>
+                  <strong>{input.raw}</strong>
+                  <small>{input.period}</small>
+                  <small className="score-interpretation">
+                    {input.interpretation}
+                  </small>
+                </td>
+                <td>
+                  <span
+                    className={`evidence-state ${input.state.toLowerCase()}`}
+                  >
+                    {input.state === "COMPUTED"
+                      ? messages.computed
+                      : messages.neutral}
+                  </span>
+                </td>
+                <td
+                  aria-label={
+                    input.state === "NEUTRAL"
+                      ? messages.neutralStanding
+                      : `${messages.percentile} ${input.percentile}`
+                  }
+                >
+                  {input.state === "NEUTRAL" ? (
+                    <strong>{messages.neutralStanding}</strong>
+                  ) : (
+                    <>
+                      <small>{messages.percentile}</small>{" "}
+                      <strong>{input.percentile}</strong>
+                      <small>{messages.observedCohort}</small>
+                    </>
+                  )}
+                </td>
+                <td>
+                  <strong>{input.weight}%</strong>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="score-audit-note">
+        {messages.hiddenPrecision} {messages.sharedRank}
+      </p>
+    </>
+  );
+});
 
 function buildScoreInputs(
   candidate: CandidateMarket,

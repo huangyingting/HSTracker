@@ -2354,8 +2354,18 @@ a {
   list-style: none;
 }
 
+.analysis-output[data-analyzing="true"] {
+  min-height: 100vh;
+}
+
+.workspace-loading {
+  min-height: 60vh;
+}
+
 .candidate-ranking li {
   border-bottom: 1px solid var(--line);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 79px;
 }
 
 .candidate-ranking li:last-child {

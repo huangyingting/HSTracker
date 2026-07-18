@@ -1286,7 +1286,9 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
       state: "visible",
     });
     const finishedAtMs = await this.page.evaluate(() => performance.now());
-    await this.page.waitForLoadState("networkidle", { timeout: 10_000 });
+    await this.page
+      .waitForLoadState("networkidle", { timeout: 10_000 })
+      .catch(() => {});
     await this.flushNetworkRecords();
     return {
       analyzeToCompleteListMs: finishedAtMs - startedAtMs,
@@ -1332,7 +1334,9 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   }
 
   async byteSummary(): Promise<BrowserLabByteSummary> {
-    await this.page.waitForLoadState("networkidle", { timeout: 10_000 });
+    await this.page
+      .waitForLoadState("networkidle", { timeout: 10_000 })
+      .catch(() => {});
     await this.flushNetworkRecords();
     const lcpWallClockMs = await this.page.evaluate(() => {
       const buffer = window.__hsTrackerBrowserLab;
