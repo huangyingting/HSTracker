@@ -239,6 +239,11 @@ responses, and logs.
   release recovery.
 - **Operational store:** for PostgreSQL, `pg_dump` the `hstracker` database from
   the `postgres` service; for SQLite, copy the `HS_TRACKER_OPERATIONAL_SQLITE_PATH`
-  file. Accounts, ledgers, and outbox rows live here.
+  file. Accounts, ledgers, and outbox rows live here. Both drivers strip ephemeral
+  leases/sessions from the copy so a restore is clean and unleased — the
+  PostgreSQL `backupPostgresSchema`/`restorePostgresSchema` helpers
+  (`src/operations/store/postgres-backup.ts`) wrap `pg_dump`/`pg_restore` and are
+  exercised by `tests/integration/operational-store-postgres-backup.test.ts`
+  against a locally-managed database.
 - **Serving volume:** no backup needed; it is rebuilt from the object store on
   the next startup.
