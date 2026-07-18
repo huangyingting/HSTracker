@@ -1120,6 +1120,26 @@ describe("mixed-load plan parsing", () => {
     ).toThrow(/at least 337 never-reused distinct analysis keys/u);
   });
 
+  it("accepts a candidate CSV template carrying the export envelope the CSV route requires", () => {
+    const input = acceptedMixedLoadPlanInput({
+      measurementClass: "candidate",
+      origin: "https://staging.example.com",
+      sustainedRequestsPerSecond: 4,
+      sustainedSeconds: 600,
+      burstRequestsPerSecond: 10,
+      burstSeconds: 30,
+      coordinatedBurstIntervalSeconds: 60,
+    });
+    input.routeTemplates.csv.pathTemplate =
+      `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/trade-explorer.csv?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}&freshnessStatusId=fresh-1&schema=trade-explorers-csv-v1`;
+
+    const plan = parseMixedLoadPlan(input);
+
+    expect(plan.routeTemplates.csv.pathTemplate).toContain(
+      "schema=trade-explorers-csv-v1",
+    );
+  });
+
   it("derives a larger key pool for more frequent coordinated bursts", () => {
     expect(() =>
       parseMixedLoadPlan(

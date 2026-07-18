@@ -1623,7 +1623,23 @@ function validateCandidateTradeExplorerTemplate(
     renderPathTemplate(template.pathTemplate, marker),
   );
   const expectedSuffix = exportCsv ? "/trade-explorer.csv" : "/trade-explorer";
-  const query = decodeTradeExplorerQuery(requestUrl.searchParams);
+  // The Trade Explorer CSV export route legitimately requires the
+  // freshnessStatusId/schema export envelope that its JSON sibling does not.
+  // Those envelope parameters are transport concerns, not part of the semantic
+  // query the artifact attests, so strip them (exactly as the CSV route and the
+  // origin-benchmark attestation matcher do) before decoding the attested
+  // query. Any other unrecognized parameter still fails the decode below.
+  const codecParameters = new URLSearchParams();
+  for (const [key, value] of requestUrl.searchParams) {
+    if (
+      exportCsv &&
+      (TRADE_EXPLORER_EXPORT_ENVELOPE as readonly string[]).includes(key)
+    ) {
+      continue;
+    }
+    codecParameters.append(key, value);
+  }
+  const query = decodeTradeExplorerQuery(codecParameters);
   if (
     !requestUrl.pathname.startsWith("/api/v1/analyses/") ||
     !requestUrl.pathname.endsWith(expectedSuffix) ||
