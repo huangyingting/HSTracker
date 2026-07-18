@@ -1,4 +1,4 @@
-import { memo, useId, useMemo, useState } from "react";
+import { memo, useDeferredValue, useId, useMemo, useState } from "react";
 
 import type {
   CandidateMarket,
@@ -250,6 +250,12 @@ export function CandidateMarketEvidence({
   const messages = copy[locale];
   const scoreDetailsId = useId();
   const [scoreDetailsOpen, setScoreDetailsOpen] = useState(false);
+  // The score-inputs table is only laid out when the disclosure opens (mobile
+  // collapses it to display:none). Drive the region's open state from a
+  // deferred value so the click paints the toggle's expanded state urgently
+  // while the table reveal renders off the interaction's frame, keeping
+  // interaction-to-next-paint low without changing the disclosed content.
+  const deferredScoreDetailsOpen = useDeferredValue(scoreDetailsOpen);
   const scoreInputs = useMemo(
     () => buildScoreInputs(candidate, result, locale),
     [candidate, result, locale],
@@ -302,7 +308,7 @@ export function CandidateMarketEvidence({
       <div
         id={scoreDetailsId}
         className="score-details"
-        data-open={scoreDetailsOpen}
+        data-open={deferredScoreDetailsOpen}
         role="region"
         aria-label={messages.scoreDetails}
       >
