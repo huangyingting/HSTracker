@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "promotion-candidate-config-v1",
+  "note": "Real-data local single-host (ADR-0004) candidate identity for the issue #30 promotion report. Unlike promotion-candidate.local.json (which anchors every gate to the deterministic acceptance-fixture candidate on https://127.0.0.1:3443), this config describes the real production container the harness measures the data-plane gates against: build ee7313f serving the real V202601 candidate-market artifact ca688ed1 + product-search catalog aa1f4027, whose /healthz and /api/v1/analyses/current attest the nine live fields below. A fixture-anchored report can never accept target-load because the acceptance fixture exposes only ~41 products while the candidate mixed-load gate requires 337 distinct trade-explorer-200 keys, so the data-plane gates must run against the real catalog. fixtureManifestSha256 stays pinned to ACCEPTANCE_FIXTURE_CONTENT_SHA256: it attests the deterministic contract gates (source-and-domain, coalescing-and-capacity, http-cache-and-deadlines, recurring-cost) that are measured in-process against the acceptance fixture regardless of the candidate's real analysis build.",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "ee7313fa69a527bf39661cab81e3f8bbf39f5e55",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-bootstrap-v1-63f9ffecd009b520",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "toolVersions": {
+    "node": "24.17.0",
+    "npm": "11.13.0",
+    "next": "16.2.10",
+    "duckdb": "1.5.4-r.1",
+    "playwright": "1.61.1"
+  }
+}
