@@ -40,16 +40,16 @@
     },
     "analysis": {
       "method": "GET",
-      "pathTemplate": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/trade-explorer?shape=finalized-trend-v1&measures=TRADE_VALUE_USD,RECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}"
+      "pathTemplate": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/trade-explorer?shape=finalized-trend-v1&measures=TRADE_VALUE_USD,RECORDED_FLOW_COUNT&exportEconomy=894&importEconomy=858&hsProduct={analysisKey}"
     },
     "csv": {
       "method": "GET",
-      "pathTemplate": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/trade-explorer.csv?shape=finalized-trend-v1&measures=TRADE_VALUE_USD,RECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}&freshnessStatusId=freshness%3Asource-status-bootstrap-v1-63f9ffecd009b520%3ALATEST_KNOWN%3A2026-07-16T10%253A00%253A00Z%3Ab75326b4455fd47841365208102c6ba4043fca51bc02d1102d89b2afc025d429&schema=trade-explorers-csv-v1"
+      "pathTemplate": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/trade-explorer.csv?shape=finalized-trend-v1&measures=TRADE_VALUE_USD,RECORDED_FLOW_COUNT&exportEconomy=894&importEconomy=858&hsProduct={analysisKey}&freshnessStatusId=freshness%3Asource-status-bootstrap-v1-63f9ffecd009b520%3ALATEST_KNOWN%3A2026-07-16T10%253A00%253A00Z%3Ab75326b4455fd47841365208102c6ba4043fca51bc02d1102d89b2afc025d429&schema=trade-explorers-csv-v1"
     }
   },
   "analysisHotKeys": [
-    "271019",
-    "870323"
+    "060220",
+    "060230"
   ],
   "analysisDistinctKeys": [
     "010121",
@@ -391,7 +391,7 @@
     "060110",
     "060120",
     "060210",
-    "851712"
+    "240120"
   ],
-  "maximumRowAnalysisKey": "851712"
+  "maximumRowAnalysisKey": "240120"
 }
