@@ -12,6 +12,14 @@ import type { PromotionEvidenceStatus } from "../../src/promotion/promotion-repo
 const REPO_ROOT = process.cwd();
 const DEFAULT_REPORT = "reports/promotion/candidate/origin-report.json";
 const DEFAULT_OUT_DIR = "reports/promotion/candidate/checks";
+const DEFAULT_TRADE_EXPLORER =
+  "reports/promotion/candidate/evidence/trade-explorer-measurement.json";
+
+const TRADE_EXPLORER_STATUSES: ReadonlySet<string> = new Set([
+  "accepted",
+  "review-required",
+  "blocked",
+]);
 
 class OriginMeasurementError extends Error {
   constructor(
@@ -41,12 +49,15 @@ async function main(): Promise<void> {
     options: {
       report: { type: "string" },
       "out-dir": { type: "string" },
+      "trade-explorer": { type: "string" },
     },
     strict: true,
     allowPositionals: false,
   });
   const reportPath = values.report ?? DEFAULT_REPORT;
   const outDir = values["out-dir"] ?? DEFAULT_OUT_DIR;
+  const tradeExplorerPath =
+    values["trade-explorer"] ?? DEFAULT_TRADE_EXPLORER;
 
   const reportBytes = await readFile(join(REPO_ROOT, reportPath));
   const report = object(
@@ -101,6 +112,11 @@ async function main(): Promise<void> {
         ? "review-required"
         : "blocked";
 
+  // trade-explorer-budgets: consume the genuine in-process trade-explorer
+  // resource + cancellation measurement, when present, and adopt its verdict.
+  // Absent that evidence, the check honestly remains review-required.
+  const tradeExplorer = await readTradeExplorerMeasurement(tradeExplorerPath);
+
   const checkSet = {
     schemaVersion: "gate-checks-v1",
     gate: "origin-benchmarks",
@@ -129,12 +145,11 @@ async function main(): Promise<void> {
       },
       {
         // The trade-explorer resource budget (peak memory/spill, cancellation
-        // release, cache/queue un-poisoning) is not observable from the origin
-        // latency benchmark and requires the in-process trade-explorer harness.
+        // release, cache/queue un-poisoning) is measured in-process by the
+        // trade-explorer harness; its genuine verdict is adopted here.
         name: "trade-explorer-budgets",
-        status: "review-required" as PromotionEvidenceStatus,
-        detail:
-          "Pending the in-process trade-explorer resource harness (peak memory/spill, cancellation, cache/queue integrity).",
+        status: tradeExplorer.status,
+        detail: tradeExplorer.detail,
       },
     ],
     additionalRetainedLogs: [
@@ -142,6 +157,9 @@ async function main(): Promise<void> {
         path: reportPath,
         sha256: sha256(reportBytes),
       },
+      ...(tradeExplorer.retainedLog === null
+        ? []
+        : [tradeExplorer.retainedLog]),
     ],
   };
 
@@ -157,7 +175,7 @@ async function main(): Promise<void> {
         out: outPath,
         representativeFixtures: representativeStatus,
         originThresholds: originThresholdsStatus,
-        tradeExplorerBudgets: "review-required",
+        tradeExplorerBudgets: tradeExplorer.status,
         benchmarkCount: evaluation?.benchmarkCount ?? null,
       },
       null,
@@ -166,8 +184,60 @@ async function main(): Promise<void> {
   );
 }
 
-function utcOrNow(value: unknown): string {
-  if (
+interface TradeExplorerVerdict {
+  status: PromotionEvidenceStatus;
+  detail: string;
+  retainedLog: { path: string; sha256: string } | null;
+}
+
+async function readTradeExplorerMeasurement(
+  path: string,
+): Promise<TradeExplorerVerdict> {
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(join(REPO_ROOT, path));
+  } catch {
+    return {
+      status: "review-required",
+      detail:
+        "Pending the in-process trade-explorer resource harness (run promotion:measure-trade-explorer).",
+      retainedLog: null,
+    };
+  }
+  const measurement = object(
+    parseJson(bytes, `trade-explorer measurement ${path}`),
+    "trade-explorer measurement",
+  );
+  if (measurement.schemaVersion !== "trade-explorer-measurement-v1") {
+    throw new OriginMeasurementError(
+      "TRADE_EXPLORER_MEASUREMENT_INVALID",
+      "Trade-explorer measurement has an unexpected schema version.",
+    );
+  }
+  const status = measurement.status;
+  if (typeof status !== "string" || !TRADE_EXPLORER_STATUSES.has(status)) {
+    throw new OriginMeasurementError(
+      "TRADE_EXPLORER_MEASUREMENT_INVALID",
+      "Trade-explorer measurement is missing a valid status.",
+    );
+  }
+  const reasons = Array.isArray(measurement.reasons)
+    ? (measurement.reasons as unknown[]).filter(
+        (reason): reason is string => typeof reason === "string",
+      )
+    : [];
+  const detail =
+    status === "accepted"
+      ? "In-process trade-explorer harness accepted: resource budgets, cancellation release, and cache/queue integrity all within limits."
+      : `In-process trade-explorer harness ${status}: ${reasons.length > 0 ? reasons.join("; ") : "see retained measurement."}`;
+  return {
+    status: status as PromotionEvidenceStatus,
+    detail,
+    retainedLog: { path, sha256: sha256(bytes) },
+  };
+}
+
+function utcOrNow(value: unknown): string {  if (
     typeof value === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value) &&
     !Number.isNaN(Date.parse(value))

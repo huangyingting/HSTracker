@@ -472,7 +472,7 @@ const TRADE_EXPLORER_LIMITS = {
   cancellationReleaseMs: 5_000,
 } as const;
 
-function evaluateTradeExplorer(input: TradeExplorerMeasurementInput) {
+export function evaluateTradeExplorer(input: TradeExplorerMeasurementInput) {
   const queries = REQUIRED_PRODUCT_ROLES.map((productRole) => {
     const candidates = input.queries.filter(
       (query) => query.productRole === productRole,
