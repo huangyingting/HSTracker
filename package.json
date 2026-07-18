@@ -31,6 +31,8 @@
     "promotion:mixed-load": "tsx scripts/promotion/run-mixed-load.ts",
     "promotion:performance": "tsx scripts/promotion/run-performance-candidate.ts",
     "promotion:check": "tsx scripts/promotion/check-promotion.ts",
+    "promotion:build-input": "tsx scripts/promotion/build-promotion-input.ts",
+    "promotion:measure-recurring-cost": "tsx scripts/promotion/measure-recurring-cost.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "next typegen && tsc --noEmit",

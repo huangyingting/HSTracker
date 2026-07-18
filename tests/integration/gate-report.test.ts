@@ -8,6 +8,7 @@ import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptanc
 import {
   buildGate,
   buildPromotionInput,
+  reviewRequiredChecks,
   type GateCheckResult,
 } from "../../src/promotion/gate-report";
 import { loadPromotionEvaluation } from "../../src/promotion/promotion-acceptance";
@@ -127,5 +128,12 @@ describe("promotion gate-report builder", () => {
         sampleCount: 100,
       }),
     ).toThrow(/monthly-cost/u);
+  });
+
+  it("blocks the promotion when a gate is left at its not-yet-measured default", async () => {
+    const { report } = await assembleAndEvaluate({
+      "lifecycle-and-recovery": reviewRequiredChecks("lifecycle-and-recovery"),
+    });
+    expect(report.status).toBe("blocked");
   });
 });

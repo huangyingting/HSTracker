@@ -61,6 +61,24 @@ export function deriveGateStatus(
   return "accepted";
 }
 
+/**
+ * The honest default check set for a gate that has not yet been measured: every
+ * required check is review-required. A promotion assembled with any such gate is
+ * blocked, so a not-yet-built drill can never masquerade as passing evidence.
+ */
+export function reviewRequiredChecks(
+  gate: PromotionGateId,
+): GateCheckResult[] {
+  const requiredChecks = PROMOTION_GATE_REQUIRED_CHECKS[gate];
+  if (requiredChecks === undefined) {
+    throw new GateReportError(`Unsupported promotion gate ${gate}.`);
+  }
+  return requiredChecks.map((name) => ({
+    name,
+    status: "review-required" as const,
+  }));
+}
+
 export type BuildGateInput = {
   readonly gate: PromotionGateId;
   readonly identity: PromotionIdentity;

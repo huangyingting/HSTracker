@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "promotion-candidate-config-v1",
+  "note": "Stable identity and tool versions for assembling the local single-host (ADR-0004) candidate promotion input. The nine attested fields must match the running candidate's /healthz and /api/v1/analyses/current responses; deploymentPairingId and sourceStatusSnapshotId identify the local deployment pairing and are assigned by the operator.",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "issue-30-candidate",
+    "baciRelease": "V202601",
+    "analysisBuildId": "acceptance-fixtures-v1",
+    "productSearchBuildId": "acceptance-product-search-v3",
+    "artifactSha256": "038d741a864b684e52a50789f9790a19950b451a68c8b407158abe05e27f4b54",
+    "deploymentPairingId": "deployment-issue-30-candidate",
+    "sourceStatusSnapshotId": "source-status-issue-30-candidate",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "toolVersions": {
+    "node": "24.17.0",
+    "npm": "11.13.0",
+    "next": "16.2.10",
+    "duckdb": "1.5.4-r.1",
+    "playwright": "1.61.1"
+  }
+}
