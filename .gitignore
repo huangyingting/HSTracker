@@ -44,3 +44,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.local-tls/
+
+# Local promotion candidate working evidence (regenerable via scripts/promotion)
+reports/promotion/candidate/

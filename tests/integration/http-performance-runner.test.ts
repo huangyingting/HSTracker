@@ -426,6 +426,42 @@ describe("runOriginBenchmark", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("accepts Trade Explorer CSV requests that carry the export envelope the CSV route requires", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const envelope = "&freshnessStatusId=fresh-1&schema=trade-explorers-csv-v1";
+    for (const request of input.requests) {
+      if (
+        typeof request.operation === "string" &&
+        request.operation.startsWith("trade-explorer-csv")
+      ) {
+        request.request.path += envelope;
+        for (const sample of request.sampleRequests ?? []) {
+          sample.request.path += envelope;
+        }
+      }
+    }
+    const plan = parseOriginBenchmarkPlan(input);
+    const report = await runOriginBenchmark(
+      plan,
+      fakeExecutor([], () => ({
+        timedOut: false,
+        status: 200,
+        ttfbMs: 1,
+        totalMs: 1,
+        body: Buffer.from("ok"),
+        header: () => "release-42",
+      })),
+      originRunnerDependencies(),
+    );
+
+    const csvUncached = report.originBenchmarks.find(
+      (benchmark) =>
+        benchmark.operation === "trade-explorer-csv-uncached" &&
+        benchmark.productRole === "maximum-row",
+    );
+    expect(csvUncached).toBeDefined();
+  });
+
   it("uses a never-repeated request target for every uncached warmup and timed sample", async () => {
     const plan = parseOriginBenchmarkPlan(acceptedPlanInput());
     const calls: HttpBenchmarkRequest[] = [];

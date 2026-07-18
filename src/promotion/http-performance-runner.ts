@@ -354,6 +354,14 @@ const UNCACHED_OPERATIONS = [
 const CACHE_STATE_HIT = "hit";
 const CACHE_STATE_MISS = "miss";
 
+// Export-envelope parameters the Trade Explorer CSV route requires but that are
+// not part of the semantic query the deployed artifact attests. The attestation
+// matcher strips these before decoding, mirroring the CSV route's own handling.
+const TRADE_EXPLORER_EXPORT_ENVELOPE = [
+  "freshnessStatusId",
+  "schema",
+] as const;
+
 const PRODUCT_ROLES = [
   "sparse",
   "median",
@@ -954,7 +962,19 @@ function assertTradeExplorerRequestMatchesBenchmark(
   label: string,
 ): void {
   const requestUrl = resolveRequestUrl(origin, request.path);
-  const query = decodeTradeExplorerQuery(requestUrl.searchParams);
+  // The Trade Explorer CSV export route legitimately requires the
+  // freshnessStatusId/schema export envelope that its JSON sibling does not.
+  // Those envelope parameters are transport concerns, not part of the
+  // semantic query the artifact attests, so strip them (exactly as the CSV
+  // route does) before decoding the attested query. Any other unrecognized
+  // parameter still fails the decode and is rejected below.
+  const codecParameters = new URLSearchParams();
+  for (const [key, value] of requestUrl.searchParams) {
+    if (!(TRADE_EXPLORER_EXPORT_ENVELOPE as readonly string[]).includes(key)) {
+      codecParameters.append(key, value);
+    }
+  }
+  const query = decodeTradeExplorerQuery(codecParameters);
   if (
     query === null ||
     query.shape !== benchmark.shape ||
