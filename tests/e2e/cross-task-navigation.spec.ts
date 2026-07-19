@@ -10,6 +10,31 @@ async function analyzeCandidateMarket(page: import("@playwright/test").Page) {
   ).toHaveCount(13);
 }
 
+test("a direct non-default task link hydrates without a server/client mismatch", async ({
+  page,
+}) => {
+  const hydrationErrors: string[] = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      /hydration|hydrated|Minified React error #418/iu.test(message.text())
+    ) {
+      hydrationErrors.push(message.text());
+    }
+  });
+
+  await page.goto("/?recipe=trade-trend-v1");
+
+  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  await expect(
+    page.getByRole("combobox", { name: "Importing economy" }),
+  ).toBeVisible();
+  await expect(
+    tasks.getByRole("button", { name: /Trade Trend/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(hydrationErrors).toEqual([]);
+});
+
 test("Candidate Market's cross-task links live outside the locked ranking list and are keyboard-accessible", async ({
   page,
 }) => {
