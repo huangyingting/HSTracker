@@ -10,18 +10,44 @@ async function analyzeCandidateMarket(page: import("@playwright/test").Page) {
   ).toHaveCount(13);
 }
 
+test("a direct task link renders the matching server snapshot before hydration", async ({
+  baseURL,
+  browser,
+}) => {
+  const serverOnlyPage = await browser.newPage({
+    baseURL,
+    javaScriptEnabled: false,
+  });
+
+  await serverOnlyPage.goto("/?recipe=trade-trend-v1");
+
+  const tasks = serverOnlyPage.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
+  await expect(
+    tasks.getByRole("button", { name: /Trade Trend/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    serverOnlyPage.getByRole("heading", { name: "Inspect annual import evidence." }),
+  ).toBeVisible();
+  await serverOnlyPage.close();
+});
+
 test("a direct non-default task link hydrates without a server/client mismatch", async ({
   page,
 }) => {
   const hydrationErrors: string[] = [];
+  const recordHydrationError = (message: string) => {
+    if (/hydration|hydrated|Minified React error #418/iu.test(message)) {
+      hydrationErrors.push(message);
+    }
+  };
   page.on("console", (message) => {
-    if (
-      message.type() === "error" &&
-      /hydration|hydrated|Minified React error #418/iu.test(message.text())
-    ) {
-      hydrationErrors.push(message.text());
+    if (message.type() === "error") {
+      recordHydrationError(message.text());
     }
   });
+  page.on("pageerror", (error) => recordHydrationError(error.message));
 
   await page.goto("/?recipe=trade-trend-v1");
 
@@ -29,10 +55,10 @@ test("a direct non-default task link hydrates without a server/client mismatch",
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toBeVisible();
+  expect(hydrationErrors).toEqual([]);
   await expect(
     tasks.getByRole("button", { name: /Trade Trend/ }),
   ).toHaveAttribute("aria-pressed", "true");
-  expect(hydrationErrors).toEqual([]);
 });
 
 test("Candidate Market's cross-task links live outside the locked ranking list and are keyboard-accessible", async ({

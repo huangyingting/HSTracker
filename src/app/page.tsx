@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import { AccountWorkspace } from "./account-workspace";
 import { AnalysisTaskHome } from "./analysis-task-home";
@@ -90,16 +90,33 @@ const copy = {
 } as const;
 
 type Locale = keyof typeof copy;
+type PageSearchParams = Record<string, string | string[] | undefined>;
 
 function localeFromLocation(): Locale {
-  if (typeof window === "undefined") {
-    return "en";
-  }
   return parseTradeAnalysisContext(window.location.href).locale;
 }
 
-export default function Home() {
-  const [locale, setLocale] = useState<Locale>(() => localeFromLocation());
+function contextFromSearchParams(searchParams: PageSearchParams) {
+  const parameters = new URLSearchParams();
+  for (const [name, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        parameters.append(name, item);
+      }
+    } else if (value !== undefined) {
+      parameters.set(name, value);
+    }
+  }
+  return parseTradeAnalysisContext(`/?${parameters.toString()}`);
+}
+
+export default function Home({
+  searchParams,
+}: {
+  searchParams: Promise<PageSearchParams>;
+}) {
+  const initialContext = contextFromSearchParams(use(searchParams));
+  const [locale, setLocale] = useState<Locale>(initialContext.locale);
   const [signedIn, setSignedIn] = useState(false);
   const messages = copy[locale];
 
@@ -221,7 +238,9 @@ export default function Home() {
         onAnonymousFallback={() => setSignedIn(false)}
       />
 
-      {signedIn ? null : <AnalysisTaskHome locale={locale} />}
+      {signedIn ? null : (
+        <AnalysisTaskHome initialTask={initialContext.recipe} locale={locale} />
+      )}
 
       <section className="reading-guide" aria-labelledby="guide-title">
         <div className="guide-heading">

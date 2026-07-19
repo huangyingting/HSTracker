@@ -91,8 +91,14 @@ type AnalysisTask =
   | "supplier-competition"
   | "trade-explorer";
 
-export function AnalysisTaskHome({ locale }: { locale: Locale }) {
-  const [task, setTask] = useState<AnalysisTask>(() => taskFromLocation());
+export function AnalysisTaskHome({
+  initialTask,
+  locale,
+}: {
+  initialTask: AnalysisTask;
+  locale: Locale;
+}) {
+  const [task, setTask] = useState<AnalysisTask>(initialTask);
   const messages = copy[locale];
 
   useEffect(() => {
@@ -185,8 +191,5 @@ export function AnalysisTaskHome({ locale }: { locale: Locale }) {
 }
 
 function taskFromLocation(): AnalysisTask {
-  if (typeof window === "undefined") {
-    return "opportunity-discovery";
-  }
   return parseTradeAnalysisContext(window.location.href).recipe;
 }
