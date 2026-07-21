@@ -8,6 +8,10 @@ HS Tracker helps export-oriented businesses interpret public international merch
 A person at an export-oriented business who evaluates foreign markets for a product and decides where deeper commercial investigation is warranted.
 _Avoid_: Generic user, trader, researcher
 
+**Export Market Workspace**:
+The HS Tracker product experience in which an Export Market Analyst defines scope, discovers Candidate Markets, analyzes one selected market, inspects advanced public evidence, and identifies the commercial validation work that remains. Its structure is made of stable product capabilities, not Analysis Recipe names or a catalog of analyst questions.
+_Avoid_: Recipe chooser, question router, report builder, generic analytics portal
+
 **Candidate Market**:
 An importing economy whose public trade indicators signal that it is worth deeper commercial investigation for a specific export economy and HS product. It is evidence for investigation, not a prediction of profit or sales success.
 _Avoid_: Trade opportunity, guaranteed opportunity, recommended investment
@@ -75,6 +79,10 @@ _Avoid_: Live status, real-time data, data age
 **Candidate Market Context**:
 The source release, analysis build, selected export economy, HS product identity, and one Candidate Market that together identify the scope for adjacent evidence. It identifies an analytical context, not a buyer-supplier relationship.
 _Avoid_: Trade lane customer, company market, buyer market
+
+**Market Analysis**:
+A product-level evidence view for one Candidate Market Context that brings together opportunity standing, recorded demand, exporter position, supplier landscape, evidence quality, adjacent Recent Trade Momentum, advanced evidence paths, and a commercial Validation Plan while keeping every constituent analysis and source identity explicit. It is not a new score, composite Analysis Identity, forecast, recommendation, or company report.
+_Avoid_: Question brief, opportunity report, market recommendation, composite analysis, buyer report
 
 **Analysis Recipe**:
 A fixed, versioned analytical method that defines its semantic inputs, required evidence, interpretation rules, and result meaning. Changing its formula, window, missingness treatment, quality rules, or ordering creates a new version.
