@@ -24,31 +24,13 @@ async function expectMexicoHorseCandidate(page: Page) {
     name: "Market Investigation Candidates",
   });
   const mexico = list
-    .getByRole("button")
+    .getByRole("listitem")
     .filter({ hasText: "Mexico" })
     .filter({ hasText: "010121" });
   await expect(mexico).toContainText("Horses: live, pure-bred breeding animals");
-  await expect(mexico).toContainText("Confidence: HIGH");
-  await expect(mexico).toContainText("73");
-
-  const detail = page.getByRole("region", {
-    name: "Selected Market Investigation Candidate detail",
-  });
-  await expect(detail.getByRole("heading", { name: "Mexico" })).toBeVisible();
-  await expect(detail).toContainText("HS 2012 · 010121 · BACI 484");
-  await expect(detail).toContainText("Unvalidated Market Gap");
-  await expect(detail).toContainText(
-    "Large, attractive market with little or no recorded flow from this exporter — investigate why.",
-  );
-  await expect(detail).toContainText(
-    "No recorded bilateral flow from this exporter in the five-year score window",
-  );
-  await expect(detail).toContainText("Investigation Priority");
-  await expect(detail).toContainText("73/100");
-  await expect(detail).toContainText("Market Attractiveness");
-  await expect(detail).toContainText("88/100");
-  await expect(detail).toContainText("Exporter Fit");
-  await expect(detail).toContainText("55/100");
+  await expect(mexico).toContainText("Data Confidence: HIGH");
+  await expect(mexico).toContainText("Investigation Priority 73");
+  await expect(mexico.getByRole("link")).toHaveCount(1);
 }
 
 test("all-product browse, product discovery, and known-product links reach the same canonical row values", async ({
@@ -59,7 +41,7 @@ test("all-product browse, product discovery, and known-product links reach the s
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
-      .getByRole("button"),
+      .getByRole("listitem"),
   ).toHaveCount(4);
   await expectMexicoHorseCandidate(page);
 
@@ -72,7 +54,7 @@ test("all-product browse, product discovery, and known-product links reach the s
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
-      .getByRole("button"),
+      .getByRole("listitem"),
   ).toHaveCount(2);
   await expectMexicoHorseCandidate(page);
 
@@ -89,6 +71,12 @@ test("opportunity copy is honest and context survives filter, history, copied li
   page,
   browser,
 }) => {
+  let opportunityRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/opportunities?")) {
+      opportunityRequests += 1;
+    }
+  });
   await page.goto(OPPORTUNITY_PRODUCT_URL);
   await expectMexicoHorseCandidate(page);
 
@@ -120,7 +108,7 @@ test("opportunity copy is honest and context survives filter, history, copied li
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
-      .getByRole("button"),
+      .getByRole("listitem"),
   ).toHaveCount(4);
   const allProductUrl = page.url();
   expect(allProductUrl).not.toContain("products=");
@@ -130,7 +118,7 @@ test("opportunity copy is honest and context survives filter, history, copied li
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
-      .getByRole("button"),
+      .getByRole("listitem"),
   ).toHaveCount(2);
 
   await page.goForward();
@@ -138,9 +126,10 @@ test("opportunity copy is honest and context survives filter, history, copied li
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
-      .getByRole("button"),
+      .getByRole("listitem"),
   ).toHaveCount(4);
 
+  const requestsBeforeLocale = opportunityRequests;
   await page.getByRole("button", { name: "简体中文" }).click();
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1&locale=zh-Hans&exporter=156.*build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
@@ -148,8 +137,9 @@ test("opportunity copy is honest and context survives filter, history, copied li
   await expect(
     page
       .getByRole("list", { name: "市场调查候选项" })
-      .getByRole("button"),
+      .getByRole("listitem"),
   ).toHaveCount(4);
+  expect(opportunityRequests).toBe(requestsBeforeLocale);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const hasHorizontalOverflow = await page.evaluate(
@@ -158,7 +148,7 @@ test("opportunity copy is honest and context survives filter, history, copied li
   expect(hasHorizontalOverflow).toBe(false);
 });
 
-test("opportunity refresh and adjacent links preserve canonical analytical identity", async ({
+test("opportunity refresh and explicit Market Analysis links preserve canonical analytical identity", async ({
   page,
 }) => {
   let opportunityRequests = 0;
@@ -191,47 +181,24 @@ test("opportunity refresh and adjacent links preserve canonical analytical ident
   await expectMexicoHorseCandidate(page);
   expect(opportunityRequests).toBe(2);
 
-  const adjacent = page.getByRole("navigation", { name: "Adjacent evidence" });
-  await expect(
-    adjacent.getByRole("link", { name: "Open Candidate Market drill-down" }),
-  ).toHaveAttribute(
-    "href",
-    "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=484",
-  );
-  await expect(
-    adjacent.getByRole("link", { name: "Open Trade Trend evidence" }),
-  ).toHaveAttribute(
-    "href",
-    "/?recipe=trade-trend-v1&importer=484&revision=HS12&product=010121",
-  );
-  await expect(
-    adjacent.getByRole("link", { name: "Open Supplier Competition evidence" }),
-  ).toHaveAttribute(
-    "href",
-    "/?recipe=supplier-competition-v1&importer=484&revision=HS12&product=010121",
-  );
-  await expect(
-    adjacent.getByRole("link", { name: "Open Trade Explorer setup" }),
-  ).toHaveAttribute(
-    "href",
-    "/?recipe=trade-explorer-v1&exportEconomy=156&hsProduct=010121",
-  );
-
-  await adjacent
-    .getByRole("link", { name: "Open Candidate Market drill-down" })
+  await page
+    .getByRole("list", { name: "Market Investigation Candidates" })
+    .getByRole("listitem")
+    .filter({ hasText: "Mexico" })
+    .filter({ hasText: "010121" })
+    .getByRole("link", { name: "Analyze this market" })
     .click();
-  await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
-  ).toHaveCount(13);
-  await expect(
-    page
-      .getByRole("region", { name: "Selected Candidate Market evidence" })
-      .getByRole("heading", { name: "Mexico" }),
-  ).toBeVisible();
-
-  await page.goto(
-    "/?recipe=trade-trend-v1&importer=484&revision=HS12&product=010121",
+  const analysis = page.getByRole("region", {
+    name: "Mexico · Market Analysis",
+  });
+  const tradeTrend = analysis.locator("#demand").getByRole("link", {
+    name: "Open Trade Trend for this market",
+  });
+  await expect(tradeTrend).toHaveAttribute(
+    "href",
+    /recipe=trade-trend-v1.*importer=484.*product=010121.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
+  await tradeTrend.click();
   await expect(
     page.getByRole("table", { name: "Five Finalized Years" }),
   ).toBeVisible();

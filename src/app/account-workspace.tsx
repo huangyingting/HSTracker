@@ -34,19 +34,27 @@ import {
 } from "./portfolio-projection";
 import { loadMarketInvestigationPage } from "./opportunity-discovery-client";
 import {
+  candidateMarketAnalysisHref,
   openMarketAnalysis,
   readOpportunityReturnState,
   restoreOpportunityPosition,
+  shouldHandleMarketAnalysisClick,
 } from "./market-analysis-navigation";
+import {
+  appendOpportunityPage,
+  validateOpportunityPageIdentity,
+} from "./opportunity-feed-pages";
+import {
+  marketAnalysisActionLabel,
+  opportunityTypeLabel,
+} from "./opportunity-row-presentation";
 import { ProductCombobox } from "./product-combobox";
 import {
   parseTradeAnalysisContext,
   pinFromDeploymentWindow,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
-  withLocale,
   withRecipe,
-  type CandidateMarketContext,
   type OpportunityDiscoveryContext,
 } from "./trade-analysis-context";
 
@@ -94,7 +102,6 @@ const copy = {
     canonicalRank: "Canonical public rank",
     filterLabel: "Your portfolio filter",
     listLabel: "Portfolio Opportunity Candidates",
-    selectedDetail: "Selected portfolio candidate detail",
     investigationPriority: "Investigation Priority",
     marketAttractiveness: "Market Attractiveness",
     exporterFit: "Exporter Fit",
@@ -158,7 +165,6 @@ const copy = {
     canonicalRank: "公共规范排名",
     filterLabel: "您的组合筛选",
     listLabel: "组合机会候选项",
-    selectedDetail: "所选组合候选项详情",
     investigationPriority: "调查优先级",
     marketAttractiveness: "市场吸引力",
     exporterFit: "出口方匹配度",
@@ -490,11 +496,11 @@ function SignedInPortfolioWorkspace({
   const [portfolioProduct, setPortfolioProduct] =
     useState<ProductSearchProduct | null>(null);
   const [productControlKey, setProductControlKey] = useState(0);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const currentController = useRef<AbortController | null>(null);
   const feedController = useRef<AbortController | null>(null);
   const portfolioRef = useRef(session.portfolio);
   const modeRef = useRef(mode);
+  const loadedPageCountRef = useRef(0);
 
   useEffect(() => {
     portfolioRef.current = session.portfolio;
@@ -520,7 +526,7 @@ function SignedInPortfolioWorkspace({
         setManifest(nextManifest);
         const locationContext = parseTradeAnalysisContext(window.location.href);
         const baseContext = withRecipe(
-          withLocale(locationContext, locale),
+          locationContext,
           "opportunity-discovery",
         );
         if (baseContext.recipe !== "opportunity-discovery") {
@@ -534,17 +540,31 @@ function SignedInPortfolioWorkspace({
                 locationContext.pin.analysisBuildId,
                 "opportunity-discovery",
               );
-        if (locationContext.pin !== null && translatedPin === null) {
+        if (
+          !revalidate &&
+          locationContext.pin !== null &&
+          translatedPin === null
+        ) {
           setStatus("stale");
           return;
         }
+        const requestedPinState =
+          translatedPin === null
+            ? locationContext.pin === null
+              ? "current"
+              : "retired"
+            : resolvePinnedContext(
+                translatedPin,
+                nextManifest,
+                "opportunity-discovery",
+              ).state;
         const context: OpportunityDiscoveryContext = {
           ...baseContext,
-          pin: translatedPin,
+          pin: revalidate ? null : translatedPin,
         };
         if (portfolioRef.current.length === 0) {
           setFeed(null);
-          setSelectedKey(null);
+          loadedPageCountRef.current = 0;
           setStatus("empty");
           return;
         }
@@ -563,7 +583,7 @@ function SignedInPortfolioWorkspace({
             : nextManifest.analysisBuildId;
         const feedRequest = new AbortController();
         feedController.current = feedRequest;
-        const page = await loadMarketInvestigationPage({
+        let page = await loadMarketInvestigationPage({
           analysisBuildId,
           exporterCode: session.primaryExporter,
           productCodes: null,
@@ -572,27 +592,71 @@ function SignedInPortfolioWorkspace({
           fetcher: fetch,
           signal: feedRequest.signal,
         });
+        validateOpportunityPageIdentity(
+          page,
+          analysisBuildId,
+          nextManifest,
+          pinResolution,
+        );
+        let loadedPages = 1;
+        const requestedCursors = new Set<string>();
+        while (page.page.nextCursor !== null) {
+          const cursor = page.page.nextCursor;
+          if (requestedCursors.has(cursor)) {
+            throw new TypeError(
+              "Portfolio opportunity pagination repeated a cursor.",
+            );
+          }
+          requestedCursors.add(cursor);
+          const nextPage = await loadMarketInvestigationPage({
+            analysisBuildId,
+            exporterCode: session.primaryExporter,
+            productCodes: null,
+            limit: PAGE_LIMIT,
+            cursor,
+            fetcher: fetch,
+            signal: feedRequest.signal,
+          });
+          validateOpportunityPageIdentity(
+            nextPage,
+            analysisBuildId,
+            nextManifest,
+            pinResolution,
+          );
+          page = appendOpportunityPage(page, nextPage, cursor);
+          loadedPages += 1;
+        }
+        loadedPageCountRef.current = loadedPages;
         setFeed(page);
         const projection = buildPortfolioProjection(
           page,
           portfolioRef.current,
           modeRef.current,
         );
-        const requestedKey =
-          context.focusProductCode != null && context.focusedMarketCode != null
-            ? `${context.focusProductCode}:${context.focusedMarketCode}`
-            : null;
-        const selected =
-          projection.completeRows.find(
-            (row) => candidateProjectionKey(row.candidate) === requestedKey,
-          ) ??
-          projection.visibleRows[0] ??
-          projection.completeRows[0] ??
-          null;
-        setSelectedKey(
-          selected === null ? null : candidateProjectionKey(selected.candidate),
-        );
         setStatus(projection.visibleRows.length === 0 ? "empty" : "ready");
+        if (revalidate && requestedPinState !== "current") {
+          const currentPin = pinFromDeploymentWindow(
+            nextManifest,
+            nextManifest.analysisBuildId,
+            "opportunity-discovery",
+          );
+          if (currentPin === null) {
+            setStatus("current-failed");
+            return;
+          }
+          const currentUrl = serializeTradeAnalysisContext(
+            window.location.href,
+            {
+              ...baseContext,
+              pin: currentPin,
+              exportEconomyCode: session.primaryExporter,
+            },
+          );
+          window.history.pushState(null, "", currentUrl);
+          window.dispatchEvent(
+            new PopStateEvent("popstate", { state: window.history.state }),
+          );
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
@@ -601,7 +665,7 @@ function SignedInPortfolioWorkspace({
         setStatus("feed-failed");
       }
     },
-    [locale, session.primaryExporter],
+    [session.primaryExporter],
   );
 
   useEffect(() => {
@@ -625,32 +689,27 @@ function SignedInPortfolioWorkspace({
         modeRef.current = nextMode;
         setMode(nextMode);
       }
-      if (
-        context.recipe === "opportunity-discovery" &&
-        context.focusProductCode != null &&
-        context.focusedMarketCode != null
-      ) {
-        const key = `${context.focusProductCode}:${context.focusedMarketCode}`;
-        if (
-          feed.candidates.some(
-            (candidate) => candidateProjectionKey(candidate) === key,
-          )
-        ) {
-          setSelectedKey(key);
-        }
-      }
       const returnState = readOpportunityReturnState(
         window.history.state,
         "portfolio",
       );
       if (returnState !== null) {
         restoreOpportunityPosition(returnState, "portfolio-list-scroll");
+        return;
+      }
+      const requestedBuildId =
+        context.pin?.analysisBuildId ?? manifest?.analysisBuildId ?? null;
+      if (
+        requestedBuildId !== null &&
+        requestedBuildId !== feed.analysisBuildId
+      ) {
+        void loadFeed(false);
       }
     }
     window.addEventListener("popstate", restoreFocusFromHistory);
     return () =>
       window.removeEventListener("popstate", restoreFocusFromHistory);
-  }, [feed]);
+  }, [feed, loadFeed, manifest]);
 
   async function addProduct() {
     if (portfolioProduct === null) {
@@ -685,11 +744,6 @@ function SignedInPortfolioWorkspace({
     setMode(nextMode);
   }
 
-  function selectCandidate(candidate: MarketInvestigationCandidate) {
-    const key = candidateProjectionKey(candidate);
-    setSelectedKey(key);
-  }
-
   function refreshCurrentAnalysis() {
     void loadFeed(true);
   }
@@ -698,12 +752,6 @@ function SignedInPortfolioWorkspace({
     feed === null
       ? null
       : buildPortfolioProjection(feed, session.portfolio, mode);
-  const selectedRow =
-    projection?.completeRows.find(
-      (row) => candidateProjectionKey(row.candidate) === selectedKey,
-    ) ??
-    projection?.visibleRows[0] ??
-    null;
   const candidateMarketPin =
     manifest === null || feed === null
       ? null
@@ -719,15 +767,13 @@ function SignedInPortfolioWorkspace({
     if (feed === null || candidateMarketPin === null) {
       return null;
     }
-    const context: CandidateMarketContext = {
-      recipe: "candidate-market",
+    return candidateMarketAnalysisHref({
+      baseUrl: window.location.href,
       locale,
       pin: candidateMarketPin,
       exporterCode: feed.exporter.code,
-      productCode: candidate.product.code,
-      focusedMarketCode: candidate.market.code,
-    };
-    return serializeTradeAnalysisContext(window.location.href, context);
+      candidate,
+    });
   }
 
   function openCandidateMarket(
@@ -740,7 +786,7 @@ function SignedInPortfolioWorkspace({
       actionId: portfolioActionId(candidate),
       scrollY: window.scrollY,
       listScrollTop: list?.scrollTop ?? null,
-      loadedPages: 1,
+      loadedPages: loadedPageCountRef.current,
     });
   }
 
@@ -885,14 +931,7 @@ function SignedInPortfolioWorkspace({
                     const analysisHref = marketAnalysisHref(row.candidate);
                     return (
                       <li key={candidateProjectionKey(row.candidate)}>
-                        <button
-                          type="button"
-                          aria-pressed={
-                            candidateProjectionKey(row.candidate) ===
-                            selectedKey
-                          }
-                          onClick={() => selectCandidate(row.candidate)}
-                        >
+                        <div className="portfolio-row-summary">
                           <span>
                             {messages.canonicalRank} #{row.canonicalRank}
                           </span>
@@ -905,10 +944,7 @@ function SignedInPortfolioWorkspace({
                               <strong>{row.candidate.market.name}</strong>
                             </span>
                             <small>
-                              {portfolioOpportunityTypeLabel(
-                                row.candidate,
-                                locale,
-                              )}
+                              {opportunityTypeLabel(row.candidate, locale)}
                             </small>
                             <span className="opportunity-row-metrics">
                               <span>
@@ -939,20 +975,18 @@ function SignedInPortfolioWorkspace({
                             {messages.investigationPriority}{" "}
                             {row.candidate.investigationPriority.display}/100
                           </span>
-                        </button>
+                        </div>
                         {analysisHref === null ? null : (
                           <a
                             id={portfolioActionId(row.candidate)}
                             className="candidate-primary-action"
+                            aria-label={marketAnalysisActionLabel(
+                              row.candidate,
+                              locale,
+                            )}
                             href={analysisHref}
                             onClick={(event) => {
-                              if (
-                                event.button !== 0 ||
-                                event.metaKey ||
-                                event.ctrlKey ||
-                                event.shiftKey ||
-                                event.altKey
-                              ) {
+                              if (!shouldHandleMarketAnalysisClick(event)) {
                                 return;
                               }
                               event.preventDefault();
@@ -969,9 +1003,6 @@ function SignedInPortfolioWorkspace({
                 </ol>
               )}
             </section>
-            {selectedRow === null ? null : (
-              <PortfolioCandidateDetail row={selectedRow} locale={locale} />
-            )}
           </div>
         </>
       ) : null}
@@ -981,71 +1012,6 @@ function SignedInPortfolioWorkspace({
 
 function portfolioActionId(candidate: MarketInvestigationCandidate): string {
   return `analyze-portfolio-${candidate.product.code}-${candidate.market.code}`;
-}
-
-function portfolioOpportunityTypeLabel(
-  candidate: MarketInvestigationCandidate,
-  locale: AccountLocale,
-): string {
-  const messages = copy[locale];
-  if (candidate.opportunityType === "UNVALIDATED_MARKET_GAP") {
-    return messages.marketGap;
-  }
-  if (candidate.opportunityType === "EXPANSION_EVIDENCE") {
-    return messages.expansion;
-  }
-  return messages.generalEvidence;
-}
-
-function PortfolioCandidateDetail({
-  row,
-  locale,
-}: {
-  row: { canonicalRank: number; candidate: MarketInvestigationCandidate };
-  locale: AccountLocale;
-}) {
-  const messages = copy[locale];
-  return (
-    <section className="portfolio-detail" aria-label={messages.selectedDetail}>
-      <p>
-        {messages.canonicalRank} #{row.canonicalRank}
-      </p>
-      <h3>{row.candidate.market.name}</h3>
-      <p>
-        HS 2012 · {row.candidate.product.code} · BACI{" "}
-        {row.candidate.market.code}
-      </p>
-      <div className="opportunity-axis-grid">
-        <MetricCard
-          label={messages.investigationPriority}
-          value={row.candidate.investigationPriority.display}
-        />
-        <MetricCard
-          label={messages.marketAttractiveness}
-          value={row.candidate.marketAttractiveness.display}
-        />
-        <MetricCard
-          label={messages.exporterFit}
-          value={row.candidate.exporterFit.display}
-        />
-      </div>
-      <p>
-        {messages.confidence}:{" "}
-        {localizedConfidence(row.candidate.confidence, locale)}{" "}
-        {row.candidate.confidence.score}/100
-      </p>
-      <p>{row.candidate.opportunityTypeCopy}</p>
-    </section>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}/100</dd>
-    </div>
-  );
 }
 
 function localizedConfidence(

@@ -1027,7 +1027,7 @@ a {
 .portfolio-feed {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -1053,7 +1053,7 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
-.portfolio-list button {
+.portfolio-row-summary {
   width: 100%;
   min-height: 144px;
   padding: 14px 16px;
@@ -1064,36 +1064,19 @@ a {
   border: 0;
   background: transparent;
   color: var(--ink);
-  cursor: pointer;
   text-align: left;
 }
 
-.portfolio-list button:hover {
-  background: rgba(var(--ink-rgb), 0.05);
-}
-
-.portfolio-list button[aria-pressed="true"] {
-  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
-  color: var(--on-panel);
-  box-shadow: inset 4px 0 var(--accent);
-}
-
-.portfolio-list button small,
-.portfolio-list button > span:first-child,
-.portfolio-list button > span:last-child {
+.portfolio-row-summary small,
+.portfolio-row-summary > span:first-child,
+.portfolio-row-summary > span:last-child {
   color: var(--muted);
   font-size: 0.66rem;
   font-weight: 900;
   line-height: 1.35;
 }
 
-.portfolio-list button[aria-pressed="true"] small,
-.portfolio-list button[aria-pressed="true"] > span:first-child,
-.portfolio-list button[aria-pressed="true"] > span:last-child {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.portfolio-list button > span:nth-child(2) {
+.portfolio-row-summary > span:nth-child(2) {
   display: grid;
   gap: 5px;
 }
@@ -2641,7 +2624,7 @@ tr[data-selected="true"] td {
 .opportunity-feed {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: minmax(360px, 0.9fr) minmax(440px, 1.1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -2671,7 +2654,7 @@ tr[data-selected="true"] td {
   border-bottom: 0;
 }
 
-.opportunity-list button {
+.opportunity-row-summary {
   width: 100%;
   min-height: 144px;
   padding: 13px 16px;
@@ -2682,32 +2665,17 @@ tr[data-selected="true"] td {
   border: 0;
   background: transparent;
   color: var(--ink);
-  cursor: pointer;
   text-align: left;
 }
 
-.opportunity-list button:hover {
-  background: rgba(var(--ink-rgb), 0.05);
-}
-
-.opportunity-list button[aria-pressed="true"] {
-  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
-  color: #fff;
-  box-shadow: inset 4px 0 0 var(--accent);
-}
-
-.opportunity-list button > span:nth-child(2) {
+.opportunity-row-summary > span:nth-child(2) {
   display: grid;
   gap: 5px;
 }
 
-.opportunity-list button small {
+.opportunity-row-summary small {
   color: var(--muted);
   font-size: 0.65rem;
-}
-
-.opportunity-list button[aria-pressed="true"] small {
-  color: rgba(255, 255, 255, 0.68);
 }
 
 .opportunity-row-identities {
@@ -2732,11 +2700,6 @@ tr[data-selected="true"] td {
   font-size: 0.61rem;
   font-weight: 700;
   line-height: 1.35;
-}
-
-.opportunity-list button[aria-pressed="true"] .opportunity-row-metrics,
-.portfolio-list button[aria-pressed="true"] .opportunity-row-metrics {
-  color: rgba(255, 255, 255, 0.72);
 }
 
 .candidate-primary-action,
@@ -4081,11 +4044,11 @@ tr[data-selected="true"] td {
     grid-template-columns: 1fr;
   }
 
-  .portfolio-list button {
+  .portfolio-row-summary {
     grid-template-columns: 96px 1fr;
   }
 
-  .portfolio-list button > span:last-child {
+  .portfolio-row-summary > span:last-child {
     grid-column: 2;
   }
 
@@ -4322,11 +4285,11 @@ tr[data-selected="true"] td {
     display: grid;
   }
 
-  .portfolio-list button {
+  .portfolio-row-summary {
     grid-template-columns: 1fr;
   }
 
-  .portfolio-list button > span:last-child {
+  .portfolio-row-summary > span:last-child {
     grid-column: 1;
   }
 
@@ -4336,12 +4299,12 @@ tr[data-selected="true"] td {
     margin-left: 16px;
   }
 
-  .opportunity-list button {
+  .opportunity-row-summary {
     grid-template-columns: minmax(0, 1fr) 82px;
     align-items: start;
   }
 
-  .opportunity-list button > .candidate-rank {
+  .opportunity-row-summary > .candidate-rank {
     grid-column: 1 / -1;
   }
 

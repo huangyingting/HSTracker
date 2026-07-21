@@ -1,5 +1,14 @@
 "use client";
 
+import type { MouseEvent } from "react";
+
+import type { MarketInvestigationCandidate } from "../domain/opportunity-discovery/result";
+import {
+  serializeTradeAnalysisContext,
+  type CandidateMarketContext,
+  type TradeAnalysisLocale,
+} from "./trade-analysis-context";
+
 export type OpportunityReturnSource =
   "candidate-market" | "opportunity-discovery" | "portfolio";
 
@@ -33,6 +42,41 @@ export function openMarketAnalysis(
       new PopStateEvent("popstate", { state: window.history.state }),
     );
   }
+}
+
+export function candidateMarketAnalysisHref({
+  baseUrl,
+  locale,
+  pin,
+  exporterCode,
+  candidate,
+}: {
+  baseUrl: string;
+  locale: TradeAnalysisLocale;
+  pin: NonNullable<CandidateMarketContext["pin"]>;
+  exporterCode: string;
+  candidate: MarketInvestigationCandidate;
+}): string {
+  return serializeTradeAnalysisContext(baseUrl, {
+    recipe: "candidate-market",
+    locale,
+    pin,
+    exporterCode,
+    productCode: candidate.product.code,
+    focusedMarketCode: candidate.market.code,
+  });
+}
+
+export function shouldHandleMarketAnalysisClick(
+  event: MouseEvent<HTMLAnchorElement>,
+): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
 }
 
 export function hasOpportunityHistoryReturn(): boolean {

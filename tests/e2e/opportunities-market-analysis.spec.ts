@@ -59,6 +59,10 @@ test("a cross-product opportunity preserves its exact product, market, and relea
   const analyzeMarket = candidate.getByRole("link", {
     name: "Analyze this market",
   });
+  await expect(candidate.getByRole("button")).toHaveCount(0);
+  await expect(analyzeMarket).toHaveAccessibleName(
+    "Analyze this market: Mexico, HS12 010121",
+  );
   await expect(candidate).toContainText("Horses: live, pure-bred breeding animals");
   await expect(candidate).toContainText("Investigation Priority 73");
   await expect(candidate).toContainText("Unvalidated Market Gap");

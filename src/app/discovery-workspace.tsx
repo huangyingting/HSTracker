@@ -55,7 +55,6 @@ import {
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withEconomyCode,
-  withLocale,
   withoutPin,
   withPin,
   withProductCode,
@@ -588,13 +587,10 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         exporter.code,
       );
       if (nextContext.recipe === "candidate-market") {
-        const baseContext = withLocale(
-          {
-            ...nextContext,
-            focusedMarketCode: initialCandidate?.economy.code ?? null,
-          },
-          locale,
-        );
+        const baseContext: CandidateMarketContext = {
+          ...nextContext,
+          focusedMarketCode: initialCandidate?.economy.code ?? null,
+        };
         // A retained execution keeps its own exact pin rather than
         // re-deriving current's live pin, so the canonical URL continues
         // to name the retained build it actually reproduced.
@@ -619,7 +615,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     currentManifest,
     exporter,
     loadMarketAnalysisForCandidate,
-    locale,
     product,
   ]);
 
