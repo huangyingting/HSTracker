@@ -1055,10 +1055,10 @@ a {
 
 .portfolio-list button {
   width: 100%;
-  min-height: 84px;
+  min-height: 144px;
   padding: 14px 16px;
   display: grid;
-  grid-template-columns: 108px 1fr 132px;
+  grid-template-columns: 108px minmax(0, 1fr) 132px;
   gap: 12px;
   align-items: center;
   border: 0;
@@ -1096,6 +1096,10 @@ a {
 .portfolio-list button > span:nth-child(2) {
   display: grid;
   gap: 5px;
+}
+
+.portfolio-list .candidate-primary-action {
+  margin: 0 16px 14px;
 }
 
 .portfolio-detail {
@@ -2154,6 +2158,10 @@ a {
   align-items: start;
 }
 
+.candidate-workspace[data-analysis-open="false"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .candidate-ranking,
 .candidate-evidence {
   border: 1px solid var(--line);
@@ -2665,10 +2673,10 @@ tr[data-selected="true"] td {
 
 .opportunity-list button {
   width: 100%;
-  min-height: 82px;
+  min-height: 144px;
   padding: 13px 16px;
   display: grid;
-  grid-template-columns: 62px 1fr 58px;
+  grid-template-columns: 62px minmax(0, 1fr) minmax(92px, auto);
   align-items: center;
   gap: 12px;
   border: 0;
@@ -2700,6 +2708,83 @@ tr[data-selected="true"] td {
 
 .opportunity-list button[aria-pressed="true"] small {
   color: rgba(255, 255, 255, 0.68);
+}
+
+.opportunity-row-identities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px 14px;
+}
+
+.opportunity-row-identities strong {
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.opportunity-row-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 14px;
+  color: var(--muted);
+  font-size: 0.61rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.opportunity-list button[aria-pressed="true"] .opportunity-row-metrics,
+.portfolio-list button[aria-pressed="true"] .opportunity-row-metrics {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.candidate-primary-action,
+.opportunity-pagination button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.candidate-primary-action {
+  margin: 0 16px 14px 90px;
+  padding: 0 16px;
+}
+
+.candidate-primary-action:hover,
+.opportunity-pagination button:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.candidate-primary-action:focus-visible,
+.opportunity-pagination button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.opportunity-pagination {
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.opportunity-pagination button {
+  width: 100%;
+  padding: 0 18px;
+}
+
+.opportunity-pagination button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .opportunity-axis-grid {
@@ -2876,7 +2961,7 @@ tr[data-selected="true"] td {
   position: absolute;
   left: 0;
   right: 0;
-  height: 79px;
+  height: 168px;
 }
 
 .analysis-output[data-analyzing="true"] {
@@ -2897,10 +2982,10 @@ tr[data-selected="true"] td {
 
 .candidate-ranking button {
   width: 100%;
-  min-height: 78px;
+  min-height: 167px;
   padding: 13px 16px;
   display: grid;
-  grid-template-columns: 42px 1fr 58px;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(76px, auto);
   align-items: center;
   gap: 12px;
   border: 0;
@@ -2941,6 +3026,30 @@ tr[data-selected="true"] td {
   font-size: 0.65rem;
 }
 
+.candidate-order-summary {
+  display: block;
+  font-weight: 800;
+}
+
+.candidate-order-components {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 14px;
+  color: var(--muted);
+  font-size: 0.61rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.candidate-ranking button[aria-pressed="true"] .candidate-order-components {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.candidate-ranking .candidate-analyze-label {
+  color: var(--accent);
+  font-weight: 900;
+}
+
 .candidate-score-bar {
   height: 5px;
   margin-top: 3px;
@@ -2970,24 +3079,27 @@ tr[data-selected="true"] td {
 
 .candidate-score {
   display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
+  justify-items: end;
+  align-content: center;
+  min-width: 76px;
+  min-height: 44px;
+  padding-left: 12px;
+  border-left: 1px solid currentColor;
   font-size: 1rem;
   font-weight: 900;
 }
 
 .candidate-ranking button[aria-pressed="true"] .candidate-score {
   border-color: var(--signal-soft);
-  background: rgba(255, 255, 255, 0.08);
 }
 
 .candidate-score small {
-  margin-top: -7px;
+  max-width: 96px;
+  margin: 0;
   color: inherit !important;
   font-size: 0.55rem !important;
+  line-height: 1.15;
+  text-align: right;
 }
 
 .candidate-evidence {
@@ -4216,6 +4328,26 @@ tr[data-selected="true"] td {
 
   .portfolio-list button > span:last-child {
     grid-column: 1;
+  }
+
+  .portfolio-list .candidate-primary-action,
+  .candidate-primary-action {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  .opportunity-list button {
+    grid-template-columns: minmax(0, 1fr) 82px;
+    align-items: start;
+  }
+
+  .opportunity-list button > .candidate-rank {
+    grid-column: 1 / -1;
+  }
+
+  .opportunity-row-identities,
+  .opportunity-row-metrics {
+    grid-template-columns: 1fr;
   }
 
   .candidate-ranking ol,

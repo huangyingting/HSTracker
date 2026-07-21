@@ -11,7 +11,12 @@
 // recomputes a Candidate Market Score, CAGR, supplier share, HHI, or
 // momentum value.
 
-import { useEffect, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useState,
+  type MouseEvent,
+  type RefObject,
+} from "react";
 
 import { MARKET_ANALYSIS_COPY, type MarketAnalysisLocale } from "../domain/market-analysis/copy";
 import { MARKET_ANALYSIS_PRODUCT_AREAS } from "../domain/market-analysis/product-areas";
@@ -178,6 +183,7 @@ export function MarketAnalysisView({
   requestedAnalysisBuildId,
   headingRef,
   opportunityHref,
+  onBackToOpportunities,
   deploymentState,
   productDescription,
   tradeTrendHref,
@@ -197,6 +203,7 @@ export function MarketAnalysisView({
   requestedAnalysisBuildId: string | null;
   headingRef: RefObject<HTMLHeadingElement | null>;
   opportunityHref: string | null;
+  onBackToOpportunities?: (event: MouseEvent<HTMLAnchorElement>) => void;
   deploymentState: "current" | "retained";
   productDescription: string;
   tradeTrendHref: string;
@@ -261,6 +268,7 @@ export function MarketAnalysisView({
           href={opportunityHref}
           label={messages.backToOpportunities}
           unavailableLabel={messages.backUnavailable}
+          onClick={onBackToOpportunities}
         />
         <h2 id="market-analysis-heading" tabIndex={-1} ref={headingRef}>
           {messages.heading}
@@ -312,6 +320,7 @@ export function MarketAnalysisView({
           href={opportunityHref}
           label={messages.backToOpportunities}
           unavailableLabel={messages.backUnavailable}
+          onClick={onBackToOpportunities}
         />
         <h2 id="market-analysis-heading" tabIndex={-1} ref={headingRef}>
           {messages.heading}
@@ -387,6 +396,7 @@ export function MarketAnalysisView({
           href={opportunityHref}
           label={messages.backToOpportunities}
           unavailableLabel={messages.backUnavailable}
+          onClick={onBackToOpportunities}
         />
         <h2 id="market-analysis-heading" tabIndex={-1} ref={headingRef}>
           {analysis.context.market.name} · {messages.heading}
@@ -456,17 +466,19 @@ function MarketAnalysisBack({
   href,
   label,
   unavailableLabel,
+  onClick,
 }: {
   href: string | null;
   label: string;
   unavailableLabel: string;
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   return href === null ? (
     <span className="market-analysis-back" aria-disabled="true">
       {unavailableLabel}
     </span>
   ) : (
-    <a className="market-analysis-back" href={href}>
+    <a className="market-analysis-back" href={href} onClick={onClick}>
       ← {label}
     </a>
   );

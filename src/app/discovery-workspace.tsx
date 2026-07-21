@@ -26,6 +26,8 @@ import {
 import {
   localizedConfidence,
   candidateDisplayName,
+  formatDecimalPercent,
+  formatUsd,
 } from "./candidate-market-evidence";
 import { CandidateMarketExportAction } from "./candidate-market-export-action";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
@@ -39,6 +41,12 @@ import {
   MarketAnalysisView,
   type MarketAnalysisStatus,
 } from "./market-analysis-view";
+import {
+  hasOpportunityHistoryReturn,
+  openMarketAnalysis,
+  readOpportunityReturnState,
+  restoreOpportunityPosition,
+} from "./market-analysis-navigation";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
 import {
@@ -76,6 +84,15 @@ const copy = {
     finalizedYears: "Finalized Years",
     provisionalYear: "Provisional Year",
     confidence: "Data Confidence",
+    candidateMarketScore: "Candidate Market Score",
+    rank: "Rank",
+    of: "of",
+    marketSize: "Market Size",
+    marketGrowth: "Market Growth",
+    recordedFoothold: "Recorded Foothold",
+    supplierDiversity: "Supplier Diversity",
+    perYear: "/year",
+    neutral: "Neutral",
     emptyTitle: "No eligible Candidate Markets",
     emptyBody:
       "The selected context is valid, but no market has sufficient evidence in the finalized score window.",
@@ -100,6 +117,7 @@ const copy = {
     currentUnavailable:
       "The current analysis release is temporarily unavailable.",
     retryCurrent: "Retry current release",
+    analyzeMarket: "Analyze this market",
   },
   "zh-Hans": {
     eyebrow: "候选市场工作区",
@@ -120,6 +138,15 @@ const copy = {
     finalizedYears: "计分定稿年份",
     provisionalYear: "暂定年份",
     confidence: "数据置信度",
+    candidateMarketScore: "候选市场评分",
+    rank: "排名",
+    of: "/",
+    marketSize: "市场规模",
+    marketGrowth: "市场增长",
+    recordedFoothold: "已记录市场基础",
+    supplierDiversity: "供应商多样性",
+    perYear: "/年",
+    neutral: "中性",
     emptyTitle: "没有符合条件的候选市场",
     emptyBody: "所选输入有效，但计分定稿窗口内没有候选市场具备足够证据。",
     malformed: "该分析情境无效。请检查所选出口经济体和产品。",
@@ -138,6 +165,7 @@ const copy = {
     loadingCurrent: "正在加载当前分析发布版本…",
     currentUnavailable: "当前分析发布版本暂时不可用。",
     retryCurrent: "重试当前发布版本",
+    analyzeMarket: "分析此市场",
   },
 } as const;
 
@@ -280,7 +308,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       return;
     }
 
-    window.history.replaceState(null, "", url);
+    window.history.replaceState(window.history.state, "", url);
     requestSequence.current += 1;
     marketAnalysisRequestSequence.current += 1;
     canonicalRestorePending.current = true;
@@ -316,7 +344,10 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
             exporterCode: null,
             focusedMarketCode: null,
           };
-    const url = serializeTradeAnalysisContext(window.location.href, nextContext);
+    const url = serializeTradeAnalysisContext(
+      window.location.href,
+      nextContext,
+    );
     window.history.replaceState(null, "", url);
   }, [locale, resetMarketAnalysisState]);
 
@@ -536,12 +567,19 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           ? priorContext.focusedMarketCode
           : null;
       const initialCandidate =
-        completeResult.candidates.find(
-          ({ economy }) => economy.code === requestedCandidateCode,
-        ) ?? completeResult.candidates[0];
-      setSelectedCandidateCode(initialCandidate.economy.code);
+        requestedCandidateCode === null
+          ? null
+          : (completeResult.candidates.find(
+              ({ economy }) => economy.code === requestedCandidateCode,
+            ) ?? null);
+      setSelectedCandidateCode(initialCandidate?.economy.code ?? null);
       setStatus("success");
-      void loadMarketAnalysisForCandidate(initialCandidate.economy.code, false);
+      if (initialCandidate !== null) {
+        void loadMarketAnalysisForCandidate(
+          initialCandidate.economy.code,
+          hasOpportunityHistoryReturn(),
+        );
+      }
       const nextContext = withEconomyCode(
         withProductCode(
           withRecipe(priorContext, "candidate-market"),
@@ -553,7 +591,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         const baseContext = withLocale(
           {
             ...nextContext,
-            focusedMarketCode: initialCandidate.economy.code,
+            focusedMarketCode: initialCandidate?.economy.code ?? null,
           },
           locale,
         );
@@ -568,7 +606,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           window.location.href,
           pinnedContext,
         );
-        window.history.replaceState(null, "", url);
+        window.history.replaceState(window.history.state, "", url);
       }
     } catch (error) {
       if (controller.signal.aborted || requestSequence.current !== sequence) {
@@ -577,7 +615,13 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       console.error("Candidate Market workspace request failed", error);
       setStatus("fatal");
     }
-  }, [currentManifest, exporter, loadMarketAnalysisForCandidate, locale, product]);
+  }, [
+    currentManifest,
+    exporter,
+    loadMarketAnalysisForCandidate,
+    locale,
+    product,
+  ]);
 
   useEffect(() => {
     if (
@@ -604,7 +648,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   }, [analyzeCandidateMarkets, exporter, product]);
 
   useLayoutEffect(() => {
-    function restoreContextFromHistory() {
+    function restoreContextFromHistory(event: PopStateEvent) {
       const context = parseTradeAnalysisContext(window.location.href);
       const matchesLoadedContext =
         result !== null &&
@@ -617,15 +661,26 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           context.recipe === "candidate-market"
             ? context.focusedMarketCode
             : null;
-        if (
+        if (requestedCandidateCode === null) {
+          setSelectedCandidateCode(null);
+          resetMarketAnalysisState();
+          const returnState = readOpportunityReturnState(
+            event.state,
+            "candidate-market",
+          );
+          if (returnState !== null) {
+            restoreOpportunityPosition(
+              returnState,
+              "candidate-market-list-scroll",
+            );
+          }
+        } else if (
           result.candidates.some(
             ({ economy }) => economy.code === requestedCandidateCode,
           )
         ) {
           setSelectedCandidateCode(requestedCandidateCode);
-          if (requestedCandidateCode !== null) {
-            void loadMarketAnalysisForCandidate(requestedCandidateCode, false);
-          }
+          void loadMarketAnalysisForCandidate(requestedCandidateCode, false);
         }
         return;
       }
@@ -663,20 +718,34 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         ...context,
         focusedMarketCode: candidate.economy.code,
       });
-      window.history.pushState(null, "", url);
+      const list = document.getElementById("candidate-market-list-scroll");
+      openMarketAnalysis(
+        url,
+        {
+          source: "candidate-market",
+          actionId: candidateMarketActionId(candidate.economy.code),
+          scrollY: window.scrollY,
+          listScrollTop: list?.scrollTop ?? null,
+          loadedPages: 1,
+        },
+        false,
+      );
     },
     [loadMarketAnalysisForCandidate],
   );
 
-  const toggleCandidateComparison = useCallback((candidate: CandidateMarket) => {
-    setComparedCandidateCodes((current) =>
-      current.includes(candidate.economy.code)
-        ? current.filter((code) => code !== candidate.economy.code)
-        : current.length < MAX_COMPARISON_CANDIDATES
-          ? [...current, candidate.economy.code]
-          : current,
-    );
-  }, []);
+  const toggleCandidateComparison = useCallback(
+    (candidate: CandidateMarket) => {
+      setComparedCandidateCodes((current) =>
+        current.includes(candidate.economy.code)
+          ? current.filter((code) => code !== candidate.economy.code)
+          : current.length < MAX_COMPARISON_CANDIDATES
+            ? [...current, candidate.economy.code]
+            : current,
+      );
+    },
+    [],
+  );
 
   const removeComparedCandidate = useCallback((code: string) => {
     setComparedCandidateCodes((current) =>
@@ -818,190 +887,202 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         className="analysis-output"
         data-analyzing={status === "idle" ? "false" : "true"}
       >
-      {status === "loading" || status === "refreshing" ? (
-        <div className="analysis-state analysis-loading" role="status">
-          <span aria-hidden="true" />
-          {messages[status]}
-        </div>
-      ) : null}
-
-      {(status === "success" || status === "empty") && result !== null ? (
-        <>
-          <CandidateMarketExportAction
-            result={result}
-            locale={locale}
-            onManifestRevalidated={setCurrentManifest}
-          />
-          {status === "empty" ? <AnalysisShareLink locale={locale} /> : null}
-        </>
-      ) : null}
-
-      {status === "success" &&
-      result !== null &&
-      selectedCandidate !== null &&
-      evidenceCandidate !== null &&
-      product !== null ? (
-        <>
-          <div className="candidate-workspace">
-            <section
-              className="candidate-ranking"
-              aria-labelledby="ranking-title"
-            >
-              <div className="candidate-heading">
-                <div>
-                  <p>{messages.eyebrow}</p>
-                  <h3 id="ranking-title">{messages.ranked}</h3>
-                </div>
-                <strong>
-                  {result.cohortSize} {messages.candidates}
-                </strong>
-              </div>
-              {result.candidates.length > VIRTUALIZED_LIST_THRESHOLD ? (
-                <VirtualizedCandidateList
-                  candidates={result.candidates}
-                  selectedCandidateCode={selectedCandidateCode}
-                  locale={locale}
-                  confidenceLabel={messages.confidence}
-                  listLabel={messages.candidateList}
-                  onSelect={selectCandidateMarket}
-                />
-              ) : (
-                <ol aria-label={messages.candidateList}>
-                  {result.candidates.map((candidate) => (
-                    <CandidateRankingRow
-                      key={candidate.economy.code}
-                      candidate={candidate}
-                      selected={
-                        candidate.economy.code === selectedCandidateCode
-                      }
-                      locale={locale}
-                      confidenceLabel={messages.confidence}
-                      onSelect={selectCandidateMarket}
-                    />
-                  ))}
-                </ol>
-              )}
-            </section>
-
-
-            <MarketAnalysisView
-              status={
-                resolvedDeploymentState === "retired"
-                  ? "retired"
-                  : marketAnalysisStatus
-              }
-              analysis={marketAnalysis}
-              locale={locale}
-              freshness={resolvedAnalysisManifest?.freshness ?? null}
-              isCompared={comparedCandidateCodes.includes(
-                evidenceCandidate.economy.code,
-              )}
-              comparisonFull={
-                comparedCandidateCodes.length >= MAX_COMPARISON_CANDIDATES
-              }
-              onToggleComparison={toggleCandidateComparison}
-              onRetry={() =>
-                void loadMarketAnalysisForCandidate(
-                  evidenceCandidate.economy.code,
-                  false,
-                )
-              }
-              onRefreshCurrent={() => void recoverRetiredAnalysis()}
-              retryAfterSeconds={marketAnalysisRetryAfterSeconds}
-              requestedAnalysisBuildId={resolvedAnalysisBuildId}
-              headingRef={marketAnalysisHeadingRef}
-              opportunityHref={
-                opportunityNavigationPin === null
-                  ? null
-                  : serializeTradeAnalysisContext("/", {
-                      recipe: "opportunity-discovery",
-                      locale,
-                      pin: opportunityNavigationPin,
-                      exportEconomyCode: result.query.exporter.code,
-                      productCodes: [result.query.product.code],
-                      focusProductCode: result.query.product.code,
-                      focusedMarketCode: evidenceCandidate.economy.code,
-                    })
-              }
-              deploymentState={
-                resolvedDeploymentState === "current"
-                  ? "current"
-                  : "retained"
-              }
-              productDescription={
-                locale === "en"
-                  ? product.sourceDescriptionEn
-                  : product.auxiliaryDescriptionZhHans
-              }
-              tradeTrendHref={serializeTradeAnalysisContext("/", {
-                recipe: "trade-trend",
-                locale,
-                importerCode: evidenceCandidate.economy.code,
-                productCode: result.query.product.code,
-                pin: resolvedNavigationPin("trade-trend"),
-              })}
-              supplierCompetitionHref={serializeTradeAnalysisContext("/", {
-                recipe: "supplier-competition",
-                locale,
-                importerCode: evidenceCandidate.economy.code,
-                productCode: result.query.product.code,
-                pin: resolvedNavigationPin("supplier-competition"),
-              })}
-              tradeExplorerHref={
-                tradeExplorerNavigationPin === null
-                  ? null
-                  : serializeTradeAnalysisContext("/", {
-                      recipe: "trade-explorer",
-                      locale,
-                      pin: tradeExplorerNavigationPin,
-                      shape: "product-mix-v1",
-                      measures: [],
-                      years: [],
-                      exportEconomy: [],
-                      importEconomy: [],
-                      hsProduct: [result.query.product.code],
-                      sort: null,
-                    })
-              }
-            />
+        {status === "loading" || status === "refreshing" ? (
+          <div className="analysis-state analysis-loading" role="status">
+            <span aria-hidden="true" />
+            {messages[status]}
           </div>
-          <CandidateMarketComparison
-            result={result}
-            comparedCodes={comparedCandidateCodes}
-            locale={locale}
-            onRemove={removeComparedCandidate}
-          />
-        </>
-      ) : null}
+        ) : null}
 
-      {status === "empty" ? (
-        <div className="analysis-state" role="status">
-          <h3>{messages.emptyTitle}</h3>
-          <p>{messages.emptyBody}</p>
-        </div>
-      ) : null}
+        {(status === "success" || status === "empty") && result !== null ? (
+          <>
+            <CandidateMarketExportAction
+              result={result}
+              locale={locale}
+              onManifestRevalidated={setCurrentManifest}
+            />
+            {status === "empty" ? <AnalysisShareLink locale={locale} /> : null}
+          </>
+        ) : null}
 
-      {isErrorStatus(status) ? (
-        <div className="analysis-state analysis-error" role="alert">
-          <p>{messages[status]}</p>
-          {status === "stale" ||
-          status === "rateLimit" ||
-          status === "capacity" ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (status === "stale") {
-                  void recoverRetiredAnalysis();
-                } else {
-                  void analyzeCandidateMarkets();
-                }
-              }}
+        {status === "success" && result !== null && product !== null ? (
+          <>
+            <div
+              className="candidate-workspace"
+              data-analysis-open={selectedCandidate !== null}
             >
-              {status === "stale" ? messages.refresh : messages.retry}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+              <section
+                className="candidate-ranking"
+                aria-labelledby="ranking-title"
+              >
+                <div className="candidate-heading">
+                  <div>
+                    <p>{messages.eyebrow}</p>
+                    <h3 id="ranking-title">{messages.ranked}</h3>
+                  </div>
+                  <strong>
+                    {result.cohortSize} {messages.candidates}
+                  </strong>
+                </div>
+                {result.candidates.length > VIRTUALIZED_LIST_THRESHOLD ? (
+                  <VirtualizedCandidateList
+                    candidates={result.candidates}
+                    selectedCandidateCode={selectedCandidateCode}
+                    locale={locale}
+                    confidenceLabel={messages.confidence}
+                    cohortSize={result.cohortSize}
+                    listLabel={messages.candidateList}
+                    analyzeLabel={messages.analyzeMarket}
+                    onSelect={selectCandidateMarket}
+                  />
+                ) : (
+                  <ol aria-label={messages.candidateList}>
+                    {result.candidates.map((candidate) => (
+                      <CandidateRankingRow
+                        key={candidate.economy.code}
+                        candidate={candidate}
+                        selected={
+                          candidate.economy.code === selectedCandidateCode
+                        }
+                        locale={locale}
+                        confidenceLabel={messages.confidence}
+                        cohortSize={result.cohortSize}
+                        analyzeLabel={messages.analyzeMarket}
+                        onSelect={selectCandidateMarket}
+                      />
+                    ))}
+                  </ol>
+                )}
+              </section>
+
+              {selectedCandidate !== null && evidenceCandidate !== null ? (
+                <MarketAnalysisView
+                  status={
+                    resolvedDeploymentState === "retired"
+                      ? "retired"
+                      : marketAnalysisStatus
+                  }
+                  analysis={marketAnalysis}
+                  locale={locale}
+                  freshness={resolvedAnalysisManifest?.freshness ?? null}
+                  isCompared={comparedCandidateCodes.includes(
+                    evidenceCandidate.economy.code,
+                  )}
+                  comparisonFull={
+                    comparedCandidateCodes.length >= MAX_COMPARISON_CANDIDATES
+                  }
+                  onToggleComparison={toggleCandidateComparison}
+                  onRetry={() =>
+                    void loadMarketAnalysisForCandidate(
+                      evidenceCandidate.economy.code,
+                      false,
+                    )
+                  }
+                  onRefreshCurrent={() => void recoverRetiredAnalysis()}
+                  retryAfterSeconds={marketAnalysisRetryAfterSeconds}
+                  requestedAnalysisBuildId={resolvedAnalysisBuildId}
+                  headingRef={marketAnalysisHeadingRef}
+                  opportunityHref={
+                    opportunityNavigationPin === null
+                      ? null
+                      : serializeTradeAnalysisContext("/", {
+                          recipe: "opportunity-discovery",
+                          locale,
+                          pin: opportunityNavigationPin,
+                          exportEconomyCode: result.query.exporter.code,
+                          productCodes: [result.query.product.code],
+                          focusProductCode: result.query.product.code,
+                          focusedMarketCode: evidenceCandidate.economy.code,
+                        })
+                  }
+                  onBackToOpportunities={(event) => {
+                    if (hasOpportunityHistoryReturn()) {
+                      event.preventDefault();
+                      window.history.back();
+                    }
+                  }}
+                  deploymentState={
+                    resolvedDeploymentState === "current"
+                      ? "current"
+                      : "retained"
+                  }
+                  productDescription={
+                    locale === "en"
+                      ? product.sourceDescriptionEn
+                      : product.auxiliaryDescriptionZhHans
+                  }
+                  tradeTrendHref={serializeTradeAnalysisContext("/", {
+                    recipe: "trade-trend",
+                    locale,
+                    importerCode: evidenceCandidate.economy.code,
+                    productCode: result.query.product.code,
+                    pin: resolvedNavigationPin("trade-trend"),
+                  })}
+                  supplierCompetitionHref={serializeTradeAnalysisContext("/", {
+                    recipe: "supplier-competition",
+                    locale,
+                    importerCode: evidenceCandidate.economy.code,
+                    productCode: result.query.product.code,
+                    pin: resolvedNavigationPin("supplier-competition"),
+                  })}
+                  tradeExplorerHref={
+                    tradeExplorerNavigationPin === null
+                      ? null
+                      : serializeTradeAnalysisContext("/", {
+                          recipe: "trade-explorer",
+                          locale,
+                          pin: tradeExplorerNavigationPin,
+                          shape: "product-mix-v1",
+                          measures: [],
+                          years: [],
+                          exportEconomy: [],
+                          importEconomy: [],
+                          hsProduct: [result.query.product.code],
+                          sort: null,
+                        })
+                  }
+                />
+              ) : null}
+            </div>
+            {selectedCandidate === null ? null : (
+              <CandidateMarketComparison
+                result={result}
+                comparedCodes={comparedCandidateCodes}
+                locale={locale}
+                onRemove={removeComparedCandidate}
+              />
+            )}
+          </>
+        ) : null}
+
+        {status === "empty" ? (
+          <div className="analysis-state" role="status">
+            <h3>{messages.emptyTitle}</h3>
+            <p>{messages.emptyBody}</p>
+          </div>
+        ) : null}
+
+        {isErrorStatus(status) ? (
+          <div className="analysis-state analysis-error" role="alert">
+            <p>{messages[status]}</p>
+            {status === "stale" ||
+            status === "rateLimit" ||
+            status === "capacity" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (status === "stale") {
+                    void recoverRetiredAnalysis();
+                  } else {
+                    void analyzeCandidateMarkets();
+                  }
+                }}
+              >
+                {status === "stale" ? messages.refresh : messages.retry}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <p className="workspace-disclaimer">{messages.disclaimer}</p>
@@ -1014,6 +1095,8 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   selected,
   locale,
   confidenceLabel,
+  cohortSize,
+  analyzeLabel,
   onSelect,
   offsetTop,
 }: {
@@ -1021,9 +1104,14 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   selected: boolean;
   locale: WorkspaceLocale;
   confidenceLabel: string;
+  cohortSize: number;
+  analyzeLabel: string;
   onSelect: (candidate: CandidateMarket) => void;
   offsetTop?: number;
 }) {
+  const messages = copy[locale];
+  const growth = candidate.components.marketGrowth;
+  const diversity = candidate.components.supplierDiversity;
   return (
     <li
       className={offsetTop === undefined ? undefined : "candidate-row-virtual"}
@@ -1031,16 +1119,45 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
     >
       <button
         type="button"
+        id={candidateMarketActionId(candidate.economy.code)}
         aria-pressed={selected}
         onClick={() => onSelect(candidate)}
       >
         <span className="candidate-rank">#{candidate.rank}</span>
         <span>
           <strong>{candidateDisplayName(candidate, locale)}</strong>
+          <small className="candidate-order-summary">
+            {messages.candidateMarketScore} {candidate.score} · {messages.rank}{" "}
+            {candidate.rank} {messages.of} {cohortSize}
+          </small>
+          <span className="candidate-order-components">
+            <span>
+              {messages.marketSize}{" "}
+              {formatUsd(candidate.components.marketSize.meanCurrentUsd)}
+              {messages.perYear}
+            </span>
+            <span>
+              {messages.marketGrowth}{" "}
+              {growth.state === "COMPUTED" && growth.annualRate !== null
+                ? formatDecimalPercent(growth.annualRate)
+                : messages.neutral}
+            </span>
+            <span>
+              {messages.recordedFoothold}{" "}
+              {formatDecimalPercent(candidate.components.recordedFoothold.share)}
+            </span>
+            <span>
+              {messages.supplierDiversity}{" "}
+              {diversity.state === "COMPUTED" && diversity.index !== null
+                ? Number(diversity.index).toLocaleString(locale)
+                : messages.neutral}
+            </span>
+          </span>
           <small>
             BACI {candidate.economy.code} · {confidenceLabel}:{" "}
             {localizedConfidence(candidate.confidence.label, locale)}
           </small>
+          <small className="candidate-analyze-label">{analyzeLabel} →</small>
           <span className="candidate-score-bar" aria-hidden="true">
             <span style={{ width: `${candidate.score}%` }} />
           </span>
@@ -1055,7 +1172,7 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
 });
 
 const VIRTUALIZED_LIST_THRESHOLD = 40;
-const CANDIDATE_ROW_HEIGHT = 79;
+const CANDIDATE_ROW_HEIGHT = 168;
 const CANDIDATE_ROW_OVERSCAN = 6;
 const CANDIDATE_LIST_VIEWPORT_FALLBACK = 760;
 
@@ -1064,14 +1181,18 @@ function VirtualizedCandidateList({
   selectedCandidateCode,
   locale,
   confidenceLabel,
+  cohortSize,
   listLabel,
+  analyzeLabel,
   onSelect,
 }: {
   candidates: readonly CandidateMarket[];
   selectedCandidateCode: string | null;
   locale: WorkspaceLocale;
   confidenceLabel: string;
+  cohortSize: number;
   listLabel: string;
+  analyzeLabel: string;
   onSelect: (candidate: CandidateMarket) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -1135,7 +1256,12 @@ function VirtualizedCandidateList({
   }
 
   return (
-    <div className="candidate-scroll" ref={scrollRef} onScroll={handleScroll}>
+    <div
+      className="candidate-scroll"
+      id="candidate-market-list-scroll"
+      ref={scrollRef}
+      onScroll={handleScroll}
+    >
       <ol
         aria-label={listLabel}
         className="candidate-ranking-virtual"
@@ -1150,6 +1276,8 @@ function VirtualizedCandidateList({
               selected={candidate.economy.code === selectedCandidateCode}
               locale={locale}
               confidenceLabel={confidenceLabel}
+              cohortSize={cohortSize}
+              analyzeLabel={analyzeLabel}
               onSelect={onSelect}
               offsetTop={index * CANDIDATE_ROW_HEIGHT}
             />
@@ -1158,6 +1286,10 @@ function VirtualizedCandidateList({
       </ol>
     </div>
   );
+}
+
+function candidateMarketActionId(economyCode: string): string {
+  return `analyze-candidate-market-${economyCode}`;
 }
 
 function analysisErrorStatus(

@@ -59,6 +59,7 @@ type ProductComboboxProps = {
     source: "restore" | "explicit",
   ) => void;
   onRetiredBuild: () => void;
+  syncUrl?: boolean;
 };
 
 type SearchMatch = ProductSearchResult["matches"][number];
@@ -68,6 +69,7 @@ export function ProductCombobox({
   locale,
   onSelectionChange,
   onRetiredBuild,
+  syncUrl = true,
 }: ProductComboboxProps) {
   const messages = copy[locale];
   const listboxId = useId();
@@ -220,12 +222,14 @@ export function ProductCombobox({
     setStatus("idle");
     onSelectionChange(product, "explicit");
 
-    const context = withProductCode(
-      parseTradeAnalysisContext(window.location.href),
-      product.code,
-    );
-    const url = serializeTradeAnalysisContext(window.location.href, context);
-    window.history.replaceState(null, "", url);
+    if (syncUrl) {
+      const context = withProductCode(
+        parseTradeAnalysisContext(window.location.href),
+        product.code,
+      );
+      const url = serializeTradeAnalysisContext(window.location.href, context);
+      window.history.replaceState(null, "", url);
+    }
   }
 
   function clearSelectedIdentity() {
@@ -234,12 +238,14 @@ export function ProductCombobox({
     }
     setSelectedProduct(null);
     onSelectionChange(null, "explicit");
-    const context = withProductCode(
-      parseTradeAnalysisContext(window.location.href),
-      null,
-    );
-    const url = serializeTradeAnalysisContext(window.location.href, context);
-    window.history.replaceState(null, "", url);
+    if (syncUrl) {
+      const context = withProductCode(
+        parseTradeAnalysisContext(window.location.href),
+        null,
+      );
+      const url = serializeTradeAnalysisContext(window.location.href, context);
+      window.history.replaceState(null, "", url);
+    }
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {

@@ -39,45 +39,70 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
     .getByRole("button");
   await expect(candidateMarkets).toHaveCount(13);
   const expectedCandidates = [
-    "#1 Netherlands BACI 528 · Data Confidence: HIGH 85 /100",
-    "#2 Mexico BACI 484 · Data Confidence: HIGH 70 /100",
-    "#3 Chile BACI 152 · Data Confidence: HIGH 57 /100",
-    "#4 Poland BACI 616 · Data Confidence: HIGH 56 /100",
-    "#5 Canada BACI 124 · Data Confidence: HIGH 54 /100",
-    "#5 Japan BACI 392 · Data Confidence: HIGH 54 /100",
-    "#7 South Africa BACI 710 · Data Confidence: LOW 50 /100",
-    "#7 United States BACI 842 · Data Confidence: MEDIUM 50 /100",
-    "#9 India BACI 699 · Data Confidence: HIGH 45 /100",
-    "#10 Brazil BACI 76 · Data Confidence: HIGH 39 /100",
-    "#11 Other Asia, n.e.s. (Taiwan proxy) BACI 490 · Data Confidence: HIGH 37 /100",
-    "#12 Australia BACI 36 · Data Confidence: HIGH 36 /100",
-    "#13 Kenya BACI 404 · Data Confidence: LOW 17 /100",
+    { rank: 1, market: "Netherlands", confidence: "HIGH", score: 85 },
+    { rank: 2, market: "Mexico", confidence: "HIGH", score: 70 },
+    { rank: 3, market: "Chile", confidence: "HIGH", score: 57 },
+    { rank: 4, market: "Poland", confidence: "HIGH", score: 56 },
+    { rank: 5, market: "Canada", confidence: "HIGH", score: 54 },
+    { rank: 5, market: "Japan", confidence: "HIGH", score: 54 },
+    { rank: 7, market: "South Africa", confidence: "LOW", score: 50 },
+    { rank: 7, market: "United States", confidence: "MEDIUM", score: 50 },
+    { rank: 9, market: "India", confidence: "HIGH", score: 45 },
+    { rank: 10, market: "Brazil", confidence: "HIGH", score: 39 },
+    {
+      rank: 11,
+      market: "Other Asia, n.e.s. (Taiwan proxy)",
+      confidence: "HIGH",
+      score: 37,
+    },
+    { rank: 12, market: "Australia", confidence: "HIGH", score: 36 },
+    { rank: 13, market: "Kenya", confidence: "LOW", score: 17 },
   ] as const;
-  for (const [index, accessibleName] of expectedCandidates.entries()) {
-    await expect(candidateMarkets.nth(index)).toHaveAccessibleName(
-      accessibleName,
+  for (const [index, candidate] of expectedCandidates.entries()) {
+    const row = candidateMarkets.nth(index);
+    await expect(row).toContainText(`#${candidate.rank}`);
+    await expect(row).toContainText(candidate.market);
+    await expect(row).toContainText(
+      `Candidate Market Score ${candidate.score}`,
     );
+    await expect(row).toContainText(
+      `Data Confidence: ${candidate.confidence}`,
+    );
+    await expect(row).toContainText("Analyze this market");
   }
   expect(analysisRequests).toBe(1);
   await expect(page).toHaveURL(
-    /exporter=156.*revision=HS12.*product=010121.*market=528/,
+    /exporter=156.*revision=HS12.*product=010121/,
   );
+  await expect(page).not.toHaveURL(/market=/u);
   await expect(page.getByText("V202601", { exact: true })).toBeVisible();
   await expect(page.getByText("Finalized Years 2019–2023")).toBeVisible();
   await expect(page.getByText("Provisional Year 2024")).toBeVisible();
 
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
+  await candidateMarkets.filter({ hasText: "Netherlands" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeFocused();
+  const netherlandsAnalysis = page.getByRole("region", {
+    name: "Netherlands · Market Analysis",
   });
-  await expect(evidence.getByRole("heading", { name: "Netherlands" })).toBeVisible();
-  await expect(evidence.getByText("Score 85")).toBeVisible();
-  await expect(evidence.getByText("Rank 1 of 13")).toBeVisible();
+  await expect(
+    netherlandsAnalysis.getByText("Candidate Market Score 85"),
+  ).toBeVisible();
+  await expect(netherlandsAnalysis.getByText("Rank 1 of 13")).toBeVisible();
 
   await candidateMarkets.filter({ hasText: "Mexico" }).click();
 
-  await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
-  await expect(evidence.getByText("Score 70")).toBeVisible();
-  await expect(evidence.getByText("Rank 2 of 13")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Mexico · Market Analysis" }),
+  ).toBeFocused();
+  const mexicoAnalysis = page.getByRole("region", {
+    name: "Mexico · Market Analysis",
+  });
+  await expect(
+    mexicoAnalysis.getByText("Candidate Market Score 70"),
+  ).toBeVisible();
+  await expect(mexicoAnalysis.getByText("Rank 2 of 13")).toBeVisible();
   await expect(page).toHaveURL(/market=484/);
   expect(analysisRequests).toBe(1);
 });
@@ -323,11 +348,13 @@ test("a stale analysis build can refresh the complete result", async ({
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
   ).toHaveCount(13);
+  await page
+    .getByRole("list", { name: "Candidate Markets" })
+    .getByRole("button", { name: /Netherlands.*Analyze this market/u })
+    .click();
   await expect(
-    page
-      .getByRole("region", { name: "Selected Candidate Market evidence" })
-      .getByRole("heading", { name: "Netherlands" }),
-  ).toBeVisible();
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeFocused();
   expect(analysisRequests).toBe(2);
 });
 

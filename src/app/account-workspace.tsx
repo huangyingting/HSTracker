@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
   OpportunityConfidence,
 } from "../domain/opportunity-discovery/result";
+import type { ProductSearchProduct } from "../catalog/product-catalog";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
-import { AnalysisShareLink } from "./analysis-share-link";
 import {
   confirmPortfolioProduct,
   consumeRecoveryToken,
@@ -28,13 +34,19 @@ import {
 } from "./portfolio-projection";
 import { loadMarketInvestigationPage } from "./opportunity-discovery-client";
 import {
+  openMarketAnalysis,
+  readOpportunityReturnState,
+  restoreOpportunityPosition,
+} from "./market-analysis-navigation";
+import { ProductCombobox } from "./product-combobox";
+import {
   parseTradeAnalysisContext,
+  pinFromDeploymentWindow,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withLocale,
-  withPin,
   withRecipe,
-  withoutPin,
+  type CandidateMarketContext,
   type OpportunityDiscoveryContext,
 } from "./trade-analysis-context";
 
@@ -72,7 +84,8 @@ const copy = {
     emptyPortfolio: "No portfolio products confirmed",
     addProductLabel: "Confirm HS12 product code",
     addProduct: "Add product to portfolio",
-    addProductHint: "Enter an exact six-digit HS12 code, then confirm it into your operational portfolio.",
+    addProductHint:
+      "Enter an exact six-digit HS12 code, then confirm it into your operational portfolio.",
     removeProduct: "Remove",
     showComplete: "Show complete public ranking",
     showPortfolio: "Show portfolio filter",
@@ -85,16 +98,24 @@ const copy = {
     investigationPriority: "Investigation Priority",
     marketAttractiveness: "Market Attractiveness",
     exporterFit: "Exporter Fit",
-    confidence: "Confidence",
+    confidence: "Data Confidence",
+    coverage: "Coverage",
+    marketGap: "Unvalidated Market Gap",
+    expansion: "Expansion Evidence",
+    generalEvidence: "General Investigation Evidence",
     currentLoading: "Loading current public analysis…",
     feedLoading: "Loading current public Opportunity Index…",
-    currentUnavailable: "The current public analysis is temporarily unavailable.",
-    feedUnavailable: "The current public Opportunity Index could not be loaded.",
-    stale: "This retained link points at a retired analysis build. Refresh current analysis to choose today's public index.",
+    currentUnavailable:
+      "The current public analysis is temporarily unavailable.",
+    feedUnavailable:
+      "The current public Opportunity Index could not be loaded.",
+    stale:
+      "This retained link points at a retired analysis build. Refresh current analysis to choose today's public index.",
     refresh: "Refresh current analysis",
     noVisibleRows: "No portfolio rows are visible.",
     noVisibleRowsBody:
       "Add a portfolio product that appears in the current public feed, or show the complete public ranking.",
+    analyzeMarket: "Analyze this market",
     anonymousFallback: "Continue without signing in",
   },
   "zh-Hans": {
@@ -141,7 +162,11 @@ const copy = {
     investigationPriority: "调查优先级",
     marketAttractiveness: "市场吸引力",
     exporterFit: "出口方匹配度",
-    confidence: "置信度",
+    confidence: "数据置信度",
+    coverage: "覆盖",
+    marketGap: "未验证市场缺口",
+    expansion: "扩张证据",
+    generalEvidence: "一般调查证据",
     currentLoading: "正在加载当前公共分析…",
     feedLoading: "正在加载当前公共机会索引…",
     currentUnavailable: "当前公共分析暂时不可用。",
@@ -151,6 +176,7 @@ const copy = {
     noVisibleRows: "没有可见组合行。",
     noVisibleRowsBody:
       "请添加出现在当前公共列表中的组合产品，或显示完整公共排名。",
+    analyzeMarket: "分析此市场",
     anonymousFallback: "不登录继续",
   },
 } as const;
@@ -224,7 +250,10 @@ export function AccountWorkspace({
 
   if (sessionStatus === "loading") {
     return (
-      <section className="account-panel account-panel--pending" aria-live="polite">
+      <section
+        className="account-panel account-panel--pending"
+        aria-live="polite"
+      >
         <p>{messages.loadingSession}</p>
       </section>
     );
@@ -270,7 +299,9 @@ function AccountAuthPanel({
     token: string;
     expiresAt: string;
   } | null>(null);
-  const [status, setStatus] = useState<"idle" | "submitting" | "failed">("idle");
+  const [status, setStatus] = useState<"idle" | "submitting" | "failed">(
+    "idle",
+  );
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -310,28 +341,52 @@ function AccountAuthPanel({
   }
 
   return (
-    <section className="account-panel account-auth" aria-labelledby="account-auth-title">
+    <section
+      className="account-panel account-auth"
+      aria-labelledby="account-auth-title"
+    >
       <div className="account-copy">
         <p>{messages.authEyebrow}</p>
         <h2 id="account-auth-title">{messages.authTitle}</h2>
         <p>{messages.authBody}</p>
       </div>
       <div className="account-auth-card">
-        <div className="account-mode-tabs" role="group" aria-label={messages.authEyebrow}>
-          <button type="button" aria-pressed={mode === "sign-in"} onClick={() => setMode("sign-in")}>
+        <div
+          className="account-mode-tabs"
+          role="group"
+          aria-label={messages.authEyebrow}
+        >
+          <button
+            type="button"
+            aria-pressed={mode === "sign-in"}
+            onClick={() => setMode("sign-in")}
+          >
             {messages.signIn}
           </button>
-          <button type="button" aria-pressed={mode === "register"} onClick={() => setMode("register")}>
+          <button
+            type="button"
+            aria-pressed={mode === "register"}
+            onClick={() => setMode("register")}
+          >
             {messages.createAccount}
           </button>
-          <button type="button" aria-pressed={mode === "recovery"} onClick={() => setMode("recovery")}>
+          <button
+            type="button"
+            aria-pressed={mode === "recovery"}
+            onClick={() => setMode("recovery")}
+          >
             {messages.recovery}
           </button>
         </div>
         <form onSubmit={(event) => void submit(event)}>
           <label>
             {messages.email}
-            <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </label>
           {mode === "recovery" && issuedRecovery !== null ? (
             <p className="recovery-token">
@@ -342,28 +397,48 @@ function AccountAuthPanel({
             <>
               <label>
                 {messages.recoveryToken}
-                <input value={token} onChange={(event) => setToken(event.target.value)} />
+                <input
+                  value={token}
+                  onChange={(event) => setToken(event.target.value)}
+                />
               </label>
               <label>
                 {messages.newPassword}
-                <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
               </label>
             </>
           ) : (
             <label>
               {messages.password}
-              <input type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} />
+              <input
+                type="password"
+                autoComplete={
+                  mode === "register" ? "new-password" : "current-password"
+                }
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
             </label>
           )}
           {mode === "register" ? (
             <>
               <label>
                 {messages.displayName}
-                <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+                <input
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
               </label>
               <label>
                 {messages.primaryExporter}
-                <input value={primaryExporter} onChange={(event) => setPrimaryExporter(event.target.value)} />
+                <input
+                  value={primaryExporter}
+                  onChange={(event) => setPrimaryExporter(event.target.value)}
+                />
               </label>
             </>
           ) : null}
@@ -404,13 +479,17 @@ function SignedInPortfolioWorkspace({
   onSignOut: () => void;
 }) {
   const messages = copy[locale];
-  const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(null);
+  const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(
+    null,
+  );
   const [feed, setFeed] = useState<MarketInvestigationPage | null>(null);
   const [status, setStatus] = useState<FeedStatus>("idle");
   const [mode, setMode] = useState<PortfolioProjectionMode>(
     opportunityPortfolioModeFromLocation,
   );
-  const [productCode, setProductCode] = useState("");
+  const [portfolioProduct, setPortfolioProduct] =
+    useState<ProductSearchProduct | null>(null);
+  const [productControlKey, setProductControlKey] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const currentController = useRef<AbortController | null>(null);
   const feedController = useRef<AbortController | null>(null);
@@ -439,11 +518,34 @@ function SignedInPortfolioWorkspace({
           revalidate,
         });
         setManifest(nextManifest);
-        const context = withRecipe(
-          withLocale(parseTradeAnalysisContext(window.location.href), locale),
+        const locationContext = parseTradeAnalysisContext(window.location.href);
+        const baseContext = withRecipe(
+          withLocale(locationContext, locale),
           "opportunity-discovery",
         );
-        if (context.recipe !== "opportunity-discovery") {
+        if (baseContext.recipe !== "opportunity-discovery") {
+          return;
+        }
+        const translatedPin =
+          locationContext.pin === null
+            ? null
+            : pinFromDeploymentWindow(
+                nextManifest,
+                locationContext.pin.analysisBuildId,
+                "opportunity-discovery",
+              );
+        if (locationContext.pin !== null && translatedPin === null) {
+          setStatus("stale");
+          return;
+        }
+        const context: OpportunityDiscoveryContext = {
+          ...baseContext,
+          pin: translatedPin,
+        };
+        if (portfolioRef.current.length === 0) {
+          setFeed(null);
+          setSelectedKey(null);
+          setStatus("empty");
           return;
         }
         const pinResolution = resolvePinnedContext(
@@ -490,31 +592,9 @@ function SignedInPortfolioWorkspace({
         setSelectedKey(
           selected === null ? null : candidateProjectionKey(selected.candidate),
         );
-        const baseContext: OpportunityDiscoveryContext = {
-          recipe: "opportunity-discovery",
-          locale,
-          pin: null,
-          exportEconomyCode: session.primaryExporter,
-          productCodes: null,
-          focusProductCode: selected?.candidate.product.code ?? null,
-          focusedMarketCode: selected?.candidate.market.code ?? null,
-          portfolioFilter: modeRef.current === "portfolio",
-        };
-        const pinnedContext =
-          pinResolution.state === "retained"
-            ? { ...baseContext, pin: pinResolution.pin }
-            : withPin(baseContext, nextManifest);
-        window.history.replaceState(
-          null,
-          "",
-          serializeTradeAnalysisContext(window.location.href, pinnedContext),
-        );
         setStatus(projection.visibleRows.length === 0 ? "empty" : "ready");
       } catch (error) {
-        if (
-          error instanceof DOMException &&
-          error.name === "AbortError"
-        ) {
+        if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
         console.error("Portfolio opportunity feed failed", error);
@@ -539,15 +619,17 @@ function SignedInPortfolioWorkspace({
         return;
       }
       const context = parseTradeAnalysisContext(window.location.href);
-      if (
-        context.recipe !== "opportunity-discovery"
-      ) {
-        return;
+      if (context.recipe === "opportunity-discovery") {
+        const nextMode =
+          context.portfolioFilter === true ? "portfolio" : "complete";
+        modeRef.current = nextMode;
+        setMode(nextMode);
       }
-      const nextMode = context.portfolioFilter === true ? "portfolio" : "complete";
-      modeRef.current = nextMode;
-      setMode(nextMode);
-      if (context.focusProductCode != null && context.focusedMarketCode != null) {
+      if (
+        context.recipe === "opportunity-discovery" &&
+        context.focusProductCode != null &&
+        context.focusedMarketCode != null
+      ) {
         const key = `${context.focusProductCode}:${context.focusedMarketCode}`;
         if (
           feed.candidates.some(
@@ -557,19 +639,35 @@ function SignedInPortfolioWorkspace({
           setSelectedKey(key);
         }
       }
+      const returnState = readOpportunityReturnState(
+        window.history.state,
+        "portfolio",
+      );
+      if (returnState !== null) {
+        restoreOpportunityPosition(returnState, "portfolio-list-scroll");
+      }
     }
     window.addEventListener("popstate", restoreFocusFromHistory);
-    return () => window.removeEventListener("popstate", restoreFocusFromHistory);
+    return () =>
+      window.removeEventListener("popstate", restoreFocusFromHistory);
   }, [feed]);
 
   async function addProduct() {
+    if (portfolioProduct === null) {
+      return;
+    }
     const portfolio = await confirmPortfolioProduct({
-      hsRevision: "HS12",
-      code: productCode,
+      hsRevision: portfolioProduct.hsRevision,
+      code: portfolioProduct.code,
     });
+    portfolioRef.current = portfolio;
     onSessionChange({ ...session, portfolio });
     updateMode("portfolio");
-    setProductCode("");
+    setPortfolioProduct(null);
+    setProductControlKey((current) => current + 1);
+    if (feed === null) {
+      await loadFeed(false);
+    }
   }
 
   async function removeProduct(code: string) {
@@ -577,6 +675,7 @@ function SignedInPortfolioWorkspace({
       hsRevision: "HS12",
       code,
     });
+    portfolioRef.current = portfolio;
     onSessionChange({ ...session, portfolio });
     updateMode("portfolio");
   }
@@ -584,45 +683,14 @@ function SignedInPortfolioWorkspace({
   function updateMode(nextMode: PortfolioProjectionMode) {
     modeRef.current = nextMode;
     setMode(nextMode);
-    const context = parseTradeAnalysisContext(window.location.href);
-    if (context.recipe !== "opportunity-discovery") {
-      return;
-    }
-    window.history.replaceState(
-      null,
-      "",
-      serializeTradeAnalysisContext(window.location.href, {
-        ...context,
-        portfolioFilter: nextMode === "portfolio",
-      }),
-    );
   }
 
   function selectCandidate(candidate: MarketInvestigationCandidate) {
     const key = candidateProjectionKey(candidate);
     setSelectedKey(key);
-    const context = parseTradeAnalysisContext(window.location.href);
-    if (context.recipe !== "opportunity-discovery") {
-      return;
-    }
-    window.history.pushState(
-      null,
-      "",
-      serializeTradeAnalysisContext(window.location.href, {
-        ...context,
-        focusProductCode: candidate.product.code,
-        focusedMarketCode: candidate.market.code,
-      }),
-    );
   }
 
   function refreshCurrentAnalysis() {
-    const context = parseTradeAnalysisContext(window.location.href);
-    window.history.replaceState(
-      null,
-      "",
-      serializeTradeAnalysisContext(window.location.href, withoutPin(context)),
-    );
     void loadFeed(true);
   }
 
@@ -636,9 +704,51 @@ function SignedInPortfolioWorkspace({
     ) ??
     projection?.visibleRows[0] ??
     null;
+  const candidateMarketPin =
+    manifest === null || feed === null
+      ? null
+      : pinFromDeploymentWindow(
+          manifest,
+          feed.analysisBuildId,
+          "candidate-market",
+        );
+
+  function marketAnalysisHref(
+    candidate: MarketInvestigationCandidate,
+  ): string | null {
+    if (feed === null || candidateMarketPin === null) {
+      return null;
+    }
+    const context: CandidateMarketContext = {
+      recipe: "candidate-market",
+      locale,
+      pin: candidateMarketPin,
+      exporterCode: feed.exporter.code,
+      productCode: candidate.product.code,
+      focusedMarketCode: candidate.market.code,
+    };
+    return serializeTradeAnalysisContext(window.location.href, context);
+  }
+
+  function openCandidateMarket(
+    candidate: MarketInvestigationCandidate,
+    href: string,
+  ) {
+    const list = document.getElementById("portfolio-list-scroll");
+    openMarketAnalysis(href, {
+      source: "portfolio",
+      actionId: portfolioActionId(candidate),
+      scrollY: window.scrollY,
+      listScrollTop: list?.scrollTop ?? null,
+      loadedPages: 1,
+    });
+  }
 
   return (
-    <section className="account-panel portfolio-workspace" aria-labelledby="portfolio-title">
+    <section
+      className="account-panel portfolio-workspace"
+      aria-labelledby="portfolio-title"
+    >
       <div className="portfolio-header">
         <div>
           <p>{messages.signedInStatus}</p>
@@ -668,11 +778,23 @@ function SignedInPortfolioWorkspace({
         </div>
       </dl>
       <div className="portfolio-product-tools">
-        <label>
-          {messages.addProductLabel}
-          <input value={productCode} inputMode="numeric" pattern="[0-9]{6}" onChange={(event) => setProductCode(event.target.value)} />
-        </label>
-        <button type="button" onClick={() => void addProduct()}>
+        {manifest === null ? null : (
+          <ProductCombobox
+            key={`portfolio-product-${productControlKey}`}
+            productSearchBuildId={manifest.productSearchBuildId}
+            locale={locale}
+            syncUrl={false}
+            onSelectionChange={(nextProduct) =>
+              setPortfolioProduct(nextProduct)
+            }
+            onRetiredBuild={refreshCurrentAnalysis}
+          />
+        )}
+        <button
+          type="button"
+          disabled={portfolioProduct === null}
+          onClick={() => void addProduct()}
+        >
           {messages.addProduct}
         </button>
         <small>{messages.addProductHint}</small>
@@ -688,10 +810,18 @@ function SignedInPortfolioWorkspace({
         ))}
       </div>
       <div className="portfolio-filter-bar" aria-label={messages.filterLabel}>
-        <button type="button" aria-pressed={mode === "complete"} onClick={() => updateMode("complete")}>
+        <button
+          type="button"
+          aria-pressed={mode === "complete"}
+          onClick={() => updateMode("complete")}
+        >
           {messages.showComplete}
         </button>
-        <button type="button" aria-pressed={mode === "portfolio"} onClick={() => updateMode("portfolio")}>
+        <button
+          type="button"
+          aria-pressed={mode === "portfolio"}
+          onClick={() => updateMode("portfolio")}
+        >
           {messages.showPortfolio}
         </button>
         <button type="button" onClick={refreshCurrentAnalysis}>
@@ -709,7 +839,9 @@ function SignedInPortfolioWorkspace({
           <span aria-hidden="true" />
           {manifest === null ? messages.currentLoading : messages.feedLoading}
         </div>
-      ) : status === "current-failed" || status === "feed-failed" || status === "stale" ? (
+      ) : status === "current-failed" ||
+        status === "feed-failed" ||
+        status === "stale" ? (
         <div className="analysis-state analysis-error" role="alert">
           <p>
             {status === "stale"
@@ -722,12 +854,19 @@ function SignedInPortfolioWorkspace({
             {messages.refresh}
           </button>
         </div>
+      ) : status === "empty" && feed === null ? (
+        <div className="analysis-state" role="status">
+          <h3>{messages.emptyPortfolio}</h3>
+          <p>{messages.addProductHint}</p>
+        </div>
       ) : null}
       {projection !== null && feed !== null ? (
         <>
-          <AnalysisShareLink locale={locale} task="opportunity-discovery" />
           <div className="portfolio-feed">
-            <section className="portfolio-list" aria-labelledby="portfolio-candidates-title">
+            <section
+              className="portfolio-list"
+              aria-labelledby="portfolio-candidates-title"
+            >
               <div className="candidate-heading">
                 <div>
                   <p>{messages.filterLabel}</p>
@@ -741,47 +880,121 @@ function SignedInPortfolioWorkspace({
                   <p>{messages.noVisibleRowsBody}</p>
                 </div>
               ) : (
-                <ol aria-label={messages.listLabel}>
-                  {projection.visibleRows.map((row) => (
-                    <li key={candidateProjectionKey(row.candidate)}>
-                      <button
-                        type="button"
-                        aria-pressed={
-                          candidateProjectionKey(row.candidate) === selectedKey
-                        }
-                        onClick={() => selectCandidate(row.candidate)}
-                      >
-                        <span>
-                          {messages.canonicalRank} #{row.canonicalRank}
-                        </span>
-                        <span>
-                          <strong>{row.candidate.market.name}</strong>
-                          <small>
-                            HS12 {row.candidate.product.code} · {messages.confidence}:{" "}
-                            {localizedConfidence(row.candidate.confidence, locale)}
-                          </small>
-                        </span>
-                        <span>
-                          {messages.investigationPriority}{" "}
-                          {row.candidate.investigationPriority.display}/100
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                <ol id="portfolio-list-scroll" aria-label={messages.listLabel}>
+                  {projection.visibleRows.map((row) => {
+                    const analysisHref = marketAnalysisHref(row.candidate);
+                    return (
+                      <li key={candidateProjectionKey(row.candidate)}>
+                        <button
+                          type="button"
+                          aria-pressed={
+                            candidateProjectionKey(row.candidate) ===
+                            selectedKey
+                          }
+                          onClick={() => selectCandidate(row.candidate)}
+                        >
+                          <span>
+                            {messages.canonicalRank} #{row.canonicalRank}
+                          </span>
+                          <span>
+                            <span className="opportunity-row-identities">
+                              <strong>
+                                HS12 {row.candidate.product.code} ·{" "}
+                                {row.candidate.product.descriptionEn}
+                              </strong>
+                              <strong>{row.candidate.market.name}</strong>
+                            </span>
+                            <small>
+                              {portfolioOpportunityTypeLabel(
+                                row.candidate,
+                                locale,
+                              )}
+                            </small>
+                            <span className="opportunity-row-metrics">
+                              <span>
+                                {messages.marketAttractiveness}{" "}
+                                {row.candidate.marketAttractiveness.display}
+                              </span>
+                              <span>
+                                {messages.exporterFit}{" "}
+                                {row.candidate.exporterFit.display}
+                              </span>
+                              <span>
+                                {messages.confidence}:{" "}
+                                {localizedConfidence(
+                                  row.candidate.confidence,
+                                  locale,
+                                )}
+                              </span>
+                              <span>
+                                {messages.coverage}:{" "}
+                                {row.candidate.observedMarketYears.length}{" "}
+                                {locale === "en" ? "observed" : "已观察"} ·{" "}
+                                {row.candidate.missingMarketYears.length}{" "}
+                                {locale === "en" ? "missing" : "缺失"}
+                              </span>
+                            </span>
+                          </span>
+                          <span>
+                            {messages.investigationPriority}{" "}
+                            {row.candidate.investigationPriority.display}/100
+                          </span>
+                        </button>
+                        {analysisHref === null ? null : (
+                          <a
+                            id={portfolioActionId(row.candidate)}
+                            className="candidate-primary-action"
+                            href={analysisHref}
+                            onClick={(event) => {
+                              if (
+                                event.button !== 0 ||
+                                event.metaKey ||
+                                event.ctrlKey ||
+                                event.shiftKey ||
+                                event.altKey
+                              ) {
+                                return;
+                              }
+                              event.preventDefault();
+                              openCandidateMarket(row.candidate, analysisHref);
+                            }}
+                          >
+                            {messages.analyzeMarket}
+                            <span aria-hidden="true"> →</span>
+                          </a>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ol>
               )}
             </section>
             {selectedRow === null ? null : (
-              <PortfolioCandidateDetail
-                row={selectedRow}
-                locale={locale}
-              />
+              <PortfolioCandidateDetail row={selectedRow} locale={locale} />
             )}
           </div>
         </>
       ) : null}
     </section>
   );
+}
+
+function portfolioActionId(candidate: MarketInvestigationCandidate): string {
+  return `analyze-portfolio-${candidate.product.code}-${candidate.market.code}`;
+}
+
+function portfolioOpportunityTypeLabel(
+  candidate: MarketInvestigationCandidate,
+  locale: AccountLocale,
+): string {
+  const messages = copy[locale];
+  if (candidate.opportunityType === "UNVALIDATED_MARKET_GAP") {
+    return messages.marketGap;
+  }
+  if (candidate.opportunityType === "EXPANSION_EVIDENCE") {
+    return messages.expansion;
+  }
+  return messages.generalEvidence;
 }
 
 function PortfolioCandidateDetail({
@@ -794,10 +1007,13 @@ function PortfolioCandidateDetail({
   const messages = copy[locale];
   return (
     <section className="portfolio-detail" aria-label={messages.selectedDetail}>
-      <p>{messages.canonicalRank} #{row.canonicalRank}</p>
+      <p>
+        {messages.canonicalRank} #{row.canonicalRank}
+      </p>
       <h3>{row.candidate.market.name}</h3>
       <p>
-        HS 2012 · {row.candidate.product.code} · BACI {row.candidate.market.code}
+        HS 2012 · {row.candidate.product.code} · BACI{" "}
+        {row.candidate.market.code}
       </p>
       <div className="opportunity-axis-grid">
         <MetricCard
