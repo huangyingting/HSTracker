@@ -7,7 +7,10 @@ const copy = {
     kicker: "Share this analysis",
     hint: "The address bar already carries this exact context — export economy, HS Product, and selected Candidate Market. Copy it to share the same evidence.",
     idle: "Copy analysis link",
+    marketAnalysisIdle: "Copy Market Analysis link",
     done: "Link copied",
+    marketAnalysisHint:
+      "Copy the canonical link for this exact Market Analysis context.",
     importingContextHint:
       "The address bar already carries this exact context — importing economy and HS Product. Copy it to share the same evidence.",
     explorerContextHint:
@@ -19,7 +22,9 @@ const copy = {
     kicker: "分享此分析",
     hint: "地址栏已包含当前完整情境——出口经济体、HS 产品与所选候选市场。复制它即可分享相同的证据。",
     idle: "复制分析链接",
+    marketAnalysisIdle: "复制市场分析链接",
     done: "已复制链接",
+    marketAnalysisHint: "复制此确切市场分析情境的规范链接。",
     importingContextHint:
       "地址栏已包含当前完整情境——进口经济体与 HS 产品。复制它即可分享相同的证据。",
     explorerContextHint:
@@ -39,6 +44,7 @@ export const AnalysisShareLink = memo(function AnalysisShareLink({
   task?:
     | "opportunity-discovery"
     | "candidate-market"
+    | "market-analysis"
     | "trade-trend"
     | "supplier-competition"
     | "trade-explorer";
@@ -78,6 +84,8 @@ export const AnalysisShareLink = memo(function AnalysisShareLink({
         <span>
           {task === "candidate-market"
             ? messages.hint
+            : task === "market-analysis"
+              ? messages.marketAnalysisHint
             : task === "opportunity-discovery"
               ? messages.opportunityContextHint
             : task === "trade-explorer"
@@ -86,7 +94,11 @@ export const AnalysisShareLink = memo(function AnalysisShareLink({
         </span>
       </div>
       <button type="button" data-copied={copied} onClick={copyAnalysisLink}>
-        {copied ? messages.done : messages.idle}
+        {copied
+          ? messages.done
+          : task === "market-analysis"
+            ? messages.marketAnalysisIdle
+            : messages.idle}
       </button>
     </div>
   );

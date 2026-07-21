@@ -56,6 +56,10 @@ describe("MarketAnalysis module", () => {
     expect(result.opportunity.candidate.economy.code).toBe("528");
     expect(result.demand.finalizedObservations.length).toBeGreaterThan(0);
     expect(result.supplierLandscape.supplierShares.length).toBeGreaterThan(0);
+    expect(result.exporterPosition.pooledSupplierPosition).toEqual({
+      rank: 1,
+      cohortSize: 2,
+    });
     expect(result.evidenceQuality.confidence).toBeDefined();
     expect(result.discoveryDisclaimer.length).toBeGreaterThan(0);
   });
@@ -83,6 +87,7 @@ describe("MarketAnalysis module", () => {
       "NO_ELIGIBLE_SUPPLIERS_IN_FINALIZED_WINDOW",
     );
     expect(result.exporterPosition.pooledSupplier).toBeNull();
+    expect(result.exporterPosition.pooledSupplierPosition).toBeNull();
   });
 
   it("throws typed CANDIDATE_MARKET_NOT_FOUND when a valid market is absent from the complete Candidate Market cohort", async () => {

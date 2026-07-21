@@ -32,6 +32,7 @@ import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import {
   loadMarketAnalysis,
+  MarketAnalysisClientError,
 } from "./market-analysis-client";
 import {
   marketAnalysisStatusFromError,
@@ -42,6 +43,7 @@ import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
 import {
   parseTradeAnalysisContext,
+  pinFromDeploymentWindow,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withEconomyCode,
@@ -51,6 +53,7 @@ import {
   withProductCode,
   withRecipe,
   type CandidateMarketContext,
+  type TradeAnalysisRecipe,
 } from "./trade-analysis-context";
 
 const copy = {
@@ -182,6 +185,13 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   );
   const [marketAnalysisStatus, setMarketAnalysisStatus] =
     useState<MarketAnalysisStatus>("loading");
+  const [marketAnalysisRetryAfterSeconds, setMarketAnalysisRetryAfterSeconds] =
+    useState<number | null>(null);
+  const [resolvedAnalysisBuildId, setResolvedAnalysisBuildId] = useState<
+    string | null
+  >(null);
+  const [resolvedAnalysisManifest, setResolvedAnalysisManifest] =
+    useState<CurrentAnalysisManifest | null>(null);
   const [currentManifest, setCurrentManifest] =
     useState<CurrentAnalysisManifest | null>(null);
   const [currentManifestStatus, setCurrentManifestStatus] = useState<
@@ -252,7 +262,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       window.location.href,
       withoutPin(context),
     );
-    window.history.replaceState(null, "", url);
     const { controller, promise } = beginCurrentManifestRequest(true);
     const discovered = await promise;
     if (controller.signal.aborted || discovered === null) {
@@ -262,11 +271,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       return;
     }
 
+    window.history.replaceState(null, "", url);
     requestSequence.current += 1;
     marketAnalysisRequestSequence.current += 1;
     canonicalRestorePending.current = true;
     analyzedInputsInHistory.current = false;
     resolvedAnalysisBuildIdRef.current = null;
+    setResolvedAnalysisBuildId(null);
+    setResolvedAnalysisManifest(null);
     setCurrentManifest(discovered);
     setExporter(null);
     setProduct(null);
@@ -276,6 +288,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     setStatus("idle");
     setMarketAnalysis(null);
     setMarketAnalysisStatus("loading");
+    setMarketAnalysisRetryAfterSeconds(null);
     setControlRestorationKey((current) => current + 1);
   }, [beginCurrentManifestRequest, currentManifest]);
 
@@ -283,12 +296,15 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     analysisController.current?.abort();
     marketAnalysisController.current?.abort();
     resolvedAnalysisBuildIdRef.current = null;
+    setResolvedAnalysisBuildId(null);
+    setResolvedAnalysisManifest(null);
     setResult(null);
     setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("idle");
     setMarketAnalysis(null);
     setMarketAnalysisStatus("loading");
+    setMarketAnalysisRetryAfterSeconds(null);
     const context = parseTradeAnalysisContext(window.location.href);
     const nextContext: CandidateMarketContext =
       context.recipe === "candidate-market"
@@ -354,6 +370,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       marketAnalysisRequestSequence.current = sequence;
       pendingMarketAnalysisFocusRef.current = focusHeading;
       setMarketAnalysisStatus("loading");
+      setMarketAnalysisRetryAfterSeconds(null);
       setMarketAnalysis(null);
       try {
         const payload = await loadMarketAnalysis({
@@ -372,6 +389,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         }
         setMarketAnalysis(payload);
         setMarketAnalysisStatus("success");
+        setMarketAnalysisRetryAfterSeconds(null);
       } catch (error) {
         if (
           controller.signal.aborted ||
@@ -380,13 +398,20 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           return;
         }
         console.error("Market Analysis request failed", error);
-        setMarketAnalysisStatus(marketAnalysisStatusFromError(error));
+        const nextStatus = marketAnalysisStatusFromError(error);
+        setMarketAnalysisStatus(nextStatus);
+        setMarketAnalysisRetryAfterSeconds(
+          nextStatus === "rateLimit" &&
+            error instanceof MarketAnalysisClientError
+            ? error.retryAfterSeconds
+            : null,
+        );
       }
     },
     [exporter, product],
   );
 
-  // Focus transfer must happen after React commits the "success" heading
+  // Focus transfer must happen after React commits the terminal heading
   // to the DOM, not synchronously inside the fetch callback above: the
   // loading/success/error branches each mount their own <h2>, so the ref
   // only points at the newly rendered heading once this effect runs
@@ -394,7 +419,10 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   // "Explicit Analyze moves focus...background changes do not steal
   // focus").
   useLayoutEffect(() => {
-    if (marketAnalysisStatus === "success" && pendingMarketAnalysisFocusRef.current) {
+    if (
+      marketAnalysisStatus !== "loading" &&
+      pendingMarketAnalysisFocusRef.current
+    ) {
       pendingMarketAnalysisFocusRef.current = false;
       marketAnalysisHeadingRef.current?.focus();
     }
@@ -431,6 +459,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     requestSequence.current = sequence;
     analyzedInputsInHistory.current = true;
     setResult(null);
+    setResolvedAnalysisManifest(null);
     setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("loading");
@@ -499,6 +528,8 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       }
 
       resolvedAnalysisBuildIdRef.current = analysisBuildId;
+      setResolvedAnalysisBuildId(analysisBuildId);
+      setResolvedAnalysisManifest(currentManifest);
 
       const priorContext = parseTradeAnalysisContext(window.location.href);
       const requestedCandidateCode =
@@ -607,6 +638,8 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       analyzedInputsInHistory.current = false;
       canonicalRestorePending.current = true;
       resolvedAnalysisBuildIdRef.current = null;
+      setResolvedAnalysisBuildId(null);
+      setResolvedAnalysisManifest(null);
       setExporter(null);
       setProduct(null);
       setResult(null);
@@ -615,6 +648,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       setStatus("idle");
       setMarketAnalysis(null);
       setMarketAnalysisStatus("loading");
+      setMarketAnalysisRetryAfterSeconds(null);
       setControlRestorationKey((current) => current + 1);
     }
 
@@ -670,6 +704,29 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     result?.candidates.find(
       ({ economy }) => economy.code === deferredSelectedCandidateCode,
     ) ?? selectedCandidate;
+  const resolvedDeploymentState =
+    currentManifest === null || resolvedAnalysisBuildId === null
+      ? null
+      : currentManifest.analysisBuildId === resolvedAnalysisBuildId
+        ? "current"
+        : currentManifest.deploymentWindow.some(
+              ({ analysisBuildId }) =>
+                analysisBuildId === resolvedAnalysisBuildId,
+            )
+          ? "retained"
+          : "retired";
+  const resolvedNavigationPin = (recipe: TradeAnalysisRecipe) =>
+    resolvedAnalysisManifest === null || resolvedAnalysisBuildId === null
+      ? null
+      : pinFromDeploymentWindow(
+          resolvedAnalysisManifest,
+          resolvedAnalysisBuildId,
+          recipe,
+        );
+  const opportunityNavigationPin = resolvedNavigationPin(
+    "opportunity-discovery",
+  );
+  const tradeExplorerNavigationPin = resolvedNavigationPin("trade-explorer");
 
   return (
     <section
@@ -781,14 +838,15 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
             locale={locale}
             onManifestRevalidated={setCurrentManifest}
           />
-          <AnalysisShareLink locale={locale} />
+          {status === "empty" ? <AnalysisShareLink locale={locale} /> : null}
         </>
       ) : null}
 
       {status === "success" &&
       result !== null &&
       selectedCandidate !== null &&
-      evidenceCandidate !== null ? (
+      evidenceCandidate !== null &&
+      product !== null ? (
         <>
           <div className="candidate-workspace">
             <section
@@ -833,10 +891,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
 
             <MarketAnalysisView
-              status={marketAnalysisStatus}
+              status={
+                resolvedDeploymentState === "retired"
+                  ? "retired"
+                  : marketAnalysisStatus
+              }
               analysis={marketAnalysis}
               locale={locale}
-              freshness={currentManifest?.freshness ?? null}
+              freshness={resolvedAnalysisManifest?.freshness ?? null}
               isCompared={comparedCandidateCodes.includes(
                 evidenceCandidate.economy.code,
               )}
@@ -851,33 +913,62 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 )
               }
               onRefreshCurrent={() => void recoverRetiredAnalysis()}
+              retryAfterSeconds={marketAnalysisRetryAfterSeconds}
+              requestedAnalysisBuildId={resolvedAnalysisBuildId}
               headingRef={marketAnalysisHeadingRef}
+              opportunityHref={
+                opportunityNavigationPin === null
+                  ? null
+                  : serializeTradeAnalysisContext("/", {
+                      recipe: "opportunity-discovery",
+                      locale,
+                      pin: opportunityNavigationPin,
+                      exportEconomyCode: result.query.exporter.code,
+                      productCodes: [result.query.product.code],
+                      focusProductCode: result.query.product.code,
+                      focusedMarketCode: evidenceCandidate.economy.code,
+                    })
+              }
+              deploymentState={
+                resolvedDeploymentState === "current"
+                  ? "current"
+                  : "retained"
+              }
+              productDescription={
+                locale === "en"
+                  ? product.sourceDescriptionEn
+                  : product.auxiliaryDescriptionZhHans
+              }
               tradeTrendHref={serializeTradeAnalysisContext("/", {
                 recipe: "trade-trend",
                 locale,
                 importerCode: evidenceCandidate.economy.code,
                 productCode: result.query.product.code,
-                pin: null,
+                pin: resolvedNavigationPin("trade-trend"),
               })}
               supplierCompetitionHref={serializeTradeAnalysisContext("/", {
                 recipe: "supplier-competition",
                 locale,
                 importerCode: evidenceCandidate.economy.code,
                 productCode: result.query.product.code,
-                pin: null,
+                pin: resolvedNavigationPin("supplier-competition"),
               })}
-              tradeExplorerHref={serializeTradeAnalysisContext("/", {
-                recipe: "trade-explorer",
-                locale,
-                pin: null,
-                shape: "product-mix-v1",
-                measures: [],
-                years: [],
-                exportEconomy: [],
-                importEconomy: [],
-                hsProduct: [result.query.product.code],
-                sort: null,
-              })}
+              tradeExplorerHref={
+                tradeExplorerNavigationPin === null
+                  ? null
+                  : serializeTradeAnalysisContext("/", {
+                      recipe: "trade-explorer",
+                      locale,
+                      pin: tradeExplorerNavigationPin,
+                      shape: "product-mix-v1",
+                      measures: [],
+                      years: [],
+                      exportEconomy: [],
+                      importEconomy: [],
+                      hsProduct: [result.query.product.code],
+                      sort: null,
+                    })
+              }
             />
           </div>
           <CandidateMarketComparison

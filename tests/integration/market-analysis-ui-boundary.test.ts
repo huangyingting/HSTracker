@@ -87,6 +87,17 @@ describe("Market Analysis presentation boundary", () => {
     }
   });
 
+  it("reads the selected exporter's pooled rank from MarketAnalysisV1 instead of deriving it from array order in React", async () => {
+    const panelsSource = await readFile(
+      resolve("src/app/market-analysis-panels.tsx"),
+      "utf8",
+    );
+
+    expect(panelsSource).not.toMatch(/\bsupplierPosition\s*\(/u);
+    expect(panelsSource).not.toMatch(/supplierShares\.findIndex\s*\(/u);
+    expect(panelsSource).toMatch(/pooledSupplierPosition/u);
+  });
+
   it("imports no evidence source, DuckDB, operational store, Company Trade Context, tariff, logistics, or the platform seam directly", async () => {
     const sources = await readSources();
     for (const { path, source } of sources) {

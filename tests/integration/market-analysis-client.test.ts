@@ -78,6 +78,142 @@ describe("browser Market Analysis client", () => {
     });
   });
 
+  it("rejects a client-side supplier position that is not a positive rank within its cohort", async () => {
+    const payload = await fixturePayload();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        ...payload,
+        exporterPosition: {
+          ...payload.exporterPosition,
+          pooledSupplierPosition: { rank: 0, cohortSize: 1 },
+        },
+      }),
+    );
+
+    await expect(
+      loadMarketAnalysis({
+        analysisBuildId: "stub-build",
+        exportEconomyCode: "156",
+        productCode: "010121",
+        marketCode: "528",
+        fetcher,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_MARKET_ANALYSIS",
+    });
+  });
+
+  it("rejects nested Candidate Market evidence that would crash a product panel", async () => {
+    const payload = await fixturePayload();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        ...payload,
+        opportunity: {
+          ...payload.opportunity,
+          candidate: {
+            ...payload.opportunity.candidate,
+            components: {},
+          },
+        },
+      }),
+    );
+
+    await expect(
+      loadMarketAnalysis({
+        analysisBuildId: "stub-build",
+        exportEconomyCode: "156",
+        productCode: "010121",
+        marketCode: "528",
+        fetcher,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_MARKET_ANALYSIS",
+    });
+  });
+
+  it("rejects a supplier position that disagrees with the complete supplier cohort", async () => {
+    const payload = await fixturePayload();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        ...payload,
+        exporterPosition: {
+          ...payload.exporterPosition,
+          pooledSupplierPosition: { rank: 2, cohortSize: 2 },
+        },
+      }),
+    );
+
+    await expect(
+      loadMarketAnalysis({
+        analysisBuildId: "stub-build",
+        exportEconomyCode: "156",
+        productCode: "010121",
+        marketCode: "528",
+        fetcher,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_MARKET_ANALYSIS",
+    });
+  });
+
+  it.each([
+    {
+      name: "a different requested build",
+      mutate: (payload: MarketAnalysisV1) => ({
+        ...payload,
+        context: { ...payload.context, analysisBuildId: "other-build" },
+      }),
+    },
+    {
+      name: "a duplicate constituent recipe",
+      mutate: (payload: MarketAnalysisV1) => ({
+        ...payload,
+        constituentAnalyses: [
+          payload.constituentAnalyses[0],
+          payload.constituentAnalyses[0],
+          payload.constituentAnalyses[2],
+        ],
+      }),
+    },
+    {
+      name: "supplier values that contradict the ranked cohort",
+      mutate: (payload: MarketAnalysisV1) => ({
+        ...payload,
+        exporterPosition: {
+          ...payload.exporterPosition,
+          pooledSupplier:
+            payload.exporterPosition.pooledSupplier === null
+              ? null
+              : {
+                  ...payload.exporterPosition.pooledSupplier,
+                  pooledValueCurrentUsd: "1",
+                },
+        },
+      }),
+    },
+  ])("rejects $name", async ({ mutate }) => {
+    const payload = await fixturePayload();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json(mutate(payload)));
+
+    await expect(
+      loadMarketAnalysis({
+        analysisBuildId: "stub-build",
+        exportEconomyCode: "156",
+        productCode: "010121",
+        marketCode: "528",
+        fetcher,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_MARKET_ANALYSIS",
+    });
+  });
+
   it("reports HTTP failures with status", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -126,6 +262,38 @@ describe("browser Market Analysis client", () => {
       code: "HTTP_ERROR",
       status: 404,
       publicCode: "CANDIDATE_MARKET_NOT_FOUND",
+    });
+  });
+
+  it("preserves a rate limit Retry-After delay on the typed error", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            code: "ANALYSIS_RATE_LIMITED",
+            message: "Retry later.",
+          },
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": "7" },
+        },
+      ),
+    );
+
+    await expect(
+      loadMarketAnalysis({
+        analysisBuildId: "stub-build",
+        exportEconomyCode: "156",
+        productCode: "010121",
+        marketCode: "528",
+        fetcher,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      status: 429,
+      publicCode: "ANALYSIS_RATE_LIMITED",
+      retryAfterSeconds: 7,
     });
   });
 

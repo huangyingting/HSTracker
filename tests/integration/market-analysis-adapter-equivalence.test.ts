@@ -228,6 +228,9 @@ describe("MarketAnalysis module: fixture vs immutable production platform equiva
     expect(productionResult.exporterPosition.pooledSupplier).toEqual(
       fixtureResult.exporterPosition.pooledSupplier,
     );
+    expect(productionResult.exporterPosition.pooledSupplierPosition).toEqual(
+      fixtureResult.exporterPosition.pooledSupplierPosition,
+    );
     expect(productionResult.exporterPosition.pooledSupplier).not.toBeNull();
   }, 30_000);
 });

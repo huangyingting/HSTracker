@@ -697,6 +697,32 @@ export function pinFromManifest(
 }
 
 /**
+ * Returns the recipe-specific pin for one exact current or retained
+ * deployment-window entry. An absent build or an undeclared recipe remains
+ * unpinned rather than falling forward to a different deployment.
+ */
+export function pinFromDeploymentWindow(
+  manifest: CurrentAnalysisManifest,
+  analysisBuildId: string,
+  recipe: TradeAnalysisRecipe,
+): TradeAnalysisContextPin | null {
+  const deployment = manifest.deploymentWindow.find(
+    (entry) => entry.analysisBuildId === analysisBuildId,
+  );
+  if (deployment === undefined) {
+    return null;
+  }
+  const datasetPackageIdentity =
+    recipeDatasetPackageIdentityFromRecommendation(
+      deployment.recommendation,
+      recipe,
+    );
+  return datasetPackageIdentity === null
+    ? null
+    : { analysisBuildId, datasetPackageIdentity };
+}
+
+/**
  * Returns `context` with the pin a fresh execution would carry under
  * `manifest`'s current Recommended Dataset Mapping — `context.recipe`'s
  * own analysis build and Dataset Package identity, or no pin at all when

@@ -386,10 +386,21 @@ export function createMarketAnalysis(
       );
 
       const exporterCode = normalizeEconomyCode(request.exportEconomyCode);
-      const pooledSupplier =
-        supplierCompetition.payload.supplierShares.find(
+      const pooledSupplierIndex =
+        supplierCompetition.payload.supplierShares.findIndex(
           (share) => normalizeEconomyCode(share.economy.code) === exporterCode,
-        ) ?? null;
+        );
+      const pooledSupplier =
+        pooledSupplierIndex === -1
+          ? null
+          : supplierCompetition.payload.supplierShares[pooledSupplierIndex]!;
+      const pooledSupplierPosition =
+        pooledSupplierIndex === -1
+          ? null
+          : {
+              rank: pooledSupplierIndex + 1,
+              cohortSize: supplierCompetition.payload.supplierShares.length,
+            };
 
       const result: MarketAnalysisV1 = {
         schemaVersion: "market-analysis-v1",
@@ -439,6 +450,7 @@ export function createMarketAnalysis(
         exporterPosition: {
           scoreWindowFoothold: candidate.components.recordedFoothold,
           pooledSupplier,
+          pooledSupplierPosition,
           provisionalBilateral: candidate.provisionalEvidence,
         },
         supplierLandscape: {

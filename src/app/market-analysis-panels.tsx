@@ -49,7 +49,6 @@ import {
 import {
   MARKET_ANALYSIS_VALIDATION_PLAN_CATEGORIES,
 } from "../domain/market-analysis/validation-plan";
-import type { SupplierCompetitionShare } from "../domain/supplier-competition/result";
 
 const copy = {
   en: {
@@ -151,6 +150,10 @@ const copy = {
       "Supporting evidence only; never extends the Finalized supplier structure.",
     supplierLandscapeProvisionalEmpty:
       "No Provisional Year supplier evidence is available.",
+    supplierLandscapeProvisionalMissing:
+      "The Provisional Year market observation is missing; supplier structure was not observed.",
+    supplierLandscapeProvisionalNoFlow:
+      "The Provisional Year recorded no positive market flow; there is no recorded supplier structure.",
     notApplicable: "Not applicable",
     supplierLandscapeSupplierCompetitionLink:
       "Open Supplier Competition for this market",
@@ -177,6 +180,27 @@ const copy = {
     evidenceQualityRecipe: "Recipe",
     evidenceQualityAnalysisIdentity: "Analysis Identity",
     evidenceQualityDatasetPackageIdentity: "Dataset Package identity",
+    provenanceLabel: "Evidence & provenance",
+    provenanceAnalysisBuild: "Analysis build",
+    provenanceBaciRelease: "Constituent source release (BACI)",
+    provenancePeriod: "Period",
+    provenanceUnit: "Value unit",
+    provenanceComparisonBasis: "Comparison basis",
+    provenanceCalculationOwner: "Calculation owner",
+    provenanceWarnings: "Scoped warnings / coverage",
+    provenanceNoWarnings: "No scoped warning",
+    provenanceFinalized: "Finalized",
+    provenanceProvisional: "Provisional",
+    provenanceCandidateBasis: "Complete Candidate Market Score cohort",
+    provenanceDemandBasis: "Five Finalized Year market/world-import trend",
+    provenanceExporterBasis:
+      "Score-window foothold, pooled supplier position, and Provisional bilateral evidence",
+    provenanceSupplierBasis: "Complete bounded pooled supplier cohort",
+    provenanceEvidenceQualityBasis:
+      "Candidate Market Score evidence-quality ledger",
+    candidateMarketOwner: "Candidate Market Module",
+    tradeTrendOwner: "Trade Trend Module",
+    supplierCompetitionOwner: "Supplier Competition Module",
     exploreFurtherInterpretation:
       "These advanced tools audit and export the exact evidence behind this Market Analysis; they are not alternative product conclusions.",
     exploreFurtherTradeTrend: "Trade Trend",
@@ -186,6 +210,8 @@ const copy = {
       "Audit the complete supplier structure and export.",
     exploreFurtherTradeExplorer: "Trade Explorer",
     exploreFurtherTradeExplorerCopy: "Inspect bounded product-mix evidence.",
+    exploreFurtherTradeExplorerUnavailable:
+      "Trade Explorer is unavailable for this evidence version.",
     validationPlanInterpretation:
       "Validation Plan turns commercial evidence this product does not establish into five actionable work categories; it never makes a request, shows an empty chart, or offers a Coming Soon control.",
     validationPlanEstablishes: "What current evidence establishes",
@@ -287,6 +313,10 @@ const copy = {
     supplierLandscapeProvisional: "暂定供应商快照",
     supplierLandscapeProvisionalRule: "仅作辅助证据；绝不会延伸定稿供应结构。",
     supplierLandscapeProvisionalEmpty: "没有可用的暂定年份供应商证据。",
+    supplierLandscapeProvisionalMissing:
+      "暂定年份市场观测缺失；未观测到供应方结构。",
+    supplierLandscapeProvisionalNoFlow:
+      "暂定年份未记录到正向市场流量；没有已记录的供应方结构。",
     notApplicable: "不适用",
     supplierLandscapeSupplierCompetitionLink: "为该市场打开供应商竞争",
     evidenceQualityInterpretation:
@@ -312,6 +342,25 @@ const copy = {
     evidenceQualityRecipe: "分析方法",
     evidenceQualityAnalysisIdentity: "分析标识",
     evidenceQualityDatasetPackageIdentity: "数据集包标识",
+    provenanceLabel: "证据与溯源",
+    provenanceAnalysisBuild: "分析构建",
+    provenanceBaciRelease: "构成证据来源版本（BACI）",
+    provenancePeriod: "期间",
+    provenanceUnit: "价值单位",
+    provenanceComparisonBasis: "比较口径",
+    provenanceCalculationOwner: "计算责任模块",
+    provenanceWarnings: "范围内警示 / 覆盖原因",
+    provenanceNoWarnings: "无范围内警示",
+    provenanceFinalized: "定稿",
+    provenanceProvisional: "暂定",
+    provenanceCandidateBasis: "完整候选市场评分队列",
+    provenanceDemandBasis: "五个定稿年份的市场/世界进口趋势",
+    provenanceExporterBasis: "评分窗口基础、汇总供应方位置与暂定双边证据",
+    provenanceSupplierBasis: "完整的有界汇总供应方队列",
+    provenanceEvidenceQualityBasis: "候选市场评分证据质量台账",
+    candidateMarketOwner: "候选市场模块",
+    tradeTrendOwner: "贸易趋势模块",
+    supplierCompetitionOwner: "供应方竞争模块",
     exploreFurtherInterpretation:
       "这些高级工具用于审核并导出此市场分析背后的确切证据；它们并非替代性的产品结论。",
     exploreFurtherTradeTrend: "贸易趋势",
@@ -320,6 +369,7 @@ const copy = {
     exploreFurtherSupplierCompetitionCopy: "审核完整的供应方结构并导出。",
     exploreFurtherTradeExplorer: "贸易探索器",
     exploreFurtherTradeExplorerCopy: "查看有界的产品结构证据。",
+    exploreFurtherTradeExplorerUnavailable: "此证据版本无法打开贸易探索器。",
     validationPlanInterpretation:
       "商业验证计划将本产品无法确定的商业证据转化为五个可执行的工作类别；它绝不会发起请求、显示空图表，或提供\u201c即将推出\u201d控件。",
     validationPlanEstablishes: "现有证据已确定的内容",
@@ -410,7 +460,7 @@ export function MarketSnapshotPanel({
           </dd>
         </div>
       </dl>
-      <p className="market-area-provenance">
+      <p>
         {messages.cohortSize}: {cohortSize}
       </p>
       <p className="market-area-disclaimer">{analysis.discoveryDisclaimer}</p>
@@ -426,6 +476,13 @@ export function MarketSnapshotPanel({
         onToggleComparison={onToggleComparison}
         tradeTrendHref={tradeTrendHref}
         supplierCompetitionHref={supplierCompetitionHref}
+      />
+      <AreaProvenance
+        analysis={analysis}
+        locale={locale}
+        recipes={["candidate-market-v1"]}
+        comparisonBasis={messages.provenanceCandidateBasis}
+        warnings={candidate.caveatCodes}
       />
     </section>
   );
@@ -462,11 +519,6 @@ export function DemandPanel({
             cagr: `${summary.cagrPercent}%`,
           },
         );
-
-  const tradeTrendConstituent = findConstituent(
-    analysis.constituentAnalyses,
-    "trade-trend-v1",
-  );
 
   return (
     <section
@@ -601,13 +653,15 @@ export function DemandPanel({
         )}
       </aside>
 
-      <p className="market-area-provenance">
-        {annualContext.baciRelease} ·{" "}
-        {annualContext.finalizedWindow.start}–{annualContext.finalizedWindow.end}
-        {tradeTrendConstituent === null
-          ? null
-          : ` · ${tradeTrendConstituent.analysisIdentity}`}
-      </p>
+      <AreaProvenance
+        analysis={analysis}
+        locale={locale}
+        recipes={["trade-trend-v1"]}
+        comparisonBasis={messages.provenanceDemandBasis}
+        warnings={demand.finalizedObservations
+          .filter(({ state }) => state !== "RECORDED_POSITIVE")
+          .map(({ year, state }) => `${year}:${state}`)}
+      />
       <nav aria-label={messages.demandTradeTrendLink}>
         <a href={tradeTrendHref}>{messages.demandTradeTrendLink}</a>
       </nav>
@@ -671,10 +725,7 @@ export function ExporterPositionPanel({
         });
 
   const pooled = exporterPosition.pooledSupplier;
-  const pooledPosition =
-    pooled === null
-      ? null
-      : supplierPosition(pooled, analysis.supplierLandscape.supplierShares);
+  const pooledPosition = exporterPosition.pooledSupplierPosition;
 
   const provisional = exporterPosition.provisionalBilateral;
 
@@ -718,7 +769,7 @@ export function ExporterPositionPanel({
               position:
                 pooledPosition === null
                   ? messages.notApplicable
-                  : `${pooledPosition.position} ${messages.interpretationJoiner} ${pooledPosition.of}`,
+                  : `${pooledPosition.rank} ${messages.interpretationJoiner} ${pooledPosition.cohortSize}`,
             })}{" "}
             · USD {pooled.pooledValueCurrentUsd} · {window}
           </p>
@@ -757,19 +808,21 @@ export function ExporterPositionPanel({
         )}
       </section>
 
-      <p className="market-area-provenance">{messages.exporterPositionBasisNote}</p>
+      <p className="market-area-limitation">
+        {messages.exporterPositionBasisNote}
+      </p>
+      <AreaProvenance
+        analysis={analysis}
+        locale={locale}
+        recipes={["candidate-market-v1", "supplier-competition-v1"]}
+        comparisonBasis={messages.provenanceExporterBasis}
+        warnings={[
+          ...analysis.opportunity.candidate.caveatCodes,
+          ...analysis.supplierLandscape.qualityWarnings,
+        ]}
+      />
     </section>
   );
-}
-
-function supplierPosition(
-  pooled: SupplierCompetitionShare,
-  shares: readonly SupplierCompetitionShare[],
-): { position: number; of: number } | null {
-  const index = shares.findIndex(
-    (share) => share.economy.code === pooled.economy.code,
-  );
-  return index === -1 ? null : { position: index + 1, of: shares.length };
 }
 
 // ---------------------------------------------------------------------
@@ -789,11 +842,6 @@ export function SupplierLandscapePanel({
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
   const { supplierLandscape, context, annualContext } = analysis;
   const window = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
-  const supplierCompetitionConstituent = findConstituent(
-    analysis.constituentAnalyses,
-    "supplier-competition-v1",
-  );
-
   const interpretation =
     supplierLandscape.supplierShares.length === 0
       ? messages.supplierLandscapeInterpretationEmpty
@@ -811,13 +859,7 @@ export function SupplierLandscapePanel({
           },
         );
 
-  const selectedExporterShare = supplierLandscape.supplierShares.find(
-    (share) => share.economy.code === context.exporter.code,
-  );
-  const selectedPosition =
-    selectedExporterShare === undefined
-      ? null
-      : supplierPosition(selectedExporterShare, supplierLandscape.supplierShares);
+  const selectedPosition = analysis.exporterPosition.pooledSupplierPosition;
 
   return (
     <section
@@ -845,8 +887,8 @@ export function SupplierLandscapePanel({
         {selectedPosition === null
           ? messages.supplierLandscapeSelectedExporterAbsent
           : formatTemplate(messages.supplierLandscapeSelectedExporterNote, {
-              position: selectedPosition.position,
-              count: selectedPosition.of,
+              position: selectedPosition.rank,
+              count: selectedPosition.cohortSize,
             })}
       </p>
 
@@ -945,7 +987,14 @@ export function SupplierLandscapePanel({
         </h3>
         <p>{messages.supplierLandscapeProvisionalRule}</p>
         {supplierLandscape.provisionalSupplierShares.length === 0 ? (
-          <strong>{messages.supplierLandscapeProvisionalEmpty}</strong>
+          <strong>
+            {supplierLandscape.provisionalMarketState === "MISSING_OBSERVATION"
+              ? messages.supplierLandscapeProvisionalMissing
+              : supplierLandscape.provisionalMarketState ===
+                  "NO_RECORDED_POSITIVE_FLOW"
+                ? messages.supplierLandscapeProvisionalNoFlow
+                : messages.supplierLandscapeProvisionalEmpty}
+          </strong>
         ) : (
           <table aria-label={messages.supplierLandscapeProvisional}>
             <thead>
@@ -974,12 +1023,13 @@ export function SupplierLandscapePanel({
         )}
       </aside>
 
-      <p className="market-area-provenance">
-        {annualContext.baciRelease} · {window}
-        {supplierCompetitionConstituent === null
-          ? null
-          : ` · ${supplierCompetitionConstituent.analysisIdentity}`}
-      </p>
+      <AreaProvenance
+        analysis={analysis}
+        locale={locale}
+        recipes={["supplier-competition-v1"]}
+        comparisonBasis={messages.provenanceSupplierBasis}
+        warnings={supplierLandscape.qualityWarnings}
+      />
       <nav aria-label={messages.supplierLandscapeSupplierCompetitionLink}>
         <a href={supplierCompetitionHref}>
           {messages.supplierLandscapeSupplierCompetitionLink}
@@ -1187,6 +1237,13 @@ export function EvidenceQualityPanel({
           </tbody>
         </table>
       </section>
+      <AreaProvenance
+        analysis={analysis}
+        locale={locale}
+        recipes={["candidate-market-v1"]}
+        comparisonBasis={messages.provenanceEvidenceQualityBasis}
+        warnings={evidenceQuality.caveatCodes}
+      />
     </section>
   );
 }
@@ -1204,7 +1261,7 @@ export function ExploreFurtherPanel({
   locale: MarketAnalysisLocale;
   tradeTrendHref: string;
   supplierCompetitionHref: string;
-  tradeExplorerHref: string;
+  tradeExplorerHref: string | null;
 }) {
   const messages = messagesFor(locale);
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
@@ -1233,7 +1290,15 @@ export function ExploreFurtherPanel({
           </p>
         </li>
         <li>
-          <a href={tradeExplorerHref}>{messages.exploreFurtherTradeExplorer}</a>
+          {tradeExplorerHref === null ? (
+            <span aria-disabled="true">
+              {messages.exploreFurtherTradeExplorerUnavailable}
+            </span>
+          ) : (
+            <a href={tradeExplorerHref}>
+              {messages.exploreFurtherTradeExplorer}
+            </a>
+          )}
           <p>{messages.exploreFurtherTradeExplorerCopy}</p>
           <p className="market-area-limitation">
             {areaCopy.limitations.exploreFurtherProductAdjacency}
@@ -1314,6 +1379,111 @@ function findConstituent(
   recipe: MarketAnalysisConstituentAnalysis["recipe"],
 ): MarketAnalysisConstituentAnalysis | null {
   return constituents.find((item) => item.recipe === recipe) ?? null;
+}
+
+function AreaProvenance({
+  analysis,
+  locale,
+  recipes,
+  comparisonBasis,
+  warnings,
+}: {
+  analysis: MarketAnalysisV1;
+  locale: MarketAnalysisLocale;
+  recipes: readonly MarketAnalysisConstituentAnalysis["recipe"][];
+  comparisonBasis: string;
+  warnings: readonly string[];
+}) {
+  const messages = messagesFor(locale);
+  const { annualContext } = analysis;
+  const constituents = recipes
+    .map((recipe) => findConstituent(analysis.constituentAnalyses, recipe))
+    .filter(
+      (
+        constituent,
+      ): constituent is MarketAnalysisConstituentAnalysis =>
+        constituent !== null,
+    );
+  const period = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
+
+  return (
+    <details className="market-area-provenance">
+      <summary>
+        {messages.provenanceLabel} · {period} · {annualContext.valueUnit} ·{" "}
+        {comparisonBasis} · {recipes.join(" + ")}
+      </summary>
+      <div className="market-area-provenance-body">
+        <p>
+          <strong>{messages.provenanceAnalysisBuild}:</strong>{" "}
+          <span className="market-analysis-identity">
+            {analysis.context.analysisBuildId}
+          </span>
+        </p>
+        <p>
+          <strong>{messages.provenanceBaciRelease}:</strong>{" "}
+          {annualContext.baciRelease}
+        </p>
+        <p>
+          <strong>{messages.provenancePeriod}:</strong>{" "}
+          {messages.provenanceFinalized} {period} ·{" "}
+          {messages.provenanceProvisional} {annualContext.provisionalYear}
+        </p>
+        <p>
+          <strong>{messages.provenanceUnit}:</strong> {annualContext.valueUnit}
+        </p>
+        <p>
+          <strong>{messages.provenanceComparisonBasis}:</strong>{" "}
+          {comparisonBasis}
+        </p>
+        <p>
+          <strong>{messages.provenanceWarnings}:</strong>{" "}
+          {warnings.length === 0
+            ? messages.provenanceNoWarnings
+            : warnings.join(", ")}
+        </p>
+        {constituents.map((constituent) => (
+          <div
+            className="market-area-provenance-constituent"
+            key={constituent.recipe}
+          >
+            <strong>{constituent.recipe}</strong>
+            <p>
+              <strong>{messages.provenanceCalculationOwner}:</strong>{" "}
+              {calculationOwner(constituent.recipe, messages)}
+            </p>
+            <p>
+              <strong>{messages.evidenceQualityAnalysisIdentity}:</strong>{" "}
+              <span className="market-analysis-identity">
+                {constituent.analysisIdentity}
+              </span>
+            </p>
+            <p>
+              <strong>
+                {messages.evidenceQualityDatasetPackageIdentity}:
+              </strong>{" "}
+              <span className="market-analysis-identity">
+                {constituent.datasetPackageIdentity}
+              </span>
+            </p>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function calculationOwner(
+  recipe: MarketAnalysisConstituentAnalysis["recipe"],
+  messages: ReturnType<typeof messagesFor>,
+): string {
+  switch (recipe) {
+    case "candidate-market-v1":
+      return messages.candidateMarketOwner;
+    case "trade-trend-v1":
+      return messages.tradeTrendOwner;
+    case "supplier-competition-v1":
+      return messages.supplierCompetitionOwner;
+  }
 }
 
 function formatTemplate(

@@ -43,6 +43,30 @@ test("the seven Slice 4 product areas render in the exact specified order with n
   expect(page.locator("[data-aq-id]")).toHaveCount(0);
 });
 
+test("the Market Analysis scope header exposes identity, deployment, freshness, copy, and a canonical in-product Back fallback", async ({
+  page,
+}) => {
+  await openNetherlandsMarketAnalysis(page);
+
+  const header = page.locator(".market-analysis-header");
+  await expect(header).toContainText(
+    "HS12 010121 · Horses: live, pure-bred breeding animals",
+  );
+  await expect(header).toContainText("Current");
+  await expect(header).toContainText("Fresh");
+  await expect(
+    header.getByRole("button", { name: "Copy Market Analysis link" }),
+  ).toBeVisible();
+
+  const back = header.getByRole("link", { name: "Back to opportunities" });
+  await expect(back).toHaveAttribute(
+    "href",
+    /recipe=opportunity-discovery-v1.*exporter=156.*products=010121.*focusProduct=010121.*market=528.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+  await back.click();
+  await expect(page).toHaveURL(/recipe=opportunity-discovery-v1/u);
+});
+
 test("Market Snapshot exposes deterministic interpretation, canonical score/rank, and the existing score audit view", async ({
   page,
 }) => {
@@ -159,12 +183,69 @@ test("Supplier Landscape shows the complete bounded cohort, exact HHI scale, and
   await expect(supplierLandscape).toContainText(
     "positioned 1 of 2 recorded supplying economies by pooled value",
   );
+  await expect(
+    supplierLandscape.locator(
+      '.market-supplier-bars [data-selected="true"]',
+    ),
+  ).toHaveCSS("outline-style", "solid");
 
   await expect(
     supplierLandscape.getByRole("heading", { name: "Concentration (HHI)" }),
   ).toBeVisible();
   await expect(supplierLandscape).toContainText("5000.000000");
   await expect(supplierLandscape).toContainText("on a 0-10,000 scale");
+});
+
+test("each analytical product area exposes its own complete constituent provenance", async ({
+  page,
+}) => {
+  await openNetherlandsMarketAnalysis(page);
+
+  for (const { area, recipe, owner } of [
+    {
+      area: "#snapshot",
+      recipe: "candidate-market-v1",
+      owner: "Candidate Market Module",
+    },
+    {
+      area: "#demand",
+      recipe: "trade-trend-v1",
+      owner: "Trade Trend Module",
+    },
+    {
+      area: "#exporter-position",
+      recipe: "candidate-market-v1",
+      owner: "Candidate Market Module",
+    },
+    {
+      area: "#supplier-landscape",
+      recipe: "supplier-competition-v1",
+      owner: "Supplier Competition Module",
+    },
+  ]) {
+    const provenance = page.locator(area).locator("details.market-area-provenance");
+    const summary = provenance.locator("summary");
+    await expect(summary).toContainText("Evidence & provenance");
+    await expect(summary).toContainText("2019–2023");
+    await expect(summary).toContainText("CURRENT_USD");
+    await expect(summary).toContainText(recipe);
+    if (area === "#demand") {
+      await expect(summary).toContainText(
+        "Five Finalized Year market/world-import trend",
+      );
+    }
+
+    await summary.click();
+    await expect(provenance).toContainText(
+      "Analysis build: acceptance-fixtures-v1",
+    );
+    await expect(provenance).toContainText(
+      "Constituent source release (BACI): V202601",
+    );
+    await expect(provenance).toContainText(`Calculation owner: ${owner}`);
+    await expect(provenance).toContainText(/analysis-identity-v1-[0-9a-f]{64}/u);
+    await expect(provenance).toContainText(/dataset-package-v1-[0-9a-f]{64}/u);
+  }
 });
 
 test("evidence gaps at a low-confidence market remain distinguishable from Validation Plan gaps", async ({
@@ -206,6 +287,9 @@ test("evidence gaps at a low-confidence market remain distinguishable from Valid
     supplierLandscape.getByRole("heading", { name: "Quality warnings" }),
   ).toBeVisible();
   await expect(supplierLandscape).toContainText(
+    "The Provisional Year market observation is missing; supplier structure was not observed.",
+  );
+  await expect(supplierLandscape).toContainText(
     "Some Finalized Years have no recorded supplier at all.",
   );
   await expect(supplierLandscape).toContainText(
@@ -229,6 +313,18 @@ test("evidence gaps at a low-confidence market remain distinguishable from Valid
       name: "Company economics, risk, and forecasting",
     }),
   ).toBeVisible();
+});
+
+test("Provisional supplier evidence distinguishes no recorded flow from a missing observation", async ({
+  page,
+}) => {
+  await page.goto("/?exporter=156&revision=HS12&product=010121&market=616");
+  await expect(
+    page.getByRole("heading", { name: "Poland · Market Analysis" }),
+  ).toBeVisible();
+  await expect(page.locator("#supplier-landscape")).toContainText(
+    "The Provisional Year recorded no positive market flow; there is no recorded supplier structure.",
+  );
 });
 
 test("Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder", async ({
@@ -300,6 +396,41 @@ test("selecting a different Candidate Market moves focus to the Market Analysis 
   await expect(nextHeading).toBeFocused();
 });
 
+test("an explicit market selection moves focus to the Market Analysis status when loading fails", async ({
+  page,
+}) => {
+  await page.route("**/market-analysis?*", async (route) => {
+    const market = new URL(route.request().url()).searchParams.get("market");
+    if (market !== "710") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "ANALYSIS_UNAVAILABLE",
+          message: "Compatible Market Analysis evidence is unavailable.",
+        },
+      }),
+    });
+  });
+  await openNetherlandsMarketAnalysis(page);
+
+  await page
+    .getByRole("list", { name: "Candidate Markets" })
+    .getByRole("button")
+    .filter({ hasText: "South Africa" })
+    .click();
+
+  const heading = page
+    .getByRole("region", { name: "Market Analysis" })
+    .getByRole("heading", { name: "Market Analysis" });
+  await expect(heading).toBeVisible();
+  await expect(heading).toBeFocused();
+});
+
 test("a rapid re-selection cancels the outstanding request so only the last selected market's Market Analysis is ever shown", async ({
   page,
 }) => {
@@ -367,9 +498,237 @@ test("a fatal annual Market Analysis failure surfaces an assertive recoverable s
   await expect(error).toContainText(
     "Compatible Market Analysis evidence is temporarily unavailable.",
   );
+  await expect(error.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Back to opportunities" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Netherlands · Market Analysis" }),
   ).toHaveCount(0);
+});
+
+test("a rate-limited Market Analysis preserves Retry-After before enabling Retry", async ({
+  page,
+}) => {
+  await page.route("**/market-analysis?*", async (route) => {
+    await route.fulfill({
+      status: 429,
+      headers: { "Retry-After": "1" },
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "ANALYSIS_RATE_LIMITED",
+          message: "Retry later.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(CANONICAL_URL);
+  const recovery = page
+    .getByRole("region", { name: "Market Analysis" })
+    .getByRole("alert");
+  const retry = recovery.getByRole("button", { name: "Retry" });
+
+  await expect(recovery).toContainText("Retry available in 1 second.");
+  await expect(retry).toBeDisabled();
+  await expect(retry).toBeEnabled({ timeout: 2_500 });
+});
+
+test("retired Market Analysis recovery identifies the requested build", async ({
+  page,
+}) => {
+  await page.route("**/market-analysis?*", async (route) => {
+    await route.fulfill({
+      status: 410,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "ANALYSIS_BUILD_RETIRED",
+          message: "The requested analysis build has retired.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(CANONICAL_URL);
+  const recovery = page.locator(".market-analysis-error");
+  await expect(recovery).toContainText(
+    "Analysis build acceptance-fixtures-v1 has retired.",
+  );
+  await expect(
+    recovery.getByRole("button", { name: "Refresh with current evidence" }),
+  ).toBeVisible();
+});
+
+test("a failed retired-build refresh preserves the original canonical pin", async ({
+  page,
+}) => {
+  let currentManifestRequests = 0;
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    currentManifestRequests += 1;
+    if (currentManifestRequests === 1) {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { code: "ANALYSIS_UNAVAILABLE", message: "Unavailable." },
+      }),
+    });
+  });
+  await page.route("**/market-analysis?*", async (route) => {
+    await route.fulfill({
+      status: 410,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "ANALYSIS_BUILD_RETIRED",
+          message: "The requested analysis build has retired.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(CANONICAL_URL);
+  await expect(page.locator(".market-analysis-error")).toContainText(
+    "Analysis build acceptance-fixtures-v1 has retired.",
+  );
+  const originalUrl = page.url();
+  expect(originalUrl).toMatch(
+    /build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
+  await expect(page.locator(".analysis-error")).toBeVisible();
+  expect(page.url()).toBe(originalUrl);
+});
+
+test("manifest revalidation retires loaded evidence without dropping its canonical pin", async ({
+  page,
+}) => {
+  let serveNextManifest = false;
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    const response = await route.fetch();
+    const manifest = await response.json();
+    if (!serveNextManifest) {
+      await route.fulfill({ response, json: manifest });
+      return;
+    }
+    await route.fulfill({
+      response,
+      json: {
+        ...manifest,
+        analysisBuildId: "next-fixtures-v1",
+        deploymentWindow: [
+          {
+            ...manifest.deploymentWindow[0],
+            analysisBuildId: "next-fixtures-v1",
+          },
+        ],
+      },
+    });
+  });
+
+  await openNetherlandsMarketAnalysis(page);
+  serveNextManifest = true;
+  await page
+    .getByRole("button", {
+      name: "Download complete CSV for all 13 Candidate Markets",
+    })
+    .click();
+
+  await expect(
+    page
+      .getByRole("region", { name: "Candidate Market Result Export" })
+      .getByRole("alert"),
+  ).toContainText("The current analysis changed.");
+
+  const recovery = page.locator(".market-analysis-error");
+  await expect(recovery).toContainText(
+    "Analysis build acceptance-fixtures-v1 has retired.",
+  );
+  await expect(
+    page.getByRole("link", { name: "Back to opportunities" }),
+  ).toHaveAttribute(
+    "href",
+    /build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+});
+
+test("a retained build never exposes unpinned links for recipes it did not declare", async ({
+  page,
+}) => {
+  const response = await page.request.get("/api/v1/analyses/current");
+  const manifest = await response.json();
+  const limitedRecommendation = {
+    ...manifest.recommendation,
+    opportunityDiscovery: null,
+    tradeExplorer: null,
+  };
+  const retained = {
+    ...manifest.deploymentWindow[0],
+    recommendation: limitedRecommendation,
+  };
+  const nextCurrent = {
+    ...manifest.deploymentWindow[0],
+    analysisBuildId: "next-fixtures-v1",
+  };
+  let serveNextManifest = false;
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    await route.fulfill({
+      response,
+      json: serveNextManifest
+        ? {
+            ...manifest,
+            analysisBuildId: "next-fixtures-v1",
+            deploymentWindow: [nextCurrent, retained],
+          }
+        : {
+            ...manifest,
+            recommendation: limitedRecommendation,
+            deploymentWindow: [retained],
+          },
+    });
+  });
+
+  await page.goto(CANONICAL_URL);
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
+  serveNextManifest = true;
+  await page
+    .getByRole("button", {
+      name: "Download complete CSV for all 13 Candidate Markets",
+    })
+    .click();
+  await expect(
+    page
+      .getByRole("region", { name: "Candidate Market Result Export" })
+      .getByRole("alert"),
+  ).toContainText("The current analysis changed.");
+  await expect(page.locator(".market-analysis-header")).toContainText(
+    "Retained",
+  );
+
+  await expect(
+    page.getByRole("link", { name: "Back to opportunities" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".market-analysis-view")).toContainText(
+    "Opportunities are unavailable for this evidence version.",
+  );
+  await expect(
+    page.locator("#explore-further").getByRole("link", {
+      name: "Trade Explorer",
+    }),
+  ).toHaveCount(0);
+  await expect(page.locator("#explore-further")).toContainText(
+    "Trade Explorer is unavailable for this evidence version.",
+  );
 });
 
 test("both locales expose identical values, evidence states, and actions for Market Analysis", async ({
@@ -439,5 +798,45 @@ test("the complete Market Analysis journey works at 390px and 320px without hori
       "Explore Further",
       "Validation Plan",
     ]);
+
+    const areaNavigation = view.getByRole("navigation", {
+      name: "Product areas",
+    });
+    const disclosure = areaNavigation.locator("details");
+    await expect(
+      disclosure.getByText("Jump to section", { exact: true }),
+    ).toBeVisible();
+    await expect(disclosure).not.toHaveAttribute("open", "");
+    await disclosure.locator("summary").click();
+    await expect(
+      areaNavigation.getByRole("link", { name: "Market Snapshot" }),
+    ).toHaveAttribute("aria-current", "location");
   }
+});
+
+test("a collapsed mobile Scope Bar keeps a source warning visible", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    const response = await route.fetch();
+    const manifest = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...manifest,
+        freshness: {
+          ...manifest.freshness,
+          state: "CHECK_OVERDUE",
+        },
+      },
+    });
+  });
+
+  await openNetherlandsMarketAnalysis(page);
+  const scope = page.locator(".market-analysis-scope-mobile");
+  await expect(scope).not.toHaveAttribute("open", "");
+  await expect(scope.locator("summary")).toContainText(
+    "Source freshness check overdue",
+  );
 });
