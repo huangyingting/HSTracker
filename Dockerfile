@@ -13,7 +13,7 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
-COPY next.config.ts tsconfig.json next-env.d.ts ./
+COPY next.config.ts tsconfig.json ./
 COPY src ./src
 COPY fixtures ./fixtures
 COPY scripts/prepare-standalone.mjs ./scripts/prepare-standalone.mjs
