@@ -13,6 +13,19 @@ const LOCALES = ["en", "zh-Hans"] as const;
 const VALIDATION_PLAN_CATEGORY_IDS = MARKET_ANALYSIS_VALIDATION_PLAN_CATEGORIES.map(
   (category) => category.id,
 );
+const VALIDATION_PLAN_COPY_FIELDS = [
+  "label",
+  "establishes",
+  "cannotEstablish",
+  "requiredEvidence",
+  "nextAction",
+] as const;
+const FLAT_COPY_GROUPS = [
+  "productAreas",
+  "evidenceStates",
+  "limitations",
+  "recoveryActions",
+] as const;
 
 function groupKeySets(): Readonly<Record<string, readonly string[]>> {
   return {
@@ -21,7 +34,6 @@ function groupKeySets(): Readonly<Record<string, readonly string[]>> {
     limitations: MARKET_ANALYSIS_LIMITATION_KEYS,
     recoveryActions: MARKET_ANALYSIS_RECOVERY_ACTION_KEYS,
     validationPlanCategories: VALIDATION_PLAN_CATEGORY_IDS,
-    nextActions: VALIDATION_PLAN_CATEGORY_IDS,
   };
 }
 
@@ -42,10 +54,17 @@ describe("Market Analysis bilingual copy completeness", () => {
   it("gives every copy key a non-empty string in both locales", () => {
     for (const locale of LOCALES) {
       const messages = MARKET_ANALYSIS_COPY[locale];
-      for (const group of Object.values(messages)) {
-        for (const value of Object.values(group)) {
+      for (const groupName of FLAT_COPY_GROUPS) {
+        for (const value of Object.values(messages[groupName])) {
           expect(typeof value).toBe("string");
-          expect((value as string).trim().length).toBeGreaterThan(0);
+          expect(value.trim().length).toBeGreaterThan(0);
+        }
+      }
+      for (const category of Object.values(
+        messages.validationPlanCategories,
+      )) {
+        for (const value of Object.values(category)) {
+          expect(value.trim().length).toBeGreaterThan(0);
         }
       }
     }
@@ -54,14 +73,42 @@ describe("Market Analysis bilingual copy completeness", () => {
   it("translates every key instead of duplicating the English placeholder", () => {
     const en = MARKET_ANALYSIS_COPY.en;
     const zh = MARKET_ANALYSIS_COPY["zh-Hans"];
-    for (const group of Object.keys(en) as (keyof typeof en)[]) {
-      for (const key of Object.keys(en[group])) {
-        const enValue = (en[group] as Record<string, string>)[key];
-        const zhValue = (zh[group] as Record<string, string>)[key];
-        expect(zhValue, `${group}.${key} should be translated`).not.toBe(
-          enValue,
-        );
+    for (const groupName of FLAT_COPY_GROUPS) {
+      for (const key of Object.keys(en[groupName])) {
+        const enValue = (en[groupName] as Readonly<Record<string, string>>)[
+          key
+        ];
+        const zhValue = (zh[groupName] as Readonly<Record<string, string>>)[
+          key
+        ];
+        expect(
+          zhValue,
+          `${groupName}.${key} should be translated`,
+        ).not.toBe(enValue);
+      }
+    }
+    for (const categoryId of VALIDATION_PLAN_CATEGORY_IDS) {
+      const enCategory = en.validationPlanCategories[categoryId];
+      const zhCategory = zh.validationPlanCategories[categoryId];
+      for (const field of VALIDATION_PLAN_COPY_FIELDS) {
+        expect(
+          zhCategory[field],
+          `validationPlanCategories.${categoryId}.${field} should be translated`,
+        ).not.toBe(enCategory[field]);
       }
     }
   });
+
+  it.each(LOCALES)(
+    "defines every required Validation Plan statement for %s",
+    (locale) => {
+      for (const categoryId of VALIDATION_PLAN_CATEGORY_IDS) {
+        const category =
+          MARKET_ANALYSIS_COPY[locale].validationPlanCategories[categoryId];
+        expect(Object.keys(category).sort()).toEqual(
+          [...VALIDATION_PLAN_COPY_FIELDS].sort(),
+        );
+      }
+    },
+  );
 });
