@@ -16,6 +16,7 @@ export type RuntimeRouteFamily =
   | "recent-trade-momentum"
   | "supplier-competition"
   | "supplier-competition-csv"
+  | "market-analysis"
   | "trade-explorer"
   | "trade-explorer-csv"
   | "opportunity-feed"
