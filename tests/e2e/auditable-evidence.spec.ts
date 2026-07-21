@@ -183,6 +183,27 @@ test("a product-series flag preserves the exceptional-shock explanation", async 
       },
     });
   });
+  // The Market Snapshot audit view now sources this same evidence from
+  // Market Analysis's own evidenceQuality projection (issue #68), which
+  // re-executes candidate-market-v1 through a distinct route rather than
+  // reusing the ranking cohort response above -- so the same override
+  // must be applied there too.
+  await page.route("**/market-analysis?*", async (route) => {
+    const response = await route.fetch();
+    const analysis = (await response.json()) as {
+      evidenceQuality: { productSeriesDiscontinuityYears: readonly number[] };
+    };
+    await route.fulfill({
+      response,
+      json: {
+        ...analysis,
+        evidenceQuality: {
+          ...analysis.evidenceQuality,
+          productSeriesDiscontinuityYears: [2017],
+        },
+      },
+    });
+  });
 
   const { evidence } = await openCandidateMarket(page, "484");
 

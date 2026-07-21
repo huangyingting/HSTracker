@@ -213,9 +213,33 @@ const copy = {
 
 type EvidenceLocale = keyof typeof copy;
 
+// The exact CandidateMarketResult fields this audit panel actually reads
+// (cohort size, weights, stability, release revision, and score window --
+// never the complete ranked cohort). Market Snapshot (market-analysis-panels.tsx)
+// projects this same shape from MarketAnalysisV1's own already-computed
+// evidenceQuality/opportunity/annualContext fields instead of issuing a
+// second full Candidate Market request, so this panel stays the one
+// audit view both the ranking workspace and Market Analysis embed
+// unchanged (spec docs/spec/export-market-analysis-workspace-ui-design.md
+// §10.1 "score audit disclosure using existing constituent values").
+// `CandidateMarketResult` itself always structurally satisfies this type.
+export type CandidateMarketScoreAuditContext = Readonly<{
+  cohortSize: CandidateMarketResult["cohortSize"];
+  weights: CandidateMarketResult["weights"];
+  productSeriesDiscontinuityYears: CandidateMarketResult["productSeriesDiscontinuityYears"];
+  releaseRevisionSummary: CandidateMarketResult["releaseRevisionSummary"];
+  stability: CandidateMarketResult["stability"];
+  provenance: Readonly<{
+    scoreWindow: CandidateMarketResult["provenance"]["scoreWindow"];
+  }>;
+  query: Readonly<{
+    exporter: Pick<CandidateMarketResult["query"]["exporter"], "name">;
+  }>;
+}>;
+
 type CandidateMarketEvidenceProps = {
   candidate: CandidateMarket;
-  result: CandidateMarketResult;
+  result: CandidateMarketScoreAuditContext;
   locale: EvidenceLocale;
   isCompared: boolean;
   comparisonFull: boolean;
@@ -426,7 +450,7 @@ function ReleaseRevisionEvidence({
   locale,
 }: {
   candidate: CandidateMarket;
-  result: CandidateMarketResult;
+  result: CandidateMarketScoreAuditContext;
   locale: EvidenceLocale;
 }) {
   const messages = copy[locale];
@@ -500,7 +524,7 @@ function StabilityAndCaveats({
   locale,
 }: {
   candidate: CandidateMarket;
-  result: CandidateMarketResult;
+  result: CandidateMarketScoreAuditContext;
   locale: EvidenceLocale;
 }) {
   const messages = copy[locale];
@@ -708,7 +732,7 @@ const ScoreDetailRegion = memo(function ScoreDetailRegion({
 
 function buildScoreInputs(
   candidate: CandidateMarket,
-  result: CandidateMarketResult,
+  result: CandidateMarketScoreAuditContext,
   locale: EvidenceLocale,
 ): readonly ScoreInput[] {
   const messages = copy[locale];
@@ -854,7 +878,7 @@ function relativeStanding(
   return "BELOW_MIDPOINT";
 }
 
-function confidenceDeductionLabel(
+export function confidenceDeductionLabel(
   code: ConfidenceDeductionCode,
   candidate: CandidateMarket,
   locale: EvidenceLocale,
@@ -889,7 +913,7 @@ function confidenceDeductionLabel(
   return labels[locale][code];
 }
 
-function caveatLabel(code: CaveatCode, locale: EvidenceLocale): string {
+export function caveatLabel(code: CaveatCode, locale: EvidenceLocale): string {
   const labels = {
     en: {
       NO_RECORDED_POSITIVE_FLOW:
@@ -1011,7 +1035,10 @@ export function formatSignificant(value: string | number): string {
   return Number(value).toPrecision(3);
 }
 
-function formatYears(years: readonly number[], locale: EvidenceLocale): string {
+export function formatYears(
+  years: readonly number[],
+  locale: EvidenceLocale,
+): string {
   if (locale === "zh-Hans") {
     return `${formatYearRange(years)}（${years.length} 年）`;
   }

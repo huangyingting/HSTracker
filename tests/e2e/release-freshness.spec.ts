@@ -173,7 +173,11 @@ test("a retired analysis build is replaced through current-manifest revalidation
   );
   expect(currentManifestRequests).toBe(2);
   expect(retiredBuildRequests).toBe(1);
-  expect(replacementBuildRequests).toBe(2);
+  // One more than before issue #68: the Market Analysis Module's own
+  // atomic candidate-market-v1/trade-trend-v1/supplier-competition-v1
+  // execution also replays against the replacement build, alongside the
+  // ranking's own candidate-markets request.
+  expect(replacementBuildRequests).toBe(3);
   expect(replacementProductRequests).toBe(1);
 });
 
@@ -401,6 +405,73 @@ test("material Release Revision evidence stays separate from historical growth",
       });
     },
   );
+  // Market Analysis's Evidence Quality/Market Snapshot audit view sources
+  // this same Release Revision evidence from its own independent
+  // candidate-market-v1 execution behind /market-analysis (issue #68), so
+  // the same per-market override must be replayed there.
+  const RELEASE_REVISION_BY_MARKET: Record<string, Record<string, unknown>> = {
+    "484": {
+      state: "MATERIAL_CHANGE",
+      previousReleaseRecomputedScore: 45,
+      scoreChange: 12,
+      previousReleaseRecomputedRankPercentile: "50.000",
+      rankPercentileChange: "15.000",
+      materialChange: true,
+    },
+    "528": {
+      state: "BELOW_THRESHOLD",
+      previousReleaseRecomputedScore: 82,
+      scoreChange: 3,
+      previousReleaseRecomputedRankPercentile: "95.000",
+      rankPercentileChange: "5.000",
+      materialChange: false,
+    },
+    "710": {
+      state: "NEWLY_ELIGIBLE",
+      previousReleaseRecomputedScore: null,
+      scoreChange: null,
+      previousReleaseRecomputedRankPercentile: null,
+      rankPercentileChange: null,
+      materialChange: null,
+    },
+  };
+  await page.route("**/market-analysis?*", async (route) => {
+    const response = await route.fetch();
+    const analysis = (await response.json()) as {
+      context: { market: { code: string } };
+      opportunity: { candidate: Record<string, unknown> };
+      evidenceQuality: Record<string, unknown>;
+    } & Record<string, unknown>;
+    const releaseRevision =
+      RELEASE_REVISION_BY_MARKET[analysis.context.market.code];
+    await route.fulfill({
+      response,
+      json: {
+        ...analysis,
+        opportunity: {
+          ...analysis.opportunity,
+          candidate:
+            releaseRevision === undefined
+              ? analysis.opportunity.candidate
+              : { ...analysis.opportunity.candidate, releaseRevision },
+        },
+        evidenceQuality: {
+          ...analysis.evidenceQuality,
+          releaseRevisionSummary: {
+            comparisonRelease: "V202501",
+            previousArtifactSha256:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            notComparedReason: null,
+            noLongerEligibleCount: 2,
+          },
+          releaseRevision:
+            releaseRevision === undefined
+              ? analysis.evidenceQuality.releaseRevision
+              : releaseRevision,
+        },
+      },
+    });
+  });
 
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=484");
 
@@ -473,6 +544,44 @@ test("a skipped prior release keeps the canonical not-compared wording", async (
       });
     },
   );
+  // Same override replayed for Market Analysis's own independent
+  // candidate-market-v1 execution behind /market-analysis (issue #68).
+  await page.route("**/market-analysis?*", async (route) => {
+    const response = await route.fetch();
+    const analysis = (await response.json()) as {
+      opportunity: { candidate: Record<string, unknown> };
+      evidenceQuality: Record<string, unknown>;
+    } & Record<string, unknown>;
+    const releaseRevision = {
+      state: "NOT_COMPARED",
+      previousReleaseRecomputedScore: null,
+      scoreChange: null,
+      previousReleaseRecomputedRankPercentile: null,
+      rankPercentileChange: null,
+      materialChange: null,
+    };
+    await route.fulfill({
+      response,
+      json: {
+        ...analysis,
+        opportunity: {
+          ...analysis.opportunity,
+          candidate: { ...analysis.opportunity.candidate, releaseRevision },
+        },
+        evidenceQuality: {
+          ...analysis.evidenceQuality,
+          releaseRevisionSummary: {
+            comparisonRelease: "V202401",
+            previousArtifactSha256:
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            notComparedReason: "PREVIOUS_ARTIFACT_MISSING_SCORE_WINDOW",
+            noLongerEligibleCount: null,
+          },
+          releaseRevision,
+        },
+      },
+    });
+  });
 
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=484");
 

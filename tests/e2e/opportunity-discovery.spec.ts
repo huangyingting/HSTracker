@@ -242,11 +242,16 @@ test("opportunity refresh and adjacent links preserve canonical analytical ident
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toHaveValue("484 — Mexico");
-  await expect(
-    page
-      .getByRole("region", { name: "Inspect the complete recorded" })
-      .getByRole("alert"),
-  ).toContainText("These Supplier Competition inputs are invalid.");
+  // Mexico now has fixture Supplier Competition evidence too (issue #68
+  // extended fixtures/supplier-competition/v1/evidence.ts so every
+  // core-current.ts Candidate Market completes the atomic Market Analysis
+  // Module), so this adjacent link now reaches real supplier evidence
+  // instead of the invalid-input state it previously exercised.
+  const structure = page.getByRole("table", {
+    name: "Complete supplier-economy structure",
+  });
+  await expect(structure).toContainText("China · BACI 156");
+  await expect(structure).toContainText("United States · BACI 842");
 
   await page.goto(
     "/?recipe=trade-explorer-v1&exportEconomy=156&hsProduct=010121",

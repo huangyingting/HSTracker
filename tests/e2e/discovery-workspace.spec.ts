@@ -559,7 +559,9 @@ test("an Export Market Analyst can inspect localized Chinese evidence", async ({
     page.getByRole("list", { name: "候选市场" }).getByRole("button"),
   ).toHaveCount(13);
   await expect(page.getByText("BACI 发布版本")).toBeVisible();
-  await expect(page.getByText("来源日期")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "当前来源范围" }).getByText("来源日期"),
+  ).toBeVisible();
   await expect(page.getByText("计分定稿年份 2019–2023")).toBeVisible();
   await expect(page.getByText("暂定年份 2024")).toBeVisible();
 

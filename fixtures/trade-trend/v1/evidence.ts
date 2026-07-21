@@ -118,6 +118,195 @@ export const TRADE_TREND_FIXTURE_INPUTS = new Map<
       },
     },
   ],
+  // The remaining core-current.ts Candidate Markets (issue #68: Market
+  // Analysis replaces the Candidate Market audit detail with the atomic
+  // three-recipe Market Analysis Module, so every existing Candidate
+  // Market needs a compatible trade-trend-v1 importer to keep the
+  // existing e2e evidence-panel journeys working end to end, not only the
+  // Netherlands/South Africa pair issue #66 added for the Module's own
+  // acceptance scenarios).
+  [
+    "76:010121",
+    {
+      ...common,
+      importer: { code: "76", name: "Brazil", iso3: "BRA", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "40000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "42000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "44000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "46000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "48000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "50000",
+      },
+    },
+  ],
+  [
+    "124:010121",
+    {
+      ...common,
+      importer: { code: "124", name: "Canada", iso3: "CAN", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "60000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "61000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "62000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "63000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "64000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "65000",
+      },
+    },
+  ],
+  [
+    "152:010121",
+    {
+      ...common,
+      importer: { code: "152", name: "Chile", iso3: "CHL", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "20000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "21000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "22000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "23000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "24000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "25000",
+      },
+    },
+  ],
+  [
+    "392:010121",
+    {
+      ...common,
+      importer: { code: "392", name: "Japan", iso3: "JPN", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "55000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "56000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "57000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "58000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "59000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "60000",
+      },
+    },
+  ],
+  [
+    "404:010121",
+    {
+      ...common,
+      importer: { code: "404", name: "Kenya", iso3: "KEN", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "5000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "5200" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "5400" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "5600" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "5800" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "6000",
+      },
+    },
+  ],
+  [
+    "490:010121",
+    {
+      ...common,
+      importer: {
+        code: "490",
+        name: "Other Asia, nes",
+        iso3: null,
+        identityNote:
+          "BACI code 490 is formally Other Asia, n.e.s.; CEPII documents it as a practical Taiwan proxy.",
+      },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "30000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "31000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "32000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "33000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "34000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "35000",
+      },
+    },
+  ],
+  [
+    "616:010121",
+    {
+      ...common,
+      importer: { code: "616", name: "Poland", iso3: "POL", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "45000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "46000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "47000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "48000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "49000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "50000",
+      },
+    },
+  ],
+  [
+    "699:010121",
+    {
+      ...common,
+      importer: { code: "699", name: "India", iso3: "IND", identityNote: null },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "25000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "27000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "29000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "31000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "33000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "35000",
+      },
+    },
+  ],
+  [
+    "842:010121",
+    {
+      ...common,
+      importer: {
+        code: "842",
+        name: "United States",
+        iso3: "USA",
+        identityNote: null,
+      },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "70000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "71000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "72000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "73000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "74000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "75000",
+      },
+    },
+  ],
   [
     "710:010121",
     {
