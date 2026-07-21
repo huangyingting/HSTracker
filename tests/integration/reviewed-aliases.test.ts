@@ -29,9 +29,13 @@ type AliasInput = {
   rows: AliasInputRow[];
 };
 
-type ProductionCatalog = {
-  products: ProductSearchProduct[];
-  traditionalToSimplified: Readonly<Record<string, string>>;
+type SourceTerminology = {
+  schemaVersion: string;
+  terminologyVersion: string;
+  rows: {
+    level: number;
+    code: string;
+  }[];
 };
 
 const ALIAS_INPUT = JSON.parse(
@@ -41,16 +45,27 @@ const ALIAS_INPUT = JSON.parse(
   ),
 ) as AliasInput;
 
-const CATALOG = JSON.parse(
+const SOURCE_TERMINOLOGY = JSON.parse(
   readFileSync(
-    resolve(
-      "data/artifacts/product-catalog/catalogs/product-search-v1-aa1f4027019c194b/product-catalog.json",
-    ),
+    resolve("data/catalog/inputs/taiwan-customs-hs2012-terminology-v1.json"),
     "utf8",
   ),
-) as ProductionCatalog;
+) as SourceTerminology;
 
-const catalogCodes = new Set(CATALOG.products.map((product) => product.code));
+const sourceProducts: readonly ProductSearchProduct[] =
+  SOURCE_TERMINOLOGY.rows
+    .filter((row) => row.level === 6)
+    .map((row) => ({
+      hsRevision: "HS12",
+      code: row.code,
+      sourceDescriptionEn: `HS12 ${row.code}`,
+      auxiliaryDescriptionZhHans: `HS12 ${row.code}`,
+      translationStatus: "reviewed",
+      translationVersion: SOURCE_TERMINOLOGY.terminologyVersion,
+    }));
+const sourceProductCodes = new Set(
+  sourceProducts.map((product) => product.code),
+);
 
 const aliasRecords: readonly ProductAliasRecord[] = ALIAS_INPUT.rows.map(
   (row) => ({
@@ -62,13 +77,13 @@ const aliasRecords: readonly ProductAliasRecord[] = ALIAS_INPUT.rows.map(
   }),
 );
 
-const index = indexProductSearchCatalog(CATALOG.products, aliasRecords);
+const index = indexProductSearchCatalog(sourceProducts, aliasRecords);
 
 function search(query: string, locale: "en" | "zh-Hans"): string[] {
   const result = searchProductIndex(
     { productSearchBuildId: "test", query, locale, limit: 20 },
     index,
-    CATALOG.traditionalToSimplified,
+    {},
   );
   return result.matches.map((match) => match.product.code);
 }
@@ -76,6 +91,7 @@ function search(query: string, locale: "en" | "zh-Hans"): string[] {
 describe("reviewed discovery aliases", () => {
   it("uses the published alias schema and reviewed provenance", () => {
     expect(ALIAS_INPUT.schemaVersion).toBe("hs12-product-aliases-v1");
+    expect(SOURCE_TERMINOLOGY.schemaVersion).toBe("hs12-zh-terminology-v1");
     for (const row of ALIAS_INPUT.rows) {
       expect(row.reviewStatus).toBe("reviewed");
       expect(row.reviewer.length).toBeGreaterThan(0);
@@ -92,9 +108,9 @@ describe("reviewed discovery aliases", () => {
     }
   });
 
-  it("references only HS12 codes present in the production catalog", () => {
+  it("references only HS12 codes present in tracked source terminology", () => {
     for (const row of ALIAS_INPUT.rows) {
-      expect(catalogCodes.has(row.code)).toBe(true);
+      expect(sourceProductCodes.has(row.code)).toBe(true);
     }
   });
 
