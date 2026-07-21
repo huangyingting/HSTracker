@@ -386,6 +386,12 @@ function messagesFor(locale: MarketAnalysisLocale) {
   return copy[locale];
 }
 
+function finalizedWindowLabel(
+  annualContext: MarketAnalysisV1["annualContext"],
+) {
+  return `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
+}
+
 // ---------------------------------------------------------------------
 // Market Snapshot
 // ---------------------------------------------------------------------
@@ -710,7 +716,7 @@ export function ExporterPositionPanel({
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
   const { exporterPosition, context, annualContext } = analysis;
   const foothold = exporterPosition.scoreWindowFoothold;
-  const yearRangeLabel = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
+  const yearRangeLabel = finalizedWindowLabel(annualContext);
 
   const scoreWindowInterpretation =
     foothold.bilateralFlowState === "NO_RECORDED_POSITIVE_FLOW"
@@ -842,7 +848,7 @@ export function SupplierLandscapePanel({
   const messages = messagesFor(locale);
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
   const { supplierLandscape, context, annualContext } = analysis;
-  const yearRangeLabel = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
+  const yearRangeLabel = finalizedWindowLabel(annualContext);
   const interpretation =
     supplierLandscape.supplierShares.length === 0
       ? messages.supplierLandscapeInterpretationEmpty

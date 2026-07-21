@@ -198,6 +198,15 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     "loading" | "ready" | "failed"
   >("loading");
 
+  const resetMarketAnalysisState = useCallback(() => {
+    resolvedAnalysisBuildIdRef.current = null;
+    setResolvedAnalysisBuildId(null);
+    setResolvedAnalysisManifest(null);
+    setMarketAnalysis(null);
+    setMarketAnalysisStatus("loading");
+    setMarketAnalysisRetryAfterSeconds(null);
+  }, []);
+
   const loadCurrentManifest = useCallback(
     async (signal: AbortSignal, revalidate = false) => {
       try {
@@ -276,9 +285,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     marketAnalysisRequestSequence.current += 1;
     canonicalRestorePending.current = true;
     analyzedInputsInHistory.current = false;
-    resolvedAnalysisBuildIdRef.current = null;
-    setResolvedAnalysisBuildId(null);
-    setResolvedAnalysisManifest(null);
+    resetMarketAnalysisState();
     setCurrentManifest(discovered);
     setExporter(null);
     setProduct(null);
@@ -286,25 +293,17 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("idle");
-    setMarketAnalysis(null);
-    setMarketAnalysisStatus("loading");
-    setMarketAnalysisRetryAfterSeconds(null);
     setControlRestorationKey((current) => current + 1);
-  }, [beginCurrentManifestRequest, currentManifest]);
+  }, [beginCurrentManifestRequest, currentManifest, resetMarketAnalysisState]);
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
     marketAnalysisController.current?.abort();
-    resolvedAnalysisBuildIdRef.current = null;
-    setResolvedAnalysisBuildId(null);
-    setResolvedAnalysisManifest(null);
+    resetMarketAnalysisState();
     setResult(null);
     setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("idle");
-    setMarketAnalysis(null);
-    setMarketAnalysisStatus("loading");
-    setMarketAnalysisRetryAfterSeconds(null);
     const context = parseTradeAnalysisContext(window.location.href);
     const nextContext: CandidateMarketContext =
       context.recipe === "candidate-market"
@@ -319,7 +318,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           };
     const url = serializeTradeAnalysisContext(window.location.href, nextContext);
     window.history.replaceState(null, "", url);
-  }, [locale]);
+  }, [locale, resetMarketAnalysisState]);
 
   const prepareForExplicitContextChange = useCallback(() => {
     canonicalRestorePending.current = false;
@@ -637,25 +636,20 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       marketAnalysisRequestSequence.current += 1;
       analyzedInputsInHistory.current = false;
       canonicalRestorePending.current = true;
-      resolvedAnalysisBuildIdRef.current = null;
-      setResolvedAnalysisBuildId(null);
-      setResolvedAnalysisManifest(null);
+      resetMarketAnalysisState();
       setExporter(null);
       setProduct(null);
       setResult(null);
       setComparedCandidateCodes([]);
       setSelectedCandidateCode(null);
       setStatus("idle");
-      setMarketAnalysis(null);
-      setMarketAnalysisStatus("loading");
-      setMarketAnalysisRetryAfterSeconds(null);
       setControlRestorationKey((current) => current + 1);
     }
 
     window.addEventListener("popstate", restoreContextFromHistory);
     return () =>
       window.removeEventListener("popstate", restoreContextFromHistory);
-  }, [loadMarketAnalysisForCandidate, result]);
+  }, [loadMarketAnalysisForCandidate, resetMarketAnalysisState, result]);
 
   const selectCandidateMarket = useCallback(
     (candidate: CandidateMarket) => {
