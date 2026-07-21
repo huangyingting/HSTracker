@@ -141,6 +141,36 @@ export const TRADE_TREND_FIXTURE_INPUTS = new Map<
       },
     },
   ],
+  [
+    "826:010121",
+    {
+      ...common,
+      // The Market Analysis Module's own acceptance scenario (issue #66):
+      // a fully recorded importer that is deliberately absent from the
+      // core-current.ts Candidate Market cohort, so requesting it exercises
+      // "valid identities naming a market absent from the complete
+      // Candidate Market cohort" without any constituent invalid-input
+      // failure masking the absence.
+      importer: {
+        code: "826",
+        name: "United Kingdom",
+        iso3: "GBR",
+        identityNote: null,
+      },
+      finalizedObservations: [
+        { year: 2019, state: "RECORDED_POSITIVE", valueCurrentUsd: "30000" },
+        { year: 2020, state: "RECORDED_POSITIVE", valueCurrentUsd: "32000" },
+        { year: 2021, state: "RECORDED_POSITIVE", valueCurrentUsd: "34000" },
+        { year: 2022, state: "RECORDED_POSITIVE", valueCurrentUsd: "36000" },
+        { year: 2023, state: "RECORDED_POSITIVE", valueCurrentUsd: "38000" },
+      ],
+      provisionalObservation: {
+        year: 2024,
+        state: "RECORDED_POSITIVE",
+        valueCurrentUsd: "39000",
+      },
+    },
+  ],
 ]);
 
 export const TRADE_TREND_FIXTURE_CONTENT_SHA256 = createHash("sha256")

@@ -201,6 +201,65 @@ export const SUPPLIER_COMPETITION_PROVISIONAL_CHANGING_INPUT: SupplierCompetitio
   ],
 };
 
+// "netherlands": the Market Analysis Module's own acceptance scenario (issue
+// #66) -- China and the United States each hold half of a recorded,
+// concentrated supplier structure behind the Netherlands' imports, with a
+// matching Provisional Year snapshot. This importer is also a
+// core-current.ts Candidate Market and a fixtures/trade-trend/v1 importer,
+// so the same "acceptance-fixtures-v1" build can complete every constituent
+// recipe for one Candidate Market Context.
+export const SUPPLIER_COMPETITION_NETHERLANDS_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: NETHERLANDS,
+  suppliers: [
+    recordedFiveYears(CHINA, "60000", 5, 5),
+    recordedFiveYears(UNITED_STATES, "60000", 5, 5),
+  ],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "70000" } },
+    { economy: UNITED_STATES, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "70000" } },
+  ],
+};
+
+// "south-africa-empty": another Market Analysis Module acceptance scenario
+// (issue #66) -- no supplying economy recorded a positive pooled value, so
+// the cohort, pooled value, and concentration stay distinctly empty rather
+// than a neutral zero, exactly like SUPPLIER_COMPETITION_EMPTY_INPUT above.
+// South Africa is also a core-current.ts Candidate Market and a
+// fixtures/trade-trend/v1 importer with a missing Provisional Year, which
+// this mirrors with a MISSING_OBSERVATION provisional market state.
+export const SUPPLIER_COMPETITION_SOUTH_AFRICA_EMPTY_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: SOUTH_AFRICA,
+  suppliers: [],
+  provisionalMarketState: "MISSING_OBSERVATION",
+  provisionalSuppliers: [],
+};
+
+const UNITED_KINGDOM = {
+  code: "826",
+  name: "United Kingdom",
+  iso3: "GBR",
+  identityNote: null,
+};
+
+// "united-kingdom": the Market Analysis Module's own acceptance scenario
+// (issue #66) for a market absent from the complete Candidate Market
+// cohort. This importer is deliberately not one of the core-current.ts
+// Candidate Market candidates, so requesting it exercises
+// CANDIDATE_MARKET_NOT_FOUND without any constituent invalid-input failure
+// masking the absence, matching the fixtures/trade-trend/v1 "826" entry.
+export const SUPPLIER_COMPETITION_UNITED_KINGDOM_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: UNITED_KINGDOM,
+  suppliers: [recordedFiveYears(CHINA, "34000", 5, 5)],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "35000" } },
+  ],
+};
+
 export const SUPPLIER_COMPETITION_FIXTURE_INPUTS: ReadonlyMap<
   string,
   SupplierCompetitionV1Inputs
@@ -228,6 +287,18 @@ export const SUPPLIER_COMPETITION_FIXTURE_INPUTS: ReadonlyMap<
   [
     fixtureKey(SUPPLIER_COMPETITION_PROVISIONAL_CHANGING_INPUT),
     SUPPLIER_COMPETITION_PROVISIONAL_CHANGING_INPUT,
+  ],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_NETHERLANDS_INPUT),
+    SUPPLIER_COMPETITION_NETHERLANDS_INPUT,
+  ],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_SOUTH_AFRICA_EMPTY_INPUT),
+    SUPPLIER_COMPETITION_SOUTH_AFRICA_EMPTY_INPUT,
+  ],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_UNITED_KINGDOM_INPUT),
+    SUPPLIER_COMPETITION_UNITED_KINGDOM_INPUT,
   ],
 ]);
 
