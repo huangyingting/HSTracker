@@ -282,6 +282,21 @@ test("a pinned Candidate Market link that no longer matches the current recommen
         });
         return;
       }
+      if (route.request().url().includes("/market-analysis?")) {
+        const result = (await response.json()) as Record<string, unknown>;
+        const context = result.context as Record<string, unknown>;
+        await route.fulfill({
+          response,
+          json: {
+            ...result,
+            context: {
+              ...context,
+              analysisBuildId: "replacement-analysis-v2",
+            },
+          },
+        });
+        return;
+      }
       await route.fulfill({ response });
     },
   );

@@ -11,6 +11,7 @@ import {
   emptyTradeAnalysisContext,
   hasCompleteRecipeInputs,
   parseTradeAnalysisContext,
+  pinFromDeploymentWindow,
   pinFromManifest,
   productCodeOf,
   resolvePinnedContext,
@@ -775,6 +776,67 @@ describe("Trade Analysis Context: resolvePinnedContext", () => {
       pin,
       deployment: manifestWithRetainedPredecessor.deploymentWindow[1],
     });
+  });
+
+  it("derives recipe-specific canonical pins from current and retained deployment-window entries", () => {
+      expect(
+        pinFromDeploymentWindow(
+          manifestWithRetainedPredecessor,
+          manifest.analysisBuildId,
+          "opportunity-discovery",
+        ),
+      ).toEqual(pinFromManifest(manifest, "opportunity-discovery"));
+      expect(
+        pinFromDeploymentWindow(
+          manifestWithRetainedPredecessor,
+          RETAINED_ANALYSIS_BUILD_ID,
+          "trade-trend",
+        ),
+      ).toEqual({
+        analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+        datasetPackageIdentity:
+          retainedRecommendation.tradeTrend!.datasetPackageIdentity,
+      });
+      expect(
+        pinFromDeploymentWindow(
+          manifestWithRetainedPredecessor,
+          RETAINED_ANALYSIS_BUILD_ID,
+          "supplier-competition",
+        ),
+      ).toEqual({
+        analysisBuildId: RETAINED_ANALYSIS_BUILD_ID,
+        datasetPackageIdentity:
+          retainedRecommendation.supplierCompetition!.datasetPackageIdentity,
+      });
+  });
+
+  it("does not fabricate a deployment-window pin for an absent build or unsupported recipe", () => {
+      expect(
+        pinFromDeploymentWindow(
+          manifestWithRetainedPredecessor,
+          "absent-build",
+          "trade-trend",
+        ),
+      ).toBeNull();
+      expect(
+        pinFromDeploymentWindow(
+          {
+            ...manifestWithRetainedPredecessor,
+            deploymentWindow: [
+              manifestWithRetainedPredecessor.deploymentWindow[0]!,
+              {
+                ...manifestWithRetainedPredecessor.deploymentWindow[1]!,
+                recommendation: {
+                  ...retainedRecommendation,
+                  tradeExplorer: null,
+                },
+              },
+            ],
+          },
+          RETAINED_ANALYSIS_BUILD_ID,
+          "trade-explorer",
+        ),
+      ).toBeNull();
   });
 
   it("is retired with PACKAGE_MISMATCH when a retained predecessor's package identity has since changed", () => {

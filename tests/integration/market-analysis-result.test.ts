@@ -186,6 +186,10 @@ function buildMarketAnalysisV1Fixture(): MarketAnalysisV1 {
         missingYears: [],
         quantityCoverageRate: "0.8",
       },
+      pooledSupplierPosition: {
+        rank: 1,
+        cohortSize: 12,
+      },
       provisionalBilateral: {
         year: 2024,
         marketState: "RECORDED",

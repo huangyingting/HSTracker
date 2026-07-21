@@ -260,6 +260,89 @@ export const SUPPLIER_COMPETITION_UNITED_KINGDOM_INPUT: SupplierCompetitionV1Inp
   ],
 };
 
+const AUSTRALIA = {
+  code: "36",
+  name: "Australia",
+  iso3: "AUS",
+  identityNote: null,
+};
+
+const OTHER_ASIA = {
+  code: "490",
+  name: "Other Asia, nes",
+  iso3: null,
+  identityNote:
+    "BACI code 490 is formally Other Asia, n.e.s.; CEPII documents it as a practical Taiwan proxy.",
+};
+
+// The remaining core-current.ts Candidate Markets (issue #68: Market
+// Analysis replaces the Candidate Market audit detail with the atomic
+// three-recipe Market Analysis Module, so every existing Candidate Market
+// needs a compatible supplier-competition-v1 importer too, not only the
+// Netherlands/South Africa pair issue #66 added for the Module's own
+// acceptance scenarios).
+export const SUPPLIER_COMPETITION_AUSTRALIA_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: AUSTRALIA,
+  suppliers: [
+    recordedFiveYears(CHINA, "30000", 5, 5),
+    recordedFiveYears(NETHERLANDS, "10000", 5, 5),
+  ],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "31000" } },
+    { economy: NETHERLANDS, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "11000" } },
+  ],
+};
+
+export const SUPPLIER_COMPETITION_JAPAN_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: JAPAN,
+  suppliers: [recordedFiveYears(CHINA, "50000", 5, 5)],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "51000" } },
+  ],
+};
+
+export const SUPPLIER_COMPETITION_MEXICO_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: MEXICO,
+  suppliers: [
+    recordedFiveYears(CHINA, "40000", 5, 5),
+    recordedFiveYears(UNITED_STATES, "20000", 5, 5),
+  ],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "42000" } },
+    { economy: UNITED_STATES, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "21000" } },
+  ],
+};
+
+export const SUPPLIER_COMPETITION_OTHER_ASIA_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: OTHER_ASIA,
+  suppliers: [recordedFiveYears(CHINA, "25000", 5, 5)],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "26000" } },
+  ],
+};
+
+export const SUPPLIER_COMPETITION_UNITED_STATES_INPUT: SupplierCompetitionV1Inputs = {
+  ...common,
+  importer: UNITED_STATES,
+  suppliers: [
+    recordedFiveYears(CHINA, "60000", 5, 5),
+    recordedFiveYears(JAPAN, "15000", 5, 5),
+  ],
+  provisionalMarketState: "RECORDED",
+  provisionalSuppliers: [
+    { economy: CHINA, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "62000" } },
+    { economy: JAPAN, bilateral: { state: "RECORDED_POSITIVE", valueCurrentUsd: "16000" } },
+  ],
+};
+
 export const SUPPLIER_COMPETITION_FIXTURE_INPUTS: ReadonlyMap<
   string,
   SupplierCompetitionV1Inputs
@@ -299,6 +382,23 @@ export const SUPPLIER_COMPETITION_FIXTURE_INPUTS: ReadonlyMap<
   [
     fixtureKey(SUPPLIER_COMPETITION_UNITED_KINGDOM_INPUT),
     SUPPLIER_COMPETITION_UNITED_KINGDOM_INPUT,
+  ],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_AUSTRALIA_INPUT),
+    SUPPLIER_COMPETITION_AUSTRALIA_INPUT,
+  ],
+  [fixtureKey(SUPPLIER_COMPETITION_JAPAN_INPUT), SUPPLIER_COMPETITION_JAPAN_INPUT],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_MEXICO_INPUT),
+    SUPPLIER_COMPETITION_MEXICO_INPUT,
+  ],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_OTHER_ASIA_INPUT),
+    SUPPLIER_COMPETITION_OTHER_ASIA_INPUT,
+  ],
+  [
+    fixtureKey(SUPPLIER_COMPETITION_UNITED_STATES_INPUT),
+    SUPPLIER_COMPETITION_UNITED_STATES_INPUT,
   ],
 ]);
 

@@ -70,6 +70,10 @@ export type MarketDemandEvidence = Readonly<{
 export type ExporterPositionEvidence = Readonly<{
   scoreWindowFoothold: CandidateMarket["components"]["recordedFoothold"];
   pooledSupplier: SupplierCompetitionShare | null;
+  pooledSupplierPosition: Readonly<{
+    rank: number;
+    cohortSize: number;
+  }> | null;
   provisionalBilateral: CandidateMarket["provisionalEvidence"];
 }>;
 
