@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -11,6 +11,7 @@ import { promoteAcceptedReleaseCandidateToLocalStore } from "../support/local-re
 
 const execFileAsync = promisify(execFile);
 const IMAGE = `hs-tracker-local-release-test:${randomUUID()}`;
+const VOLUME = `hs-tracker-local-release-volume-${randomUUID()}`;
 const BUILD_ID = "local-release-integration-v1";
 
 describe("local single-host release deployment", () => {
@@ -18,14 +19,12 @@ describe("local single-host release deployment", () => {
   let origin: string;
   let objectStoreDirectory: string;
   let candidateRoot: string;
-  let volumeDirectory: string;
 
   beforeAll(async () => {
     objectStoreDirectory = await mkdtemp(
       join(tmpdir(), "hs-tracker-local-objectstore-"),
     );
     candidateRoot = await mkdtemp(join(tmpdir(), "hs-tracker-local-candidate-"));
-    volumeDirectory = await mkdtemp(join(tmpdir(), "hs-tracker-local-volume-"));
 
     await promoteAcceptedReleaseCandidateToLocalStore({
       root: candidateRoot,
@@ -34,6 +33,9 @@ describe("local single-host release deployment", () => {
       activatedAt: "2026-07-12T02:00:00Z",
       candidateOptions: { baciRelease: "V202601" },
     });
+    // Hosted runners and the image's non-root process use different UIDs.
+    await chmod(objectStoreDirectory, 0o755);
+    await execFileAsync("docker", ["volume", "create", VOLUME]);
 
     await execFileAsync(
       "docker",
@@ -47,18 +49,17 @@ describe("local single-host release deployment", () => {
 
   afterAll(async () => {
     if (containerId !== undefined) {
-      await execFileAsync("docker", ["stop", "--time", "1", containerId]).catch(
+      await execFileAsync("docker", ["rm", "--force", containerId]).catch(
         () => undefined,
       );
     }
     await execFileAsync("docker", ["image", "rm", "--force", IMAGE]).catch(
       () => undefined,
     );
-    for (const directory of [
-      objectStoreDirectory,
-      candidateRoot,
-      volumeDirectory,
-    ]) {
+    await execFileAsync("docker", ["volume", "rm", "--force", VOLUME]).catch(
+      () => undefined,
+    );
+    for (const directory of [objectStoreDirectory, candidateRoot]) {
       if (directory !== undefined) {
         await rm(directory, { recursive: true, force: true });
       }
@@ -124,7 +125,7 @@ describe("local single-host release deployment", () => {
       "--volume",
       `${objectStoreDirectory}:/objectstore:ro`,
       "--volume",
-      `${volumeDirectory}:/data`,
+      `${VOLUME}:/data`,
       "--publish",
       "127.0.0.1::3000",
       IMAGE,
