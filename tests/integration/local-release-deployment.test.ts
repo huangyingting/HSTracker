@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -34,6 +34,11 @@ describe("local single-host release deployment", () => {
       activatedAt: "2026-07-12T02:00:00Z",
       candidateOptions: { baciRelease: "V202601" },
     });
+    // Hosted runners and the image's non-root process use different UIDs.
+    await Promise.all([
+      chmod(objectStoreDirectory, 0o755),
+      chmod(volumeDirectory, 0o777),
+    ]);
 
     await execFileAsync(
       "docker",
