@@ -433,7 +433,7 @@ export function MarketSnapshotPanel({
       aria-labelledby="market-snapshot-heading"
       id="snapshot"
     >
-      <h2 id="market-snapshot-heading">{areaCopy.productAreas.snapshot}</h2>
+      <h3 id="market-snapshot-heading">{areaCopy.productAreas.snapshot}</h3>
       <p className="market-area-interpretation">{interpretation}</p>
       <dl className="market-snapshot-components">
         <div>
@@ -476,6 +476,7 @@ export function MarketSnapshotPanel({
         onToggleComparison={onToggleComparison}
         tradeTrendHref={tradeTrendHref}
         supplierCompetitionHref={supplierCompetitionHref}
+        headingLevel={4}
       />
       <AreaProvenance
         analysis={analysis}
@@ -526,7 +527,7 @@ export function DemandPanel({
       aria-labelledby="demand-heading"
       id="demand"
     >
-      <h2 id="demand-heading">{areaCopy.productAreas.demand}</h2>
+      <h3 id="demand-heading">{areaCopy.productAreas.demand}</h3>
       <p className="market-area-interpretation">{interpretation}</p>
       <p>
         {messages.demandMeanImports}:{" "}
@@ -580,7 +581,7 @@ export function DemandPanel({
         className="market-demand-summary"
         aria-labelledby="demand-summary-heading"
       >
-        <h3 id="demand-summary-heading">{messages.demandSummaryTitle}</h3>
+        <h4 id="demand-summary-heading">{messages.demandSummaryTitle}</h4>
         <div data-evidence-state={marketAnalysisDemandSummaryState(summary)}>
         {summary.state === "UNAVAILABLE" ? (
           <p>
@@ -632,9 +633,9 @@ export function DemandPanel({
         className="market-demand-provisional"
         aria-labelledby="demand-provisional-heading"
       >
-        <h3 id="demand-provisional-heading">
+        <h4 id="demand-provisional-heading">
           {annualContext.provisionalYear} {messages.demandProvisionalTitle}
-        </h3>
+        </h4>
         <p>{messages.demandProvisionalRule}</p>
         {demand.provisionalObservation === null ? (
           <strong>{messages.demandProvisionalNone}</strong>
@@ -709,18 +710,18 @@ export function ExporterPositionPanel({
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
   const { exporterPosition, context, annualContext } = analysis;
   const foothold = exporterPosition.scoreWindowFoothold;
-  const window = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
+  const yearRangeLabel = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
 
   const scoreWindowInterpretation =
     foothold.bilateralFlowState === "NO_RECORDED_POSITIVE_FLOW"
       ? formatTemplate(messages.exporterPositionScoreWindowNoFlow, {
           exporter: context.exporter.name,
-          window,
+          window: yearRangeLabel,
         })
       : formatTemplate(messages.exporterPositionScoreWindowInterpretation, {
           exporter: context.exporter.name,
           market: context.market.name,
-          window,
+          window: yearRangeLabel,
           share: formatDecimalPercent(foothold.share),
         });
 
@@ -735,27 +736,27 @@ export function ExporterPositionPanel({
       aria-labelledby="exporter-position-heading"
       id="exporter-position"
     >
-      <h2 id="exporter-position-heading">
+      <h3 id="exporter-position-heading">
         {areaCopy.productAreas.exporterPosition}
-      </h2>
+      </h3>
       <p className="market-area-interpretation">{scoreWindowInterpretation}</p>
 
       <section aria-labelledby="exporter-position-score-window-heading">
-        <h3 id="exporter-position-score-window-heading">
+        <h4 id="exporter-position-score-window-heading">
           {messages.exporterPositionScoreWindow}
-        </h3>
+        </h4>
         <p data-evidence-state={foothold.bilateralFlowState === "RECORDED" ? "recordedPositive" : "noRecordedPositiveFlow"}>
           {foothold.bilateralFlowState === "RECORDED"
             ? formatDecimalPercent(foothold.share)
             : messages.noRecordedPositiveFlow}{" "}
-          · {window}
+          · {yearRangeLabel}
         </p>
       </section>
 
       <section aria-labelledby="exporter-position-pooled-heading">
-        <h3 id="exporter-position-pooled-heading">
+        <h4 id="exporter-position-pooled-heading">
           {messages.exporterPositionPooled}
-        </h3>
+        </h4>
         {pooled === null ? (
           <p>
             {formatTemplate(messages.exporterPositionPooledAbsent, {
@@ -771,16 +772,16 @@ export function ExporterPositionPanel({
                   ? messages.notApplicable
                   : `${pooledPosition.rank} ${messages.interpretationJoiner} ${pooledPosition.cohortSize}`,
             })}{" "}
-            · USD {pooled.pooledValueCurrentUsd} · {window}
+            · USD {pooled.pooledValueCurrentUsd} · {yearRangeLabel}
           </p>
         )}
       </section>
 
       <section aria-labelledby="exporter-position-provisional-heading">
-        <h3 id="exporter-position-provisional-heading">
+        <h4 id="exporter-position-provisional-heading">
           {annualContext.provisionalYear}{" "}
           {messages.exporterPositionProvisional}
-        </h3>
+        </h4>
         <p>{messages.exporterPositionProvisionalRule}</p>
         {provisional.bilateralState === "NOT_APPLICABLE" ? (
           <p>{messages.exporterPositionProvisionalNotApplicable}</p>
@@ -841,7 +842,7 @@ export function SupplierLandscapePanel({
   const messages = messagesFor(locale);
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
   const { supplierLandscape, context, annualContext } = analysis;
-  const window = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
+  const yearRangeLabel = `${annualContext.finalizedWindow.start}–${annualContext.finalizedWindow.end}`;
   const interpretation =
     supplierLandscape.supplierShares.length === 0
       ? messages.supplierLandscapeInterpretationEmpty
@@ -867,9 +868,9 @@ export function SupplierLandscapePanel({
       aria-labelledby="supplier-landscape-heading"
       id="supplier-landscape"
     >
-      <h2 id="supplier-landscape-heading">
+      <h3 id="supplier-landscape-heading">
         {areaCopy.productAreas.supplierLandscape}
-      </h2>
+      </h3>
       <p className="market-area-interpretation">{interpretation}</p>
 
       <div className="market-supplier-bars" aria-hidden="true">
@@ -894,7 +895,7 @@ export function SupplierLandscapePanel({
 
       <table aria-label={messages.supplierLandscapeCohort}>
         <caption>
-          {messages.supplierLandscapeCohort} · {window}
+          {messages.supplierLandscapeCohort} · {yearRangeLabel}
         </caption>
         <thead>
           <tr>
@@ -955,7 +956,7 @@ export function SupplierLandscapePanel({
           supplierLandscape.concentration,
         )}
       >
-        <h3 id="supplier-landscape-hhi-heading">{messages.supplierLandscapeHhi}</h3>
+        <h4 id="supplier-landscape-hhi-heading">{messages.supplierLandscapeHhi}</h4>
         {supplierLandscape.concentration.state === "COMPUTED" ? (
           <p>
             <strong>
@@ -970,9 +971,9 @@ export function SupplierLandscapePanel({
 
       {supplierLandscape.qualityWarnings.length > 0 ? (
         <section aria-labelledby="supplier-landscape-warnings-heading">
-          <h3 id="supplier-landscape-warnings-heading">
+          <h4 id="supplier-landscape-warnings-heading">
             {messages.supplierLandscapeWarnings}
-          </h3>
+          </h4>
           <ul>
             {supplierLandscape.qualityWarnings.map((code) => (
               <li key={code}>{supplierWarningText(code, messages)}</li>
@@ -982,9 +983,9 @@ export function SupplierLandscapePanel({
       ) : null}
 
       <aside aria-labelledby="supplier-landscape-provisional-heading">
-        <h3 id="supplier-landscape-provisional-heading">
+        <h4 id="supplier-landscape-provisional-heading">
           {annualContext.provisionalYear} {messages.supplierLandscapeProvisional}
-        </h3>
+        </h4>
         <p>{messages.supplierLandscapeProvisionalRule}</p>
         {supplierLandscape.provisionalSupplierShares.length === 0 ? (
           <strong>
@@ -1090,7 +1091,7 @@ export function EvidenceQualityPanel({
       aria-labelledby="evidence-quality-heading"
       id="evidence-quality"
     >
-      <h2 id="evidence-quality-heading">{areaCopy.productAreas.evidenceQuality}</h2>
+      <h3 id="evidence-quality-heading">{areaCopy.productAreas.evidenceQuality}</h3>
       <p className="market-area-interpretation">{interpretation}</p>
 
       <dl className="market-evidence-ledger">
@@ -1211,9 +1212,9 @@ export function EvidenceQualityPanel({
       </p>
 
       <section aria-labelledby="evidence-quality-provenance-heading">
-        <h3 id="evidence-quality-provenance-heading">
+        <h4 id="evidence-quality-provenance-heading">
           {messages.evidenceQualityProvenance}
-        </h3>
+        </h4>
         <table aria-label={messages.evidenceQualityProvenance}>
           <thead>
             <tr>
@@ -1271,7 +1272,7 @@ export function ExploreFurtherPanel({
       aria-labelledby="explore-further-heading"
       id="explore-further"
     >
-      <h2 id="explore-further-heading">{areaCopy.productAreas.exploreFurther}</h2>
+      <h3 id="explore-further-heading">{areaCopy.productAreas.exploreFurther}</h3>
       <p className="market-area-interpretation">
         {messages.exploreFurtherInterpretation}
       </p>
@@ -1326,7 +1327,7 @@ export function ValidationPlanPanel({
       aria-labelledby="validation-plan-heading"
       id="validation-plan"
     >
-      <h2 id="validation-plan-heading">{areaCopy.productAreas.validationPlan}</h2>
+      <h3 id="validation-plan-heading">{areaCopy.productAreas.validationPlan}</h3>
       <p className="market-area-interpretation">
         {messages.validationPlanInterpretation}
       </p>
@@ -1335,7 +1336,7 @@ export function ValidationPlanPanel({
           const categoryCopy = areaCopy.validationPlanCategories[category.id];
           return (
             <li key={category.id} aria-labelledby={`validation-plan-${category.id}`}>
-              <h3 id={`validation-plan-${category.id}`}>{categoryCopy.label}</h3>
+              <h4 id={`validation-plan-${category.id}`}>{categoryCopy.label}</h4>
               <dl>
                 <div>
                   <dt>{messages.validationPlanEstablishes}</dt>

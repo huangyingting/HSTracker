@@ -23,12 +23,17 @@ test("the seven Slice 4 product areas render in the exact specified order with n
   await openNetherlandsMarketAnalysis(page);
 
   const view = page.getByRole("region", { name: "Netherlands · Market Analysis" });
-  const headings = await view.getByRole("heading", { level: 2 }).allTextContents();
+  await expect(
+    view.getByRole("heading", {
+      level: 2,
+      name: "Netherlands · Market Analysis",
+    }),
+  ).toBeVisible();
+  const headings = await view.getByRole("heading", { level: 3 }).allTextContents();
   // Recent Momentum ships with Slice 6 (issue #68 boundary), so the seven
   // remaining areas keep MARKET_ANALYSIS_PRODUCT_AREAS' exact relative
   // order.
   expect(headings).toEqual([
-    "Netherlands · Market Analysis",
     "Market Snapshot",
     "Demand",
     "Exporter Position",
@@ -351,7 +356,7 @@ test("Explore Further links preserve market and product context, and Validation 
 
   const validationPlan = page.locator("#validation-plan");
   const categoryHeadings = await validationPlan
-    .getByRole("heading", { level: 3 })
+    .getByRole("heading", { level: 4 })
     .allTextContents();
   expect(categoryHeadings).toEqual([
     "Quantity and customs unit value",
@@ -741,9 +746,14 @@ test("both locales expose identical values, evidence states, and actions for Mar
     page.getByRole("heading", { name: "Netherlands · 市场分析" }),
   ).toBeVisible();
   const view = page.getByRole("region", { name: "Netherlands · 市场分析" });
-  const headings = await view.getByRole("heading", { level: 2 }).allTextContents();
+  await expect(
+    view.getByRole("heading", {
+      level: 2,
+      name: "Netherlands · 市场分析",
+    }),
+  ).toBeVisible();
+  const headings = await view.getByRole("heading", { level: 3 }).allTextContents();
   expect(headings).toEqual([
-    "Netherlands · 市场分析",
     "市场概览",
     "市场需求证据",
     "出口方位置",
@@ -761,7 +771,7 @@ test("both locales expose identical values, evidence states, and actions for Mar
 
   const validationPlan = page.locator("#validation-plan");
   const categoryHeadings = await validationPlan
-    .getByRole("heading", { level: 3 })
+    .getByRole("heading", { level: 4 })
     .allTextContents();
   expect(categoryHeadings).toEqual([
     "数量与海关单位价值",
@@ -785,11 +795,16 @@ test("the complete Market Analysis journey works at 390px and 320px without hori
     expect(hasHorizontalOverflow).toBe(false);
 
     const view = page.getByRole("region", { name: "Netherlands · Market Analysis" });
+    await expect(
+      view.getByRole("heading", {
+        level: 2,
+        name: "Netherlands · Market Analysis",
+      }),
+    ).toBeVisible();
     const headings = await view
-      .getByRole("heading", { level: 2 })
+      .getByRole("heading", { level: 3 })
       .allTextContents();
     expect(headings).toEqual([
-      "Netherlands · Market Analysis",
       "Market Snapshot",
       "Demand",
       "Exporter Position",

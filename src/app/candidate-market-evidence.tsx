@@ -249,6 +249,7 @@ type CandidateMarketEvidenceProps = {
   // Deliberately outside the locked ranking <ol> (see discovery-workspace).
   tradeTrendHref: string;
   supplierCompetitionHref: string;
+  headingLevel?: 3 | 4;
 };
 
 type ScoreInput = {
@@ -270,6 +271,7 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
   onToggleComparison,
   tradeTrendHref,
   supplierCompetitionHref,
+  headingLevel = 3,
 }: CandidateMarketEvidenceProps) {
   const messages = copy[locale];
   const scoreDetailsId = useId();
@@ -285,6 +287,8 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
     [candidate, result, locale],
   );
   const displayName = candidateDisplayName(candidate, locale);
+  const EvidenceHeading = headingLevel === 4 ? "h4" : "h3";
+  const EvidenceSubheading = headingLevel === 4 ? "h5" : "h4";
   const finalizedYearCount =
     result.provenance.scoreWindow.end - result.provenance.scoreWindow.start + 1;
 
@@ -294,7 +298,7 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
       aria-label={messages.selectedEvidence}
     >
       <p className="evidence-kicker">{messages.selectedEvidence}</p>
-      <h3>{displayName}</h3>
+      <EvidenceHeading>{displayName}</EvidenceHeading>
       <p className="evidence-identity">
         {messages.baciCode} {candidate.economy.code} ·{" "}
         {candidate.economy.iso3 ?? messages.noIso3}
@@ -343,7 +347,7 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
         <div className="confidence-heading">
           <div>
             <p>{messages.separateFromRank}</p>
-            <h4>{messages.confidence}</h4>
+            <EvidenceSubheading>{messages.confidence}</EvidenceSubheading>
           </div>
           <strong>
             {localizedConfidence(candidate.confidence.label, locale)} ·{" "}
@@ -401,14 +405,20 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
         candidate={candidate}
         result={result}
         locale={locale}
+        headingTag={EvidenceSubheading}
       />
 
-      <ProvisionalEvidence candidate={candidate} locale={locale} />
+      <ProvisionalEvidence
+        candidate={candidate}
+        locale={locale}
+        headingTag={EvidenceSubheading}
+      />
 
       <ReleaseRevisionEvidence
         candidate={candidate}
         result={result}
         locale={locale}
+        headingTag={EvidenceSubheading}
       />
 
       <footer className="evidence-actions">
@@ -448,10 +458,12 @@ function ReleaseRevisionEvidence({
   candidate,
   result,
   locale,
+  headingTag: RevisionHeading,
 }: {
   candidate: CandidateMarket;
   result: CandidateMarketScoreAuditContext;
   locale: EvidenceLocale;
+  headingTag: "h4" | "h5";
 }) {
   const messages = copy[locale];
   const revision = candidate.releaseRevision;
@@ -472,7 +484,7 @@ function ReleaseRevisionEvidence({
     >
       <div>
         <p>{messages.releaseRevisionKicker}</p>
-        <h4>{messages.releaseRevision}</h4>
+        <RevisionHeading>{messages.releaseRevision}</RevisionHeading>
         <strong>{stateLabel[revision.state]}</strong>
       </div>
       {summary.comparisonRelease === null ? null : (
@@ -522,10 +534,12 @@ function StabilityAndCaveats({
   candidate,
   result,
   locale,
+  headingTag: StabilityHeading,
 }: {
   candidate: CandidateMarket;
   result: CandidateMarketScoreAuditContext;
   locale: EvidenceLocale;
+  headingTag: "h4" | "h5";
 }) {
   const messages = copy[locale];
   return (
@@ -535,7 +549,7 @@ function StabilityAndCaveats({
     >
       <div>
         <p>{messages.robustnessChecks}</p>
-        <h4>{messages.stabilityCaveats}</h4>
+        <StabilityHeading>{messages.stabilityCaveats}</StabilityHeading>
       </div>
       <dl>
         <StabilityRow evidence={result.stability.threeYear} locale={locale} />
@@ -595,9 +609,11 @@ function StabilityRow({
 function ProvisionalEvidence({
   candidate,
   locale,
+  headingTag: ProvisionalHeading,
 }: {
   candidate: CandidateMarket;
   locale: EvidenceLocale;
+  headingTag: "h4" | "h5";
 }) {
   const messages = copy[locale];
   const evidence = candidate.provisionalEvidence;
@@ -607,11 +623,11 @@ function ProvisionalEvidence({
     <section className="provisional-evidence" aria-label={label}>
       <div>
         <p>{label}</p>
-        <h4>
+        <ProvisionalHeading>
           {evidence.marketState === "RECORDED"
             ? messages.supportingOnly
             : messages.noProvisionalFlow}
-        </h4>
+        </ProvisionalHeading>
         <span>{messages.provisionalExcluded}</span>
       </div>
       {evidence.marketState === "RECORDED" ? (

@@ -2307,14 +2307,14 @@ a.market-analysis-back:focus-visible {
   border-top: 0;
 }
 
-.market-analysis-area h2 {
+.market-analysis-area > h3 {
   margin: 0 0 12px;
   font-family: var(--font-display);
   font-size: clamp(1.3rem, 2.4vw, 1.7rem);
   font-weight: 500;
 }
 
-.market-analysis-area h3 {
+.market-analysis-area h4 {
   margin: 16px 0 8px;
   font-size: 1rem;
   font-weight: 700;
@@ -2996,7 +2996,8 @@ tr[data-selected="true"] td {
   padding: 26px;
 }
 
-.candidate-evidence h3 {
+.candidate-evidence > h3,
+.candidate-evidence > h4 {
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(2.1rem, 4vw, 4rem);
@@ -3193,8 +3194,11 @@ tr[data-selected="true"] td {
 }
 
 .confidence-heading h4,
+.confidence-heading h5,
 .stability-caveats h4,
-.provisional-evidence h4 {
+.stability-caveats h5,
+.provisional-evidence h4,
+.provisional-evidence h5 {
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.35rem;
@@ -3393,7 +3397,8 @@ tr[data-selected="true"] td {
   text-transform: uppercase;
 }
 
-.release-revision h4 {
+.release-revision h4,
+.release-revision h5 {
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.35rem;
