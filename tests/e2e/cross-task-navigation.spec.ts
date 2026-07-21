@@ -147,7 +147,7 @@ test("Candidate Market's Supplier Competition link preselects the same importing
   await expect(page.getByText("5200.000000", { exact: true })).toBeVisible();
 });
 
-test("Trade Trend and Supplier Competition preserve the importing economy and HS Product across a direct switch, with any incompatibility typed", async ({
+test("Trade Trend and Supplier Competition preserve the importing economy and HS Product across a direct switch", async ({
   page,
 }) => {
   await page.goto("/?task=trade-trend");
@@ -182,16 +182,13 @@ test("Trade Trend and Supplier Competition preserve the importing economy and HS
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
 
-  // Netherlands has no Supplier Competition fixture coverage, so the
-  // preserved importer/product auto-executes into a typed, actionable
-  // incompatibility rather than a wrong or partial result.
   await expect(
     page
       .getByRole("region", { name: "Inspect the complete recorded" })
-      .getByRole("alert"),
-  ).toContainText(
-    "These Supplier Competition inputs are invalid. Check the importing economy and HS Product.",
-  );
+      .getByRole("heading", { name: "Complete supplier-economy structure" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/build=acceptance-fixtures-v1&pkg=/);
+  await expect(page.getByText("5000.000000", { exact: true })).toBeVisible();
 });
 
 test("copying, reloading, and opening a pinned Candidate Market link in another browser reproduce the same task and pin", async ({
