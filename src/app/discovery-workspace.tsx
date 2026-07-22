@@ -1102,14 +1102,21 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                     locale,
                     importerCode: evidenceCandidate.economy.code,
                     productCode: loadedCandidateResult.result.query.product.code,
-                    pin: resolvedNavigationPin("trade-trend"),
+                    // An undeclared retained target keeps the source pin so
+                    // the destination fails closed on its package mismatch
+                    // instead of silently executing unpinned Current data.
+                    pin:
+                      resolvedNavigationPin("trade-trend") ??
+                      loadedCandidateResult.navigationPin,
                   })}
                   supplierCompetitionHref={serializeTradeAnalysisContext("/", {
                     recipe: "supplier-competition",
                     locale,
                     importerCode: evidenceCandidate.economy.code,
                     productCode: loadedCandidateResult.result.query.product.code,
-                    pin: resolvedNavigationPin("supplier-competition"),
+                    pin:
+                      resolvedNavigationPin("supplier-competition") ??
+                      loadedCandidateResult.navigationPin,
                   })}
                   tradeExplorerHref={
                     tradeExplorerNavigationPin === null

@@ -390,10 +390,12 @@ export function SignedInPortfolioWorkspace({
   locale,
   session,
   onSessionChange,
+  onCompletePublicRanking,
 }: {
   locale: AccountLocale;
   session: AccountSessionPayload;
   onSessionChange: (session: AccountSessionPayload) => void;
+  onCompletePublicRanking: () => void;
 }) {
   const messages = copy[locale];
   const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(
@@ -663,11 +665,13 @@ export function SignedInPortfolioWorkspace({
       });
       if (navigation === "push") {
         window.history.pushState(null, "", url);
-        announceTradeAnalysisNavigation();
       } else {
         window.history.replaceState(window.history.state, "", url);
-        announceTradeAnalysisContextChange();
       }
+      if (nextMode === "complete" && navigation === "push") {
+        onCompletePublicRanking();
+      }
+      announceTradeAnalysisContextChange();
     }
   }
 

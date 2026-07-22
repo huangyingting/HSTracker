@@ -226,6 +226,13 @@ export function ExportMarketWorkspace({
     setFocusExactProduct(false);
   }, []);
 
+  const showCompletePublicRanking = useCallback(() => {
+    setOpportunityScopeMode("public");
+    setPublicScopeMode("all");
+    setFocusExactProduct(false);
+    setAccountAuthOpen(false);
+  }, []);
+
   const selectPortfolioScope = useCallback(
     (session: AccountSessionPayload) => {
       const source = withRecipe(
@@ -333,6 +340,7 @@ export function ExportMarketWorkspace({
               locale={locale}
               session={accountSession}
               onSessionChange={onAccountSessionChange}
+              onCompletePublicRanking={showCompletePublicRanking}
             />
           )
         ) : (

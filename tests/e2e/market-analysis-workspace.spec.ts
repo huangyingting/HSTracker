@@ -693,6 +693,8 @@ test("a retained build never exposes unpinned links for recipes it did not decla
   const limitedRecommendation = {
     ...manifest.recommendation,
     opportunityDiscovery: null,
+    tradeTrend: null,
+    supplierCompetition: null,
     tradeExplorer: null,
   };
   const retained = {
@@ -745,6 +747,22 @@ test("a retained build never exposes unpinned links for recipes it did not decla
   ).toHaveAttribute(
     "href",
     /recipe=candidate-market-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+  await expect(
+    page.locator("#demand").getByRole("link", {
+      name: "Open Trade Trend for this market",
+    }),
+  ).toHaveAttribute(
+    "href",
+    /recipe=trade-trend-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+  await expect(
+    page.locator("#supplier-landscape").getByRole("link", {
+      name: "Open Supplier Competition for this market",
+    }),
+  ).toHaveAttribute(
+    "href",
+    /recipe=supplier-competition-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
   await expect(
     page.locator("#explore-further").getByRole("link", {
