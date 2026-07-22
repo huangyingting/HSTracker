@@ -9,32 +9,48 @@ test("a signed-in analyst confirms a portfolio product, inspects it in both loca
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
 
-  await page.getByLabel("Confirm HS12 product code").fill("010121");
+  const portfolio = page.getByRole("region", {
+    name: "Your portfolio opportunity workspace",
+  });
+  const product = portfolio.getByRole("combobox", {
+    name: "HS 2012 product",
+  });
+  await product.fill("010121");
+  await expect(
+    portfolio.getByRole("option", { name: /010121/u }),
+  ).toBeVisible();
+  await product.press("ArrowDown");
+  await product.press("Enter");
   await page.getByRole("button", { name: "Add product to portfolio" }).click();
   await expect(page.getByText("Portfolio products: 010121")).toBeVisible();
-  await page.getByRole("button", { name: "Show portfolio filter" }).click();
+  await page
+    .getByRole("button", { name: "Discover portfolio opportunities" })
+    .click();
 
   const candidates = page
     .getByRole("list", { name: "Portfolio Opportunity Candidates" })
-    .getByRole("button");
+    .getByRole("listitem");
   await expect(candidates).toHaveCount(2);
 
-  await candidates.nth(1).click();
-  await expect(page).toHaveURL(/focusProduct=010121.*market=528/u);
+  await candidates
+    .nth(1)
+    .getByRole("link", { name: "Analyze this market" })
+    .click();
+  await expect(page).toHaveURL(/product=010121.*market=528/u);
   await expect(
-    page
-      .getByRole("region", { name: "Selected portfolio candidate detail" })
-      .getByRole("heading", { name: "Netherlands" }),
+    page.getByRole("region", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "简体中文" }).click();
   await expect(page).toHaveURL(/locale=zh-Hans/u);
   await expect(
-    page.getByRole("list", { name: "组合机会候选项" }).getByRole("button"),
+    page.getByRole("list", { name: "组合机会候选项" }).getByRole("listitem"),
   ).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "刷新当前分析" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "使用当前证据刷新" }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "EN" }).click();
+  await page.getByRole("button", { name: "EN", exact: true }).click();
   await expect(candidates).toHaveCount(2);
 
   const deleteResponse = await page.request.post("/api/account/delete");

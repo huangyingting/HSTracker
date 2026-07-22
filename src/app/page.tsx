@@ -20,8 +20,7 @@ const copy = {
     signedWorkspace: "Signed-in workspace",
     eyebrow: "Public merchandise-trade evidence",
     heading: "Find candidate markets worth a closer look.",
-    lede:
-      "HS Tracker helps export-oriented businesses interpret public international trade data and decide where deeper commercial investigation may be worthwhile.",
+    lede: "HS Tracker helps export-oriented businesses interpret public international trade data and decide where deeper commercial investigation may be worthwhile.",
     noAccount: "No account required",
     accessDetail: "Open analysis built on public evidence",
     boundaryIndex: "Evidence boundary",
@@ -57,8 +56,7 @@ const copy = {
     signedWorkspace: "已登录工作区",
     eyebrow: "公共商品贸易证据",
     heading: "寻找值得深入研究的候选市场。",
-    lede:
-      "HS Tracker 帮助出口型企业解读公开的国际贸易数据，判断哪些市场值得开展更深入的商业调查。",
+    lede: "HS Tracker 帮助出口型企业解读公开的国际贸易数据，判断哪些市场值得开展更深入的商业调查。",
     noAccount: "无需注册",
     accessDetail: "基于公共证据的开放分析",
     boundaryIndex: "证据边界",
@@ -140,7 +138,7 @@ export default function Home({
       window.location.href,
       context,
     );
-    window.history.replaceState(null, "", nextHref);
+    window.history.replaceState(window.history.state, "", nextHref);
   }
 
   return (
@@ -238,9 +236,7 @@ export default function Home({
         onAnonymousFallback={() => setSignedIn(false)}
       />
 
-      {signedIn ? null : (
-        <AnalysisTaskHome initialTask={initialContext.recipe} locale={locale} />
-      )}
+      <AnalysisTaskHome initialTask={initialContext.recipe} locale={locale} />
 
       <section className="reading-guide" aria-labelledby="guide-title">
         <div className="guide-heading">

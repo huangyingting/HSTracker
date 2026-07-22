@@ -19,7 +19,8 @@ const copy = {
     eyebrow: "Choose a product",
     title: "Start with an HS 2012 product.",
     label: "HS 2012 product",
-    help: "Search HS 2012 code or English/Chinese product words.",
+    help:
+      "Search HS 2012 code or English/Chinese product words. Confirmation covers HS12 categories; it does not classify SKUs or convert HS17/HS22.",
     placeholder: "Code or product words",
     loading: "Searching products…",
     tooShort: "Enter at least two characters to search.",
@@ -31,13 +32,15 @@ const copy = {
     retired: "This product catalog has retired. Refresh the current analysis.",
     refresh: "Refresh current analysis",
     selected: "Selected product",
+    change: "Change product",
     match: "Matched",
   },
   "zh-Hans": {
     eyebrow: "选择产品",
     title: "从一个 HS 2012 产品开始。",
     label: "HS 2012 产品",
-    help: "搜索 HS 2012 编码或中英文产品词语。",
+    help:
+      "搜索 HS 2012 编码或中英文产品词语。确认仅涵盖 HS12 类别；不进行 SKU 归类或 HS17/HS22 转换。",
     placeholder: "编码或产品词语",
     loading: "正在搜索产品…",
     tooShort: "请输入至少两个字符进行搜索。",
@@ -47,6 +50,7 @@ const copy = {
     retired: "该产品目录已停用。请刷新当前分析。",
     refresh: "刷新当前分析",
     selected: "已选择产品",
+    change: "更改产品",
     match: "匹配内容",
   },
 } as const;
@@ -59,6 +63,7 @@ type ProductComboboxProps = {
     source: "restore" | "explicit",
   ) => void;
   onRetiredBuild: () => void;
+  syncUrl?: boolean;
 };
 
 type SearchMatch = ProductSearchResult["matches"][number];
@@ -68,9 +73,16 @@ export function ProductCombobox({
   locale,
   onSelectionChange,
   onRetiredBuild,
+  syncUrl = true,
 }: ProductComboboxProps) {
   const messages = copy[locale];
-  const listboxId = useId();
+  const instanceId = useId();
+  const titleId = `${instanceId}-title`;
+  const inputId = `${instanceId}-search`;
+  const helpId = `${instanceId}-help`;
+  const statusId = `${instanceId}-status`;
+  const listboxId = `${instanceId}-options`;
+  const inputRef = useRef<HTMLInputElement>(null);
   const requestSequence = useRef(0);
   const explicitlyEdited = useRef(false);
   const initialLocale = useRef(locale);
@@ -220,12 +232,14 @@ export function ProductCombobox({
     setStatus("idle");
     onSelectionChange(product, "explicit");
 
-    const context = withProductCode(
-      parseTradeAnalysisContext(window.location.href),
-      product.code,
-    );
-    const url = serializeTradeAnalysisContext(window.location.href, context);
-    window.history.replaceState(null, "", url);
+    if (syncUrl) {
+      const context = withProductCode(
+        parseTradeAnalysisContext(window.location.href),
+        product.code,
+      );
+      const url = serializeTradeAnalysisContext(window.location.href, context);
+      window.history.replaceState(null, "", url);
+    }
   }
 
   function clearSelectedIdentity() {
@@ -234,12 +248,14 @@ export function ProductCombobox({
     }
     setSelectedProduct(null);
     onSelectionChange(null, "explicit");
-    const context = withProductCode(
-      parseTradeAnalysisContext(window.location.href),
-      null,
-    );
-    const url = serializeTradeAnalysisContext(window.location.href, context);
-    window.history.replaceState(null, "", url);
+    if (syncUrl) {
+      const context = withProductCode(
+        parseTradeAnalysisContext(window.location.href),
+        null,
+      );
+      const url = serializeTradeAnalysisContext(window.location.href, context);
+      window.history.replaceState(null, "", url);
+    }
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -271,15 +287,16 @@ export function ProductCombobox({
   }
 
   return (
-    <section className="product-discovery" aria-labelledby="product-title">
+    <section className="product-discovery" aria-labelledby={titleId}>
       <p className="product-eyebrow">{messages.eyebrow}</p>
-      <h2 id="product-title">{messages.title}</h2>
+      <h2 id={titleId}>{messages.title}</h2>
       <div className="product-field">
-        <label htmlFor="product-search">{messages.label}</label>
+        <label htmlFor={inputId}>{messages.label}</label>
         <div className="product-input-frame">
           <span aria-hidden="true">HS12</span>
           <input
-            id="product-search"
+            ref={inputRef}
+            id={inputId}
             type="search"
             role="combobox"
             autoComplete="off"
@@ -295,10 +312,10 @@ export function ProductCombobox({
             aria-expanded={open}
             aria-activedescendant={
               open && activeIndex >= 0
-                ? optionId(matches[activeIndex].product.code)
+                ? optionId(listboxId, matches[activeIndex].product.code)
                 : undefined
             }
-            aria-describedby="product-search-help product-search-status"
+            aria-describedby={`${helpId} ${statusId}`}
             onChange={(event) => {
               explicitlyEdited.current = true;
               const nextValue = event.target.value;
@@ -322,7 +339,7 @@ export function ProductCombobox({
             onKeyDown={handleKeyDown}
           />
         </div>
-        <p id="product-search-help" className="product-help">
+        <p id={helpId} className="product-help">
           {messages.help}
         </p>
         {selectedProduct === null ? null : (
@@ -330,6 +347,17 @@ export function ProductCombobox({
             <strong>HS 2012 · {selectedProduct.code}</strong>
             <span>{productDescription(selectedProduct, locale)}</span>
             <small>{adjacentProductDescription(selectedProduct, locale)}</small>
+            <button
+              type="button"
+              className="product-change-action"
+              onClick={() => {
+                clearSelectedIdentity();
+                setInputValue("");
+                inputRef.current?.focus();
+              }}
+            >
+              {messages.change}
+            </button>
           </div>
         )}
         {open ? (
@@ -341,7 +369,7 @@ export function ProductCombobox({
           >
             {matches.map(({ product, match }, index) => (
               <li
-                id={optionId(product.code)}
+                id={optionId(listboxId, product.code)}
                 key={product.code}
                 role="option"
                 aria-selected={index === activeIndex}
@@ -363,7 +391,7 @@ export function ProductCombobox({
           </ul>
         ) : null}
         <p
-          id="product-search-status"
+          id={statusId}
           className={`product-status product-status-${status}`}
           aria-live="polite"
         >
@@ -423,8 +451,8 @@ function adjacentProductDescription(
     : product.sourceDescriptionEn;
 }
 
-function optionId(productCode: string): string {
-  return `product-option-${productCode}`;
+function optionId(listboxId: string, productCode: string): string {
+  return `${listboxId}-option-${productCode}`;
 }
 
 function productSearchUrl(

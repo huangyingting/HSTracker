@@ -55,7 +55,8 @@ const copy = {
       "Browse public Market Investigation Candidates for one exporter.",
     candidateMarket: "Candidate Markets",
     candidateMarketBadge: "Evidence",
-    candidateMarketDetail: "Drill into one exporter-product Candidate Market ranking.",
+    candidateMarketDetail:
+      "Drill into one exporter-product Candidate Market ranking.",
     tradeTrend: "Trade Trend",
     tradeTrendDetail: "Inspect annual import evidence for one economy.",
     supplierCompetition: "Supplier Competition",
@@ -169,7 +170,9 @@ export function AnalysisTaskHome({
           >
             <strong>
               {messages.tradeExplorer}{" "}
-              <span className="analysis-task-badge">{messages.tradeExplorerBadge}</span>
+              <span className="analysis-task-badge">
+                {messages.tradeExplorerBadge}
+              </span>
             </strong>
             <span>{messages.tradeExplorerDetail}</span>
           </button>

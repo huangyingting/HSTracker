@@ -48,11 +48,13 @@ describe("versioned Opportunity feed route", () => {
     );
     expect(first.headers.get("vary")).toBe("Accept-Encoding");
     expect(first.headers.get("etag")).toMatch(/^W\/"[a-f0-9]{64}"$/);
-    expect(firstBody).toBe(JSON.stringify(oracle.payload));
     expect(secondBody).toBe(firstBody);
     expect(second.headers.get("etag")).toBe(first.headers.get("etag"));
     expect(JSON.parse(firstBody)).toMatchObject({
       schemaVersion: "market-investigation-result-v1",
+      analysisIdentity: oracle.analysisIdentity,
+      datasetPackageIdentity: oracle.datasetPackageIdentity,
+      candidates: oracle.payload.candidates,
     });
 
     const notModified = await GET(

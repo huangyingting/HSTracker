@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("Opportunity Discovery shows Recent Trade Momentum beside the selected candidate without changing the candidate list", async ({
+test("Opportunity Discovery requires an explicit Candidate Market action before opening analysis", async ({
   page,
 }) => {
   const momentumRequests: string[] = [];
@@ -15,34 +15,22 @@ test("Opportunity Discovery shows Recent Trade Momentum beside the selected cand
   );
 
   const candidates = page
-    .getByRole("list", { name: "Market Investigation Candidates" })
-    .getByRole("button");
-  await expect(candidates).toHaveCount(2);
-
-  const momentum = page.getByRole("region", {
-    name: "Recent Trade Momentum Signal",
-  });
-  await expect(momentum.getByText("Mexico", { exact: true })).toBeVisible();
-  await expect(momentum.getByText("Reporting market")).toBeVisible();
-  await expect(momentum.getByText("MX", { exact: true })).toBeVisible();
-  await expect(momentum.getByText("SMALL_BASE")).toBeVisible();
+    .getByRole("list", { name: "Market Investigation Candidates" });
+  await expect(candidates.getByRole("listitem")).toHaveCount(2);
+  await expect(candidates.getByRole("link")).toHaveCount(2);
+  await expect(candidates.getByRole("button")).toHaveCount(0);
   await expect(
-    momentum.getByText(
-      "Monthly momentum is separate context; it does not change the annual BACI opportunity score, rank, type, or confidence.",
-    ),
+    page.getByRole("heading", { name: /Market Analysis/ }),
+  ).toHaveCount(0);
+  expect(momentumRequests).toEqual([]);
+
+  await candidates
+    .getByRole("link", {
+      name: "Analyze this market: Netherlands, HS12 010121",
+    })
+    .click();
+
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
-  expect(momentumRequests.at(-1)).toContain("reporter=MX");
-  expect(momentumRequests.at(-1)).toContain("product=010121");
-  expect(momentumRequests.at(-1)).toContain("exporter=156");
-
-  await candidates.filter({ hasText: "Netherlands" }).click();
-
-  await expect(momentum.getByText("Netherlands", { exact: true })).toBeVisible();
-  await expect(momentum.getByText("NL", { exact: true })).toBeVisible();
-  await expect(momentum.getByText("RISING_FAST")).toBeVisible();
-  await expect(momentum.getByText("+25.0%")).toBeVisible();
-  await expect(candidates).toHaveCount(2);
-  expect(momentumRequests.at(-1)).toContain("reporter=NL");
-  expect(momentumRequests.at(-1)).toContain("product=010121");
-  expect(momentumRequests.at(-1)).toContain("exporter=156");
 });

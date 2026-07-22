@@ -9,6 +9,7 @@ import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
 } from "../../src/domain/opportunity-discovery/result";
+import type { OpportunityDiscoveryV1Payload } from "../../src/domain/trade-analytics/opportunity-discovery-v1-adapter";
 import type { OpportunityDetailEvidence } from "../../src/evidence/opportunity-evidence-source";
 
 const candidate: MarketInvestigationCandidate = {
@@ -234,10 +235,16 @@ function component(percentileDisplay: number) {
   };
 }
 
-function page(productCodes: readonly string[] | null): MarketInvestigationPage {
+function page(
+  productCodes: readonly string[] | null,
+): OpportunityDiscoveryV1Payload {
   return {
     schemaVersion: "market-investigation-result-v1",
     analysisBuildId: "build-one",
+    analysisIdentity:
+      "analysis-identity-one" as OpportunityDiscoveryV1Payload["analysisIdentity"],
+    datasetPackageIdentity:
+      "dataset-package-v1-fixture" as OpportunityDiscoveryV1Payload["datasetPackageIdentity"],
     exporter: detail.exporter,
     provenance: {
       baciRelease: "V202601",

@@ -14,7 +14,7 @@ export type PortfolioProjectionRow = Readonly<{
 export type PortfolioProjection = Readonly<{
   completeCandidates: MarketInvestigationPage["candidates"];
   completeRows: readonly PortfolioProjectionRow[];
-  visibleRows: readonly PortfolioProjectionRow[];
+  scopeRows: readonly PortfolioProjectionRow[];
   portfolioProductCodes: readonly string[];
   mode: PortfolioProjectionMode;
 }>;
@@ -33,19 +33,13 @@ export function buildPortfolioProjection(
   return {
     completeCandidates: page.candidates,
     completeRows: rows,
-    visibleRows:
+    scopeRows:
       mode === "portfolio"
         ? rows.filter((row) => portfolioProducts.has(row.candidate.product.code))
         : rows,
     portfolioProductCodes,
     mode,
   };
-}
-
-export function candidateProjectionKey(
-  candidate: MarketInvestigationCandidate,
-): string {
-  return `${candidate.product.code}:${candidate.market.code}`;
 }
 
 function canonicalPortfolioProductCodes(

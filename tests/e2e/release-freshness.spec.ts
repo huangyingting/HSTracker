@@ -30,7 +30,11 @@ test("an Export Market Analyst can inspect the exact current source scope", asyn
     scope.locator(".source-scope-facts").getByText("V202601", { exact: true }),
   ).toBeVisible();
   await expect(scope.getByText("Latest known BACI release")).toBeVisible();
-  await scope.getByRole("button", { name: "Source details" }).click();
+  const sourceDetails = scope.getByRole("button", { name: "Source details" });
+  const sourceDetailsBox = await sourceDetails.boundingBox();
+  expect(sourceDetailsBox?.width).toBeGreaterThanOrEqual(44);
+  expect(sourceDetailsBox?.height).toBeGreaterThanOrEqual(44);
+  await sourceDetails.click();
 
   const details = page.getByRole("region", { name: "Source details" });
   await expect(details).toContainText(
@@ -89,7 +93,9 @@ test("a retired analysis build is replaced through current-manifest revalidation
   await page.route("**/api/v1/analyses/current", async (route) => {
     currentManifestRequests += 1;
     const response = await route.fetch();
-    const manifest = (await response.json()) as Record<string, unknown>;
+    const manifest = (await response.json()) as Record<string, unknown> & {
+      deploymentWindow: Array<Record<string, unknown>>;
+    };
     await route.fulfill({
       response,
       json:
@@ -99,6 +105,14 @@ test("a retired analysis build is replaced through current-manifest revalidation
               ...manifest,
               analysisBuildId: "replacement-analysis-v2",
               productSearchBuildId: "replacement-products-v2",
+              deploymentWindow: manifest.deploymentWindow.map((deployment) =>
+                deployment.analysisBuildId === "acceptance-fixtures-v1"
+                  ? {
+                      ...deployment,
+                      analysisBuildId: "replacement-analysis-v2",
+                    }
+                  : deployment,
+              ),
             },
     });
   });
@@ -171,7 +185,9 @@ test("a retired analysis build is replaced through current-manifest revalidation
   );
   const documentStartedAt = await page.evaluate(() => performance.timeOrigin);
 
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
 
   await expect(
     page.getByRole("region", { name: "Selected Candidate Market evidence" }),
@@ -240,7 +256,9 @@ test("a retired build is not retried with a release-incompatible current manifes
 
   await page.goto("/?exporter=156&revision=HS12&product=010121");
   await expect(page.locator(".analysis-error")).toBeVisible();
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
 
   await expect(page.locator(".analysis-error")).toContainText(
     "This analysis build has retired.",
@@ -505,7 +523,10 @@ test("material Release Revision evidence stays separate from historical growth",
     "Release Revision means evidence changed between BACI releases, not historical growth.",
   );
 
-  await page.getByRole("button", { name: "Source details" }).click();
+  await page
+    .getByRole("region", { name: "Current source scope" })
+    .getByRole("button", { name: "Source details" })
+    .click();
   await expect(
     page.getByRole("region", { name: "Source details" }),
   ).toContainText("Release Revision comparison V202501");
@@ -514,11 +535,15 @@ test("material Release Revision evidence stays separate from historical growth",
   ).toContainText("No longer eligible in this release 2");
 
   const candidates = page.getByRole("list", { name: "Candidate Markets" });
-  await candidates.getByRole("button", { name: /Netherlands/ }).click();
+  await candidates
+    .getByRole("link", { name: "Analyze this market: Netherlands" })
+    .click();
   await expect(revision).toContainText("No material revision flag");
   await expect(revision).toContainText("Previous-release recomputed score 82");
 
-  await candidates.getByRole("button", { name: /South Africa/ }).click();
+  await candidates
+    .getByRole("link", { name: "Analyze this market: South Africa" })
+    .click();
   await expect(revision).toContainText("Newly eligible in this release");
   await expect(revision).not.toContainText("Previous-release recomputed score");
 });

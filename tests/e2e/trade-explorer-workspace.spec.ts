@@ -23,7 +23,9 @@ test("an analyst can run the finalized-trend-v1 shape, share it, and change loca
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
 
   await selectFinalizedTrendShape(page, {
@@ -79,7 +81,9 @@ test("an analyst downloads the complete bounded Trade Explorer CSV", async ({
   });
 
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
   await selectFinalizedTrendShape(page, {
     exportEconomy: "156",
@@ -114,7 +118,9 @@ test("Trade Explorer reports a typed empty outcome for a non-enumerable combinat
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
   await selectFinalizedTrendShape(page, {
     exportEconomy: "842",
@@ -146,7 +152,9 @@ test("Trade Explorer reports an internal route failure as fatal rather than malf
       }),
   );
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
   await selectFinalizedTrendShape(page, {
     exportEconomy: "156",
@@ -184,7 +192,9 @@ test("switching from a fixed-year shape to finalized trend restores the full win
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
   await page
     .getByRole("radio", { name: /Compare importing markets/ })
@@ -214,7 +224,9 @@ test("switching to and from Trade Explorer transfers compatible analysis context
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
 
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
 
   await expect(page).toHaveURL(

@@ -5,9 +5,14 @@ const CANONICAL_INVESTIGATE_URL =
 
 async function analyzeCandidateMarket(page: import("@playwright/test").Page) {
   await page.goto(CANONICAL_INVESTIGATE_URL);
+  const ranking = page.getByRole("list", { name: "Candidate Markets" });
+  await expect(ranking.getByRole("link")).toHaveCount(13);
+  await ranking
+    .getByRole("link", { name: "Analyze this market: Netherlands" })
+    .click();
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
-  ).toHaveCount(13);
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeFocused();
 }
 
 test("a direct task link renders the matching server snapshot before hydration", async ({
@@ -51,7 +56,9 @@ test("a direct non-default task link hydrates without a server/client mismatch",
 
   await page.goto("/?recipe=trade-trend-v1");
 
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toBeVisible();
@@ -67,22 +74,24 @@ test("Candidate Market's cross-task links live outside the locked ranking list a
   await analyzeCandidateMarket(page);
 
   const rankingList = page.getByRole("list", { name: "Candidate Markets" });
-  await expect(rankingList.getByRole("link")).toHaveCount(0);
-  await expect(rankingList.getByRole("button")).toHaveCount(13);
+  await expect(rankingList.getByRole("link")).toHaveCount(13);
+  await expect(rankingList.getByRole("button")).toHaveCount(0);
 
   const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
+    name: "Netherlands · Market Analysis",
   });
   await expect(
-    evidence.getByRole("heading", { name: "Netherlands" }),
+    evidence.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
 
-  const tradeTrendLink = evidence.getByRole("link", {
+  const tradeTrendLink = evidence.locator("#demand").getByRole("link", {
     name: "Open Trade Trend for this market",
   });
-  const supplierCompetitionLink = evidence.getByRole("link", {
-    name: "Open Supplier Competition for this market",
-  });
+  const supplierCompetitionLink = evidence
+    .locator("#supplier-landscape")
+    .getByRole("link", {
+      name: "Open Supplier Competition for this market",
+    });
   await expect(tradeTrendLink).toBeVisible();
   await expect(supplierCompetitionLink).toBeVisible();
 
@@ -121,7 +130,7 @@ test("Candidate Market's Supplier Competition link preselects the same importing
 
   await page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button")
+    .getByRole("link")
     .filter({ hasText: "Canada" })
     .click();
 
@@ -167,7 +176,9 @@ test("Trade Trend and Supplier Competition preserve the importing economy and HS
   ).toBeVisible();
   await expect(page).toHaveURL(/build=acceptance-fixtures-v1&pkg=/);
 
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
 
   await expect(page).toHaveURL(
@@ -202,12 +213,12 @@ test("copying, reloading, and opening a pinned Candidate Market link in another 
   await page.reload();
   await expect(page).toHaveURL(pinnedUrl);
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await expect(
     page
-      .getByRole("region", { name: "Selected Candidate Market evidence" })
-      .getByRole("heading", { name: "Netherlands" }),
+      .getByRole("region", { name: "Netherlands · Market Analysis" })
+      .getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
 
   const anotherBrowserContext = await browser.newContext();
@@ -216,10 +227,14 @@ test("copying, reloading, and opening a pinned Candidate Market link in another 
   await expect(anotherPage).toHaveURL(pinnedUrl);
   await expect(
     anotherPage
-      .getByRole("region", { name: "Selected Candidate Market evidence" })
-      .getByRole("heading", { name: "Netherlands" }),
+      .getByRole("region", { name: "Netherlands · Market Analysis" })
+      .getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
-  await expect(anotherPage.getByText("Score 85")).toBeVisible();
+  await expect(
+    anotherPage
+      .getByRole("region", { name: "Netherlands · Market Analysis" })
+      .getByText("Candidate Market Score 85", { exact: true }),
+  ).toBeVisible();
   await anotherBrowserContext.close();
 });
 
@@ -326,10 +341,12 @@ test("a pinned Candidate Market link that no longer matches the current recommen
     page.getByRole("list", { name: "Candidate Markets" }),
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
 
   await expect(
-    page.getByRole("region", { name: "Selected Candidate Market evidence" }),
+    page.getByRole("region", { name: "Netherlands · Market Analysis" }),
   ).toContainText("Netherlands");
   await expect(page).toHaveURL(
     new RegExp(
@@ -340,6 +357,19 @@ test("a pinned Candidate Market link that no longer matches the current recommen
   expect(currentManifestRequests).toBeGreaterThanOrEqual(2);
   expect(replacementBuildRequests).toBeGreaterThan(0);
   expect(replacementProductRequests).toBeGreaterThan(0);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/build=acceptance-fixtures-v1/u);
+  await expect(page.locator(".analysis-error")).toContainText(
+    "This analysis build has retired.",
+  );
+  expect(oldBuildRequests).toBe(0);
+
+  await page.goForward();
+  await expect(page).toHaveURL(/build=replacement-analysis-v2/u);
+  await expect(
+    page.getByRole("region", { name: "Netherlands · Market Analysis" }),
+  ).toContainText("Netherlands");
 });
 
 test("a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current", async ({
@@ -432,10 +462,10 @@ test("a pinned Candidate Market link that still names a retained predecessor exe
   // as the original analysis -- without ever calling the new current
   // build for analysis, and without showing the typed retired state.
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await expect(
-    page.getByRole("region", { name: "Selected Candidate Market evidence" }),
+    page.getByRole("region", { name: "Netherlands · Market Analysis" }),
   ).toContainText("Netherlands");
   await expect(page.locator(".analysis-error")).toHaveCount(0);
   expect(retainedAnalysisRequests).toBeGreaterThan(0);

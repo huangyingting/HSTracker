@@ -28,7 +28,9 @@ test("an analyst can select Supplier Competition by keyboard, share it, and chan
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
 
   await selectSupplierCompetitionContext(page, "124", /Canada/);
@@ -214,7 +216,7 @@ test("Candidate Market remains reachable alongside Supplier Competition", async 
   const candidateMarkets = page.getByRole("list", {
     name: "Candidate Markets",
   });
-  await expect(candidateMarkets.getByRole("button")).toHaveCount(13);
+  await expect(candidateMarkets.getByRole("link")).toHaveCount(13);
   await expect(page).not.toHaveURL(/recipe=supplier-competition-v1/);
 });
 

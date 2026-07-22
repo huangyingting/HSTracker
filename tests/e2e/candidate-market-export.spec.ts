@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 
-test("a three-market comparison downloads the complete bilingual 13-row CSV", async ({
+test("Candidate Markets downloads the complete bilingual 13-row CSV", async ({
   page,
 }) => {
   let currentManifestRequests = 0;
@@ -26,32 +26,8 @@ test("a three-market comparison downloads the complete bilingual 13-row CSV", as
   );
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button");
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
+    .getByRole("link");
   await expect(candidateMarkets).toHaveCount(13);
-
-  await evidence
-    .getByRole("button", { name: "Add Mexico to comparison" })
-    .click();
-  await candidateMarkets.filter({ hasText: "South Africa" }).click();
-  await evidence
-    .getByRole("button", { name: "Add South Africa to comparison" })
-    .click();
-  await candidateMarkets
-    .filter({ hasText: "Other Asia, n.e.s." })
-    .click();
-  await evidence
-    .getByRole("button", {
-      name: "Add Other Asia, n.e.s. (Taiwan proxy) to comparison",
-    })
-    .click();
-  await expect(
-    page
-      .getByRole("region", { name: "Candidate Market comparison" })
-      .getByText("Comparison tray · 3/3"),
-  ).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
   await page
@@ -128,7 +104,7 @@ test("export preflight stops when the current analysis context changed", async (
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
   );
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await page
     .getByRole("button", {
@@ -200,7 +176,7 @@ test("export preflight renders refreshed source status before requesting CSV", a
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
   );
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   const downloadPromise = page.waitForEvent("download");
   await page
@@ -298,7 +274,7 @@ test("a stale CSV response revalidates current context without substituting a do
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
   );
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   const documentStartedAt = await page.evaluate(() => performance.timeOrigin);
   await page

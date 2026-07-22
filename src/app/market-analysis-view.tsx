@@ -11,13 +11,17 @@
 // recomputes a Candidate Market Score, CAGR, supplier share, HHI, or
 // momentum value.
 
-import { useEffect, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useState,
+  type MouseEvent,
+  type RefObject,
+} from "react";
 
 import { MARKET_ANALYSIS_COPY, type MarketAnalysisLocale } from "../domain/market-analysis/copy";
 import { MARKET_ANALYSIS_PRODUCT_AREAS } from "../domain/market-analysis/product-areas";
 import type { MarketAnalysisV1 } from "../domain/market-analysis/result";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
-import type { CandidateMarket } from "../domain/candidate-market/result";
 import { AnalysisShareLink } from "./analysis-share-link";
 import { MarketAnalysisClientError } from "./market-analysis-client";
 import {
@@ -169,15 +173,13 @@ export function MarketAnalysisView({
   analysis,
   locale,
   freshness,
-  isCompared,
-  comparisonFull,
-  onToggleComparison,
   onRetry,
   onRefreshCurrent,
   retryAfterSeconds,
   requestedAnalysisBuildId,
   headingRef,
   opportunityHref,
+  onBackToOpportunities,
   deploymentState,
   productDescription,
   tradeTrendHref,
@@ -188,15 +190,13 @@ export function MarketAnalysisView({
   analysis: MarketAnalysisV1 | null;
   locale: MarketAnalysisLocale;
   freshness: EffectiveSourceFreshness | null;
-  isCompared: boolean;
-  comparisonFull: boolean;
-  onToggleComparison: (candidate: CandidateMarket) => void;
   onRetry: () => void;
   onRefreshCurrent: () => void;
   retryAfterSeconds: number | null;
   requestedAnalysisBuildId: string | null;
   headingRef: RefObject<HTMLHeadingElement | null>;
   opportunityHref: string | null;
+  onBackToOpportunities?: (event: MouseEvent<HTMLAnchorElement>) => void;
   deploymentState: "current" | "retained";
   productDescription: string;
   tradeTrendHref: string;
@@ -261,6 +261,7 @@ export function MarketAnalysisView({
           href={opportunityHref}
           label={messages.backToOpportunities}
           unavailableLabel={messages.backUnavailable}
+          onClick={onBackToOpportunities}
         />
         <h2 id="market-analysis-heading" tabIndex={-1} ref={headingRef}>
           {messages.heading}
@@ -312,6 +313,7 @@ export function MarketAnalysisView({
           href={opportunityHref}
           label={messages.backToOpportunities}
           unavailableLabel={messages.backUnavailable}
+          onClick={onBackToOpportunities}
         />
         <h2 id="market-analysis-heading" tabIndex={-1} ref={headingRef}>
           {messages.heading}
@@ -387,6 +389,7 @@ export function MarketAnalysisView({
           href={opportunityHref}
           label={messages.backToOpportunities}
           unavailableLabel={messages.backUnavailable}
+          onClick={onBackToOpportunities}
         />
         <h2 id="market-analysis-heading" tabIndex={-1} ref={headingRef}>
           {analysis.context.market.name} · {messages.heading}
@@ -419,9 +422,6 @@ export function MarketAnalysisView({
       <MarketSnapshotPanel
         analysis={analysis}
         locale={locale}
-        isCompared={isCompared}
-        comparisonFull={comparisonFull}
-        onToggleComparison={onToggleComparison}
         tradeTrendHref={tradeTrendHref}
         supplierCompetitionHref={supplierCompetitionHref}
       />
@@ -456,17 +456,19 @@ function MarketAnalysisBack({
   href,
   label,
   unavailableLabel,
+  onClick,
 }: {
   href: string | null;
   label: string;
   unavailableLabel: string;
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   return href === null ? (
     <span className="market-analysis-back" aria-disabled="true">
       {unavailableLabel}
     </span>
   ) : (
-    <a className="market-analysis-back" href={href}>
+    <a className="market-analysis-back" href={href} onClick={onClick}>
       ← {label}
     </a>
   );

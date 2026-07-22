@@ -336,7 +336,7 @@ test("BACI code 490 keeps its source identity and proxy caveat", async ({
   await expect(
     page
       .getByRole("list", { name: "Candidate Markets" })
-      .getByRole("button", {
+      .getByRole("link", {
         name: /Other Asia, n\.e\.s\. \(Taiwan proxy\)/,
       }),
   ).toBeVisible();
@@ -365,7 +365,7 @@ test("BACI code 490 keeps its source identity and proxy caveat", async ({
   expect(analysisRequestCount()).toBe(1);
 });
 
-test("comparison stays client-local with consistent evidence units", async ({
+test("Market Analysis replaces comparison with one explicit row action", async ({
   page,
 }) => {
   const { analysisRequestCount, evidence } = await openCandidateMarket(
@@ -374,78 +374,21 @@ test("comparison stays client-local with consistent evidence units", async ({
   );
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button");
+    .getByRole("link");
+  await expect(candidateMarkets).toHaveCount(13);
+  await expect(
+    page.getByRole("region", { name: "Candidate Market comparison" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Add .* to comparison/u }),
+  ).toHaveCount(0);
 
-  const addMexico = evidence.getByRole("button", {
-    name: "Add Mexico to comparison",
-  });
-  await addMexico.focus();
-  await page.keyboard.press("Enter");
-
-  const comparison = page.getByRole("region", {
-    name: "Candidate Market comparison",
-  });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(comparison).toBeInViewport();
-
-  await candidateMarkets.filter({ hasText: "South Africa" }).focus();
-  await page.keyboard.press("Enter");
-  await evidence
-    .getByRole("button", { name: "Add South Africa to comparison" })
-    .focus();
-  await page.keyboard.press("Space");
-
-  await candidateMarkets
-    .filter({ hasText: "Other Asia, n.e.s. (Taiwan proxy)" })
-    .focus();
-  await page.keyboard.press("Enter");
-  await evidence
-    .getByRole("button", {
-      name: "Add Other Asia, n.e.s. (Taiwan proxy) to comparison",
-    })
-    .focus();
-  await page.keyboard.press("Enter");
-
-  await expect(comparison.getByText("Comparison tray · 3/3")).toBeVisible();
-  const table = comparison.getByRole("table", {
-    name: "Compared Candidate Markets",
-  });
-  await expect(table.getByRole("row")).toHaveCount(4);
-  await expect(table.getByRole("columnheader")).toHaveText([
-    "Candidate Market",
-    "Score / rank",
-    "Market Size (USD / year)",
-    "Market Growth (% / year)",
-    "Recorded Foothold (% share)",
-    "Supplier Diversity (index)",
-    "Data Confidence",
-    "Actions",
-  ]);
-
-  const mexico = table.getByRole("row", { name: /Mexico/ });
-  await expect(mexico).toContainText("70 / #2");
-  await expect(mexico).toContainText("USD 9.00M / year");
-  await expect(mexico).toContainText("5.73% / year");
-  await expect(mexico).toContainText("20.0% share");
-  await expect(mexico).toContainText("0.933 index");
-  await expect(mexico).toContainText("HIGH · 100");
-
-  const southAfrica = table.getByRole("row", { name: /South Africa/ });
-  await expect(southAfrica).toContainText("Neutral midpoint");
-  await expect(southAfrica).toContainText("LOW · 40");
-
-  const code490 = table.getByRole("row", { name: /Other Asia/ });
-  await expect(code490).toContainText("BACI 490");
-  await expect(code490).toContainText("No public ISO3");
-  await expect(code490).toContainText("HIGH · 90");
-
-  await table
-    .getByRole("button", { name: "Remove Mexico from comparison" })
-    .focus();
-  await page.keyboard.press("Enter");
-
-  await expect(comparison.getByText("Comparison tray · 2/3")).toBeVisible();
-  await expect(table.getByRole("row", { name: /Mexico/ })).toHaveCount(0);
+  await candidateMarkets.filter({ hasText: "South Africa" }).click();
+  await expect(
+    page.getByRole("heading", { name: "South Africa · Market Analysis" }),
+  ).toBeFocused();
+  await expect(evidence.getByText("Candidate Market Score 50")).toBeVisible();
+  await expect(evidence.getByText("LOW · 40")).toBeVisible();
   expect(analysisRequestCount()).toBe(1);
 });
 
@@ -458,48 +401,29 @@ test("both integer-score tie groups preserve competition ranks", async ({
   );
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button");
+    .getByRole("listitem");
   await expect(
     evidence.getByText(
       "Equal displayed integer scores share a competition rank.",
     ),
   ).toBeVisible();
-
-  await evidence
-    .getByRole("button", { name: "Add Canada to comparison" })
-    .click();
-  await candidateMarkets.filter({ hasText: "Japan" }).click();
-  await evidence
-    .getByRole("button", { name: "Add Japan to comparison" })
-    .click();
-  await candidateMarkets.filter({ hasText: "South Africa" }).click();
-  await evidence
-    .getByRole("button", { name: "Add South Africa to comparison" })
-    .click();
-
-  const table = page.getByRole("table", {
-    name: "Compared Candidate Markets",
-  });
-  await expect(table.getByRole("row", { name: /Canada/ })).toContainText(
-    "54 / #5",
+  await expect(
+    candidateMarkets.filter({ hasText: "Canada" }),
+  ).toContainText(
+    "Candidate Market Score 54 · Rank 5 of 13",
   );
-  await expect(table.getByRole("row", { name: /Japan/ })).toContainText(
-    "54 / #5",
+  await expect(candidateMarkets.filter({ hasText: "Japan" })).toContainText(
+    "Candidate Market Score 54 · Rank 5 of 13",
   );
-  await expect(table.getByRole("row", { name: /South Africa/ })).toContainText(
-    "50 / #7",
+  await expect(
+    candidateMarkets.filter({ hasText: "South Africa" }),
+  ).toContainText(
+    "Candidate Market Score 50 · Rank 7 of 13",
   );
-
-  await table
-    .getByRole("button", { name: "Remove Canada from comparison" })
-    .click();
-  await candidateMarkets.filter({ hasText: "United States" }).click();
-  await evidence
-    .getByRole("button", { name: "Add United States to comparison" })
-    .click();
-
-  await expect(table.getByRole("row", { name: /United States/ })).toContainText(
-    "50 / #7",
+  await expect(
+    candidateMarkets.filter({ hasText: "United States" }),
+  ).toContainText(
+    "Candidate Market Score 50 · Rank 7 of 13",
   );
   expect(analysisRequestCount()).toBe(1);
 });
@@ -544,13 +468,13 @@ test("audit evidence stacks without horizontal overflow on a narrow screen", asy
   await expect(scoreDetails).toBeHidden();
 });
 
-test("locale switching preserves the auditable comparison context", async ({
+test("locale switching preserves the auditable Market Analysis context", async ({
   page,
 }) => {
   const { analysisRequestCount } = await openCandidateMarket(page, "484");
-  await page
-    .getByRole("button", { name: "Add Mexico to comparison" })
-    .click();
+  await expect(page).toHaveURL(
+    /recipe=candidate-market-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
   const canonicalUrl = page.url();
 
   await page.getByRole("button", { name: "简体中文" }).click();
@@ -576,17 +500,6 @@ test("locale switching preserves the auditable comparison context", async ({
   const confidence = evidence.getByRole("region", { name: "数据置信度" });
   await expect(confidence.getByText("高 · 100")).toBeVisible();
   await expect(confidence.getByText("无扣减")).toBeVisible();
-
-  const comparison = page.getByRole("region", { name: "候选市场比较" });
-  await expect(comparison.getByText("比较栏 · 1/3")).toBeVisible();
-  const mexico = comparison
-    .getByRole("table", { name: "已比较候选市场" })
-    .getByRole("row", { name: /Mexico/ });
-  await expect(mexico).toContainText("70 / #2");
-  await expect(mexico).toContainText("USD 9.00M / 年");
-  await expect(
-    comparison.getByRole("button", { name: "从比较栏移除 Mexico" }),
-  ).toBeVisible();
 
   // Locale is part of the canonical pinned URL once the analysis has
   // executed, so switching locale updates it in place; the analytical

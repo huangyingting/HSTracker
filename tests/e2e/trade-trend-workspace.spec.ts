@@ -24,7 +24,9 @@ test("an analyst can select Trade Trend by keyboard, share it, and change locale
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Trade Trend/ }).click();
 
   await selectTrendContext(page);
@@ -160,11 +162,13 @@ test("Candidate Market remains reachable with its original ranking controls and 
   const candidateMarkets = page.getByRole("list", {
     name: "Candidate Markets",
   });
-  await expect(candidateMarkets.getByRole("button")).toHaveCount(13);
-  await expect(candidateMarkets.getByRole("button").first()).toHaveAccessibleName(
-    "#1 Netherlands BACI 528 · Data Confidence: HIGH 85 /100",
+  await expect(candidateMarkets.getByRole("link")).toHaveCount(13);
+  await expect(candidateMarkets.getByRole("link").first()).toHaveAccessibleName(
+    "Analyze this market: Netherlands",
   );
-  await expect(page.getByRole("button", { name: "Analyze Candidate Markets" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Discover Candidate Markets" }),
+  ).toBeVisible();
   await expect(page).not.toHaveURL(/recipe=trade-trend-v1/);
 });
 

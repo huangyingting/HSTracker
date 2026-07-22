@@ -25,13 +25,10 @@ import {
   formattedMarketGrowth,
   formattedRecordedFoothold,
   formattedSupplierDiversity,
-  localizedConfidence,
   CandidateMarketEvidence,
   type CandidateMarketScoreAuditContext,
 } from "./candidate-market-evidence";
-import type {
-  CandidateMarket,
-} from "../domain/candidate-market/result";
+import { localizedDataConfidence as localizedConfidence } from "./data-confidence-presentation";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
 import {
   MARKET_ANALYSIS_COPY,
@@ -399,17 +396,11 @@ function finalizedWindowLabel(
 export function MarketSnapshotPanel({
   analysis,
   locale,
-  isCompared,
-  comparisonFull,
-  onToggleComparison,
   tradeTrendHref,
   supplierCompetitionHref,
 }: {
   analysis: MarketAnalysisV1;
   locale: MarketAnalysisLocale;
-  isCompared: boolean;
-  comparisonFull: boolean;
-  onToggleComparison: (candidate: CandidateMarket) => void;
   tradeTrendHref: string;
   supplierCompetitionHref: string;
 }) {
@@ -477,9 +468,6 @@ export function MarketSnapshotPanel({
         candidate={candidate}
         result={scoreAuditContext}
         locale={locale}
-        isCompared={isCompared}
-        comparisonFull={comparisonFull}
-        onToggleComparison={onToggleComparison}
         tradeTrendHref={tradeTrendHref}
         supplierCompetitionHref={supplierCompetitionHref}
         headingLevel={4}

@@ -608,8 +608,12 @@ function journey(productRole: "median" | "maximum-row"): MutableJourney {
       },
       {
         kind: "analyze",
-        label: "Analyze Candidate Markets",
-        analyzeButtonLocator: { by: "role", role: "button", name: "Analyze Candidate Markets" },
+        label: "Discover Candidate Markets",
+        analyzeButtonLocator: {
+          by: "role",
+          role: "button",
+          name: "Discover Candidate Markets",
+        },
         completeListLocator: { by: "testId", testId: "candidate-market-list" },
       },
       {

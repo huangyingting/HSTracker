@@ -32,12 +32,12 @@ test("an analyst explicitly selects a product with the keyboard", async ({
   await combobox.press("ArrowUp");
   await expect(combobox).toHaveAttribute(
     "aria-activedescendant",
-    /product-option-010129/,
+    /-option-010129$/,
   );
   await combobox.press("ArrowDown");
   await expect(combobox).toHaveAttribute(
     "aria-activedescendant",
-    /product-option-010121/,
+    /-option-010121$/,
   );
   await combobox.press("Enter");
 
