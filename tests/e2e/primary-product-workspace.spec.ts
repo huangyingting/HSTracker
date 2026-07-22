@@ -186,6 +186,24 @@ test("the compact journey and Advanced tools remain touch-ready on mobile", asyn
 test("header Advanced tools preserve the selected Market Analysis context and Back", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    const fetchResponse = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const response = await fetchResponse(...args);
+      if (!response.url.includes("/trade-trends?")) {
+        return response;
+      }
+      const parse = response.json.bind(response);
+      Object.defineProperty(response, "json", {
+        value: async () => {
+          const payload = await parse();
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+          return payload;
+        },
+      });
+      return response;
+    };
+  });
   await page.goto(
     "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=528",
   );
@@ -216,6 +234,9 @@ test("header Advanced tools preserve the selected Market Analysis context and Ba
     "href",
     /recipe=trade-trend-v1.*importer=528.*product=010121.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
+  const trendResponse = page.waitForResponse((response) =>
+    response.url().includes("/trade-trends?"),
+  );
   await tradeTrend.click();
 
   await expect(
@@ -229,7 +250,11 @@ test("header Advanced tools preserve the selected Market Analysis context and Ba
       .getByRole("navigation", { name: "Export Market Workspace journey" })
       .locator("[aria-current=\"step\"]"),
   ).toHaveCount(0);
+  await trendResponse;
   await page.goBack();
+  await expect(page).toHaveURL(
+    /recipe=candidate-market-v1.*exporter=156.*product=010121.*market=528/u,
+  );
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
