@@ -26,15 +26,16 @@ test("a direct task link renders the matching server snapshot before hydration",
 
   await serverOnlyPage.goto("/?recipe=trade-trend-v1");
 
-  const tasks = serverOnlyPage.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
   await expect(
-    tasks.getByRole("button", { name: /Trade Trend/ }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    serverOnlyPage.getByRole("heading", { name: "Inspect annual import evidence." }),
+    serverOnlyPage.getByRole("heading", {
+      name: "Inspect annual import evidence.",
+    }),
   ).toBeVisible();
+  await expect(
+    serverOnlyPage
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .getByText("Opportunities", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
   await serverOnlyPage.close();
 });
 
@@ -56,16 +57,15 @@ test("a direct non-default task link hydrates without a server/client mismatch",
 
   await page.goto("/?recipe=trade-trend-v1");
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toBeVisible();
   expect(hydrationErrors).toEqual([]);
   await expect(
-    tasks.getByRole("button", { name: /Trade Trend/ }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("navigation", {
+      name: "Export Market Workspace journey",
+    }),
+  ).toBeVisible();
 });
 
 test("Candidate Market's cross-task links live outside the locked ranking list and are keyboard-accessible", async ({
@@ -176,16 +176,18 @@ test("Trade Trend and Supplier Competition preserve the importing economy and HS
   ).toBeVisible();
   await expect(page).toHaveURL(/build=acceptance-fixtures-v1&pkg=/);
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
+  await advancedTools
+    .getByRole("link", { name: "Supplier Competition" })
+    .click();
 
   await expect(page).toHaveURL(
     /recipe=supplier-competition-v1.*importer=528.*revision=HS12.*product=010121/,
   );
-  // The pin never survives a recipe change; it must be re-earned.
-  await expect(page).not.toHaveURL(/build=/);
+  await expect(page).toHaveURL(
+    /build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toHaveValue("528 — Netherlands");

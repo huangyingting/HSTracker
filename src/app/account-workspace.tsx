@@ -54,6 +54,7 @@ import {
   withRecipe,
   type OpportunityDiscoveryContext,
 } from "./trade-analysis-context";
+import { announceTradeAnalysisContextChange } from "./trade-analysis-context-events";
 import { WorkspaceScope } from "./workspace-scope";
 
 const PAGE_LIMIT = 100;
@@ -662,6 +663,7 @@ function SignedInPortfolioWorkspace({
           );
         } else {
           window.history.replaceState(window.history.state, "", servedUrl);
+          announceTradeAnalysisContextChange();
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -764,6 +766,7 @@ function SignedInPortfolioWorkspace({
         portfolioFilter: nextMode === "portfolio",
       });
       window.history.replaceState(window.history.state, "", url);
+      announceTradeAnalysisContextChange();
     }
   }
 

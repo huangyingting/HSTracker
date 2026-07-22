@@ -24,10 +24,17 @@ test("an analyst can select Trade Trend by keyboard, share it, and change locale
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  const advancedToolsButton = advancedTools.getByRole("button", {
+    name: "Advanced tools",
   });
-  await tasks.getByRole("button", { name: /Trade Trend/ }).click();
+  await advancedToolsButton.focus();
+  await advancedToolsButton.press("Enter");
+  const tradeTrendLink = advancedTools.getByRole("link", {
+    name: "Trade Trend",
+  });
+  await tradeTrendLink.focus();
+  await tradeTrendLink.press("Enter");
 
   await selectTrendContext(page);
   await page.getByRole("button", { name: "Analyze Trade Trend" }).click();
@@ -172,27 +179,35 @@ test("Candidate Market remains reachable with its original ranking controls and 
   await expect(page).not.toHaveURL(/recipe=trade-trend-v1/);
 });
 
-test("switching tasks starts with a fresh analysis context", async ({ page }) => {
+test("Advanced tools preserve compatible context and Back restores the primary workspace", async ({
+  page,
+}) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121");
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
+  ).toHaveCount(13);
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Trend/ }).click();
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
+  await advancedTools.getByRole("link", { name: "Trade Trend" }).click();
 
-  await expect(page).toHaveURL(/\?recipe=trade-trend-v1$/u);
+  await expect(page).toHaveURL(
+    /\?recipe=trade-trend-v1&revision=HS12&product=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
-  ).not.toBeVisible();
+  ).toBeVisible();
 
   await selectTrendContext(page);
-  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
+  await page.goBack();
 
-  await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
+  await expect(page).toHaveURL(
+    /\?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
-  ).not.toBeVisible();
+  ).toBeVisible();
 });

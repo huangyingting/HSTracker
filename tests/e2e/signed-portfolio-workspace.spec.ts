@@ -67,6 +67,11 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await discoverPortfolio.click();
 
   await expect(candidates).toHaveCount(2);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .getByText("Opportunities", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
   await expect(candidates.nth(0)).toContainText("Canonical public rank #1");
   await expect(candidates.nth(0)).toContainText("Mexico");
   await expect(candidates.nth(0)).toContainText("HS12 010121");
@@ -171,7 +176,9 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("No account required")).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
+    page.getByRole("navigation", {
+      name: "Export Market Workspace journey",
+    }),
   ).toBeVisible();
   await expect(
     page
@@ -239,7 +246,9 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
   await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
+    page.getByRole("navigation", {
+      name: "Export Market Workspace journey",
+    }),
   ).toBeVisible();
   expect(opportunityRequests).toBe(0);
 
@@ -320,8 +329,10 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
   await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
-  ).toBeVisible();
+    page
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .getByText("Market Analysis", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
 
   await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(analyzeNetherlands).toBeFocused();

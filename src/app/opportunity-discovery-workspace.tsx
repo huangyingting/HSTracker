@@ -48,13 +48,14 @@ import {
   withRecipe,
   type TradeAnalysisContext,
 } from "./trade-analysis-context";
+import { announceTradeAnalysisContextChange } from "./trade-analysis-context-events";
 import { WorkspaceScope } from "./workspace-scope";
 
 const PAGE_LIMIT = 20;
 
 const copy = {
   en: {
-    eyebrow: "Opportunity Discovery workspace",
+    eyebrow: "Scope and opportunities",
     title: "Start with the exporter, then browse the public candidate feed.",
     lede: "Select an export economy to load Market Investigation Candidates. Add an HS12 product only after confirming the code.",
     loadingCurrent: "Loading the current analysis release…",
@@ -62,7 +63,7 @@ const copy = {
       "The current analysis release is temporarily unavailable.",
     retryCurrent: "Retry current release",
     unsupported:
-      "Opportunity Discovery is not available for this current analysis release. The supporting analytical journeys remain available.",
+      "Opportunity candidates are not available for this current analysis release. The supporting analytical tools remain available.",
     loading: "Loading Market Investigation Candidates…",
     refreshing: "Refreshing the current analysis release…",
     stale: "This analysis build has retired. Refresh the current context.",
@@ -71,11 +72,11 @@ const copy = {
     capacity:
       "Analysis capacity is temporarily busy. The candidate feed was not loaded.",
     rateLimit:
-      "Opportunity Discovery requests are temporarily limited. Wait a moment before retrying.",
+      "Opportunity requests are temporarily limited. Wait a moment before retrying.",
     budget:
-      "This Opportunity Discovery request exceeds the result size limit. Try a confirmed HS12 product projection.",
+      "This opportunity request exceeds the result size limit. Try a confirmed HS12 product projection.",
     unavailable: "The compatible opportunity index is temporarily unavailable.",
-    fatal: "Opportunity Discovery could not be completed.",
+    fatal: "Opportunity candidates could not be loaded.",
     refresh: "Refresh with current evidence",
     retry: "Retry candidate feed",
     allProducts: "All HS12 products",
@@ -102,22 +103,22 @@ const copy = {
       "Public trade evidence supports market investigation; it does not predict sales, profit, market access, or commercial success.",
   },
   "zh-Hans": {
-    eyebrow: "机会发现工作区",
+    eyebrow: "范围与机会",
     title: "先选择出口经济体，再浏览公共候选项列表。",
     lede: "选择出口经济体即可加载市场调查候选项。只有在确认 HS12 编码后才添加产品筛选。",
     loadingCurrent: "正在加载当前分析发布版本…",
     currentUnavailable: "当前分析发布版本暂时不可用。",
     retryCurrent: "重试当前发布版本",
-    unsupported: "当前分析发布版本不提供机会发现。辅助分析旅程仍可使用。",
+    unsupported: "当前分析发布版本不提供机会候选项。辅助分析工具仍可使用。",
     loading: "正在加载市场调查候选项…",
     refreshing: "正在刷新当前分析发布版本…",
     stale: "该分析构建已停用。请刷新当前情境。",
-    malformed: "机会发现输入无效。请检查出口经济体或产品编码。",
+    malformed: "机会输入无效。请检查出口经济体或产品编码。",
     capacity: "分析容量暂时繁忙。尚未加载候选项列表。",
-    rateLimit: "机会发现请求暂时受限。请稍候再试。",
-    budget: "该机会发现请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
+    rateLimit: "机会请求暂时受限。请稍候再试。",
+    budget: "该机会请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
     unavailable: "兼容的机会索引暂时不可用。",
-    fatal: "无法完成机会发现。",
+    fatal: "无法加载机会候选项。",
     refresh: "使用当前证据刷新",
     retry: "重试候选项列表",
     allProducts: "全部 HS12 产品",
@@ -403,6 +404,7 @@ export function OpportunityDiscoveryWorkspace({
         } else {
           window.history.pushState(null, "", nextUrl);
         }
+        announceTradeAnalysisContextChange();
         feedPinnedInHistory.current = true;
       } catch (error) {
         if (controller.signal.aborted || requestSequence.current !== sequence) {

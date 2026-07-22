@@ -1,4 +1,5 @@
 import type { DeploymentActivation } from "../domain/release/deployment-activation";
+import type { WorkspaceRouteFamily } from "../domain/workspace-route-family";
 import type { SourceStatusPollerEvent } from "../runtime/source-status-poller";
 import {
   observeRuntimeResources,
@@ -58,6 +59,7 @@ export class RuntimeMetricRegistry {
   private readonly resultSizes = new Map<string, HistogramEntry>();
   private readonly analysisScanRows = new Map<string, HistogramEntry>();
   private readonly analysisResultRows = new Map<string, HistogramEntry>();
+  private readonly workspaceRouteViews = new Map<string, CounterEntry>();
   private latestRequest: RuntimeRequestMetric | null = null;
   private sourceStatusPollFailures = 0;
   private sourceStatusPollConsecutiveFailures = 0;
@@ -156,6 +158,12 @@ export class RuntimeMetricRegistry {
     this.latestRequest = metric;
   }
 
+  observeWorkspaceRouteView(routeFamily: WorkspaceRouteFamily): void {
+    incrementCounter(this.workspaceRouteViews, {
+      route_family: routeFamily,
+    });
+  }
+
   observeSourceStatusPoll(event: SourceStatusPollerEvent): void {
     if (event.type === "status-poll-failed") {
       this.sourceStatusPollFailures += 1;
@@ -242,6 +250,12 @@ export class RuntimeMetricRegistry {
         "hs_tracker_analysis_result_rows",
         this.analysisResultRows,
         ANALYSIS_ROW_BUCKETS,
+      ),
+      "# HELP hs_tracker_workspace_route_views_total Anonymous Export Market Workspace route-family views.",
+      "# TYPE hs_tracker_workspace_route_views_total counter",
+      ...renderCounters(
+        "hs_tracker_workspace_route_views_total",
+        this.workspaceRouteViews,
       ),
       "# HELP hs_tracker_source_status_poll_failures_total Failed Source Freshness Status polls.",
       "# TYPE hs_tracker_source_status_poll_failures_total counter",

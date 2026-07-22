@@ -16,6 +16,7 @@ import {
   productCodeOf,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
+  withAdvancedToolRecipe,
   withEconomyCode,
   withLocale,
   withoutPin,
@@ -487,6 +488,46 @@ describe("Trade Analysis Context: withRecipe", () => {
       pin: null,
       exporterCode: "100",
       focusedMarketCode: null,
+    });
+  });
+});
+
+describe("Trade Analysis Context: Advanced tools", () => {
+  it("carries the focused product, market, exporter, locale, and deployment pin into every advanced route family", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "candidate-market",
+      locale: "zh-Hans",
+      productCode: "010121",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      exporterCode: "156",
+      focusedMarketCode: "528",
+    };
+
+    expect(withAdvancedToolRecipe(context, "trade-trend")).toEqual({
+      recipe: "trade-trend",
+      locale: "zh-Hans",
+      productCode: "010121",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      importerCode: "528",
+    });
+    expect(withAdvancedToolRecipe(context, "supplier-competition")).toEqual({
+      recipe: "supplier-competition",
+      locale: "zh-Hans",
+      productCode: "010121",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      importerCode: "528",
+    });
+    expect(withAdvancedToolRecipe(context, "trade-explorer")).toEqual({
+      recipe: "trade-explorer",
+      locale: "zh-Hans",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      shape: null,
+      measures: [],
+      years: [],
+      exportEconomy: ["156"],
+      importEconomy: ["528"],
+      hsProduct: ["010121"],
+      sort: null,
     });
   });
 });

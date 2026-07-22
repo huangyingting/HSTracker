@@ -28,10 +28,17 @@ test("an analyst can select Supplier Competition by keyboard, share it, and chan
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  const advancedToolsButton = advancedTools.getByRole("button", {
+    name: "Advanced tools",
   });
-  await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
+  await advancedToolsButton.focus();
+  await advancedToolsButton.press("Enter");
+  const supplierCompetitionLink = advancedTools.getByRole("link", {
+    name: "Supplier Competition",
+  });
+  await supplierCompetitionLink.focus();
+  await supplierCompetitionLink.press("Enter");
 
   await selectSupplierCompetitionContext(page, "124", /Canada/);
   await page.getByRole("button", { name: "Analyze Supplier Competition" }).click();
@@ -220,29 +227,37 @@ test("Candidate Market remains reachable alongside Supplier Competition", async 
   await expect(page).not.toHaveURL(/recipe=supplier-competition-v1/);
 });
 
-test("switching to Supplier Competition starts with a fresh analysis context", async ({
+test("Advanced tools preserve compatible Supplier Competition context and Back", async ({
   page,
 }) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121");
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
+  ).toHaveCount(13);
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
+  await advancedTools
+    .getByRole("link", { name: "Supplier Competition" })
+    .click();
 
-  await expect(page).toHaveURL(/\?recipe=supplier-competition-v1$/u);
+  await expect(page).toHaveURL(
+    /\?recipe=supplier-competition-v1&revision=HS12&product=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
-  ).not.toBeVisible();
+  ).toBeVisible();
 
   await selectSupplierCompetitionContext(page, "124", /Canada/);
-  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
+  await page.goBack();
 
-  await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
+  await expect(page).toHaveURL(
+    /\?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
-  ).not.toBeVisible();
+  ).toBeVisible();
 });

@@ -22,16 +22,14 @@ test("selecting a non-default locale on the bare landing page persists it throug
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "寻找值得深入研究的候选市场。",
+      name: "使用公共贸易证据分析出口市场。",
     }),
   ).toBeVisible();
 
-  const tasks = page.getByRole("navigation", { name: "选择分析任务" });
-  await expect(tasks.getByRole("button")).toHaveCount(5);
-  await expect(
-    tasks.getByRole("button", { name: /机会发现|候选市场/u }),
-  ).toHaveCount(2);
-  await tasks.getByRole("button", { name: /贸易趋势/ }).click();
+  const advancedTools = page.getByRole("group", { name: "高级工具" });
+  await advancedTools.getByRole("button", { name: "高级工具" }).click();
+  await expect(advancedTools.getByRole("link")).toHaveCount(3);
+  await advancedTools.getByRole("link", { name: "贸易趋势" }).click();
 
   // The exact versioned recipe identity now leads (deterministic first
   // position), and the locale chosen before any input was selected is
@@ -59,8 +57,9 @@ test("browser back/forward reproduce the exact task and locale carried by each c
   await page.getByRole("button", { name: "简体中文" }).click();
   await expect(page).toHaveURL("/?locale=zh-Hans");
 
-  const tasks = page.getByRole("navigation", { name: "选择分析任务" });
-  await tasks.getByRole("button", { name: /供应商竞争/ }).click();
+  const advancedTools = page.getByRole("group", { name: "高级工具" });
+  await advancedTools.getByRole("button", { name: "高级工具" }).click();
+  await advancedTools.getByRole("link", { name: "供应商竞争" }).click();
   await expect(page).toHaveURL("/?recipe=supplier-competition-v1&locale=zh-Hans");
   await expect(
     page.getByRole("heading", { level: 2, name: "查看完整的已记录供应经济体结构。" }),
@@ -77,7 +76,7 @@ test("browser back/forward reproduce the exact task and locale carried by each c
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "寻找值得深入研究的候选市场。",
+      name: "使用公共贸易证据分析出口市场。",
     }),
   ).toBeVisible();
 
