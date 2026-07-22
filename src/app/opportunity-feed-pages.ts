@@ -3,10 +3,7 @@ import type {
   MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
-import {
-  resolvePinnedContext,
-  type TradeAnalysisRecipeIdentity,
-} from "./trade-analysis-context";
+import { resolvePinnedContext } from "./trade-analysis-context";
 
 type ResolvedOpportunityPin = ReturnType<typeof resolvePinnedContext>;
 
@@ -62,7 +59,6 @@ export function validateOpportunityPageIdentity(
   analysisBuildId: string,
   manifest: CurrentAnalysisManifest,
   pinResolution: ResolvedOpportunityPin,
-  recipe: TradeAnalysisRecipeIdentity = "opportunity-discovery-v1",
 ): void {
   if (page.analysisBuildId !== analysisBuildId) {
     throw new TypeError("Opportunity feed does not match the requested build.");
@@ -79,7 +75,7 @@ export function validateOpportunityPageIdentity(
     return;
   }
   if (
-    page.provenance.recipeVersion !== recipe ||
+    page.provenance.recipeVersion !== "opportunity-discovery-v1" ||
     page.provenance.baciRelease !== manifest.source.baciRelease
   ) {
     throw new TypeError(

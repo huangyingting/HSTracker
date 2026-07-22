@@ -68,6 +68,15 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     .getByRole("button", { name: "Show complete public ranking" })
     .click();
   await expect(candidates).toHaveCount(4);
+  const scope = page.getByRole("region", {
+    name: "Portfolio analysis scope",
+  });
+  await expect(scope).toContainText("Current deployment");
+  await expect(scope).toContainText("Finalized score period");
+  await expect(scope).toContainText("2019–2023");
+  await expect(scope).toContainText("Provisional context");
+  await expect(scope).toContainText("2024 · supporting evidence only");
+  await expect(scope).toContainText("Latest known BACI release");
   await page.getByRole("button", { name: "Show portfolio filter" }).click();
   await expect(candidates).toHaveCount(2);
 
@@ -77,7 +86,9 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(candidates).toHaveCount(2);
 
   const requestsBeforeRefresh = opportunityRequests;
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
   await expect(candidates).toHaveCount(2);
   await expect.poll(() => opportunityRequests).toBe(requestsBeforeRefresh + 1);
 
@@ -87,9 +98,12 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(
     page.getByRole("list", { name: "组合机会候选项" }).getByRole("listitem"),
   ).toHaveCount(2);
+  await expect(
+    page.getByRole("region", { name: "组合分析范围" }),
+  ).toContainText("当前部署");
   expect(opportunityRequests).toBe(requestsBeforeLocale);
   await expect(
-    page.getByRole("button", { name: "刷新当前分析" }),
+    page.getByRole("button", { name: "使用当前证据刷新" }),
   ).toBeVisible();
   const requestsBeforeEnglish = opportunityRequests;
   await page.getByRole("button", { name: "EN", exact: true }).click();
@@ -294,7 +308,7 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
     "This retained link points at a retired analysis build.",
   );
   await retiredAlert
-    .getByRole("button", { name: "Refresh current analysis" })
+    .getByRole("button", { name: "Refresh with current evidence" })
     .click();
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,

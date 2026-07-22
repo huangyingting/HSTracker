@@ -12,7 +12,6 @@ import type { ProductSearchProduct } from "../catalog/product-catalog";
 import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
-  OpportunityConfidence,
 } from "../domain/opportunity-discovery/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { EconomyRecord } from "../economy/economy-directory";
@@ -28,17 +27,13 @@ import {
   openMarketAnalysis,
   readOpportunityReturnState,
   restoreOpportunityPosition,
-  shouldHandleMarketAnalysisClick,
 } from "./market-analysis-navigation";
+import { OpportunityCandidateRow } from "./opportunity-candidate-row";
 import {
   appendOpportunityPage,
   opportunityCandidateKey,
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
-import {
-  marketAnalysisActionLabel,
-  opportunityTypeLabel,
-} from "./opportunity-row-presentation";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
 import {
@@ -80,7 +75,7 @@ const copy = {
       "This Opportunity Discovery request exceeds the result size limit. Try a confirmed HS12 product projection.",
     unavailable: "The compatible opportunity index is temporarily unavailable.",
     fatal: "Opportunity Discovery could not be completed.",
-    refresh: "Refresh current analysis",
+    refresh: "Refresh with current evidence",
     retry: "Retry candidate feed",
     allProducts: "All HS12 products",
     productProjection: "Confirmed HS12 projection",
@@ -89,16 +84,7 @@ const copy = {
     feedCount: "candidate rows in this exporter cohort",
     nextPage: "Load more candidates",
     nextPageFailed: "More candidates could not be loaded.",
-    analyzeMarket: "Analyze this market",
     candidateList: "Market Investigation Candidates",
-    investigationPriority: "Investigation Priority",
-    marketAttractiveness: "Market Attractiveness",
-    exporterFit: "Exporter Fit",
-    confidence: "Data Confidence",
-    coverage: "Coverage",
-    marketGap: "Unvalidated Market Gap",
-    expansion: "Expansion Evidence",
-    generalEvidence: "General Investigation Evidence",
     nonClaims: "What this feed does not claim",
     disclaimer: "Discovery disclaimer",
     provenance: "Analysis source scope",
@@ -127,7 +113,7 @@ const copy = {
     budget: "该机会发现请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
     unavailable: "兼容的机会索引暂时不可用。",
     fatal: "无法完成机会发现。",
-    refresh: "刷新当前分析",
+    refresh: "使用当前证据刷新",
     retry: "重试候选项列表",
     allProducts: "全部 HS12 产品",
     productProjection: "已确认 HS12 投影",
@@ -136,16 +122,7 @@ const copy = {
     feedCount: "个出口经济体队列候选行",
     nextPage: "加载更多候选项",
     nextPageFailed: "无法加载更多候选项。",
-    analyzeMarket: "分析此市场",
     candidateList: "市场调查候选项",
-    investigationPriority: "调查优先级",
-    marketAttractiveness: "市场吸引力",
-    exporterFit: "出口方匹配度",
-    confidence: "数据置信度",
-    coverage: "覆盖",
-    marketGap: "未验证市场缺口",
-    expansion: "扩张证据",
-    generalEvidence: "一般调查证据",
     nonClaims: "该列表不声称的内容",
     disclaimer: "发现免责声明",
     provenance: "分析来源范围",
@@ -185,6 +162,7 @@ export function OpportunityDiscoveryWorkspace({
   const feedController = useRef<AbortController | null>(null);
   const manifestController = useRef<AbortController | null>(null);
   const feedPinnedInHistory = useRef(false);
+  const retiredRefreshInFlight = useRef(false);
   const restoredReturnAction = useRef<string | null>(null);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [currentManifest, setCurrentManifest] =
@@ -278,19 +256,67 @@ export function OpportunityDiscoveryWorkspace({
   const handleProductSelection = useCallback(
     (nextProduct: ProductSearchProduct | null, source: SelectionSource) => {
       setProduct(nextProduct);
-      if (source === "explicit") {
-        prepareForExplicitContextChange();
+      if (source !== "explicit") {
+        return;
       }
+      prepareForExplicitContextChange();
+      if (
+        nextProduct === null ||
+        exporter === null ||
+        currentManifest === null
+      ) {
+        return;
+      }
+
+      const sourceContext = parseTradeAnalysisContext(window.location.href);
+      const sourcePin = resolvePinnedContext(
+        sourceContext.pin,
+        currentManifest,
+        "opportunity-discovery",
+      );
+      if (sourcePin.state === "retired") {
+        return;
+      }
+      const sourceAnalysisBuildId =
+        sourcePin.state === "retained"
+          ? sourcePin.deployment.analysisBuildId
+          : currentManifest.analysisBuildId;
+      const candidateContext = withRecipe(sourceContext, "candidate-market");
+      if (candidateContext.recipe !== "candidate-market") {
+        return;
+      }
+      const destination = {
+        ...candidateContext,
+        exporterCode: exporter.code,
+        productCode: nextProduct.code,
+        pin: pinFromDeploymentWindow(
+          currentManifest,
+          sourceAnalysisBuildId,
+          "candidate-market",
+        ),
+      };
+      const href = serializeTradeAnalysisContext(
+        window.location.href,
+        destination,
+      );
+      window.history.pushState(null, "", href);
+      window.dispatchEvent(
+        new PopStateEvent("popstate", { state: window.history.state }),
+      );
     },
-    [prepareForExplicitContextChange],
+    [currentManifest, exporter, prepareForExplicitContextChange],
   );
 
   const loadFeed = useCallback(
-    async (mode: "load" | "refresh" = "load") => {
-      if (exporter === null || currentManifest === null) {
+    async (
+      mode: "load" | "refresh" = "load",
+      refreshedManifest?: CurrentAnalysisManifest,
+    ) => {
+      const manifest = refreshedManifest ?? currentManifest;
+      if (exporter === null || manifest === null) {
         return;
       }
-      if (currentManifest.recommendation.opportunityDiscovery === null) {
+      if (manifest.recommendation.opportunityDiscovery === null) {
         setStatus("unavailable");
         return;
       }
@@ -303,11 +329,14 @@ export function OpportunityDiscoveryWorkspace({
       if (opportunityContext.recipe !== "opportunity-discovery") {
         return;
       }
-      const pinResolution = resolvePinnedContext(
-        opportunityContext.pin,
-        currentManifest,
-        "opportunity-discovery",
-      );
+      const pinResolution =
+        refreshedManifest === undefined
+          ? resolvePinnedContext(
+              opportunityContext.pin,
+              manifest,
+              "opportunity-discovery",
+            )
+          : ({ state: "unpinned" } as const);
       if (pinResolution.state === "retired") {
         setStatus("stale");
         return;
@@ -316,7 +345,7 @@ export function OpportunityDiscoveryWorkspace({
       const analysisBuildId =
         pinResolution.state === "retained"
           ? pinResolution.deployment.analysisBuildId
-          : currentManifest.analysisBuildId;
+          : manifest.analysisBuildId;
       const productCodes = product === null ? null : [product.code];
 
       feedController.current?.abort();
@@ -345,7 +374,7 @@ export function OpportunityDiscoveryWorkspace({
         validateOpportunityPageIdentity(
           firstPage,
           analysisBuildId,
-          currentManifest,
+          manifest,
           pinResolution,
         );
         const returnState = readOpportunityReturnState(
@@ -372,7 +401,7 @@ export function OpportunityDiscoveryWorkspace({
           validateOpportunityPageIdentity(
             nextPage,
             analysisBuildId,
-            currentManifest,
+            manifest,
             pinResolution,
           );
           loadedPage = appendOpportunityPage(loadedPage, nextPage, cursor);
@@ -394,12 +423,16 @@ export function OpportunityDiscoveryWorkspace({
         const pinnedContext =
           pinResolution.state === "retained"
             ? { ...baseContext, pin: pinResolution.pin }
-            : withPin(baseContext, currentManifest);
+            : withPin(baseContext, manifest);
         const nextUrl = serializeTradeAnalysisContext(
           window.location.href,
           pinnedContext,
         );
-        window.history.replaceState(window.history.state, "", nextUrl);
+        if (refreshedManifest === undefined) {
+          window.history.replaceState(window.history.state, "", nextUrl);
+        } else {
+          window.history.pushState(null, "", nextUrl);
+        }
         feedPinnedInHistory.current = true;
       } catch (error) {
         if (controller.signal.aborted || requestSequence.current !== sequence) {
@@ -417,7 +450,11 @@ export function OpportunityDiscoveryWorkspace({
   );
 
   useEffect(() => {
-    if (currentManifest === null || exporter === null) {
+    if (
+      currentManifest === null ||
+      exporter === null ||
+      retiredRefreshInFlight.current
+    ) {
       return;
     }
     const context = parseTradeAnalysisContext(window.location.href);
@@ -482,16 +519,20 @@ export function OpportunityDiscoveryWorkspace({
   }, [resetFeed]);
 
   async function refreshCurrentAnalysis() {
-    const context = parseTradeAnalysisContext(window.location.href);
-    const url = serializeTradeAnalysisContext(
-      window.location.href,
-      withoutPin(context),
-    );
-    window.history.replaceState(null, "", url);
-    resetFeed();
+    retiredRefreshInFlight.current = true;
+    feedController.current?.abort();
     setStatus("refreshing");
-    const { promise } = beginCurrentManifestRequest(true);
-    await promise;
+    const { controller, promise } = beginCurrentManifestRequest(true);
+    const discovered = await promise;
+    if (controller.signal.aborted || discovered === null) {
+      retiredRefreshInFlight.current = false;
+      if (!controller.signal.aborted) {
+        setStatus("stale");
+      }
+      return;
+    }
+    await loadFeed("refresh", discovered);
+    retiredRefreshInFlight.current = false;
   }
 
   function clearProductProjection() {
@@ -743,85 +784,21 @@ export function OpportunityDiscoveryWorkspace({
                     {feed.candidates.map((candidate) => {
                       const analysisHref = marketAnalysisHref(candidate);
                       return (
-                        <li key={opportunityCandidateKey(candidate)}>
-                          <div className="opportunity-row-summary">
-                            <span className="candidate-rank">
-                              {candidate.product.code}
-                            </span>
-                            <span>
-                              <span className="opportunity-row-identities">
-                                <strong>
-                                  HS12 {candidate.product.code} ·{" "}
-                                  {candidate.product.descriptionEn}
-                                </strong>
-                                <strong>{candidate.market.name}</strong>
-                              </span>
-                              <small>
-                                {opportunityTypeLabel(candidate, locale)}
-                              </small>
-                              <span className="opportunity-row-metrics">
-                                <span>
-                                  {messages.marketAttractiveness}{" "}
-                                  {candidate.marketAttractiveness.display}
-                                </span>
-                                <span>
-                                  {messages.exporterFit}{" "}
-                                  {candidate.exporterFit.display}
-                                </span>
-                                <span>
-                                  {messages.confidence}:{" "}
-                                  {localizedConfidence(
-                                    candidate.confidence,
-                                    locale,
-                                  )}
-                                </span>
-                                <span>
-                                  {messages.coverage}:{" "}
-                                  {candidate.observedMarketYears.length}{" "}
-                                  {locale === "en" ? "observed" : "已观察"} ·{" "}
-                                  {candidate.missingMarketYears.length}{" "}
-                                  {locale === "en" ? "missing" : "缺失"}
-                                </span>
-                              </span>
-                              <span
-                                className="candidate-score-bar"
-                                aria-hidden="true"
-                              >
-                                <span
-                                  style={{
-                                    width: `${candidate.investigationPriority.display}%`,
-                                  }}
-                                />
-                              </span>
-                            </span>
-                            <span className="candidate-score">
-                              <small>{messages.investigationPriority}</small>{" "}
-                              {candidate.investigationPriority.display}
-                              <small>/100</small>
-                            </span>
-                          </div>
-                          {analysisHref === null ? null : (
-                            <a
-                              id={opportunityActionId(candidate)}
-                              className="candidate-primary-action"
-                              aria-label={marketAnalysisActionLabel(
-                                candidate,
-                                locale,
-                              )}
-                              href={analysisHref}
-                              onClick={(event) => {
-                                if (!shouldHandleMarketAnalysisClick(event)) {
-                                  return;
-                                }
-                                event.preventDefault();
-                                openCandidateMarket(candidate, analysisHref);
-                              }}
-                            >
-                              {messages.analyzeMarket}
-                              <span aria-hidden="true"> →</span>
-                            </a>
-                          )}
-                        </li>
+                        <OpportunityCandidateRow
+                          key={opportunityCandidateKey(candidate)}
+                          candidate={candidate}
+                          locale={locale}
+                          leading={candidate.product.code}
+                          leadingClassName="candidate-rank"
+                          summaryClassName="opportunity-row-summary"
+                          actionId={opportunityActionId(candidate)}
+                          href={analysisHref}
+                          onOpen={() => {
+                            if (analysisHref !== null) {
+                              openCandidateMarket(candidate, analysisHref);
+                            }
+                          }}
+                        />
                       );
                     })}
                   </ol>
@@ -964,18 +941,4 @@ function isErrorStatus(
 
 function opportunityActionId(candidate: MarketInvestigationCandidate): string {
   return `analyze-opportunity-${candidate.product.code}-${candidate.market.code}`;
-}
-
-function localizedConfidence(
-  confidence: OpportunityConfidence,
-  locale: WorkspaceLocale,
-): string {
-  if (locale === "en") {
-    return confidence.label;
-  }
-  return confidence.label === "HIGH"
-    ? "高"
-    : confidence.label === "MEDIUM"
-      ? "中"
-      : "低";
 }

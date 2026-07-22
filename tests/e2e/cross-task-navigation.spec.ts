@@ -337,7 +337,9 @@ test("a pinned Candidate Market link that no longer matches the current recommen
     page.getByRole("list", { name: "Candidate Markets" }),
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
 
   await expect(
     page.getByRole("region", { name: "Netherlands · Market Analysis" }),
@@ -351,6 +353,19 @@ test("a pinned Candidate Market link that no longer matches the current recommen
   expect(currentManifestRequests).toBeGreaterThanOrEqual(2);
   expect(replacementBuildRequests).toBeGreaterThan(0);
   expect(replacementProductRequests).toBeGreaterThan(0);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/build=acceptance-fixtures-v1/u);
+  await expect(page.locator(".analysis-error")).toContainText(
+    "This analysis build has retired.",
+  );
+  expect(oldBuildRequests).toBe(0);
+
+  await page.goForward();
+  await expect(page).toHaveURL(/build=replacement-analysis-v2/u);
+  await expect(
+    page.getByRole("region", { name: "Netherlands · Market Analysis" }),
+  ).toContainText("Netherlands");
 });
 
 test("a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current", async ({

@@ -171,7 +171,9 @@ test("a retired analysis build is replaced through current-manifest revalidation
   );
   const documentStartedAt = await page.evaluate(() => performance.timeOrigin);
 
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
 
   await expect(
     page.getByRole("region", { name: "Selected Candidate Market evidence" }),
@@ -240,7 +242,9 @@ test("a retired build is not retried with a release-incompatible current manifes
 
   await page.goto("/?exporter=156&revision=HS12&product=010121");
   await expect(page.locator(".analysis-error")).toBeVisible();
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
 
   await expect(page.locator(".analysis-error")).toContainText(
     "This analysis build has retired.",

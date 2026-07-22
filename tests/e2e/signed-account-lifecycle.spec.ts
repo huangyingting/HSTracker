@@ -32,7 +32,9 @@ test("a signed-in analyst confirms a portfolio product, inspects it in both loca
   await expect(
     page.getByRole("list", { name: "组合机会候选项" }).getByRole("button"),
   ).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "刷新当前分析" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "使用当前证据刷新" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "EN" }).click();
   await expect(candidates).toHaveCount(2);

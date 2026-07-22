@@ -342,7 +342,7 @@ test("a stale analysis build can refresh the complete result", async ({
   ).toHaveCount(0);
 
   await workspace
-    .getByRole("button", { name: "Refresh current analysis" })
+    .getByRole("button", { name: "Refresh with current evidence" })
     .click();
 
   await expect(

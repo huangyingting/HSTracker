@@ -49,14 +49,13 @@ test("all-product browse, product discovery, and known-product links reach the s
   await selectChinaExporter(page);
   await selectHorseProduct(page);
   await expect(page).toHaveURL(
-    /recipe=opportunity-discovery-v1.*exporter=156.*products=010121.*build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+    /recipe=candidate-market-v1.*exporter=156.*product=010121.*build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
   );
   await expect(
     page
-      .getByRole("list", { name: "Market Investigation Candidates" })
-      .getByRole("listitem"),
-  ).toHaveCount(2);
-  await expectMexicoHorseCandidate(page);
+      .getByRole("list", { name: "Candidate Markets" })
+      .getByRole("button"),
+  ).toHaveCount(13);
 
   await page.goto(OPPORTUNITY_PRODUCT_URL);
   await expect(
@@ -79,6 +78,18 @@ test("opportunity copy is honest and context survives filter, history, copied li
   });
   await page.goto(OPPORTUNITY_PRODUCT_URL);
   await expectMexicoHorseCandidate(page);
+  const stableShareButton = await page
+    .getByRole("button", { name: "Copy analysis link" })
+    .elementHandle();
+  if (stableShareButton === null) {
+    throw new Error("Expected the analysis share control to be mounted.");
+  }
+  const requestsAfterInitialLoad = opportunityRequests;
+  await page.waitForTimeout(500);
+  expect(await stableShareButton.evaluate((element) => element.isConnected)).toBe(
+    true,
+  );
+  expect(opportunityRequests).toBe(requestsAfterInitialLoad);
 
   const bodyText = await page.locator("body").innerText();
   expect(bodyText).not.toMatch(/sales potential|company fit/iu);
@@ -156,30 +167,37 @@ test("opportunity refresh and explicit Market Analysis links preserve canonical 
     "**/api/v1/analyses/acceptance-fixtures-v1/opportunities?*",
     async (route) => {
       opportunityRequests += 1;
-      if (opportunityRequests === 1) {
-        await route.fulfill({
-          status: 410,
-          contentType: "application/problem+json",
-          body: JSON.stringify({
-            error: {
-              code: "ANALYSIS_BUILD_RETIRED",
-              message: "Analysis build retired.",
-            },
-          }),
-        });
-        return;
-      }
       await route.continue();
     },
   );
 
   await page.goto(OPPORTUNITY_PRODUCT_URL);
+  await expectMexicoHorseCandidate(page);
+  const retiredUrl = page
+    .url()
+    .replace("acceptance-fixtures-v1", "retired-analysis-v1");
+  opportunityRequests = 0;
+  await page.goto(retiredUrl);
   await expect(
     page.locator(".opportunity-workspace").getByRole("alert"),
   ).toContainText("This analysis build has retired.");
-  await page.getByRole("button", { name: "Refresh current analysis" }).click();
+  const requestsBeforeRefresh = opportunityRequests;
+  await page
+    .getByRole("button", { name: "Refresh with current evidence" })
+    .click();
   await expectMexicoHorseCandidate(page);
-  expect(opportunityRequests).toBe(2);
+  expect(opportunityRequests).toBe(requestsBeforeRefresh + 1);
+  await expect(page).toHaveURL(/build=acceptance-fixtures-v1/u);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/build=retired-analysis-v1/u);
+  await expect(
+    page.locator(".opportunity-workspace").getByRole("alert"),
+  ).toContainText("This analysis build has retired.");
+
+  await page.goForward();
+  await expectMexicoHorseCandidate(page);
+  await expect(page).toHaveURL(/build=acceptance-fixtures-v1/u);
 
   await page
     .getByRole("list", { name: "Market Investigation Candidates" })

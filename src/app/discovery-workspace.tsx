@@ -55,7 +55,6 @@ import {
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withEconomyCode,
-  withoutPin,
   withPin,
   withProductCode,
   withRecipe,
@@ -107,7 +106,7 @@ const copy = {
       "Analysis capacity is temporarily busy. The complete result was not loaded.",
     unavailable: "The compatible analysis artifact is temporarily unavailable.",
     fatal: "The analysis could not be completed.",
-    refresh: "Refresh current analysis",
+    refresh: "Refresh with current evidence",
     retry: "Retry complete analysis",
     disclaimer:
       "Use this workspace as a discovery aid rather than a recommendation. Validate customers, competition, regulation, logistics, and margins separately.",
@@ -156,7 +155,7 @@ const copy = {
     capacity: "分析容量暂时繁忙。尚未加载完整结果。",
     unavailable: "兼容的分析工件暂时不可用。",
     fatal: "无法完成分析。",
-    refresh: "刷新当前分析",
+    refresh: "使用当前证据刷新",
     retry: "重试完整分析",
     disclaimer:
       "这是发现辅助工具，而非建议。请另行验证客户、竞争、法规、物流和利润。",
@@ -285,43 +284,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       currentManifestController.current?.abort();
     };
   }, [beginCurrentManifestRequest]);
-
-  const recoverRetiredAnalysis = useCallback(async () => {
-    if (currentManifest === null) {
-      return;
-    }
-    analysisController.current?.abort();
-    marketAnalysisController.current?.abort();
-    setStatus("refreshing");
-    const context = parseTradeAnalysisContext(window.location.href);
-    const url = serializeTradeAnalysisContext(
-      window.location.href,
-      withoutPin(context),
-    );
-    const { controller, promise } = beginCurrentManifestRequest(true);
-    const discovered = await promise;
-    if (controller.signal.aborted || discovered === null) {
-      if (!controller.signal.aborted) {
-        setStatus("stale");
-      }
-      return;
-    }
-
-    window.history.replaceState(window.history.state, "", url);
-    requestSequence.current += 1;
-    marketAnalysisRequestSequence.current += 1;
-    canonicalRestorePending.current = true;
-    analyzedInputsInHistory.current = false;
-    resetMarketAnalysisState();
-    setCurrentManifest(discovered);
-    setExporter(null);
-    setProduct(null);
-    setResult(null);
-    setComparedCandidateCodes([]);
-    setSelectedCandidateCode(null);
-    setStatus("idle");
-    setControlRestorationKey((current) => current + 1);
-  }, [beginCurrentManifestRequest, currentManifest, resetMarketAnalysisState]);
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
@@ -457,17 +419,19 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     }
   }, [marketAnalysisStatus]);
 
-  const analyzeCandidateMarkets = useCallback(async () => {
-    if (exporter === null || product === null || currentManifest === null) {
+  const analyzeCandidateMarkets = useCallback(async (
+    refreshedManifest?: CurrentAnalysisManifest,
+  ) => {
+    const manifest = refreshedManifest ?? currentManifest;
+    if (exporter === null || product === null || manifest === null) {
       return;
     }
 
     const urlPin = parseTradeAnalysisContext(window.location.href).pin;
-    const pinResolution = resolvePinnedContext(
-      urlPin,
-      currentManifest,
-      "candidate-market",
-    );
+    const pinResolution =
+      refreshedManifest === undefined
+        ? resolvePinnedContext(urlPin, manifest, "candidate-market")
+        : ({ state: "unpinned" } as const);
     if (pinResolution.state === "retired") {
       setStatus("stale");
       return;
@@ -479,7 +443,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     const analysisBuildId =
       pinResolution.state === "retained"
         ? pinResolution.deployment.analysisBuildId
-        : currentManifest.analysisBuildId;
+        : manifest.analysisBuildId;
 
     analysisController.current?.abort();
     const controller = new AbortController();
@@ -541,9 +505,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       } else if (
         completeResult.analysisBuildId !== analysisBuildId ||
         completeResult.provenance.baciRelease !==
-          currentManifest.source.baciRelease ||
+          manifest.source.baciRelease ||
         completeResult.provenance.artifactSha256 !==
-          currentManifest.source.artifact.sha256
+          manifest.source.artifact.sha256
       ) {
         throw new TypeError(
           "The analysis result does not match the discovered current manifest.",
@@ -551,14 +515,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       }
 
       setResult(completeResult);
-      if (completeResult.candidates.length === 0) {
-        setStatus("empty");
-        return;
-      }
-
       resolvedAnalysisBuildIdRef.current = analysisBuildId;
       setResolvedAnalysisBuildId(analysisBuildId);
-      setResolvedAnalysisManifest(currentManifest);
+      setResolvedAnalysisManifest(manifest);
 
       const priorContext = parseTradeAnalysisContext(window.location.href);
       const requestedCandidateCode =
@@ -572,7 +531,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               ({ economy }) => economy.code === requestedCandidateCode,
             ) ?? null);
       setSelectedCandidateCode(initialCandidate?.economy.code ?? null);
-      setStatus("success");
+      setStatus(
+        completeResult.candidates.length === 0 ? "empty" : "success",
+      );
       if (initialCandidate !== null) {
         void loadMarketAnalysisForCandidate(
           initialCandidate.economy.code,
@@ -597,12 +558,16 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         const pinnedContext =
           pinResolution.state === "retained"
             ? { ...baseContext, pin: pinResolution.pin }
-            : withPin(baseContext, currentManifest);
+            : withPin(baseContext, manifest);
         const url = serializeTradeAnalysisContext(
           window.location.href,
           pinnedContext,
         );
-        window.history.replaceState(window.history.state, "", url);
+        if (refreshedManifest === undefined) {
+          window.history.replaceState(window.history.state, "", url);
+        } else {
+          window.history.pushState(null, "", url);
+        }
       }
     } catch (error) {
       if (controller.signal.aborted || requestSequence.current !== sequence) {
@@ -617,6 +582,21 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     loadMarketAnalysisForCandidate,
     product,
   ]);
+
+  const recoverRetiredAnalysis = useCallback(async () => {
+    analysisController.current?.abort();
+    marketAnalysisController.current?.abort();
+    setStatus("refreshing");
+    const { controller, promise } = beginCurrentManifestRequest(true);
+    const discovered = await promise;
+    if (controller.signal.aborted || discovered === null) {
+      if (!controller.signal.aborted) {
+        setStatus("stale");
+      }
+      return;
+    }
+    await analyzeCandidateMarkets(discovered);
+  }, [analyzeCandidateMarkets, beginCurrentManifestRequest]);
 
   useEffect(() => {
     if (
@@ -645,11 +625,26 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   useLayoutEffect(() => {
     function restoreContextFromHistory(event: PopStateEvent) {
       const context = parseTradeAnalysisContext(window.location.href);
+      const pinResolution =
+        currentManifest !== null && context.recipe === "candidate-market"
+          ? resolvePinnedContext(
+              context.pin,
+              currentManifest,
+              "candidate-market",
+            )
+          : null;
+      const contextAnalysisBuildId =
+        pinResolution === null || pinResolution.state === "retired"
+          ? null
+          : pinResolution.state === "retained"
+            ? pinResolution.deployment.analysisBuildId
+            : currentManifest?.analysisBuildId ?? null;
       const matchesLoadedContext =
         result !== null &&
         context.recipe === "candidate-market" &&
         context.exporterCode === result.query.exporter.code &&
-        context.productCode === result.query.product.code;
+        context.productCode === result.query.product.code &&
+        contextAnalysisBuildId === result.analysisBuildId;
 
       if (matchesLoadedContext) {
         const requestedCandidateCode =
@@ -699,7 +694,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     window.addEventListener("popstate", restoreContextFromHistory);
     return () =>
       window.removeEventListener("popstate", restoreContextFromHistory);
-  }, [loadMarketAnalysisForCandidate, resetMarketAnalysisState, result]);
+  }, [
+    currentManifest,
+    loadMarketAnalysisForCandidate,
+    resetMarketAnalysisState,
+    result,
+  ]);
 
   const selectCandidateMarket = useCallback(
     (candidate: CandidateMarket) => {

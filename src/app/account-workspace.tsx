@@ -11,7 +11,6 @@ import {
 import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
-  OpportunityConfidence,
 } from "../domain/opportunity-discovery/result";
 import type { ProductSearchProduct } from "../catalog/product-catalog";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
@@ -38,16 +37,12 @@ import {
   openMarketAnalysis,
   readOpportunityReturnState,
   restoreOpportunityPosition,
-  shouldHandleMarketAnalysisClick,
 } from "./market-analysis-navigation";
+import { OpportunityCandidateRow } from "./opportunity-candidate-row";
 import {
   appendOpportunityPage,
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
-import {
-  marketAnalysisActionLabel,
-  opportunityTypeLabel,
-} from "./opportunity-row-presentation";
 import { ProductCombobox } from "./product-combobox";
 import {
   parseTradeAnalysisContext,
@@ -90,6 +85,15 @@ const copy = {
     primaryExporterLabel: "Primary exporter",
     portfolioProducts: "Portfolio products",
     emptyPortfolio: "No portfolio products confirmed",
+    analysisScope: "Portfolio analysis scope",
+    deploymentState: "Deployment state",
+    currentDeployment: "Current deployment",
+    retainedDeployment: "Retained deployment",
+    baciRelease: "BACI release",
+    finalizedPeriod: "Finalized score period",
+    provisionalPeriod: "Provisional context",
+    provisionalOnly: "supporting evidence only",
+    sourceFreshness: "Current source freshness",
     addProductLabel: "Confirm HS12 product code",
     addProduct: "Add product to portfolio",
     addProductHint:
@@ -102,14 +106,6 @@ const copy = {
     canonicalRank: "Canonical public rank",
     filterLabel: "Your portfolio filter",
     listLabel: "Portfolio Opportunity Candidates",
-    investigationPriority: "Investigation Priority",
-    marketAttractiveness: "Market Attractiveness",
-    exporterFit: "Exporter Fit",
-    confidence: "Data Confidence",
-    coverage: "Coverage",
-    marketGap: "Unvalidated Market Gap",
-    expansion: "Expansion Evidence",
-    generalEvidence: "General Investigation Evidence",
     currentLoading: "Loading current public analysis…",
     feedLoading: "Loading current public Opportunity Index…",
     currentUnavailable:
@@ -118,11 +114,10 @@ const copy = {
       "The current public Opportunity Index could not be loaded.",
     stale:
       "This retained link points at a retired analysis build. Refresh current analysis to choose today's public index.",
-    refresh: "Refresh current analysis",
+    refresh: "Refresh with current evidence",
     noVisibleRows: "No portfolio rows are visible.",
     noVisibleRowsBody:
       "Add a portfolio product that appears in the current public feed, or show the complete public ranking.",
-    analyzeMarket: "Analyze this market",
     anonymousFallback: "Continue without signing in",
   },
   "zh-Hans": {
@@ -154,6 +149,15 @@ const copy = {
     primaryExporterLabel: "主要出口方",
     portfolioProducts: "组合产品",
     emptyPortfolio: "尚未确认组合产品",
+    analysisScope: "组合分析范围",
+    deploymentState: "部署状态",
+    currentDeployment: "当前部署",
+    retainedDeployment: "保留部署",
+    baciRelease: "BACI 发布版本",
+    finalizedPeriod: "定稿评分期间",
+    provisionalPeriod: "暂定年份背景",
+    provisionalOnly: "仅作辅助证据",
+    sourceFreshness: "当前来源新鲜度",
     addProductLabel: "确认 HS12 产品编码",
     addProduct: "添加产品到组合",
     addProductHint: "输入精确的六位 HS12 编码，然后确认到运营组合中。",
@@ -165,24 +169,15 @@ const copy = {
     canonicalRank: "公共规范排名",
     filterLabel: "您的组合筛选",
     listLabel: "组合机会候选项",
-    investigationPriority: "调查优先级",
-    marketAttractiveness: "市场吸引力",
-    exporterFit: "出口方匹配度",
-    confidence: "数据置信度",
-    coverage: "覆盖",
-    marketGap: "未验证市场缺口",
-    expansion: "扩张证据",
-    generalEvidence: "一般调查证据",
     currentLoading: "正在加载当前公共分析…",
     feedLoading: "正在加载当前公共机会索引…",
     currentUnavailable: "当前公共分析暂时不可用。",
     feedUnavailable: "无法加载当前公共机会索引。",
     stale: "该保留链接指向已停用的分析构建。刷新当前分析以选择今天的公共索引。",
-    refresh: "刷新当前分析",
+    refresh: "使用当前证据刷新",
     noVisibleRows: "没有可见组合行。",
     noVisibleRowsBody:
       "请添加出现在当前公共列表中的组合产品，或显示完整公共排名。",
-    analyzeMarket: "分析此市场",
     anonymousFallback: "不登录继续",
   },
 } as const;
@@ -823,6 +818,13 @@ function SignedInPortfolioWorkspace({
           </dd>
         </div>
       </dl>
+      {manifest === null || feed === null ? null : (
+        <PortfolioAnalysisScope
+          manifest={manifest}
+          feed={feed}
+          locale={locale}
+        />
+      )}
       <div className="portfolio-product-tools">
         {manifest === null ? null : (
           <ProductCombobox
@@ -930,74 +932,23 @@ function SignedInPortfolioWorkspace({
                   {projection.visibleRows.map((row) => {
                     const analysisHref = marketAnalysisHref(row.candidate);
                     return (
-                      <li key={candidateProjectionKey(row.candidate)}>
-                        <div className="portfolio-row-summary">
-                          <span>
-                            {messages.canonicalRank} #{row.canonicalRank}
-                          </span>
-                          <span>
-                            <span className="opportunity-row-identities">
-                              <strong>
-                                HS12 {row.candidate.product.code} ·{" "}
-                                {row.candidate.product.descriptionEn}
-                              </strong>
-                              <strong>{row.candidate.market.name}</strong>
-                            </span>
-                            <small>
-                              {opportunityTypeLabel(row.candidate, locale)}
-                            </small>
-                            <span className="opportunity-row-metrics">
-                              <span>
-                                {messages.marketAttractiveness}{" "}
-                                {row.candidate.marketAttractiveness.display}
-                              </span>
-                              <span>
-                                {messages.exporterFit}{" "}
-                                {row.candidate.exporterFit.display}
-                              </span>
-                              <span>
-                                {messages.confidence}:{" "}
-                                {localizedConfidence(
-                                  row.candidate.confidence,
-                                  locale,
-                                )}
-                              </span>
-                              <span>
-                                {messages.coverage}:{" "}
-                                {row.candidate.observedMarketYears.length}{" "}
-                                {locale === "en" ? "observed" : "已观察"} ·{" "}
-                                {row.candidate.missingMarketYears.length}{" "}
-                                {locale === "en" ? "missing" : "缺失"}
-                              </span>
-                            </span>
-                          </span>
-                          <span>
-                            {messages.investigationPriority}{" "}
-                            {row.candidate.investigationPriority.display}/100
-                          </span>
-                        </div>
-                        {analysisHref === null ? null : (
-                          <a
-                            id={portfolioActionId(row.candidate)}
-                            className="candidate-primary-action"
-                            aria-label={marketAnalysisActionLabel(
+                      <OpportunityCandidateRow
+                        key={candidateProjectionKey(row.candidate)}
+                        candidate={row.candidate}
+                        locale={locale}
+                        leading={`${messages.canonicalRank} #${row.canonicalRank}`}
+                        summaryClassName="portfolio-row-summary"
+                        actionId={portfolioActionId(row.candidate)}
+                        href={analysisHref}
+                        onOpen={() => {
+                          if (analysisHref !== null) {
+                            openCandidateMarket(
                               row.candidate,
-                              locale,
-                            )}
-                            href={analysisHref}
-                            onClick={(event) => {
-                              if (!shouldHandleMarketAnalysisClick(event)) {
-                                return;
-                              }
-                              event.preventDefault();
-                              openCandidateMarket(row.candidate, analysisHref);
-                            }}
-                          >
-                            {messages.analyzeMarket}
-                            <span aria-hidden="true"> →</span>
-                          </a>
-                        )}
-                      </li>
+                              analysisHref,
+                            );
+                          }
+                        }}
+                      />
                     );
                   })}
                 </ol>
@@ -1014,16 +965,77 @@ function portfolioActionId(candidate: MarketInvestigationCandidate): string {
   return `analyze-portfolio-${candidate.product.code}-${candidate.market.code}`;
 }
 
-function localizedConfidence(
-  confidence: OpportunityConfidence,
+function PortfolioAnalysisScope({
+  manifest,
+  feed,
+  locale,
+}: {
+  manifest: CurrentAnalysisManifest;
+  feed: MarketInvestigationPage;
+  locale: AccountLocale;
+}) {
+  const messages = copy[locale];
+  const isCurrent = feed.analysisBuildId === manifest.analysisBuildId;
+  return (
+    <section
+      className="portfolio-analysis-scope"
+      aria-label={messages.analysisScope}
+      data-deployment-state={isCurrent ? "current" : "retained"}
+      data-freshness-state={manifest.freshness.state}
+    >
+      <h3>{messages.analysisScope}</h3>
+      <dl>
+        <div>
+          <dt>{messages.deploymentState}</dt>
+          <dd>
+            {isCurrent
+              ? messages.currentDeployment
+              : messages.retainedDeployment}
+          </dd>
+        </div>
+        <div>
+          <dt>{messages.baciRelease}</dt>
+          <dd>{feed.provenance.baciRelease}</dd>
+        </div>
+        <div>
+          <dt>{messages.finalizedPeriod}</dt>
+          <dd>
+            {feed.provenance.scoreWindow.start}–
+            {feed.provenance.scoreWindow.end}
+          </dd>
+        </div>
+        <div>
+          <dt>{messages.provisionalPeriod}</dt>
+          <dd>
+            {feed.provenance.provisionalYear} · {messages.provisionalOnly}
+          </dd>
+        </div>
+        <div>
+          <dt>{messages.sourceFreshness}</dt>
+          <dd>{portfolioFreshnessLabel(manifest.freshness.state, locale)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function portfolioFreshnessLabel(
+  state: CurrentAnalysisManifest["freshness"]["state"],
   locale: AccountLocale,
 ): string {
-  if (locale === "en") {
-    return confidence.label;
-  }
-  return confidence.label === "HIGH"
-    ? "高"
-    : confidence.label === "MEDIUM"
-      ? "中"
-      : "低";
+  const labels = {
+    en: {
+      LATEST_KNOWN: "Latest known BACI release",
+      UPDATE_IN_PROGRESS: "New BACI release is being validated",
+      REFRESH_DELAYED: "Data refresh delayed",
+      CHECK_OVERDUE: "Source freshness check overdue",
+    },
+    "zh-Hans": {
+      LATEST_KNOWN: "当前已知最新 BACI 数据版",
+      UPDATE_IN_PROGRESS: "正在验证新的 BACI 数据版",
+      REFRESH_DELAYED: "数据刷新延迟",
+      CHECK_OVERDUE: "来源新鲜度检查已逾期",
+    },
+  } as const;
+  return labels[locale][state];
 }
