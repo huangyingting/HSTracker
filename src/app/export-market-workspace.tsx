@@ -14,6 +14,7 @@ import {
 } from "./trade-analysis-context";
 import {
   announceTradeAnalysisContextChange,
+  announceTradeAnalysisNavigation,
   TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
 } from "./trade-analysis-context-events";
 
@@ -117,12 +118,16 @@ export function ExportMarketWorkspace({
       : "all",
   );
   const [accountAuthOpen, setAccountAuthOpen] = useState(false);
+  const [focusExactProduct, setFocusExactProduct] = useState(false);
 
   useEffect(() => {
-    const synchronizeContext = () => {
+    const synchronizeContext = (event: Event) => {
       const restored = parseTradeAnalysisContext(window.location.href);
       setContext(restored);
-      if (restored.recipe === "opportunity-discovery") {
+      if (
+        event.type === "popstate" &&
+        restored.recipe === "opportunity-discovery"
+      ) {
         setOpportunityScopeMode(
           restored.portfolioFilter === true ? "portfolio" : "public",
         );
@@ -159,7 +164,7 @@ export function ExportMarketWorkspace({
       nextContext,
     );
     window.history.replaceState(window.history.state, "", href);
-    announceTradeAnalysisContextChange();
+    announceTradeAnalysisNavigation();
   }, [
     accountAuthOpen,
     accountSession,
@@ -188,21 +193,15 @@ export function ExportMarketWorkspace({
     );
     setOpportunityScopeMode("public");
     setPublicScopeMode(mode);
+    setFocusExactProduct(mode === "exact");
     setAccountAuthOpen(false);
     setContext(nextContext);
     window.history.pushState(null, "", href);
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: window.history.state }),
-    );
-    if (mode === "exact") {
-      window.setTimeout(() => {
-        document
-          .querySelector<HTMLInputElement>(
-            ".opportunity-controls .product-discovery [role=\"combobox\"]",
-          )
-          ?.focus();
-      }, 0);
-    }
+    announceTradeAnalysisContextChange();
+  }, []);
+
+  const handleProductMountFocus = useCallback(() => {
+    setFocusExactProduct(false);
   }, []);
 
   const selectPortfolioScope = useCallback(
@@ -227,6 +226,7 @@ export function ExportMarketWorkspace({
         nextContext,
       );
       setOpportunityScopeMode("portfolio");
+      setFocusExactProduct(false);
       setAccountAuthOpen(false);
       setContext(nextContext);
       window.history.pushState(null, "", href);
@@ -327,6 +327,8 @@ export function ExportMarketWorkspace({
             key={publicScopeMode}
             locale={locale}
             scopeMode={publicScopeMode}
+            focusProductOnMount={focusExactProduct}
+            onProductMountFocusHandled={handleProductMountFocus}
             onScopeModeChange={selectPublicScope}
             onExactProductConfirmed={confirmExactProduct}
           />

@@ -68,14 +68,14 @@ test("a direct non-default task link hydrates without a server/client mismatch",
   ).toBeVisible();
 });
 
-test("Candidate Market's cross-task links live outside the locked ranking list and are keyboard-accessible", async ({
+test("Candidate Market's full-width cross-task links are keyboard-accessible without ranking controls", async ({
   page,
 }) => {
   await analyzeCandidateMarket(page);
 
-  const rankingList = page.getByRole("list", { name: "Candidate Markets" });
-  await expect(rankingList.getByRole("link")).toHaveCount(13);
-  await expect(rankingList.getByRole("button")).toHaveCount(0);
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
 
   const evidence = page.getByRole("region", {
     name: "Netherlands · Market Analysis",
@@ -128,6 +128,7 @@ test("Candidate Market's Supplier Competition link preselects the same importing
 }) => {
   await analyzeCandidateMarket(page);
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -135,13 +136,17 @@ test("Candidate Market's Supplier Competition link preselects the same importing
     .click();
 
   const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
+    name: "Canada · Market Analysis",
   });
-  await expect(evidence.getByRole("heading", { name: "Canada" })).toBeVisible();
+  await expect(
+    evidence.getByRole("heading", { name: "Canada · Market Analysis" }),
+  ).toBeVisible();
 
-  const supplierCompetitionLink = evidence.getByRole("link", {
-    name: "Open Supplier Competition for this market",
-  });
+  const supplierCompetitionLink = evidence
+    .locator("#supplier-landscape")
+    .getByRole("link", {
+      name: "Open Supplier Competition for this market",
+    });
   await supplierCompetitionLink.focus();
   await supplierCompetitionLink.press("Enter");
 
@@ -215,8 +220,8 @@ test("copying, reloading, and opening a pinned Candidate Market link in another 
   await page.reload();
   await expect(page).toHaveURL(pinnedUrl);
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
   await expect(
     page
       .getByRole("region", { name: "Netherlands · Market Analysis" })
@@ -464,8 +469,8 @@ test("a pinned Candidate Market link that still names a retained predecessor exe
   // as the original analysis -- without ever calling the new current
   // build for analysis, and without showing the typed retired state.
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Netherlands · Market Analysis" }),
   ).toContainText("Netherlands");

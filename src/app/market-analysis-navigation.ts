@@ -8,6 +8,7 @@ import {
   type CandidateMarketContext,
   type TradeAnalysisLocale,
 } from "./trade-analysis-context";
+import { announceTradeAnalysisNavigation } from "./trade-analysis-context-events";
 
 export type OpportunityReturnSource =
   "candidate-market" | "opportunity-discovery" | "portfolio";
@@ -38,9 +39,7 @@ export function openMarketAnalysis(
   );
   window.history.pushState({ [MARKET_ANALYSIS_ENTRY_KEY]: true }, "", href);
   if (notifyTaskNavigation) {
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: window.history.state }),
-    );
+    announceTradeAnalysisNavigation();
   }
 }
 

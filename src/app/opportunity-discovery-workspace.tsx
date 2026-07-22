@@ -47,7 +47,10 @@ import {
   withRecipe,
   type TradeAnalysisContext,
 } from "./trade-analysis-context";
-import { announceTradeAnalysisContextChange } from "./trade-analysis-context-events";
+import {
+  announceTradeAnalysisContextChange,
+  announceTradeAnalysisNavigation,
+} from "./trade-analysis-context-events";
 import { WorkspaceScope } from "./workspace-scope";
 
 const PAGE_LIMIT = 20;
@@ -166,11 +169,15 @@ type FeedStatus =
 export function OpportunityDiscoveryWorkspace({
   locale,
   scopeMode,
+  focusProductOnMount = false,
+  onProductMountFocusHandled,
   onScopeModeChange,
   onExactProductConfirmed,
 }: {
   locale: WorkspaceLocale;
   scopeMode: "all" | "exact";
+  focusProductOnMount?: boolean;
+  onProductMountFocusHandled?: () => void;
   onScopeModeChange: (mode: "all" | "exact") => void;
   onExactProductConfirmed: () => void;
 }) {
@@ -487,9 +494,7 @@ export function OpportunityDiscoveryWorkspace({
       destination,
     );
     window.history.pushState(null, "", href);
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: window.history.state }),
-    );
+    announceTradeAnalysisNavigation();
   }, [currentManifest, exporter, loadFeed, product, resetFeed, scopeMode]);
 
   useEffect(() => {
@@ -746,6 +751,8 @@ export function OpportunityDiscoveryWorkspace({
               key={`opportunity-product-${controlRestorationKey}`}
               productSearchBuildId={currentManifest.productSearchBuildId}
               locale={locale}
+              focusOnMount={focusProductOnMount}
+              onMountFocusHandled={onProductMountFocusHandled}
               onSelectionChange={handleProductSelection}
               onRetiredBuild={refreshCurrentAnalysis}
             />

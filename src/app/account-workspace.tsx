@@ -52,7 +52,10 @@ import {
   withRecipe,
   type OpportunityDiscoveryContext,
 } from "./trade-analysis-context";
-import { announceTradeAnalysisContextChange } from "./trade-analysis-context-events";
+import {
+  announceTradeAnalysisContextChange,
+  announceTradeAnalysisNavigation,
+} from "./trade-analysis-context-events";
 import { WorkspaceScope } from "./workspace-scope";
 
 const PAGE_LIMIT = 100;
@@ -548,9 +551,7 @@ export function SignedInPortfolioWorkspace({
         if (revalidate && requestedPinState !== "current") {
           const currentUrl = servedUrl;
           window.history.pushState(null, "", currentUrl);
-          window.dispatchEvent(
-            new PopStateEvent("popstate", { state: window.history.state }),
-          );
+          announceTradeAnalysisNavigation();
         } else {
           window.history.replaceState(window.history.state, "", servedUrl);
           announceTradeAnalysisContextChange();
@@ -662,10 +663,11 @@ export function SignedInPortfolioWorkspace({
       });
       if (navigation === "push") {
         window.history.pushState(null, "", url);
+        announceTradeAnalysisNavigation();
       } else {
         window.history.replaceState(window.history.state, "", url);
+        announceTradeAnalysisContextChange();
       }
-      announceTradeAnalysisContextChange();
     }
   }
 

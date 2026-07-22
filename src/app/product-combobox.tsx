@@ -63,6 +63,8 @@ type ProductComboboxProps = {
     source: "restore" | "explicit",
   ) => void;
   onRetiredBuild: () => void;
+  focusOnMount?: boolean;
+  onMountFocusHandled?: () => void;
   syncUrl?: boolean;
 };
 
@@ -73,6 +75,8 @@ export function ProductCombobox({
   locale,
   onSelectionChange,
   onRetiredBuild,
+  focusOnMount = false,
+  onMountFocusHandled,
   syncUrl = true,
 }: ProductComboboxProps) {
   const messages = copy[locale];
@@ -102,6 +106,14 @@ export function ProductCombobox({
     | "retired"
     | "failed"
   >("idle");
+
+  useEffect(() => {
+    if (!focusOnMount) {
+      return;
+    }
+    inputRef.current?.focus();
+    onMountFocusHandled?.();
+  }, [focusOnMount, onMountFocusHandled]);
 
   useEffect(() => {
     const productCode = productCodeOf(

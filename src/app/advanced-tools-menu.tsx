@@ -14,7 +14,10 @@ import {
   type TradeAnalysisContext,
   type TradeAnalysisLocale,
 } from "./trade-analysis-context";
-import { TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT } from "./trade-analysis-context-events";
+import {
+  announceTradeAnalysisNavigation,
+  TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+} from "./trade-analysis-context-events";
 
 const copy = {
   en: {
@@ -161,11 +164,7 @@ export function AdvancedToolsMenu({
                 }
                 event.preventDefault();
                 window.history.pushState(null, "", event.currentTarget.href);
-                window.dispatchEvent(
-                  new PopStateEvent("popstate", {
-                    state: window.history.state,
-                  }),
-                );
+                announceTradeAnalysisNavigation();
                 setOpen(false);
               }}
             >

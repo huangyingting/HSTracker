@@ -13,26 +13,23 @@ export function workspaceRouteFamily(
   if (context.recipe === "trade-explorer") {
     return "advanced-trade-explorer";
   }
+
+  let hasOpportunityScope: boolean;
+  let hasFocusedMarket: boolean;
   if (context.recipe === "candidate-market") {
-    if (
-      context.exporterCode !== null &&
-      context.productCode !== null &&
-      context.focusedMarketCode !== null
-    ) {
-      return "primary-market-analysis";
-    }
-    return context.exporterCode !== null && context.productCode !== null
-      ? "primary-opportunities"
-      : "primary-scope";
+    hasOpportunityScope =
+      context.exporterCode !== null && context.productCode !== null;
+    hasFocusedMarket = context.focusedMarketCode !== null;
+  } else {
+    hasOpportunityScope = context.exportEconomyCode !== null;
+    hasFocusedMarket =
+      context.focusProductCode != null && context.focusedMarketCode != null;
   }
-  if (
-    context.exportEconomyCode !== null &&
-    context.focusProductCode != null &&
-    context.focusedMarketCode != null
-  ) {
-    return "primary-market-analysis";
+
+  if (!hasOpportunityScope) {
+    return "primary-scope";
   }
-  return context.exportEconomyCode !== null
-    ? "primary-opportunities"
-    : "primary-scope";
+  return hasFocusedMarket
+    ? "primary-market-analysis"
+    : "primary-opportunities";
 }

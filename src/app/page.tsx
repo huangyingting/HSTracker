@@ -17,7 +17,10 @@ import {
   serializeTradeAnalysisContext,
   withLocale,
 } from "./trade-analysis-context";
-import { TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT } from "./trade-analysis-context-events";
+import {
+  announceTradeAnalysisNavigation,
+  TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+} from "./trade-analysis-context-events";
 import { workspaceRouteFamily } from "./workspace-route-family";
 import { WorkspaceRouteTelemetry } from "./workspace-route-telemetry";
 
@@ -200,9 +203,7 @@ export default function Home({
           portfolioFilter: false,
         });
         window.history.replaceState(null, "", nextHref);
-        window.dispatchEvent(
-          new PopStateEvent("popstate", { state: window.history.state }),
-        );
+        announceTradeAnalysisNavigation();
       }
       setAccountSession(null);
     } catch (error) {
