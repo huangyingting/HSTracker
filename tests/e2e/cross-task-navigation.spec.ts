@@ -6,9 +6,9 @@ const CANONICAL_INVESTIGATE_URL =
 async function analyzeCandidateMarket(page: import("@playwright/test").Page) {
   await page.goto(CANONICAL_INVESTIGATE_URL);
   const ranking = page.getByRole("list", { name: "Candidate Markets" });
-  await expect(ranking.getByRole("button")).toHaveCount(13);
+  await expect(ranking.getByRole("link")).toHaveCount(13);
   await ranking
-    .getByRole("button", { name: "Analyze this market: Netherlands" })
+    .getByRole("link", { name: "Analyze this market: Netherlands" })
     .click();
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
@@ -74,8 +74,8 @@ test("Candidate Market's cross-task links live outside the locked ranking list a
   await analyzeCandidateMarket(page);
 
   const rankingList = page.getByRole("list", { name: "Candidate Markets" });
-  await expect(rankingList.getByRole("link")).toHaveCount(0);
-  await expect(rankingList.getByRole("button")).toHaveCount(13);
+  await expect(rankingList.getByRole("link")).toHaveCount(13);
+  await expect(rankingList.getByRole("button")).toHaveCount(0);
 
   const evidence = page.getByRole("region", {
     name: "Netherlands · Market Analysis",
@@ -130,7 +130,7 @@ test("Candidate Market's Supplier Competition link preselects the same importing
 
   await page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button")
+    .getByRole("link")
     .filter({ hasText: "Canada" })
     .click();
 
@@ -213,7 +213,7 @@ test("copying, reloading, and opening a pinned Candidate Market link in another 
   await page.reload();
   await expect(page).toHaveURL(pinnedUrl);
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await expect(
     page
@@ -462,7 +462,7 @@ test("a pinned Candidate Market link that still names a retained predecessor exe
   // as the original analysis -- without ever calling the new current
   // build for analysis, and without showing the typed retired state.
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await expect(
     page.getByRole("region", { name: "Netherlands · Market Analysis" }),

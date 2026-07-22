@@ -41,6 +41,7 @@ import {
   openMarketAnalysis,
   readOpportunityReturnState,
   restoreOpportunityPosition,
+  shouldHandleMarketAnalysisClick,
 } from "./market-analysis-navigation";
 import { ProductCombobox } from "./product-combobox";
 import { SourceScope } from "./source-scope";
@@ -54,6 +55,7 @@ import {
   withProductCode,
   withRecipe,
   type CandidateMarketContext,
+  type TradeAnalysisContextPin,
   type TradeAnalysisRecipe,
 } from "./trade-analysis-context";
 import { WorkspaceScope } from "./workspace-scope";
@@ -191,6 +193,11 @@ type AnalysisStatus =
   | "unavailable"
   | "fatal";
 
+type LoadedCandidateMarketResult = Readonly<{
+  result: CandidateMarketResult;
+  navigationPin: TradeAnalysisContextPin;
+}>;
+
 export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const messages = copy[locale];
   const requestSequence = useRef(0);
@@ -207,7 +214,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
-  const [result, setResult] = useState<CandidateMarketResult | null>(null);
+  const [loadedCandidateResult, setLoadedCandidateResult] =
+    useState<LoadedCandidateMarketResult | null>(null);
+  const result = loadedCandidateResult?.result ?? null;
   const [selectedCandidateCode, setSelectedCandidateCode] = useState<
     string | null
   >(null);
@@ -296,7 +305,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     analysisController.current?.abort();
     marketAnalysisController.current?.abort();
     resetMarketAnalysisState();
-    setResult(null);
+    setLoadedCandidateResult(null);
     setSelectedCandidateCode(null);
     setStatus("idle");
     const context = parseTradeAnalysisContext(window.location.href);
@@ -457,7 +466,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     const sequence = requestSequence.current + 1;
     requestSequence.current = sequence;
     analyzedInputsInHistory.current = true;
-    setResult(null);
+    setLoadedCandidateResult(null);
     setResolvedAnalysisManifest(null);
     setSelectedCandidateCode(null);
     setStatus("loading");
@@ -519,7 +528,17 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         );
       }
 
-      setResult(completeResult);
+      const navigationPin = pinFromDeploymentWindow(
+        manifest,
+        analysisBuildId,
+        "candidate-market",
+      );
+      if (navigationPin === null) {
+        throw new TypeError(
+          "Candidate Market result has no matching navigation pin.",
+        );
+      }
+      setLoadedCandidateResult({ result: completeResult, navigationPin });
       resolvedAnalysisBuildIdRef.current = analysisBuildId;
       setResolvedAnalysisBuildId(analysisBuildId);
       setResolvedAnalysisManifest(manifest);
@@ -689,7 +708,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       resetMarketAnalysisState();
       setExporter(null);
       setProduct(null);
-      setResult(null);
+      setLoadedCandidateResult(null);
       setSelectedCandidateCode(null);
       setStatus("idle");
       setControlRestorationKey((current) => current + 1);
@@ -706,20 +725,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   ]);
 
   const selectCandidateMarket = useCallback(
-    (candidate: CandidateMarket) => {
+    (candidate: CandidateMarket, href: string) => {
       setSelectedCandidateCode(candidate.economy.code);
       void loadMarketAnalysisForCandidate(candidate.economy.code, true);
-      const context = parseTradeAnalysisContext(window.location.href);
-      if (context.recipe !== "candidate-market") {
-        return;
-      }
-      const url = serializeTradeAnalysisContext(window.location.href, {
-        ...context,
-        focusedMarketCode: candidate.economy.code,
-      });
       const list = document.getElementById("candidate-market-list-scroll");
       openMarketAnalysis(
-        url,
+        href,
         {
           source: "candidate-market",
           actionId: candidateMarketActionId(candidate.economy.code),
@@ -766,8 +777,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           resolvedAnalysisBuildId,
           recipe,
         );
-  const candidateMarketNavigationPin =
-    resolvedNavigationPin("candidate-market");
   const tradeExplorerNavigationPin = resolvedNavigationPin("trade-explorer");
 
   return (
@@ -958,7 +967,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           />
         ) : null}
 
-        {status === "success" && result !== null && product !== null ? (
+        {status === "success" &&
+        loadedCandidateResult !== null &&
+        product !== null ? (
           <>
             <div
               className="candidate-workspace"
@@ -974,26 +985,28 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                     <h3 id="ranking-title">{messages.ranked}</h3>
                   </div>
                   <strong>
-                    {result.cohortSize} {messages.candidates}
+                    {loadedCandidateResult.result.cohortSize}{" "}
+                    {messages.candidates}
                   </strong>
                 </div>
                 <p className="opportunity-ordering">
                   {messages.orderingExplanation}
                 </p>
-                {result.candidates.length > VIRTUALIZED_LIST_THRESHOLD ? (
+                {loadedCandidateResult.result.candidates.length >
+                VIRTUALIZED_LIST_THRESHOLD ? (
                   <VirtualizedCandidateList
-                    candidates={result.candidates}
+                    result={loadedCandidateResult.result}
                     selectedCandidateCode={selectedCandidateCode}
                     locale={locale}
                     confidenceLabel={messages.confidence}
-                    cohortSize={result.cohortSize}
                     listLabel={messages.candidateList}
                     analyzeLabel={messages.analyzeMarket}
+                    navigationPin={loadedCandidateResult.navigationPin}
                     onSelect={selectCandidateMarket}
                   />
                 ) : (
                   <ol aria-label={messages.candidateList}>
-                    {result.candidates.map((candidate) => (
+                    {loadedCandidateResult.result.candidates.map((candidate) => (
                       <CandidateRankingRow
                         key={candidate.economy.code}
                         candidate={candidate}
@@ -1002,8 +1015,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                         }
                         locale={locale}
                         confidenceLabel={messages.confidence}
-                        cohortSize={result.cohortSize}
+                        cohortSize={loadedCandidateResult.result.cohortSize}
                         analyzeLabel={messages.analyzeMarket}
+                        href={fixedProductMarketAnalysisHref(
+                          loadedCandidateResult.result,
+                          candidate,
+                          locale,
+                          loadedCandidateResult.navigationPin,
+                        )}
                         onSelect={selectCandidateMarket}
                       />
                     ))}
@@ -1032,16 +1051,16 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   requestedAnalysisBuildId={resolvedAnalysisBuildId}
                   headingRef={marketAnalysisHeadingRef}
                   opportunityHref={
-                    candidateMarketNavigationPin === null
-                      ? null
-                      : serializeTradeAnalysisContext("/", {
-                          recipe: "candidate-market",
-                          locale,
-                          pin: candidateMarketNavigationPin,
-                          exporterCode: result.query.exporter.code,
-                          productCode: result.query.product.code,
-                          focusedMarketCode: null,
-                        })
+                    serializeTradeAnalysisContext("/", {
+                      recipe: "candidate-market",
+                      locale,
+                      pin: loadedCandidateResult.navigationPin,
+                      exporterCode:
+                        loadedCandidateResult.result.query.exporter.code,
+                      productCode:
+                        loadedCandidateResult.result.query.product.code,
+                      focusedMarketCode: null,
+                    })
                   }
                   onBackToOpportunities={(event) => {
                     if (hasOpportunityHistoryReturn()) {
@@ -1063,14 +1082,14 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                     recipe: "trade-trend",
                     locale,
                     importerCode: evidenceCandidate.economy.code,
-                    productCode: result.query.product.code,
+                    productCode: loadedCandidateResult.result.query.product.code,
                     pin: resolvedNavigationPin("trade-trend"),
                   })}
                   supplierCompetitionHref={serializeTradeAnalysisContext("/", {
                     recipe: "supplier-competition",
                     locale,
                     importerCode: evidenceCandidate.economy.code,
-                    productCode: result.query.product.code,
+                    productCode: loadedCandidateResult.result.query.product.code,
                     pin: resolvedNavigationPin("supplier-competition"),
                   })}
                   tradeExplorerHref={
@@ -1085,7 +1104,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                           years: [],
                           exportEconomy: [],
                           importEconomy: [],
-                          hsProduct: [result.query.product.code],
+                          hsProduct: [
+                            loadedCandidateResult.result.query.product.code,
+                          ],
                           sort: null,
                         })
                   }
@@ -1145,6 +1166,7 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   confidenceLabel,
   cohortSize,
   analyzeLabel,
+  href,
   onSelect,
   offsetTop,
 }: {
@@ -1154,7 +1176,8 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   confidenceLabel: string;
   cohortSize: number;
   analyzeLabel: string;
-  onSelect: (candidate: CandidateMarket) => void;
+  href: string;
+  onSelect: (candidate: CandidateMarket, href: string) => void;
   offsetTop?: number;
 }) {
   const messages = copy[locale];
@@ -1203,15 +1226,21 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
             BACI {candidate.economy.code} · {confidenceLabel}:{" "}
             {localizedConfidence(candidate.confidence.label, locale)}
           </small>
-          <button
-            type="button"
+          <a
             className="candidate-analyze-action"
             id={candidateMarketActionId(candidate.economy.code)}
-            onClick={() => onSelect(candidate)}
+            href={href}
+            onClick={(event) => {
+              if (!shouldHandleMarketAnalysisClick(event)) {
+                return;
+              }
+              event.preventDefault();
+              onSelect(candidate, href);
+            }}
           >
             {analyzeLabel}: {candidateDisplayName(candidate, locale)}
             <span aria-hidden="true"> →</span>
-          </button>
+          </a>
           <span className="candidate-score-bar" aria-hidden="true">
             <span style={{ width: `${candidate.score}%` }} />
           </span>
@@ -1231,23 +1260,23 @@ const CANDIDATE_ROW_OVERSCAN = 6;
 const CANDIDATE_LIST_VIEWPORT_FALLBACK = 760;
 
 function VirtualizedCandidateList({
-  candidates,
+  result,
   selectedCandidateCode,
   locale,
   confidenceLabel,
-  cohortSize,
   listLabel,
   analyzeLabel,
+  navigationPin,
   onSelect,
 }: {
-  candidates: readonly CandidateMarket[];
+  result: CandidateMarketResult;
   selectedCandidateCode: string | null;
   locale: WorkspaceLocale;
   confidenceLabel: string;
-  cohortSize: number;
   listLabel: string;
   analyzeLabel: string;
-  onSelect: (candidate: CandidateMarket) => void;
+  navigationPin: TradeAnalysisContextPin;
+  onSelect: (candidate: CandidateMarket, href: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -1284,6 +1313,7 @@ function VirtualizedCandidateList({
     });
   }, []);
 
+  const candidates = result.candidates;
   const total = candidates.length;
   const start = Math.max(
     0,
@@ -1330,8 +1360,14 @@ function VirtualizedCandidateList({
               selected={candidate.economy.code === selectedCandidateCode}
               locale={locale}
               confidenceLabel={confidenceLabel}
-              cohortSize={cohortSize}
+              cohortSize={result.cohortSize}
               analyzeLabel={analyzeLabel}
+              href={fixedProductMarketAnalysisHref(
+                result,
+                candidate,
+                locale,
+                navigationPin,
+              )}
               onSelect={onSelect}
               offsetTop={index * CANDIDATE_ROW_HEIGHT}
             />
@@ -1340,6 +1376,22 @@ function VirtualizedCandidateList({
       </ol>
     </div>
   );
+}
+
+function fixedProductMarketAnalysisHref(
+  result: CandidateMarketResult,
+  candidate: CandidateMarket,
+  locale: WorkspaceLocale,
+  pin: TradeAnalysisContextPin,
+): string {
+  return serializeTradeAnalysisContext("/", {
+    recipe: "candidate-market",
+    locale,
+    pin,
+    exporterCode: result.query.exporter.code,
+    productCode: result.query.product.code,
+    focusedMarketCode: candidate.economy.code,
+  });
 }
 
 function candidateMarketActionId(economyCode: string): string {

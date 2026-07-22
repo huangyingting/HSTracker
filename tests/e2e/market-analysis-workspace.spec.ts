@@ -66,10 +66,10 @@ test("the Market Analysis scope header exposes identity, deployment, freshness, 
   const back = header.getByRole("link", { name: "Back to opportunities" });
   await expect(back).toHaveAttribute(
     "href",
-    /recipe=opportunity-discovery-v1.*exporter=156.*products=010121.*focusProduct=010121.*market=528.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+    /recipe=candidate-market-v1.*exporter=156.*product=010121.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
   await back.click();
-  await expect(page).toHaveURL(/recipe=opportunity-discovery-v1/u);
+  await expect(page).toHaveURL(/recipe=candidate-market-v1/u);
 });
 
 test("Market Snapshot exposes deterministic interpretation, canonical score/rank, and the existing score audit view", async ({
@@ -390,7 +390,7 @@ test("selecting a different Candidate Market moves focus to the Market Analysis 
 
   await page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button")
+    .getByRole("link")
     .filter({ hasText: "South Africa" })
     .click();
 
@@ -425,7 +425,7 @@ test("an explicit market selection moves focus to the Market Analysis status whe
 
   await page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button")
+    .getByRole("link")
     .filter({ hasText: "South Africa" })
     .click();
 
@@ -452,12 +452,12 @@ test("a rapid re-selection cancels the outstanding request so only the last sele
 
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
 
   await page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button")
+    .getByRole("link")
     .filter({ hasText: "South Africa" })
     .click();
 
@@ -494,7 +494,7 @@ test("a fatal annual Market Analysis failure surfaces an assertive recoverable s
 
   await page.goto(CANONICAL_URL);
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
 
   const error = page
@@ -722,9 +722,9 @@ test("a retained build never exposes unpinned links for recipes it did not decla
 
   await expect(
     page.getByRole("link", { name: "Back to opportunities" }),
-  ).toHaveCount(0);
-  await expect(page.locator(".market-analysis-view")).toContainText(
-    "Opportunities are unavailable for this evidence version.",
+  ).toHaveAttribute(
+    "href",
+    /recipe=candidate-market-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
   await expect(
     page.locator("#explore-further").getByRole("link", {

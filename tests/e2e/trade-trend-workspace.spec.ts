@@ -162,8 +162,8 @@ test("Candidate Market remains reachable with its original ranking controls and 
   const candidateMarkets = page.getByRole("list", {
     name: "Candidate Markets",
   });
-  await expect(candidateMarkets.getByRole("button")).toHaveCount(13);
-  await expect(candidateMarkets.getByRole("button").first()).toHaveAccessibleName(
+  await expect(candidateMarkets.getByRole("link")).toHaveCount(13);
+  await expect(candidateMarkets.getByRole("link").first()).toHaveAccessibleName(
     "Analyze this market: Netherlands",
   );
   await expect(

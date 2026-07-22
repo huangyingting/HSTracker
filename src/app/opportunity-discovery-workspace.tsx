@@ -98,6 +98,8 @@ const copy = {
     discoverProduct: "Discover Candidate Markets",
     discoverRequirement:
       "Select an export economy. Choose an exact Product Catalog result only when narrowing to one HS12 product.",
+    scopeBoundary:
+      "Public trade evidence supports market investigation; it does not predict sales, profit, market access, or commercial success.",
   },
   "zh-Hans": {
     eyebrow: "机会发现工作区",
@@ -138,6 +140,8 @@ const copy = {
     discoverProduct: "发现候选市场",
     discoverRequirement:
       "请选择出口经济体。仅在缩小到一个 HS12 产品时选择精确的产品目录结果。",
+    scopeBoundary:
+      "公共贸易证据仅支持市场调查；它不预测销售、利润、市场准入或商业成功。",
   },
 } as const;
 
@@ -169,7 +173,7 @@ export function OpportunityDiscoveryWorkspace({
   const feedPinnedInHistory = useRef(false);
   const scopeControlsRef = useRef<HTMLDivElement>(null);
   const retiredBuildRefreshPending = useRef(false);
-  const suppressedAutomaticLoadKey = useRef<string | null>(null);
+  const refreshedFeedAutomaticLoadKeyToSkip = useRef<string | null>(null);
   const restoredReturnAction = useRef<string | null>(null);
   const scopeSubmissionRequired = useRef(false);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
@@ -499,8 +503,8 @@ export function OpportunityDiscoveryWorkspace({
       exporter,
       product,
     );
-    if (suppressedAutomaticLoadKey.current === automaticLoadKey) {
-      suppressedAutomaticLoadKey.current = null;
+    if (refreshedFeedAutomaticLoadKeyToSkip.current === automaticLoadKey) {
+      refreshedFeedAutomaticLoadKeyToSkip.current = null;
       return;
     }
     const timeout = window.setTimeout(() => void loadFeed(), 0);
@@ -564,14 +568,14 @@ export function OpportunityDiscoveryWorkspace({
     const discovered = await promise;
     if (controller.signal.aborted || discovered === null) {
       retiredBuildRefreshPending.current = false;
-      suppressedAutomaticLoadKey.current = null;
+      refreshedFeedAutomaticLoadKeyToSkip.current = null;
       if (!controller.signal.aborted) {
         setStatus("stale");
       }
       return;
     }
     if (exporter !== null) {
-      suppressedAutomaticLoadKey.current = opportunityFeedLoadKey(
+      refreshedFeedAutomaticLoadKeyToSkip.current = opportunityFeedLoadKey(
         discovered,
         exporter,
         product,
@@ -579,7 +583,7 @@ export function OpportunityDiscoveryWorkspace({
     }
     await loadFeed("refresh", discovered);
     retiredBuildRefreshPending.current = false;
-    suppressedAutomaticLoadKey.current = null;
+    refreshedFeedAutomaticLoadKeyToSkip.current = null;
   }
 
   function clearProductProjection() {
@@ -851,6 +855,9 @@ export function OpportunityDiscoveryWorkspace({
               onDetailsOpenChange={setSourceDetailsOpen}
             />
           )}
+          {exporter !== null && status === "idle" ? (
+            <p className="workspace-disclaimer">{messages.scopeBoundary}</p>
+          ) : null}
 
           {status === "loading" || status === "refreshing" ? (
             <div className="analysis-state analysis-loading" role="status">

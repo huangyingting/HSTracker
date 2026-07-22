@@ -82,6 +82,11 @@ test("all-product browse, product discovery, and known-product links reach the s
   });
   await expect(discoverAll).toBeEnabled();
   await expect(
+    page.getByText(
+      "Public trade evidence supports market investigation; it does not predict sales, profit, market access, or commercial success.",
+    ),
+  ).toBeVisible();
+  await expect(
     page.getByRole("list", { name: "Market Investigation Candidates" }),
   ).toHaveCount(0);
   await discoverAll.click();
@@ -104,7 +109,7 @@ test("all-product browse, product discovery, and known-product links reach the s
   await expect(
     page
       .getByRole("list", { name: "Candidate Markets" })
-      .getByRole("button"),
+      .getByRole("link"),
   ).toHaveCount(13);
   await expect(
     page.getByText(

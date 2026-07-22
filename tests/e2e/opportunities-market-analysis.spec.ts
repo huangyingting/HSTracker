@@ -10,7 +10,7 @@ test("a fixed-product opportunity opens Market Analysis explicitly and Back rest
   );
 
   const candidates = page.getByRole("list", { name: "Candidate Markets" });
-  await expect(candidates.getByRole("button")).toHaveCount(13);
+  await expect(candidates.getByRole("link")).toHaveCount(13);
   await expect(
     page.getByRole("heading", { name: /Market Analysis/u }),
   ).toHaveCount(0);
@@ -18,7 +18,7 @@ test("a fixed-product opportunity opens Market Analysis explicitly and Back rest
   const netherlandsRow = candidates
     .getByRole("listitem")
     .filter({ hasText: "Netherlands" });
-  const analyzeNetherlands = netherlandsRow.getByRole("button", {
+  const analyzeNetherlands = netherlandsRow.getByRole("link", {
     name: "Analyze this market: Netherlands",
   });
   await expect(netherlandsRow).toContainText("Candidate Market Score 85");
@@ -28,7 +28,7 @@ test("a fixed-product opportunity opens Market Analysis explicitly and Back rest
   await expect(netherlandsRow).toContainText("Recorded Foothold 30.0%");
   await expect(netherlandsRow).toContainText("Supplier Diversity 1");
   await expect(netherlandsRow).toContainText("Data Confidence: HIGH");
-  await expect(netherlandsRow.getByRole("button")).toHaveCount(1);
+  await expect(netherlandsRow.getByRole("link")).toHaveCount(1);
   await analyzeNetherlands.click();
 
   await expect(page).toHaveURL(
@@ -179,7 +179,7 @@ test("the Chinese opportunity action is singular and keyboard/touch usable on mo
       .filter({ hasText: "Netherlands" });
     await expect(fixedCandidate).toContainText("候选市场评分 85");
     await expect(fixedCandidate).toContainText("数据置信度: 高");
-    const fixedAction = fixedCandidate.getByRole("button", {
+    const fixedAction = fixedCandidate.getByRole("link", {
       name: "分析此市场: Netherlands",
     });
     const fixedBox = await fixedAction.boundingBox();
@@ -316,6 +316,6 @@ test("a direct Market Analysis link falls back to its fixed-product opportunitie
 
   await back.click();
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
 });

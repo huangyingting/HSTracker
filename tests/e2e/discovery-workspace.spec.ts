@@ -44,7 +44,7 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
   );
 
   const candidateList = page.getByRole("list", { name: "Candidate Markets" });
-  const candidateMarkets = candidateList.getByRole("button");
+  const candidateMarkets = candidateList.getByRole("link");
   const candidateRows = candidateList.getByRole("listitem");
   await expect(candidateRows).toHaveCount(13);
   const expectedCandidates = [
@@ -78,8 +78,12 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
       `Data Confidence: ${candidate.confidence}`,
     );
     await expect(row).toContainText("Analyze this market");
-    await expect(row.getByRole("button")).toHaveCount(1);
+    await expect(row.getByRole("link")).toHaveCount(1);
   }
+  await expect(candidateMarkets.first()).toHaveAttribute(
+    "href",
+    /recipe=candidate-market-v1.*exporter=156.*product=010121.*market=528.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-[0-9a-f]{64}/u,
+  );
   const analyzeActionHeight = await candidateMarkets
     .first()
     .evaluate((element) => element.getBoundingClientRect().height);
@@ -155,7 +159,7 @@ test("a canonical analysis URL restores its complete selected context", async ({
     "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
   );
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await expect(
     page
@@ -184,7 +188,7 @@ test("browser history restores Candidate Market evidence without reloading analy
   });
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button");
+    .getByRole("link");
   await expect(
     evidence.getByRole("heading", { name: "Netherlands" }),
   ).toBeVisible();
@@ -220,7 +224,7 @@ test("browser history restores prior exporter and HS Product contexts", async ({
   const candidateList = page.getByRole("list", {
     name: "Candidate Markets",
   });
-  await expect(candidateList.getByRole("button")).toHaveCount(13);
+  await expect(candidateList.getByRole("link")).toHaveCount(13);
 
   const product = page.getByRole("combobox", {
     name: "HS 2012 product",
@@ -243,7 +247,7 @@ test("browser history restores prior exporter and HS Product contexts", async ({
   await expect(product).toHaveValue(
     "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
   );
-  await expect(candidateList.getByRole("button")).toHaveCount(13);
+  await expect(candidateList.getByRole("link")).toHaveCount(13);
   await expect(
     page
       .getByRole("region", { name: "Selected Candidate Market evidence" })
@@ -394,11 +398,11 @@ test("a stale analysis build can refresh the complete result", async ({
   await refreshCurrentEvidence.click();
 
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
   await page
     .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("button", { name: "Analyze this market: Netherlands" })
+    .getByRole("link", { name: "Analyze this market: Netherlands" })
     .click();
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
@@ -662,13 +666,13 @@ test("an Export Market Analyst can inspect localized Chinese evidence", async ({
     "/?exporter=156&revision=HS12&product=010121&market=528",
   );
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
 
   await page.getByRole("button", { name: "简体中文" }).click();
 
   await expect(
-    page.getByRole("list", { name: "候选市场" }).getByRole("button"),
+    page.getByRole("list", { name: "候选市场" }).getByRole("link"),
   ).toHaveCount(13);
   await expect(
     page.getByRole("region", { name: "工作区范围" }).getByText("BACI 发布版本"),

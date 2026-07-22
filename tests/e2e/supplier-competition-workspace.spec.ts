@@ -216,7 +216,7 @@ test("Candidate Market remains reachable alongside Supplier Competition", async 
   const candidateMarkets = page.getByRole("list", {
     name: "Candidate Markets",
   });
-  await expect(candidateMarkets.getByRole("button")).toHaveCount(13);
+  await expect(candidateMarkets.getByRole("link")).toHaveCount(13);
   await expect(page).not.toHaveURL(/recipe=supplier-competition-v1/);
 });
 
