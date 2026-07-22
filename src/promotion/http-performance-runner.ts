@@ -4,6 +4,7 @@ import {
   RUNTIME_PROBE_CACHE_PARTITION_HEADER,
   RUNTIME_PROBE_CACHE_STATE_HEADER,
 } from "../runtime/runtime-metrics";
+import { RUNTIME_RESOURCE_POLICY } from "../runtime-resource-policy";
 import {
   summarizeBenchmarkSamples,
   type BenchmarkSample,
@@ -789,6 +790,39 @@ export function createFetchHttpExecutor(): HttpBenchmarkExecutor {
       } finally {
         clearTimeout(timer);
       }
+    },
+  };
+}
+
+export function createAnonymousSourcePacedHttpExecutor(
+  executor: HttpBenchmarkExecutor,
+): HttpBenchmarkExecutor {
+  const minimumStartIntervalMs =
+    1_000 /
+    RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond;
+  let nextStartAt = Number.NEGATIVE_INFINITY;
+  let precedingStart = Promise.resolve();
+
+  return {
+    async execute(request): Promise<HttpBenchmarkOutcome> {
+      const waitForPrecedingStart = precedingStart;
+      let releaseStart: () => void = () => undefined;
+      precedingStart = new Promise<void>((resolve) => {
+        releaseStart = resolve;
+      });
+      await waitForPrecedingStart;
+      try {
+        const waitMs = nextStartAt - performance.now();
+        if (waitMs > 0) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, waitMs);
+          });
+        }
+        nextStartAt = performance.now() + minimumStartIntervalMs;
+      } finally {
+        releaseStart();
+      }
+      return executor.execute(request);
     },
   };
 }

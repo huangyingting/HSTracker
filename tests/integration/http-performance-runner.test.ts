@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
+import { RUNTIME_RESOURCE_POLICY } from "../../src/runtime-resource-policy";
 import {
   RUNTIME_PROBE_CACHE_PARTITION_HEADER,
   RUNTIME_PROBE_CACHE_STATE_HEADER,
 } from "../../src/runtime/runtime-metrics";
 import {
   HttpPerformanceRunnerError,
+  createAnonymousSourcePacedHttpExecutor,
+  createFetchHttpExecutor,
   createPrometheusMixedLoadObservationAdapter,
   parseOriginBenchmarkPlan,
   resolveRequestUrl,
@@ -22,12 +25,56 @@ import {
 } from "../../src/promotion/http-performance-runner";
 import type { RuntimeIdentityAttestor } from "../../src/promotion/runtime-identity-attestation";
 
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
 function originRunnerDependencies() {
   return {
     now: () => 0,
     attestIdentity: fakeIdentityAttestor,
   } as const;
 }
+
+describe("fetch HTTP executor", () => {
+  it("paces requests at the anonymous source refill rate", async () => {
+    vi.useFakeTimers();
+    const minimumIntervalMs =
+      1_000 /
+      RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond;
+    let lastAcceptedAt = Number.NEGATIVE_INFINITY;
+    const fetchStub = vi.fn(() => {
+      const now = performance.now();
+      const status = now - lastAcceptedAt >= minimumIntervalMs ? 200 : 429;
+      if (status === 200) {
+        lastAcceptedAt = now;
+      }
+      return Promise.resolve(new Response(null, { status }));
+    });
+    vi.stubGlobal("fetch", fetchStub);
+    const executor = createAnonymousSourcePacedHttpExecutor(
+      createFetchHttpExecutor(),
+    );
+    const request = {
+      method: "GET",
+      url: new URL("https://candidate.example.com/healthz"),
+      headers: {},
+      timeoutMs: 1_000,
+    } as const;
+
+    const first = await executor.execute(request);
+    const secondPromise = executor.execute(request);
+    await vi.advanceTimersByTimeAsync(minimumIntervalMs - 1);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    const second = await secondPromise;
+
+    expect(first.timedOut ? null : first.status).toBe(200);
+    expect(second.timedOut ? null : second.status).toBe(200);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("origin-benchmark plan parsing", () => {
   it("accepts a complete candidate plan naming every required operation", () => {

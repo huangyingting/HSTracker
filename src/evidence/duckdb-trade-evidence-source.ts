@@ -55,6 +55,7 @@ import type {
   TradeEvidenceLoadOptions,
   TradeEvidenceSource,
 } from "./trade-evidence-source";
+import { readNullableIso3Crosswalk } from "../economy/iso3-crosswalk";
 import {
   createRuntimeReadStream,
   statRuntimePath,
@@ -350,7 +351,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       importer: {
         code: String(requireNumber(importer.code, "importer code")),
         name: requireString(importer.display_name, "importer display_name"),
-        iso3: requireNullableString(importer.iso3, "importer iso3"),
+        iso3: readNullableIso3Crosswalk(importer.iso3, "importer iso3"),
         identityNote: requireNullableString(
           importer.identity_note,
           "importer identity_note",
@@ -561,7 +562,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
           economy: {
             code: String(requireNumber(row.exporter_code, "supplier code")),
             name: requireString(row.display_name, "supplier display_name"),
-            iso3: requireNullableString(row.iso3, "supplier iso3"),
+            iso3: readNullableIso3Crosswalk(row.iso3, "supplier iso3"),
             identityNote: requireNullableString(
               row.identity_note,
               "supplier identity_note",
@@ -600,7 +601,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       importer: {
         code: String(requireNumber(importer.code, "importer code")),
         name: requireString(importer.display_name, "importer display_name"),
-        iso3: requireNullableString(importer.iso3, "importer iso3"),
+        iso3: readNullableIso3Crosswalk(importer.iso3, "importer iso3"),
         identityNote: requireNullableString(
           importer.identity_note,
           "importer identity_note",
@@ -752,7 +753,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
         identity: {
           code,
           name: requireString(row.display_name, "economy display_name"),
-          iso3: requireNullableString(row.iso3, "economy iso3"),
+          iso3: readNullableIso3Crosswalk(row.iso3, "economy iso3"),
           identityNote: requireNullableString(
             row.identity_note,
             "economy identity_note",
@@ -1120,7 +1121,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       exporter: {
         code: String(requireNumber(exporter.code, "exporter code")),
         name: requireString(exporter.display_name, "exporter display_name"),
-        iso3: requireNullableString(exporter.iso3, "exporter iso3"),
+        iso3: readNullableIso3Crosswalk(exporter.iso3, "exporter iso3"),
         identityNote: requireNullableString(
           exporter.identity_note,
           "exporter identity_note",
@@ -1173,7 +1174,7 @@ function toMarketYearEvidence(
     candidateMarket: {
       code: String(requireNumber(row.code, "candidate code")),
       name: requireString(row.display_name, "candidate display_name"),
-      iso3: requireNullableString(row.iso3, "candidate iso3"),
+      iso3: readNullableIso3Crosswalk(row.iso3, "candidate iso3"),
       identityNote: requireNullableString(
         row.identity_note,
         "candidate identity_note",
@@ -1262,7 +1263,7 @@ function groupSupplierActivityRows(
         economy: {
           code,
           name: requireString(row.display_name, "supplier display_name"),
-          iso3: requireNullableString(row.iso3, "supplier iso3"),
+          iso3: readNullableIso3Crosswalk(row.iso3, "supplier iso3"),
           identityNote: requireNullableString(
             row.identity_note,
             "supplier identity_note",

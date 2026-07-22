@@ -5,6 +5,7 @@ import {
   access,
   mkdtemp,
   readFile,
+  rename,
   rm,
   stat,
   writeFile,
@@ -45,6 +46,29 @@ afterEach(async () => {
 });
 
 describe("immutable DuckDB analysis artifact CLI", () => {
+  it("stores non-ISO source metadata codes as a missing ISO3 crosswalk", async () => {
+    const root = await temporaryWorkspace();
+    const staging = await stageSafeFixture(join(root, "staging-work"));
+    await replaceStagedIso3(staging.stagingManifestPath, "156", "S19");
+
+    const outcome = await runArtifactCli({
+      stagingManifestPath: staging.stagingManifestPath,
+      workspace: join(root, "artifact-work"),
+      reportPath: join(root, "artifact-report.json"),
+    });
+    const instance = await DuckDBInstance.create(outcome.artifactPath);
+    const connection = await instance.connect();
+    try {
+      const result = await connection.runAndReadAll(
+        "SELECT iso3 FROM economy WHERE code = 156",
+      );
+      expect(result.getRowObjectsJson()).toEqual([{ iso3: null }]);
+    } finally {
+      connection.closeSync();
+      instance.closeSync();
+    }
+  }, 20_000);
+
   it("builds reconciled ordered tables from accepted staging", async () => {
     const root = await temporaryWorkspace();
     const staging = await stageSafeFixture(join(root, "staging-work"));
@@ -933,6 +957,64 @@ async function stageSafeFixture(
     { timeout: 60_000 },
   );
   return JSON.parse(stdout);
+}
+
+async function replaceStagedIso3(
+  stagingManifestPath: string,
+  economyCode: string,
+  iso3: string,
+): Promise<void> {
+  const stagingManifest = JSON.parse(
+    await readFile(stagingManifestPath, "utf8"),
+  );
+  const economiesPath = join(
+    dirname(stagingManifestPath),
+    stagingManifest.dimensionFiles.economies.relativePath,
+  );
+  const replacementPath = `${economiesPath}.replacement`;
+  const instance = await DuckDBInstance.create(":memory:");
+  const connection = await instance.connect();
+  try {
+    await connection.run(`
+      COPY (
+        SELECT
+          economy_code,
+          display_name,
+          iso2,
+          CASE
+            WHEN economy_code = ${Number(economyCode)} THEN '${iso3}'
+            ELSE iso3
+          END AS iso3
+        FROM read_parquet('${economiesPath.replaceAll("'", "''")}')
+        ORDER BY economy_code
+      ) TO '${replacementPath.replaceAll("'", "''")}'
+      (FORMAT PARQUET, COMPRESSION ZSTD)
+    `);
+  } finally {
+    connection.closeSync();
+    instance.closeSync();
+  }
+  await rename(replacementPath, economiesPath);
+
+  stagingManifest.dimensionFiles.economies.bytes = (
+    await stat(economiesPath)
+  ).size;
+  stagingManifest.dimensionFiles.economies.sha256 =
+    await sha256File(economiesPath);
+  const stagingManifestBytes = Buffer.from(
+    `${JSON.stringify(stagingManifest, null, 2)}\n`,
+  );
+  await writeFile(stagingManifestPath, stagingManifestBytes);
+
+  const sourceReportPath = join(dirname(stagingManifestPath), "source-report.json");
+  const sourceReport = JSON.parse(await readFile(sourceReportPath, "utf8"));
+  sourceReport.staging.manifestSha256 = createHash("sha256")
+    .update(stagingManifestBytes)
+    .digest("hex");
+  await writeFile(
+    sourceReportPath,
+    `${JSON.stringify(sourceReport, null, 2)}\n`,
+  );
 }
 
 async function runArtifactCli({

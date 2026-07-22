@@ -552,7 +552,10 @@ async function populateArtifactTables(
       economy_code,
       display_name,
       iso2,
-      iso3,
+      CASE
+        WHEN regexp_full_match(iso3, '[A-Z]{3}') THEN iso3
+        ELSE NULL
+      END,
       CASE
         WHEN economy_code IN (${aggregateEconomyCodes}) THEN 'AGGREGATE'
         ELSE 'ECONOMY'
@@ -700,6 +703,22 @@ async function reconcileArtifact(
     throw new AnalysisArtifactBuildError(
       "ARTIFACT_RECONCILIATION_FAILED",
       "Artifact table counts do not match accepted staging.",
+    );
+  }
+  const invalidEconomyCrosswalks = await queryOne(
+    connection,
+    `
+      SELECT COUNT_IF(
+        (iso2 IS NOT NULL AND NOT regexp_full_match(iso2, '[A-Z]{2}'))
+        OR (iso3 IS NOT NULL AND NOT regexp_full_match(iso3, '[A-Z]{3}'))
+      )::UBIGINT AS count
+      FROM economy
+    `,
+  );
+  if (requireQueryCount(invalidEconomyCrosswalks, "count") !== 0) {
+    throw new AnalysisArtifactBuildError(
+      "ARTIFACT_RECONCILIATION_FAILED",
+      "Artifact economy crosswalks violate the ISO2/ISO3 contract.",
     );
   }
 

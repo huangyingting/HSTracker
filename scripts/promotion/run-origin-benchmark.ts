@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
 import {
+  createAnonymousSourcePacedHttpExecutor,
   createFetchHttpExecutor,
   parseOriginBenchmarkPlan,
   runOriginBenchmark,
@@ -46,7 +47,10 @@ async function main(): Promise<void> {
   // pointers, and needs no provider credentials beyond reaching the origin.
   // Acceptance is decided separately by evaluatePerformanceGates against
   // the thresholds this report feeds.
-  const report = await runOriginBenchmark(plan, createFetchHttpExecutor());
+  const report = await runOriginBenchmark(
+    plan,
+    createAnonymousSourcePacedHttpExecutor(createFetchHttpExecutor()),
+  );
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
 
