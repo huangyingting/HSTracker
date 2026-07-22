@@ -74,15 +74,16 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     .getByRole("button", { name: "Show complete public ranking" })
     .click();
   await expect(candidates).toHaveCount(4);
-  const scope = page.getByRole("region", {
-    name: "Portfolio analysis scope",
+  const scope = portfolio.getByRole("region", {
+    name: "Workspace scope",
   });
-  await expect(scope).toContainText("Current deployment");
-  await expect(scope).toContainText("Finalized score period");
+  await expect(scope).toContainText("Current");
+  await expect(scope).toContainText("Finalized window");
   await expect(scope).toContainText("2019–2023");
-  await expect(scope).toContainText("Provisional context");
-  await expect(scope).toContainText("2024 · supporting evidence only");
+  await expect(scope).toContainText("Provisional Year");
+  await expect(scope).toContainText("2024");
   await expect(scope).toContainText("Latest known BACI release");
+  await expect(scope).toContainText("Confirmed portfolio · 010121");
   await page.getByRole("button", { name: "Show portfolio filter" }).click();
   await expect(candidates).toHaveCount(2);
   await expect(page).toHaveURL(
@@ -112,8 +113,10 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     page.getByRole("list", { name: "组合机会候选项" }).getByRole("listitem"),
   ).toHaveCount(2);
   await expect(
-    page.getByRole("region", { name: "组合分析范围" }),
-  ).toContainText("当前部署");
+    page
+      .getByRole("region", { name: "您的组合机会工作区" })
+      .getByRole("region", { name: "工作区范围" }),
+  ).toContainText("当前");
   expect(opportunityRequests).toBe(requestsBeforeLocale);
   await expect(
     page.getByRole("button", { name: "使用当前证据刷新" }),
@@ -153,9 +156,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("No account required")).toBeVisible();
-  await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Advanced tools" })).toBeVisible();
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
@@ -221,9 +222,7 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
 
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
-  await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Advanced tools" })).toBeVisible();
   expect(opportunityRequests).toBe(0);
 
   const portfolio = page.getByRole("region", {
@@ -298,9 +297,7 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
-  await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Advanced tools" })).toBeVisible();
 
   await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(analyzeNetherlands).toBeFocused();

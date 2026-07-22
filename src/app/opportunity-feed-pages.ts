@@ -1,18 +1,13 @@
 import type {
   MarketInvestigationCandidate,
 } from "../domain/opportunity-discovery/result";
+import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 import { loadMarketInvestigationPage } from "./opportunity-discovery-client";
 import { resolvePinnedContext } from "./trade-analysis-context";
 
 type ResolvedOpportunityPin = ReturnType<typeof resolvePinnedContext>;
-
-export function opportunityCandidateKey(
-  candidate: MarketInvestigationCandidate,
-): string {
-  return `${candidate.product.code}:${candidate.market.code}`;
-}
 
 export function appendOpportunityPage(
   current: OpportunityDiscoveryV1Payload,
@@ -37,11 +32,11 @@ export function appendOpportunityPage(
     );
   }
   const existingKeys = new Set(
-    current.candidates.map(opportunityCandidateKey),
+    current.candidates.map(marketInvestigationCandidateKey),
   );
   if (
     next.candidates.some((candidate) =>
-      existingKeys.has(opportunityCandidateKey(candidate)),
+      existingKeys.has(marketInvestigationCandidateKey(candidate)),
     )
   ) {
     throw new TypeError("Opportunity continuation repeats a loaded candidate.");

@@ -11,6 +11,7 @@ import {
 import type {
   MarketInvestigationCandidate,
 } from "../domain/opportunity-discovery/result";
+import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { ProductSearchProduct } from "../catalog/product-catalog";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
@@ -29,7 +30,6 @@ import { AnalysisShareLink } from "./analysis-share-link";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import {
   buildPortfolioProjection,
-  candidateProjectionKey,
   type PortfolioProjectionMode,
 } from "./portfolio-projection";
 import { loadMarketInvestigationPage } from "./opportunity-discovery-client";
@@ -46,7 +46,6 @@ import {
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
 import { ProductCombobox } from "./product-combobox";
-import { localizedSourceFreshness } from "./source-freshness-presentation";
 import {
   parseTradeAnalysisContext,
   pinFromDeploymentWindow,
@@ -55,6 +54,7 @@ import {
   withRecipe,
   type OpportunityDiscoveryContext,
 } from "./trade-analysis-context";
+import { WorkspaceScope } from "./workspace-scope";
 
 const PAGE_LIMIT = 100;
 
@@ -110,6 +110,8 @@ const copy = {
     visibleRows: "visible rows",
     completeRows: "complete public rows",
     canonicalRank: "Canonical public rank",
+    orderingExplanation:
+      "Filtered from the canonical public Investigation Priority order. Portfolio products never rerank or recompute public evidence.",
     filterLabel: "Your portfolio filter",
     listLabel: "Portfolio Opportunity Candidates",
     currentLoading: "Loading current public analysis…",
@@ -176,6 +178,8 @@ const copy = {
     visibleRows: "个可见行",
     completeRows: "个完整公共行",
     canonicalRank: "公共规范排名",
+    orderingExplanation:
+      "从公共规范调查优先级顺序中筛选。产品组合绝不会重新排名或重新计算公共证据。",
     filterLabel: "您的组合筛选",
     listLabel: "组合机会候选项",
     currentLoading: "正在加载当前公共分析…",
@@ -838,11 +842,24 @@ function SignedInPortfolioWorkspace({
       {manifest === null ||
       feed === null ||
       feedDeploymentState === null ? null : (
-        <PortfolioAnalysisScope
-          manifest={manifest}
-          feed={feed}
+        <WorkspaceScope
           locale={locale}
+          exporter={feed.exporter}
+          product={{
+            mode: "portfolio",
+            codes: session.portfolio.map(({ product }) => product.code),
+          }}
           deploymentState={feedDeploymentState}
+          baciRelease={feed.provenance.baciRelease}
+          finalizedWindow={feed.provenance.scoreWindow}
+          provisionalYear={feed.provenance.provisionalYear}
+          freshnessState={
+            feedDeploymentState === "current"
+              ? manifest.freshness.state
+              : null
+          }
+          analysisIdentity={feed.analysisIdentity}
+          datasetPackageIdentity={feed.datasetPackageIdentity}
         />
       )}
       <div className="portfolio-product-tools">
@@ -907,7 +924,7 @@ function SignedInPortfolioWorkspace({
         <OpportunityExportAction
           page={feed}
           candidateKeys={projection.scopeRows.map((row) =>
-            candidateProjectionKey(row.candidate),
+            marketInvestigationCandidateKey(row.candidate),
           )}
           scope="portfolio"
           locale={locale}
@@ -953,6 +970,9 @@ function SignedInPortfolioWorkspace({
                 </div>
                 <strong>{feed.provenance.baciRelease}</strong>
               </div>
+              <p className="opportunity-ordering">
+                {messages.orderingExplanation}
+              </p>
               {projection.scopeRows.length === 0 ? (
                 <div className="analysis-state" role="status">
                   <h3>{messages.noVisibleRows}</h3>
@@ -964,7 +984,7 @@ function SignedInPortfolioWorkspace({
                     const analysisHref = marketAnalysisHref(row.candidate);
                     return (
                       <OpportunityCandidateRow
-                        key={candidateProjectionKey(row.candidate)}
+                        key={marketInvestigationCandidateKey(row.candidate)}
                         candidate={row.candidate}
                         locale={locale}
                         leading={`${messages.canonicalRank} #${row.canonicalRank}`}
@@ -996,75 +1016,4 @@ function SignedInPortfolioWorkspace({
 
 function portfolioActionId(candidate: MarketInvestigationCandidate): string {
   return `analyze-portfolio-${candidate.product.code}-${candidate.market.code}`;
-}
-
-function PortfolioAnalysisScope({
-  manifest,
-  feed,
-  locale,
-  deploymentState,
-}: {
-  manifest: CurrentAnalysisManifest;
-  feed: OpportunityDiscoveryV1Payload;
-  locale: AccountLocale;
-  deploymentState: "current" | "retained";
-}) {
-  const messages = copy[locale];
-  const isCurrent =
-    deploymentState === "current" &&
-    feed.analysisBuildId === manifest.analysisBuildId &&
-    feed.provenance.baciRelease === manifest.source.baciRelease;
-  return (
-    <section
-      className="portfolio-analysis-scope"
-      aria-label={messages.analysisScope}
-      data-deployment-state={isCurrent ? "current" : "retained"}
-      data-freshness-state={isCurrent ? manifest.freshness.state : undefined}
-    >
-      <h3>{messages.analysisScope}</h3>
-      <dl>
-        <div>
-          <dt>{messages.deploymentState}</dt>
-          <dd>
-            {isCurrent
-              ? messages.currentDeployment
-              : messages.retainedDeployment}
-          </dd>
-        </div>
-        <div>
-          <dt>{messages.analysisIdentity}</dt>
-          <dd>{feed.analysisIdentity}</dd>
-        </div>
-        <div>
-          <dt>{messages.datasetPackage}</dt>
-          <dd>{feed.datasetPackageIdentity}</dd>
-        </div>
-        <div>
-          <dt>{messages.baciRelease}</dt>
-          <dd>{feed.provenance.baciRelease}</dd>
-        </div>
-        <div>
-          <dt>{messages.finalizedPeriod}</dt>
-          <dd>
-            {feed.provenance.scoreWindow.start}–
-            {feed.provenance.scoreWindow.end}
-          </dd>
-        </div>
-        <div>
-          <dt>{messages.provisionalPeriod}</dt>
-          <dd>
-            {feed.provenance.provisionalYear} · {messages.provisionalOnly}
-          </dd>
-        </div>
-        <div>
-          <dt>{messages.sourceFreshness}</dt>
-          <dd>
-            {isCurrent
-              ? localizedSourceFreshness(manifest.freshness.state, locale)
-              : messages.retainedFreshness}
-          </dd>
-        </div>
-      </dl>
-    </section>
-  );
 }

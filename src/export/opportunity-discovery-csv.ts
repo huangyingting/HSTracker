@@ -1,4 +1,5 @@
 import type { MarketInvestigationCandidate } from "../domain/opportunity-discovery/result";
+import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 import { encodeCsvRecord, protectHumanText } from "./csv-grammar";
 
@@ -88,7 +89,8 @@ export function serializeOpportunityDiscoveryCsv({
     throw new TypeError("Opportunity CSV candidate selection repeats a row.");
   }
   const rows = page.candidates.flatMap((candidate, index) =>
-    selectedKeys === null || selectedKeys.has(candidateKey(candidate))
+    selectedKeys === null ||
+    selectedKeys.has(marketInvestigationCandidateKey(candidate))
       ? [{ candidate, canonicalRank: index + 1 }]
       : [],
   );
@@ -198,10 +200,6 @@ function human(
   escapedColumns: Set<Column>,
 ): string {
   return protectHumanText(value, column, escapedColumns);
-}
-
-function candidateKey(candidate: MarketInvestigationCandidate): string {
-  return `${candidate.product.code}:${candidate.market.code}`;
 }
 
 function safeFilenameSegment(value: string): string {

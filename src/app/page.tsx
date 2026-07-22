@@ -138,7 +138,7 @@ export default function Home({
       window.location.href,
       context,
     );
-    window.history.replaceState(null, "", nextHref);
+    window.history.replaceState(window.history.state, "", nextHref);
   }
 
   return (

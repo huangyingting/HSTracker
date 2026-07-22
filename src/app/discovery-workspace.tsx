@@ -57,6 +57,7 @@ import {
   type CandidateMarketContext,
   type TradeAnalysisRecipe,
 } from "./trade-analysis-context";
+import { WorkspaceScope } from "./workspace-scope";
 
 const copy = {
   en: {
@@ -64,9 +65,13 @@ const copy = {
     title: "Define the analysis inputs.",
     lede: "Select an export economy and HS 2012 product, then load the complete canonical ranking.",
     analyze: "Analyze Candidate Markets",
+    analyzeRequirement:
+      "Select an export economy and one exact Product Catalog result. Free text is not an analytical input.",
     loading: "Loading the complete Candidate Market result…",
     refreshing: "Revalidating the current analysis release…",
     ranked: "Ranked Candidate Markets",
+    orderingExplanation:
+      "Ordered by canonical Candidate Market rank. Presentation never re-sorts or recomputes this evidence.",
     candidateList: "Candidate Markets",
     analysisScope: "Analysis source scope",
     baciRelease: "BACI Release",
@@ -121,9 +126,13 @@ const copy = {
     title: "定义分析输入。",
     lede: "选择出口经济体和 HS 2012 产品，然后加载完整的规范排名。",
     analyze: "分析候选市场",
+    analyzeRequirement:
+      "请选择出口经济体和一个精确的产品目录结果。自由文本不是分析输入。",
     loading: "正在加载完整的候选市场结果…",
     refreshing: "正在重新验证当前分析发布版本…",
     ranked: "候选市场排名",
+    orderingExplanation:
+      "按规范候选市场排名排序。界面绝不会重新排序或重新计算这些证据。",
     candidateList: "候选市场",
     analysisScope: "分析来源范围",
     baciRelease: "BACI 发布版本",
@@ -822,31 +831,77 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               onSelectionChange={handleProductSelection}
               onRetiredBuild={recoverRetiredAnalysis}
             />
-            <button
-              className="analyze-button"
-              type="button"
-              disabled={
-                exporter === null ||
-                product === null ||
-                status === "loading" ||
-                status === "refreshing"
-              }
-              onClick={() => void analyzeCandidateMarkets()}
-            >
-              {messages.analyze}
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="analysis-submit">
+              <button
+                className="analyze-button"
+                type="button"
+                aria-describedby="candidate-analysis-requirement"
+                disabled={
+                  exporter === null ||
+                  product === null ||
+                  status === "loading" ||
+                  status === "refreshing"
+                }
+                onClick={() => void analyzeCandidateMarkets()}
               >
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </button>
+                {messages.analyze}
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </button>
+              <small id="candidate-analysis-requirement">
+                {messages.analyzeRequirement}
+              </small>
+            </div>
           </div>
+          {exporter === null || product === null ? null : (
+            <WorkspaceScope
+              locale={locale}
+              exporter={exporter}
+              product={{
+                mode: "exact",
+                revision: product.hsRevision,
+                code: product.code,
+                descriptionEn: product.sourceDescriptionEn,
+                descriptionZhHans: product.auxiliaryDescriptionZhHans,
+              }}
+              market={
+                selectedCandidate === null
+                  ? null
+                  : selectedCandidate.economy
+              }
+              deploymentState={
+                resolvedDeploymentState === "retained"
+                  ? "retained"
+                  : "current"
+              }
+              baciRelease={
+                result?.provenance.baciRelease ??
+                currentManifest.source.baciRelease
+              }
+              finalizedWindow={
+                result?.provenance.scoreWindow ??
+                currentManifest.source.windows.score
+              }
+              provisionalYear={
+                result?.provenance.provisionalYear ??
+                currentManifest.source.provisionalYear
+              }
+              freshnessState={
+                resolvedDeploymentState === "retained"
+                  ? null
+                  : currentManifest.freshness.state
+              }
+            />
+          )}
           <SourceScope
             manifest={currentManifest}
             result={result}
@@ -896,6 +951,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                     {result.cohortSize} {messages.candidates}
                   </strong>
                 </div>
+                <p className="opportunity-ordering">
+                  {messages.orderingExplanation}
+                </p>
                 {result.candidates.length > VIRTUALIZED_LIST_THRESHOLD ? (
                   <VirtualizedCandidateList
                     candidates={result.candidates}

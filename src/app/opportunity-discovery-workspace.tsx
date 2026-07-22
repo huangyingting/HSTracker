@@ -13,6 +13,7 @@ import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
+import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 import type { EconomyRecord } from "../economy/economy-directory";
@@ -33,11 +34,9 @@ import { OpportunityCandidateRow } from "./opportunity-candidate-row";
 import { OpportunityExportAction } from "./opportunity-export-action";
 import {
   appendOpportunityPage,
-  opportunityCandidateKey,
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
 import { ProductCombobox } from "./product-combobox";
-import { localizedSourceFreshness } from "./source-freshness-presentation";
 import { SourceScope } from "./source-scope";
 import {
   parseTradeAnalysisContext,
@@ -51,6 +50,7 @@ import {
   withRecipe,
   type TradeAnalysisContext,
 } from "./trade-analysis-context";
+import { WorkspaceScope } from "./workspace-scope";
 
 const PAGE_LIMIT = 20;
 
@@ -85,6 +85,8 @@ const copy = {
     showAllProducts: "Show all products",
     feedTitle: "Market Investigation Candidates",
     feedCount: "candidate rows in this exporter cohort",
+    orderingExplanation:
+      "Ordered by canonical Investigation Priority for this exporter cohort. Pagination preserves that public order.",
     nextPage: "Load more candidates",
     nextPageFailed: "More candidates could not be loaded.",
     candidateList: "Market Investigation Candidates",
@@ -133,6 +135,8 @@ const copy = {
     showAllProducts: "显示全部产品",
     feedTitle: "市场调查候选项",
     feedCount: "个出口经济体队列候选行",
+    orderingExplanation:
+      "按该出口经济体队列的规范调查优先级排序。分页保持这一公共顺序。",
     nextPage: "加载更多候选项",
     nextPageFailed: "无法加载更多候选项。",
     candidateList: "市场调查候选项",
@@ -187,6 +191,7 @@ export function OpportunityDiscoveryWorkspace({
   const feedPinnedInHistory = useRef(false);
   const scopeControlsRef = useRef<HTMLDivElement>(null);
   const retiredBuildRefreshPending = useRef(false);
+  const suppressedAutomaticLoadKey = useRef<string | null>(null);
   const restoredReturnAction = useRef<string | null>(null);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [currentManifest, setCurrentManifest] =
@@ -508,6 +513,15 @@ export function OpportunityDiscoveryWorkspace({
     ) {
       return;
     }
+    const automaticLoadKey = opportunityFeedLoadKey(
+      currentManifest,
+      exporter,
+      product,
+    );
+    if (suppressedAutomaticLoadKey.current === automaticLoadKey) {
+      suppressedAutomaticLoadKey.current = null;
+      return;
+    }
     const timeout = window.setTimeout(() => void loadFeed(), 0);
     return () => window.clearTimeout(timeout);
   }, [currentManifest, exporter, loadFeed, product]);
@@ -564,6 +578,13 @@ export function OpportunityDiscoveryWorkspace({
         setStatus("stale");
       }
       return;
+    }
+    if (exporter !== null) {
+      suppressedAutomaticLoadKey.current = opportunityFeedLoadKey(
+        discovered,
+        exporter,
+        product,
+      );
     }
     await loadFeed("refresh", discovered);
     retiredBuildRefreshPending.current = false;
@@ -751,6 +772,50 @@ export function OpportunityDiscoveryWorkspace({
               )}
             </div>
           </div>
+          {exporter === null ? null : (
+            <WorkspaceScope
+              locale={locale}
+              exporter={exporter}
+              product={
+                product === null
+                  ? { mode: "all" }
+                  : {
+                      mode: "exact",
+                      revision: product.hsRevision,
+                      code: product.code,
+                      descriptionEn: product.sourceDescriptionEn,
+                      descriptionZhHans:
+                        product.auxiliaryDescriptionZhHans,
+                    }
+              }
+              deploymentState={
+                feed !== null &&
+                feed.analysisBuildId !== currentManifest.analysisBuildId
+                  ? "retained"
+                  : "current"
+              }
+              baciRelease={
+                feed?.provenance.baciRelease ??
+                currentManifest.source.baciRelease
+              }
+              finalizedWindow={
+                feed?.provenance.scoreWindow ??
+                currentManifest.source.windows.score
+              }
+              provisionalYear={
+                feed?.provenance.provisionalYear ??
+                currentManifest.source.provisionalYear
+              }
+              freshnessState={
+                feed !== null &&
+                feed.analysisBuildId !== currentManifest.analysisBuildId
+                  ? null
+                  : currentManifest.freshness.state
+              }
+              analysisIdentity={feed?.analysisIdentity}
+              datasetPackageIdentity={feed?.datasetPackageIdentity}
+            />
+          )}
           {feed !== null &&
           feed.analysisBuildId !== currentManifest.analysisBuildId ? null : (
             <SourceScope
@@ -787,11 +852,6 @@ export function OpportunityDiscoveryWorkspace({
 
           {(status === "success" || status === "empty") && feed !== null ? (
             <>
-              <OpportunityProvenance
-                page={feed}
-                manifest={currentManifest}
-                locale={locale}
-              />
               <AnalysisShareLink locale={locale} task="opportunity-discovery" />
               <OpportunityExportAction
                 page={feed}
@@ -843,6 +903,9 @@ export function OpportunityDiscoveryWorkspace({
                       {feed.cohortSize} {messages.feedCount}
                     </strong>
                   </div>
+                  <p className="opportunity-ordering">
+                    {messages.orderingExplanation}
+                  </p>
                   <ol
                     id="opportunity-list-scroll"
                     aria-label={messages.candidateList}
@@ -851,7 +914,7 @@ export function OpportunityDiscoveryWorkspace({
                       const analysisHref = marketAnalysisHref(candidate);
                       return (
                         <OpportunityCandidateRow
-                          key={opportunityCandidateKey(candidate)}
+                          key={marketInvestigationCandidateKey(candidate)}
                           candidate={candidate}
                           locale={locale}
                           leading={candidate.product.code}
@@ -900,72 +963,12 @@ export function OpportunityDiscoveryWorkspace({
   );
 }
 
-function OpportunityProvenance({
-  page,
-  manifest,
-  locale,
-}: {
-  page: OpportunityDiscoveryV1Payload;
-  manifest: CurrentAnalysisManifest;
-  locale: WorkspaceLocale;
-}) {
-  const messages = copy[locale];
-  const isCurrent = page.analysisBuildId === manifest.analysisBuildId;
-  return (
-    <dl
-      className="analysis-context opportunity-context"
-      aria-label={messages.provenance}
-    >
-      <div>
-        <dt>{messages.deploymentState}</dt>
-        <dd>
-          {isCurrent
-            ? messages.currentDeployment
-            : messages.retainedDeployment}
-        </dd>
-      </div>
-      <div>
-        <dt>{messages.analysisIdentity}</dt>
-        <dd>{page.analysisIdentity}</dd>
-      </div>
-      <div>
-        <dt>{messages.datasetPackage}</dt>
-        <dd>{page.datasetPackageIdentity}</dd>
-      </div>
-      <div>
-        <dt>{messages.baciRelease}</dt>
-        <dd>{page.provenance.baciRelease}</dd>
-      </div>
-      <div>
-        <dt>{messages.sourceFreshness}</dt>
-        <dd>
-          {isCurrent
-            ? localizedSourceFreshness(manifest.freshness.state, locale)
-            : messages.retainedFreshness}
-        </dd>
-      </div>
-      <div>
-        <dt>{messages.scoreWindow}</dt>
-        <dd>
-          {page.provenance.scoreWindow.start}–{page.provenance.scoreWindow.end}
-        </dd>
-      </div>
-      <div>
-        <dt>{messages.provisionalYear}</dt>
-        <dd>{page.provenance.provisionalYear}</dd>
-      </div>
-      <div>
-        <dt>{messages.productProjection}</dt>
-        <dd>
-          {page.projection.productCodes?.join(", ") ?? messages.allProducts}
-        </dd>
-      </div>
-      <div>
-        <dt>{messages.releaseRevision}</dt>
-        <dd>{page.provenance.artifactBuildId}</dd>
-      </div>
-    </dl>
-  );
+function opportunityFeedLoadKey(
+  manifest: CurrentAnalysisManifest,
+  exporter: EconomyRecord,
+  product: ProductSearchProduct | null,
+): string {
+  return `${manifest.analysisBuildId}:${exporter.code}:${product?.code ?? "*"}`;
 }
 
 function OpportunityBoundaries({

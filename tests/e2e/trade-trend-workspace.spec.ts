@@ -2,6 +2,16 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test, type Page } from "@playwright/test";
 
+async function analysisTasks(page: Page) {
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
+  if (!(await tasks.isVisible())) {
+    await page.getByRole("button", { name: "Advanced tools" }).click();
+  }
+  return tasks;
+}
+
 async function selectTrendContext(page: Page) {
   const importer = page.getByRole("combobox", {
     name: "Importing economy",
@@ -24,7 +34,7 @@ test("an analyst can select Trade Trend by keyboard, share it, and change locale
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", { name: "Choose an analysis task" });
+  const tasks = await analysisTasks(page);
   await tasks.getByRole("button", { name: /Trade Trend/ }).click();
 
   await selectTrendContext(page);
@@ -162,7 +172,7 @@ test("Candidate Market remains reachable with its original ranking controls and 
   });
   await expect(candidateMarkets.getByRole("button")).toHaveCount(13);
   await expect(candidateMarkets.getByRole("button").first()).toHaveAccessibleName(
-    "#1 Netherlands BACI 528 · Data Confidence: HIGH 85 /100",
+    "Analyze this market: Netherlands",
   );
   await expect(page.getByRole("button", { name: "Analyze Candidate Markets" })).toBeVisible();
   await expect(page).not.toHaveURL(/recipe=trade-trend-v1/);
@@ -174,9 +184,7 @@ test("switching tasks starts with a fresh analysis context", async ({ page }) =>
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
+  const tasks = await analysisTasks(page);
   await tasks.getByRole("button", { name: /Trade Trend/ }).click();
 
   await expect(page).toHaveURL(/\?recipe=trade-trend-v1$/u);

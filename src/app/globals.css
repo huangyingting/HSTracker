@@ -757,9 +757,40 @@ a {
   border-top: 1px solid var(--line);
 }
 
-.analysis-task-home {
+.advanced-tools {
   padding: 28px 0;
   border-top: 1px solid var(--line);
+}
+
+.advanced-tools-toggle {
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.advanced-tools-toggle > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.advanced-tools-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.analysis-task-home {
+  padding: 18px 0 0;
 }
 
 .analysis-task-home > p {
@@ -1000,7 +1031,7 @@ a {
   font-weight: 800;
 }
 
-.portfolio-analysis-scope {
+.workspace-scope {
   margin: 0 0 18px;
   padding: 16px;
   border: 1px solid var(--line);
@@ -1008,19 +1039,19 @@ a {
   background: rgba(var(--ink-rgb), 0.03);
 }
 
-.portfolio-analysis-scope h3 {
+.workspace-scope h3 {
   margin: 0 0 12px;
   font-size: 0.82rem;
 }
 
-.portfolio-analysis-scope dl {
+.workspace-scope dl {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
 }
 
-.portfolio-analysis-scope dt {
+.workspace-scope dt {
   color: var(--muted);
   font-size: 0.6rem;
   font-weight: 900;
@@ -1028,12 +1059,22 @@ a {
   text-transform: uppercase;
 }
 
-.portfolio-analysis-scope dd {
+.workspace-scope dd {
   margin: 5px 0 0;
   color: var(--ink);
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1.4;
+}
+
+.workspace-scope-product dd {
+  display: grid;
+  gap: 3px;
+}
+
+.workspace-scope-product dd > span {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .portfolio-product-tools {
@@ -1333,6 +1374,18 @@ a {
   white-space: nowrap;
   box-shadow: 0 10px 24px -12px rgba(168, 50, 20, 0.7);
   transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.analysis-submit {
+  display: grid;
+  gap: 7px;
+}
+
+.analysis-submit > small {
+  max-width: 260px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.4;
 }
 
 .analyze-button svg {
@@ -3132,6 +3185,14 @@ tr[data-selected="true"] td {
   text-align: right;
 }
 
+.opportunity-ordering {
+  margin: 0;
+  padding: 0 22px 18px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
 .candidate-evidence {
   position: sticky;
   top: 20px;
@@ -4348,8 +4409,14 @@ tr[data-selected="true"] td {
     grid-template-columns: 1fr;
   }
 
-  .portfolio-analysis-scope dl {
+  .workspace-scope dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .advanced-tools-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .portfolio-header {

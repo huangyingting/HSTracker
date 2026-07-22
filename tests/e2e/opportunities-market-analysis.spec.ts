@@ -58,6 +58,16 @@ test("a cross-product opportunity preserves its exact product, market, and relea
 }) => {
   await page.goto("/?recipe=opportunity-discovery-v1&exporter=156");
 
+  const scope = page.getByRole("region", { name: "Workspace scope" });
+  await expect(scope).toContainText("156 · China");
+  await expect(scope).toContainText("All published HS Products");
+  await expect(scope).toContainText("Finalized window2019–2023");
+  await expect(
+    page.getByText(
+      "Ordered by canonical Investigation Priority for this exporter cohort. Pagination preserves that public order.",
+    ),
+  ).toBeVisible();
+
   const candidate = page
     .getByRole("list", { name: "Market Investigation Candidates" })
     .getByRole("listitem")
@@ -150,10 +160,14 @@ test("the Chinese opportunity action is singular and keyboard/touch usable on mo
     );
     const fixedCandidate = page
       .getByRole("list", { name: "候选市场" })
-      .getByRole("button", { name: /Netherlands.*分析此市场/u });
+      .getByRole("listitem")
+      .filter({ hasText: "Netherlands" });
     await expect(fixedCandidate).toContainText("候选市场评分 85");
     await expect(fixedCandidate).toContainText("数据置信度: 高");
-    const fixedBox = await fixedCandidate.boundingBox();
+    const fixedAction = fixedCandidate.getByRole("button", {
+      name: "分析此市场: Netherlands",
+    });
+    const fixedBox = await fixedAction.boundingBox();
     expect(fixedBox?.width).toBeGreaterThanOrEqual(44);
     expect(fixedBox?.height).toBeGreaterThanOrEqual(44);
     expect(
@@ -161,7 +175,7 @@ test("the Chinese opportunity action is singular and keyboard/touch usable on mo
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
-    await fixedCandidate.tap();
+    await fixedAction.tap();
     await expect(
       page.getByRole("heading", { name: /Netherlands · 市场分析/u }),
     ).toBeFocused();
@@ -240,12 +254,24 @@ test("Back restores loaded opportunity pages, scroll, and row focus", async ({
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
 
-  await page.getByRole("link", { name: "Back to opportunities" }).click();
+  await page.getByRole("button", { name: "简体中文" }).click();
+  await expect(page).toHaveURL(/locale=zh-Hans/u);
+  await page.getByRole("link", { name: "返回机会列表" }).click();
 
+  const restoredOpportunities = page.getByRole("list", {
+    name: "Market Investigation Candidates",
+  });
+  const restoredNetherlands = restoredOpportunities
+    .getByRole("listitem")
+    .filter({ hasText: "Netherlands" })
+    .filter({ hasText: "010121" })
+    .getByRole("link", {
+      name: "Analyze this market: Netherlands, HS12 010121",
+    });
   await expect(
-    opportunities.getByRole("link", { name: "Analyze this market" }),
+    restoredOpportunities.getByRole("link", { name: /Analyze this market/u }),
   ).toHaveCount(4);
-  await expect(netherlands).toBeFocused();
+  await expect(restoredNetherlands).toBeFocused();
   await expect
     .poll(async () =>
       page.evaluate(

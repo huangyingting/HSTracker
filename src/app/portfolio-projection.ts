@@ -2,6 +2,7 @@ import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
+import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { ConfirmedProduct } from "../operations/store/model";
 
 export type PortfolioProjectionMode = "complete" | "portfolio";
@@ -40,12 +41,6 @@ export function buildPortfolioProjection(
     portfolioProductCodes,
     mode,
   };
-}
-
-export function candidateProjectionKey(
-  candidate: MarketInvestigationCandidate,
-): string {
-  return `${candidate.product.code}:${candidate.market.code}`;
 }
 
 function canonicalPortfolioProductCodes(

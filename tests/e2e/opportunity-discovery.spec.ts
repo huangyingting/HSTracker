@@ -370,7 +370,11 @@ test("exact product confirmation translates a retained Opportunity pin without f
     `/?recipe=opportunity-discovery-v1&exporter=156&build=${retainedBuild}&pkg=${retainedOpportunityPackage}`,
   );
   await expectMexicoHorseCandidate(page);
-  await expect(page.getByText("Retained deployment")).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Workspace scope" })
+      .getByText("Retained", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Not reported for retained evidence"),
   ).toBeVisible();
