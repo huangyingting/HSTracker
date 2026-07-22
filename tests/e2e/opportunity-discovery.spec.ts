@@ -69,6 +69,7 @@ async function expectMexicoHorseCandidate(page: Page) {
   await expect(mexico).toContainText("Data Confidence: HIGH");
   await expect(mexico).toContainText("Investigation Priority 73");
   await expect(mexico.getByRole("link")).toHaveCount(1);
+  expect((await mexico.innerText()).match(/010121/gu) ?? []).toHaveLength(1);
 }
 
 test("all-product browse, product discovery, and known-product links reach the same canonical row values", async ({
@@ -132,6 +133,22 @@ test("opportunity copy is honest and context survives filter, history, copied li
     if (request.url().includes("/opportunities?")) {
       opportunityRequests += 1;
     }
+  });
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    const response = await route.fetch();
+    const manifest = (await response.json()) as Record<string, unknown> & {
+      freshness: Record<string, unknown>;
+    };
+    await route.fulfill({
+      response,
+      json: {
+        ...manifest,
+        freshness: {
+          ...manifest.freshness,
+          state: "REFRESH_DELAYED",
+        },
+      },
+    });
   });
   await page.goto(OPPORTUNITY_PRODUCT_URL);
   await expectMexicoHorseCandidate(page);
@@ -212,12 +229,26 @@ test("opportunity copy is honest and context survives filter, history, copied li
   ).toHaveCount(4);
   expect(opportunityRequests).toBe(requestsBeforeLocale);
 
+  const scopeActionSize = await page
+    .getByRole("button", { name: "更改范围" })
+    .evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { height: bounds.height, width: bounds.width };
+    });
+  expect(scopeActionSize.height).toBeGreaterThanOrEqual(44);
+  expect(scopeActionSize.width).toBeGreaterThanOrEqual(44);
+
   await page.setViewportSize({ width: 390, height: 844 });
   const hasHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
   expect(hasHorizontalOverflow).toBe(false);
 
+  await expect(
+    page
+      .locator(".workspace-scope-summary")
+      .getByText("数据刷新延迟 - 当前显示最近验证通过的数据版"),
+  ).toBeVisible();
   const scopeDisclosure = page.getByRole("button", { name: "查看范围" });
   await expect(scopeDisclosure).toHaveAttribute("aria-expanded", "false");
   const controlledScopeId = await scopeDisclosure.getAttribute("aria-controls");

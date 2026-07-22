@@ -812,23 +812,14 @@ function SignedInPortfolioWorkspace({
           feed.analysisBuildId,
           "candidate-market",
         );
-
-  function marketAnalysisHref(
-    candidate: MarketInvestigationCandidate,
-  ): string | null {
-    if (feed === null || candidateMarketPin === null) {
-      return null;
-    }
-    return candidateMarketAnalysisHref({
-      baseUrl: window.location.href,
-      scope: {
-        locale,
-        pin: candidateMarketPin,
-        exporterCode: feed.exporter.code,
-      },
-      candidate,
-    });
-  }
+  const candidateMarketNavigationScope =
+    feed === null || candidateMarketPin === null
+      ? null
+      : {
+          locale,
+          pin: candidateMarketPin,
+          exporterCode: feed.exporter.code,
+        };
 
   return (
     <section
@@ -1065,7 +1056,11 @@ function SignedInPortfolioWorkspace({
               ) : (
                 <ol id="portfolio-list-scroll" aria-label={messages.listLabel}>
                   {projection.scopeRows.map((row) => {
-                    const analysisHref = marketAnalysisHref(row.candidate);
+                    const analysisHref = candidateMarketAnalysisHref({
+                      baseUrl: window.location.href,
+                      scope: candidateMarketNavigationScope,
+                      candidate: row.candidate,
+                    });
                     return (
                       <OpportunityCandidateRow
                         key={marketInvestigationCandidateKey(row.candidate)}

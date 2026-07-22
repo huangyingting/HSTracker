@@ -757,58 +757,9 @@ a {
   border-top: 1px solid var(--line);
 }
 
-.advanced-tools {
+.analysis-task-home {
   padding: 28px 0;
   border-top: 1px solid var(--line);
-}
-
-.advanced-tools-toggle {
-  width: 100%;
-  min-height: 52px;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.advanced-tools-toggle > span {
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.advanced-tools-toggle:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-
-.advanced-tools-return {
-  min-height: 44px;
-  margin-bottom: 20px;
-  padding: 0 16px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 800;
-}
-
-.advanced-tools-return:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-
-.analysis-task-home {
-  padding: 18px 0 0;
 }
 
 .analysis-task-home > p {
@@ -1108,7 +1059,8 @@ a {
 }
 
 .workspace-scope-actions button {
-  min-height: 40px;
+  min-width: 44px;
+  min-height: 45px;
 }
 
 .portfolio-product-tools {
@@ -2798,7 +2750,7 @@ tr[data-selected="true"] td {
   min-height: 144px;
   padding: 13px 16px;
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr) minmax(92px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
   align-items: center;
   gap: 12px;
   border: 0;
@@ -2807,7 +2759,7 @@ tr[data-selected="true"] td {
   text-align: left;
 }
 
-.opportunity-row-summary > span:nth-child(2) {
+.opportunity-row-body {
   display: grid;
   gap: 5px;
 }
@@ -4468,7 +4420,8 @@ tr[data-selected="true"] td {
   }
 
   .workspace-scope-summary button {
-    min-height: 44px;
+    min-width: 44px;
+    min-height: 45px;
     flex: none;
     padding: 0 14px;
     border: 1px solid var(--line-strong);
@@ -4499,13 +4452,7 @@ tr[data-selected="true"] td {
   }
 
   .workspace-scope-actions button {
-    min-height: 44px;
-  }
-
-  .advanced-tools-toggle {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
+    min-height: 45px;
   }
 
   .portfolio-header {
@@ -4529,10 +4476,6 @@ tr[data-selected="true"] td {
   .opportunity-row-summary {
     grid-template-columns: minmax(0, 1fr) 82px;
     align-items: start;
-  }
-
-  .opportunity-row-summary > .candidate-rank {
-    grid-column: 1 / -1;
   }
 
   .opportunity-row-identities,

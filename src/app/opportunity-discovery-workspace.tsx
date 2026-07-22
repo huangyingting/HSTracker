@@ -515,6 +515,14 @@ export function OpportunityDiscoveryWorkspace({
           feed.analysisBuildId,
           "candidate-market",
         );
+  const candidateMarketNavigationScope =
+    feed === null || candidateMarketPin === null
+      ? null
+      : {
+          locale,
+          pin: candidateMarketPin,
+          exporterCode: feed.exporter.code,
+        };
 
   useLayoutEffect(() => {
     if (status !== "success") {
@@ -649,23 +657,6 @@ export function OpportunityDiscoveryWorkspace({
         feedController.current = null;
       }
     }
-  }
-
-  function marketAnalysisHref(
-    candidate: MarketInvestigationCandidate,
-  ): string | null {
-    if (feed === null || candidateMarketPin === null) {
-      return null;
-    }
-    return candidateMarketAnalysisHref({
-      baseUrl: window.location.href,
-      scope: {
-        locale,
-        pin: candidateMarketPin,
-        exporterCode: feed.exporter.code,
-      },
-      candidate,
-    });
   }
 
   const showingRetainedFeed =
@@ -925,14 +916,16 @@ export function OpportunityDiscoveryWorkspace({
                     aria-label={messages.candidateList}
                   >
                     {feed.candidates.map((candidate) => {
-                      const analysisHref = marketAnalysisHref(candidate);
+                      const analysisHref = candidateMarketAnalysisHref({
+                        baseUrl: window.location.href,
+                        scope: candidateMarketNavigationScope,
+                        candidate,
+                      });
                       return (
                         <OpportunityCandidateRow
                           key={marketInvestigationCandidateKey(candidate)}
                           candidate={candidate}
                           locale={locale}
-                          leading={candidate.product.code}
-                          leadingClassName="candidate-rank"
                           summaryClassName="opportunity-row-summary"
                           actionId={opportunityActionId(candidate)}
                           href={analysisHref}

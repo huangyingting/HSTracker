@@ -166,7 +166,9 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("No account required")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Advanced tools" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Choose an analysis task" }),
+  ).toBeVisible();
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
@@ -232,7 +234,9 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
 
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
-  await expect(page.getByRole("button", { name: "Advanced tools" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Choose an analysis task" }),
+  ).toBeVisible();
   expect(opportunityRequests).toBe(0);
 
   const portfolio = page.getByRole("region", {
@@ -311,7 +315,9 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
-  await expect(page.getByRole("button", { name: "Advanced tools" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Choose an analysis task" }),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(analyzeNetherlands).toBeFocused();

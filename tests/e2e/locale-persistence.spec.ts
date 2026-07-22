@@ -26,7 +26,6 @@ test("selecting a non-default locale on the bare landing page persists it throug
     }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "高级工具" }).click();
   const tasks = page.getByRole("navigation", { name: "选择分析任务" });
   await expect(tasks.getByRole("button")).toHaveCount(5);
   await expect(
@@ -60,7 +59,6 @@ test("browser back/forward reproduce the exact task and locale carried by each c
   await page.getByRole("button", { name: "简体中文" }).click();
   await expect(page).toHaveURL("/?locale=zh-Hans");
 
-  await page.getByRole("button", { name: "高级工具" }).click();
   const tasks = page.getByRole("navigation", { name: "选择分析任务" });
   await tasks.getByRole("button", { name: /供应商竞争/ }).click();
   await expect(page).toHaveURL("/?recipe=supplier-competition-v1&locale=zh-Hans");

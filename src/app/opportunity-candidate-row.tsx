@@ -38,7 +38,6 @@ export function OpportunityCandidateRow({
   candidate,
   locale,
   leading,
-  leadingClassName,
   summaryClassName,
   actionId,
   href,
@@ -46,8 +45,7 @@ export function OpportunityCandidateRow({
 }: {
   candidate: MarketInvestigationCandidate;
   locale: TradeAnalysisLocale;
-  leading: ReactNode;
-  leadingClassName?: string;
+  leading?: ReactNode;
   summaryClassName: string;
   actionId: string;
   href: string | null;
@@ -57,8 +55,8 @@ export function OpportunityCandidateRow({
   return (
     <li>
       <div className={summaryClassName}>
-        <span className={leadingClassName}>{leading}</span>
-        <span>
+        {leading === undefined ? null : <span>{leading}</span>}
+        <span className="opportunity-row-body">
           <span className="opportunity-row-identities">
             <strong>
               HS12 {candidate.product.code} · {candidate.product.descriptionEn}

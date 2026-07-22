@@ -50,9 +50,6 @@ import {
 const copy = {
   en: {
     title: "Choose an analysis task",
-    advancedTools: "Advanced tools",
-    advancedToolsDetail:
-      "Open legacy recipe navigation for advanced and compatibility workflows.",
     opportunityDiscovery: "Opportunity Discovery",
     opportunityDiscoveryDetail:
       "Browse public Market Investigation Candidates for one exporter.",
@@ -60,7 +57,6 @@ const copy = {
     candidateMarketBadge: "Evidence",
     candidateMarketDetail:
       "Drill into one exporter-product Candidate Market ranking.",
-    returnToCandidateMarkets: "Return to Candidate Markets",
     tradeTrend: "Trade Trend",
     tradeTrendDetail: "Inspect annual import evidence for one economy.",
     supplierCompetition: "Supplier Competition",
@@ -73,14 +69,11 @@ const copy = {
   },
   "zh-Hans": {
     title: "选择分析任务",
-    advancedTools: "高级工具",
-    advancedToolsDetail: "打开用于高级与兼容工作流的旧版分析方法导航。",
     opportunityDiscovery: "机会发现",
     opportunityDiscoveryDetail: "按一个出口经济体浏览公共市场调查候选项。",
     candidateMarket: "候选市场",
     candidateMarketBadge: "证据",
     candidateMarketDetail: "深入查看一个出口经济体和产品的候选市场排名。",
-    returnToCandidateMarkets: "返回候选市场",
     tradeTrend: "贸易趋势",
     tradeTrendDetail: "查看一个经济体的年度进口证据。",
     supplierCompetition: "供应商竞争",
@@ -107,17 +100,10 @@ export function AnalysisTaskHome({
   locale: Locale;
 }) {
   const [task, setTask] = useState<AnalysisTask>(initialTask);
-  const [toolsOpen, setToolsOpen] = useState(
-    isAdvancedAnalysisTask(initialTask),
-  );
   const messages = copy[locale];
 
   useEffect(() => {
-    const restoreTask = () => {
-      const restoredTask = taskFromLocation();
-      setTask(restoredTask);
-      setToolsOpen(isAdvancedAnalysisTask(restoredTask));
-    };
+    const restoreTask = () => setTask(taskFromLocation());
     window.addEventListener("popstate", restoreTask);
     return () => window.removeEventListener("popstate", restoreTask);
   }, []);
@@ -133,11 +119,65 @@ export function AnalysisTaskHome({
     const url = serializeTradeAnalysisContext(window.location.href, context);
     window.history.pushState(null, "", url);
     setTask(nextTask);
-    setToolsOpen(isAdvancedAnalysisTask(nextTask));
   }
 
   return (
     <>
+      <nav className="analysis-task-home" aria-label={messages.title}>
+        <p>{messages.title}</p>
+        <div>
+          <button
+            type="button"
+            aria-pressed={task === "opportunity-discovery"}
+            onClick={() => selectTask("opportunity-discovery")}
+          >
+            <strong>{messages.opportunityDiscovery}</strong>
+            <span>{messages.opportunityDiscoveryDetail}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={task === "candidate-market"}
+            onClick={() => selectTask("candidate-market")}
+          >
+            <strong>
+              {messages.candidateMarket}{" "}
+              <span className="analysis-task-badge">
+                {messages.candidateMarketBadge}
+              </span>
+            </strong>
+            <span>{messages.candidateMarketDetail}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={task === "trade-trend"}
+            onClick={() => selectTask("trade-trend")}
+          >
+            <strong>{messages.tradeTrend}</strong>
+            <span>{messages.tradeTrendDetail}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={task === "supplier-competition"}
+            onClick={() => selectTask("supplier-competition")}
+          >
+            <strong>{messages.supplierCompetition}</strong>
+            <span>{messages.supplierCompetitionDetail}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={task === "trade-explorer"}
+            onClick={() => selectTask("trade-explorer")}
+          >
+            <strong>
+              {messages.tradeExplorer}{" "}
+              <span className="analysis-task-badge">
+                {messages.tradeExplorerBadge}
+              </span>
+            </strong>
+            <span>{messages.tradeExplorerDetail}</span>
+          </button>
+        </div>
+      </nav>
       {task === "opportunity-discovery" ? (
         <OpportunityDiscoveryWorkspace locale={locale} />
       ) : task === "candidate-market" ? (
@@ -149,100 +189,10 @@ export function AnalysisTaskHome({
       ) : (
         <TradeExplorerWorkspace locale={locale} />
       )}
-      {isAdvancedAnalysisTask(task) ? (
-        <button
-          className="advanced-tools-return"
-          type="button"
-          onClick={() => selectTask("candidate-market")}
-        >
-          {messages.returnToCandidateMarkets}
-        </button>
-      ) : null}
-      <section className="advanced-tools">
-        <button
-          className="advanced-tools-toggle"
-          type="button"
-          aria-expanded={toolsOpen}
-          aria-controls="legacy-analysis-tasks"
-          onClick={() => setToolsOpen((current) => !current)}
-        >
-          <strong>{messages.advancedTools}</strong>
-          <span>{messages.advancedToolsDetail}</span>
-        </button>
-        {toolsOpen ? (
-          <nav
-            id="legacy-analysis-tasks"
-            className="analysis-task-home"
-            aria-label={messages.title}
-          >
-            <p>{messages.title}</p>
-            <div>
-              <button
-                type="button"
-                aria-pressed={task === "opportunity-discovery"}
-                onClick={() => selectTask("opportunity-discovery")}
-              >
-                <strong>{messages.opportunityDiscovery}</strong>
-                <span>{messages.opportunityDiscoveryDetail}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={task === "candidate-market"}
-                onClick={() => selectTask("candidate-market")}
-              >
-                <strong>
-                  {messages.candidateMarket}{" "}
-                  <span className="analysis-task-badge">
-                    {messages.candidateMarketBadge}
-                  </span>
-                </strong>
-                <span>{messages.candidateMarketDetail}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={task === "trade-trend"}
-                onClick={() => selectTask("trade-trend")}
-              >
-                <strong>{messages.tradeTrend}</strong>
-                <span>{messages.tradeTrendDetail}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={task === "supplier-competition"}
-                onClick={() => selectTask("supplier-competition")}
-              >
-                <strong>{messages.supplierCompetition}</strong>
-                <span>{messages.supplierCompetitionDetail}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={task === "trade-explorer"}
-                onClick={() => selectTask("trade-explorer")}
-              >
-                <strong>
-                  {messages.tradeExplorer}{" "}
-                  <span className="analysis-task-badge">
-                    {messages.tradeExplorerBadge}
-                  </span>
-                </strong>
-                <span>{messages.tradeExplorerDetail}</span>
-              </button>
-            </div>
-          </nav>
-        ) : null}
-      </section>
     </>
   );
 }
 
 function taskFromLocation(): AnalysisTask {
   return parseTradeAnalysisContext(window.location.href).recipe;
-}
-
-function isAdvancedAnalysisTask(task: AnalysisTask): boolean {
-  return (
-    task === "trade-trend" ||
-    task === "supplier-competition" ||
-    task === "trade-explorer"
-  );
 }

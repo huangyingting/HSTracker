@@ -3,16 +3,6 @@ import { expect, test } from "@playwright/test";
 const CANONICAL_INVESTIGATE_URL =
   "/?exporter=156&revision=HS12&product=010121";
 
-async function analysisTasks(page: import("@playwright/test").Page) {
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  if (!(await tasks.isVisible())) {
-    await page.getByRole("button", { name: "Advanced tools" }).click();
-  }
-  return tasks;
-}
-
 async function analyzeCandidateMarket(page: import("@playwright/test").Page) {
   await page.goto(CANONICAL_INVESTIGATE_URL);
   const ranking = page.getByRole("list", { name: "Candidate Markets" });
@@ -36,7 +26,9 @@ test("a direct task link renders the matching server snapshot before hydration",
 
   await serverOnlyPage.goto("/?recipe=trade-trend-v1");
 
-  const tasks = await analysisTasks(serverOnlyPage);
+  const tasks = serverOnlyPage.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await expect(
     tasks.getByRole("button", { name: /Trade Trend/ }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -64,7 +56,9 @@ test("a direct non-default task link hydrates without a server/client mismatch",
 
   await page.goto("/?recipe=trade-trend-v1");
 
-  const tasks = await analysisTasks(page);
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toBeVisible();
@@ -182,7 +176,9 @@ test("Trade Trend and Supplier Competition preserve the importing economy and HS
   ).toBeVisible();
   await expect(page).toHaveURL(/build=acceptance-fixtures-v1&pkg=/);
 
-  const tasks = await analysisTasks(page);
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
 
   await expect(page).toHaveURL(

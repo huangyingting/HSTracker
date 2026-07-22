@@ -2,16 +2,6 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test, type Page } from "@playwright/test";
 
-async function analysisTasks(page: Page) {
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  if (!(await tasks.isVisible())) {
-    await page.getByRole("button", { name: "Advanced tools" }).click();
-  }
-  return tasks;
-}
-
 async function selectSupplierCompetitionContext(
   page: Page,
   importerQuery: string,
@@ -38,7 +28,9 @@ test("an analyst can select Supplier Competition by keyboard, share it, and chan
   page,
 }) => {
   await page.goto("/");
-  const tasks = await analysisTasks(page);
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
 
   await selectSupplierCompetitionContext(page, "124", /Canada/);
@@ -236,7 +228,9 @@ test("switching to Supplier Competition starts with a fresh analysis context", a
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
 
-  const tasks = await analysisTasks(page);
+  const tasks = page.getByRole("navigation", {
+    name: "Choose an analysis task",
+  });
   await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
 
   await expect(page).toHaveURL(/\?recipe=supplier-competition-v1$/u);
@@ -245,9 +239,7 @@ test("switching to Supplier Competition starts with a fresh analysis context", a
   ).not.toBeVisible();
 
   await selectSupplierCompetitionContext(page, "124", /Canada/);
-  await page
-    .getByRole("button", { name: "Return to Candidate Markets" })
-    .click();
+  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
 
   await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
   await expect(

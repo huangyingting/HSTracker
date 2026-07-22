@@ -50,13 +50,18 @@ export function candidateMarketAnalysisHref({
   candidate,
 }: {
   baseUrl: string;
-  scope: Readonly<{
-    locale: TradeAnalysisLocale;
-    pin: NonNullable<CandidateMarketContext["pin"]>;
-    exporterCode: string;
-  }>;
+  scope:
+    | Readonly<{
+        locale: TradeAnalysisLocale;
+        pin: NonNullable<CandidateMarketContext["pin"]>;
+        exporterCode: string;
+      }>
+    | null;
   candidate: MarketInvestigationCandidate;
-}): string {
+}): string | null {
+  if (scope === null) {
+    return null;
+  }
   return serializeTradeAnalysisContext(baseUrl, {
     recipe: "candidate-market",
     ...scope,

@@ -134,6 +134,10 @@ export function WorkspaceScope({
         .filter((value) => value !== null)
           .join(" · ");
   const unavailable = messages.retiredEvidence;
+  const freshnessWarning =
+    freshnessState !== null && freshnessState !== "LATEST_KNOWN"
+      ? localizedSourceFreshness(freshnessState, locale)
+      : null;
   return (
     <section
       className="workspace-scope"
@@ -150,6 +154,9 @@ export function WorkspaceScope({
           <span data-warning={deploymentState === "retired" || undefined}>
             {deploymentLabel}
           </span>
+          {freshnessWarning === null ? null : (
+            <span data-warning="true">{freshnessWarning}</span>
+          )}
         </p>
         <button
           type="button"
