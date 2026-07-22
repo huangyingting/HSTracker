@@ -385,11 +385,30 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
-  const retiredUrl = new URL(page.url());
+  const validUrl = page.url();
+  const mismatchedUrl = new URL(validUrl);
+  mismatchedUrl.searchParams.set(
+    "pkg",
+    `dataset-package-v1-${"0".repeat(64)}`,
+  );
+  await page.goto(mismatchedUrl.toString());
+  const retiredAlert = portfolio.getByRole("alert");
+  await expect(retiredAlert).toContainText(
+    "This retained link points at a retired analysis build.",
+  );
+  await expect(page).toHaveURL(/pkg=dataset-package-v1-0{64}/u);
+
+  await page.goto(validUrl);
+  await expect(
+    portfolio
+      .getByRole("list", { name: "Portfolio Opportunity Candidates" })
+      .getByRole("listitem"),
+  ).toHaveCount(2);
+
+  const retiredUrl = new URL(validUrl);
   retiredUrl.searchParams.set("build", "retired-analysis-v1");
   await page.goto(retiredUrl.toString());
 
-  const retiredAlert = portfolio.getByRole("alert");
   await expect(retiredAlert).toContainText(
     "This retained link points at a retired analysis build.",
   );

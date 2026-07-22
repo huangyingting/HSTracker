@@ -454,35 +454,19 @@ export function SignedInPortfolioWorkspace({
         if (baseContext.recipe !== "opportunity-discovery") {
           return;
         }
-        const translatedPin =
-          locationContext.pin === null
-            ? null
-            : pinFromDeploymentWindow(
-                nextManifest,
-                locationContext.pin.analysisBuildId,
-                "opportunity-discovery",
-              );
-        if (
-          !revalidate &&
-          locationContext.pin !== null &&
-          translatedPin === null
-        ) {
+        const requestedPinResolution = resolvePinnedContext(
+          locationContext.pin,
+          nextManifest,
+          "opportunity-discovery",
+        );
+        if (!revalidate && requestedPinResolution.state === "retired") {
           setStatus("stale");
           return;
         }
-        const requestedPinState =
-          translatedPin === null
-            ? locationContext.pin === null
-              ? "current"
-              : "retired"
-            : resolvePinnedContext(
-                translatedPin,
-                nextManifest,
-                "opportunity-discovery",
-              ).state;
+        const requestedPinState = requestedPinResolution.state;
         const context: OpportunityDiscoveryContext = {
           ...baseContext,
-          pin: revalidate ? null : translatedPin,
+          pin: revalidate ? null : locationContext.pin,
         };
         if (portfolioRef.current.length === 0) {
           setFeed(null);

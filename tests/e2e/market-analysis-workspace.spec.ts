@@ -397,6 +397,7 @@ test("selecting a different Candidate Market moves focus to the Market Analysis 
   });
   await expect(heading).not.toBeFocused();
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -432,6 +433,7 @@ test("an explicit market selection moves focus to the Market Analysis status whe
   });
   await openNetherlandsMarketAnalysis(page);
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -459,11 +461,20 @@ test("a rapid re-selection cancels the outstanding request so only the last sele
     await route.continue();
   });
 
-  await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
+  await page.goto("/?exporter=156&revision=HS12&product=010121");
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
 
+  await page
+    .getByRole("list", { name: "Candidate Markets" })
+    .getByRole("link")
+    .filter({ hasText: "Netherlands" })
+    .click();
+  await page.goBack();
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
+  ).toHaveCount(13);
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -485,7 +496,7 @@ test("a rapid re-selection cancels the outstanding request so only the last sele
   expect(marketAnalysisRequests).toBeGreaterThanOrEqual(2);
 });
 
-test("a fatal annual Market Analysis failure surfaces an assertive recoverable state without the ranking disappearing", async ({
+test("a fatal annual Market Analysis failure surfaces a full-width assertive recoverable state", async ({
   page,
 }) => {
   await page.route("**/market-analysis?*", async (route) => {
@@ -504,7 +515,7 @@ test("a fatal annual Market Analysis failure surfaces an assertive recoverable s
   await page.goto(CANONICAL_URL);
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+  ).toHaveCount(0);
 
   const error = page
     .getByRole("region", { name: "Market Analysis" })

@@ -119,7 +119,7 @@ export function ExportMarketWorkspace({
   const [accountAuthOpen, setAccountAuthOpen] = useState(false);
 
   useEffect(() => {
-    const restoreFromHistory = () => {
+    const synchronizeContext = () => {
       const restored = parseTradeAnalysisContext(window.location.href);
       setContext(restored);
       if (restored.recipe === "opportunity-discovery") {
@@ -129,26 +129,16 @@ export function ExportMarketWorkspace({
         setPublicScopeMode(productCodeOf(restored) === null ? "all" : "exact");
       }
     };
-    const synchronizeReplacedContext = () => {
-      const restored = parseTradeAnalysisContext(window.location.href);
-      setContext(restored);
-      if (restored.recipe === "opportunity-discovery") {
-        setOpportunityScopeMode(
-          restored.portfolioFilter === true ? "portfolio" : "public",
-        );
-        setPublicScopeMode(productCodeOf(restored) === null ? "all" : "exact");
-      }
-    };
-    window.addEventListener("popstate", restoreFromHistory);
+    window.addEventListener("popstate", synchronizeContext);
     window.addEventListener(
       TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
-      synchronizeReplacedContext,
+      synchronizeContext,
     );
     return () => {
-      window.removeEventListener("popstate", restoreFromHistory);
+      window.removeEventListener("popstate", synchronizeContext);
       window.removeEventListener(
         TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
-        synchronizeReplacedContext,
+        synchronizeContext,
       );
     };
   }, []);

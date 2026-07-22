@@ -2421,13 +2421,9 @@ a {
 .candidate-workspace {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: minmax(360px, 0.85fr) minmax(440px, 1.15fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
-}
-
-.candidate-workspace[data-analysis-open="false"] {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .candidate-ranking,

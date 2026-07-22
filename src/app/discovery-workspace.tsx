@@ -241,14 +241,22 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   >("loading");
   const [sourceDetailsOpen, setSourceDetailsOpen] = useState(false);
 
-  const resetMarketAnalysisState = useCallback(() => {
-    resolvedAnalysisBuildIdRef.current = null;
-    setResolvedAnalysisBuildId(null);
-    setResolvedAnalysisManifest(null);
+  const clearMarketAnalysisResult = useCallback(() => {
+    marketAnalysisController.current?.abort();
+    marketAnalysisController.current = null;
+    marketAnalysisRequestSequence.current += 1;
+    pendingMarketAnalysisFocusRef.current = false;
     setMarketAnalysis(null);
     setMarketAnalysisStatus("loading");
     setMarketAnalysisRetryAfterSeconds(null);
   }, []);
+
+  const resetMarketAnalysisState = useCallback(() => {
+    clearMarketAnalysisResult();
+    resolvedAnalysisBuildIdRef.current = null;
+    setResolvedAnalysisBuildId(null);
+    setResolvedAnalysisManifest(null);
+  }, [clearMarketAnalysisResult]);
 
   const loadCurrentManifest = useCallback(
     async (signal: AbortSignal, revalidate = false) => {
@@ -304,7 +312,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
-    marketAnalysisController.current?.abort();
     resetMarketAnalysisState();
     setLoadedCandidateResult(null);
     setSelectedCandidateCode(null);
@@ -593,6 +600,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         } else {
           window.history.pushState(null, "", url);
         }
+        announceTradeAnalysisContextChange();
       }
     } catch (error) {
       if (controller.signal.aborted || requestSequence.current !== sequence) {
@@ -678,7 +686,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
             : null;
         if (requestedCandidateCode === null) {
           setSelectedCandidateCode(null);
-          resetMarketAnalysisState();
+          clearMarketAnalysisResult();
           const returnState = readOpportunityReturnState(
             event.state,
             "candidate-market",
@@ -701,9 +709,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       }
 
       analysisController.current?.abort();
-      marketAnalysisController.current?.abort();
       requestSequence.current += 1;
-      marketAnalysisRequestSequence.current += 1;
       analyzedInputsInHistory.current = false;
       canonicalRestorePending.current = true;
       resetMarketAnalysisState();
@@ -719,6 +725,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     return () =>
       window.removeEventListener("popstate", restoreContextFromHistory);
   }, [
+    clearMarketAnalysisResult,
     currentManifest,
     loadMarketAnalysisForCandidate,
     resetMarketAnalysisState,
@@ -792,11 +799,13 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       tabIndex={-1}
       aria-labelledby="workspace-title"
     >
-      <div className="workspace-intro">
-        <p>{messages.eyebrow}</p>
-        <h2 id="workspace-title">{messages.title}</h2>
-        <p>{messages.lede}</p>
-      </div>
+      {selectedCandidate === null ? (
+        <div className="workspace-intro">
+          <p>{messages.eyebrow}</p>
+          <h2 id="workspace-title">{messages.title}</h2>
+          <p>{messages.lede}</p>
+        </div>
+      ) : null}
 
       {currentManifest === null ? (
         <div
@@ -829,52 +838,54 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         </div>
       ) : (
         <>
-          <div ref={scopeControlsRef} className="analysis-controls">
-            <EconomyCombobox
-              key={`economy-${controlRestorationKey}`}
-              analysisBuildId={currentManifest.analysisBuildId}
-              locale={locale}
-              onSelectionChange={handleExporterSelection}
-              onRetiredBuild={recoverRetiredAnalysis}
-            />
-            <ProductCombobox
-              key={`product-${controlRestorationKey}`}
-              productSearchBuildId={currentManifest.productSearchBuildId}
-              locale={locale}
-              onSelectionChange={handleProductSelection}
-              onRetiredBuild={recoverRetiredAnalysis}
-            />
-            <div className="analysis-submit">
-              <button
-                className="analyze-button"
-                type="button"
-                aria-describedby="candidate-analysis-requirement"
-                disabled={
-                  exporter === null ||
-                  product === null ||
-                  status === "loading" ||
-                  status === "refreshing"
-                }
-                onClick={() => void analyzeCandidateMarkets()}
-              >
-                {messages.analyze}
-                <svg
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+          {selectedCandidate === null ? (
+            <div ref={scopeControlsRef} className="analysis-controls">
+              <EconomyCombobox
+                key={`economy-${controlRestorationKey}`}
+                analysisBuildId={currentManifest.analysisBuildId}
+                locale={locale}
+                onSelectionChange={handleExporterSelection}
+                onRetiredBuild={recoverRetiredAnalysis}
+              />
+              <ProductCombobox
+                key={`product-${controlRestorationKey}`}
+                productSearchBuildId={currentManifest.productSearchBuildId}
+                locale={locale}
+                onSelectionChange={handleProductSelection}
+                onRetiredBuild={recoverRetiredAnalysis}
+              />
+              <div className="analysis-submit">
+                <button
+                  className="analyze-button"
+                  type="button"
+                  aria-describedby="candidate-analysis-requirement"
+                  disabled={
+                    exporter === null ||
+                    product === null ||
+                    status === "loading" ||
+                    status === "refreshing"
+                  }
+                  onClick={() => void analyzeCandidateMarkets()}
                 >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </button>
-              <small id="candidate-analysis-requirement">
-                {messages.analyzeRequirement}
-              </small>
+                  {messages.analyze}
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </button>
+                <small id="candidate-analysis-requirement">
+                  {messages.analyzeRequirement}
+                </small>
+              </div>
             </div>
-          </div>
+          ) : null}
           {exporter === null || product === null ? null : (
             <WorkspaceScope
               locale={locale}
@@ -981,10 +992,11 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               className="candidate-workspace"
               data-analysis-open={selectedCandidate !== null}
             >
-              <section
-                className="candidate-ranking"
-                aria-labelledby="ranking-title"
-              >
+              {selectedCandidate === null ? (
+                <section
+                  className="candidate-ranking"
+                  aria-labelledby="ranking-title"
+                >
                 <div className="candidate-heading">
                   <div>
                     <p>{messages.eyebrow}</p>
@@ -1034,7 +1046,8 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                     ))}
                   </ol>
                 )}
-              </section>
+                </section>
+              ) : null}
 
               {selectedCandidate !== null && evidenceCandidate !== null ? (
                 <MarketAnalysisView
