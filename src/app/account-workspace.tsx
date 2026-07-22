@@ -100,7 +100,6 @@ const copy = {
     provisionalOnly: "supporting evidence only",
     sourceFreshness: "Source Freshness Status",
     retainedFreshness: "Not reported for retained evidence",
-    addProductLabel: "Confirm HS12 product code",
     addProduct: "Add product to portfolio",
     addProductHint:
       "Enter an exact six-digit HS12 code, then confirm it into your operational portfolio.",
@@ -172,7 +171,6 @@ const copy = {
     provisionalOnly: "仅作辅助证据",
     sourceFreshness: "来源新鲜度状态",
     retainedFreshness: "保留证据未报告此状态",
-    addProductLabel: "确认 HS12 产品编码",
     addProduct: "添加产品到组合",
     addProductHint: "输入精确的六位 HS12 编码，然后确认到运营组合中。",
     removeProduct: "移除",

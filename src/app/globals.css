@@ -3144,7 +3144,7 @@ tr[data-selected="true"] td {
 
 .candidate-analyze-action {
   width: fit-content;
-  min-height: 44px;
+  min-height: 45px;
   padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-pill);

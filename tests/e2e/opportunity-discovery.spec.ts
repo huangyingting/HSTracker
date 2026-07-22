@@ -217,6 +217,20 @@ test("opportunity copy is honest and context survives filter, history, copied li
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
   expect(hasHorizontalOverflow).toBe(false);
+
+  const scopeDisclosure = page.getByRole("button", { name: "查看范围" });
+  await expect(scopeDisclosure).toHaveAttribute("aria-expanded", "false");
+  const controlledScopeId = await scopeDisclosure.getAttribute("aria-controls");
+  if (controlledScopeId === null) {
+    throw new Error("The Scope disclosure does not identify its controlled content.");
+  }
+  const controlledScope = page.locator(`[id="${controlledScopeId}"]`);
+  await expect(controlledScope).toHaveAttribute("data-expanded", "false");
+  await scopeDisclosure.click();
+  await expect(
+    page.getByRole("button", { name: "收起范围" }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(controlledScope).toHaveAttribute("data-expanded", "true");
 });
 
 test("opportunity refresh and explicit Market Analysis links preserve canonical analytical identity", async ({

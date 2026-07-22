@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type { PublicDeploymentActivation } from "../domain/release/deployment-activation";
 import type { SourceFreshnessState } from "../domain/release/source-freshness-states";
@@ -115,7 +115,9 @@ export function WorkspaceScope({
   onSourceDetails?: () => void;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const messages = copy[locale];
+  const productPresentation = presentProductScope(product, messages);
   const deploymentLabel =
     deploymentState === "current"
       ? messages.current
@@ -144,7 +146,7 @@ export function WorkspaceScope({
       <div className="workspace-scope-summary">
         <p>
           <strong>{exporter.code}</strong>
-          <span>{productScopeSummary(product, messages)}</span>
+          <span>{productPresentation.summary}</span>
           <span data-warning={deploymentState === "retired" || undefined}>
             {deploymentLabel}
           </span>
@@ -152,19 +154,20 @@ export function WorkspaceScope({
         <button
           type="button"
           aria-expanded={detailsOpen}
+          aria-controls={detailsId}
           onClick={() => setDetailsOpen((current) => !current)}
         >
           {detailsOpen ? messages.hideScope : messages.viewScope}
         </button>
       </div>
-      <dl data-expanded={detailsOpen}>
+      <dl id={detailsId} data-expanded={detailsOpen}>
         <ScopeFact
           label={messages.exporter}
           value={`${exporter.code} · ${exporter.name}`}
         />
         <div className="workspace-scope-product">
           <dt>{messages.product}</dt>
-          <dd>{productScopeValue(product, messages)}</dd>
+          <dd>{productPresentation.details}</dd>
         </div>
         {market == null ? null : (
           <ScopeFact
@@ -238,38 +241,32 @@ export function WorkspaceScope({
   );
 }
 
-function productScopeSummary(
-  product: WorkspaceProductScope,
-  messages: (typeof copy)[WorkspaceScopeLocale],
-): string {
-  if (product.mode === "all") {
-    return messages.allProducts;
-  }
-  if (product.mode === "portfolio") {
-    return `${messages.portfolio} · ${product.codes.join(", ")}`;
-  }
-  return `${product.revision} · ${product.code}`;
-}
-
-function productScopeValue(
+function presentProductScope(
   product: WorkspaceProductScope,
   messages: (typeof copy)[WorkspaceScopeLocale],
 ) {
   if (product.mode === "all") {
-    return messages.allProducts;
+    return {
+      summary: messages.allProducts,
+      details: messages.allProducts,
+    };
   }
   if (product.mode === "portfolio") {
-    return `${messages.portfolio} · ${product.codes.join(", ")}`;
+    const label = `${messages.portfolio} · ${product.codes.join(", ")}`;
+    return { summary: label, details: label };
   }
-  return (
-    <>
-      <strong>
-        {product.revision} · {product.code}
-      </strong>
-      <span>{product.descriptionEn}</span>
-      <span lang="zh-Hans">{product.descriptionZhHans}</span>
-    </>
-  );
+  return {
+    summary: `${product.revision} · ${product.code}`,
+    details: (
+      <>
+        <strong>
+          {product.revision} · {product.code}
+        </strong>
+        <span>{product.descriptionEn}</span>
+        <span lang="zh-Hans">{product.descriptionZhHans}</span>
+      </>
+    ),
+  };
 }
 
 function ScopeFact({ label, value }: { label: string; value: string }) {

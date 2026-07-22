@@ -80,6 +80,10 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
     await expect(row).toContainText("Analyze this market");
     await expect(row.getByRole("button")).toHaveCount(1);
   }
+  const analyzeActionHeight = await candidateMarkets
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().height);
+  expect(analyzeActionHeight).toBeGreaterThanOrEqual(44);
   expect(analysisRequests).toBe(1);
   await expect(page).toHaveURL(
     /exporter=156.*revision=HS12.*product=010121/,
