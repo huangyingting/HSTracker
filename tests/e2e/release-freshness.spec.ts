@@ -93,7 +93,9 @@ test("a retired analysis build is replaced through current-manifest revalidation
   await page.route("**/api/v1/analyses/current", async (route) => {
     currentManifestRequests += 1;
     const response = await route.fetch();
-    const manifest = (await response.json()) as Record<string, unknown>;
+    const manifest = (await response.json()) as Record<string, unknown> & {
+      deploymentWindow: Array<Record<string, unknown>>;
+    };
     await route.fulfill({
       response,
       json:
@@ -103,6 +105,14 @@ test("a retired analysis build is replaced through current-manifest revalidation
               ...manifest,
               analysisBuildId: "replacement-analysis-v2",
               productSearchBuildId: "replacement-products-v2",
+              deploymentWindow: manifest.deploymentWindow.map((deployment) =>
+                deployment.analysisBuildId === "acceptance-fixtures-v1"
+                  ? {
+                      ...deployment,
+                      analysisBuildId: "replacement-analysis-v2",
+                    }
+                  : deployment,
+              ),
             },
     });
   });
@@ -525,11 +535,15 @@ test("material Release Revision evidence stays separate from historical growth",
   ).toContainText("No longer eligible in this release 2");
 
   const candidates = page.getByRole("list", { name: "Candidate Markets" });
-  await candidates.getByRole("button", { name: /Netherlands/ }).click();
+  await candidates
+    .getByRole("link", { name: "Analyze this market: Netherlands" })
+    .click();
   await expect(revision).toContainText("No material revision flag");
   await expect(revision).toContainText("Previous-release recomputed score 82");
 
-  await candidates.getByRole("button", { name: /South Africa/ }).click();
+  await candidates
+    .getByRole("link", { name: "Analyze this market: South Africa" })
+    .click();
   await expect(revision).toContainText("Newly eligible in this release");
   await expect(revision).not.toContainText("Previous-release recomputed score");
 });
