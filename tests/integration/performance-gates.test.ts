@@ -302,6 +302,32 @@ describe("production performance gates", () => {
     });
   });
 
+  it("requires Market Analysis serialized results to remain strictly below one MiB", () => {
+    const input = acceptedInput();
+    const benchmark = input.originBenchmarks.find(
+      (candidate) =>
+        candidate.operation === "market-analysis-uncached" &&
+        candidate.productRole === "maximum-row",
+    )!;
+    benchmark.payloadBytes = 1024 * KIB;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.gates.origin.benchmarks.find(
+        (evaluated) =>
+          evaluated.operation === "market-analysis-uncached" &&
+          evaluated.productRole === "maximum-row",
+      ),
+    ).toMatchObject({
+      payloadBytes: 1024 * KIB,
+      payloadLimitBytes: 1024 * KIB,
+      payloadLimitExclusive: true,
+      status: "blocked",
+    });
+  });
+
   it("requires Trade Trend sparse/median/upper-quartile/maximum-row queries the same way as Candidate Market", () => {
     const input = acceptedInput();
     input.originBenchmarks = input.originBenchmarks.filter(
@@ -832,7 +858,7 @@ function benchmark(
         : operation.startsWith("trade-explorer")
           ? 1024 * KIB
         : operation.startsWith("market-analysis")
-          ? 1024 * KIB
+          ? 1024 * KIB - 1
         : operation.startsWith("candidate-analysis") ||
             operation.startsWith("trade-trend-analysis") ||
             operation.startsWith("supplier-competition-analysis") ||

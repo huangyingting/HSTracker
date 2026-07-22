@@ -225,8 +225,19 @@ thresholds. It does not deploy, promote, or roll back a release.
 
 The canonical eleven-gate promotion report is produced separately. Its
 Market Analysis launch gate binds the product contract, analyst-needs matrix,
-accessibility and annual-invariance matrix, exact performance reports,
-current/retained/retired replay, startup smoke, and rollback proof:
+accessibility locale/theme/viewport matrix, annual-invariance success and
+failure states, durable copy/reload/open/back/forward journeys, canonical links
+and CSV exports, exact performance reports, current/retained/retired replay,
+startup smoke, and rollback proof. The launch verifier independently rejects a
+Market Analysis result at or above 1 MiB, even when an upstream check set claims
+acceptance.
+
+Rollback changes the immutable release pairing, not the application image. The
+drill therefore proves the prior analysis/search pairing after restart and
+re-runs the complete `market-analysis-v1` API against that pairing. The launch
+record binds that drill to the same build's complete durable-workspace browser
+suite and product-contract version. Application-image rollback remains a host
+deployment operation rather than a release-publication operation.
 
 ```bash
 npm run --silent promotion:check -- \

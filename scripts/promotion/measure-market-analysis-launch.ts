@@ -11,11 +11,14 @@ import { parseArgs } from "node:util";
 import type { PromotionIdentity } from "../../src/promotion/promotion-report";
 import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
+  MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
   MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
+  MARKET_ANALYSIS_DURABLE_JOURNEY_CASES,
   MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES,
   RECENT_MOMENTUM_LAUNCH_STATES,
 } from "../../tests/support/market-analysis-launch-matrix";
 import { ANALYST_NEEDS_TRACEABILITY } from "../../tests/support/market-analysis-analyst-needs";
+import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../../tests/support/market-analysis-production-boundary";
 
 const REPO_ROOT = process.cwd();
 const DEFAULT_GATES_DIR = "reports/promotion/candidate/gates";
@@ -133,7 +136,14 @@ async function main(): Promise<void> {
   );
   const annualResultInvariance = verifyPlaywrightReport(
     accessibilityArtifact.value,
-    [MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE],
+    [
+      MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
+      ...MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
+    ],
+  );
+  const durableJourneys = verifyPlaywrightReport(
+    accessibilityArtifact.value,
+    MARKET_ANALYSIS_DURABLE_JOURNEY_CASES,
   );
   const contracts = verifyVitestReport(
     contractArtifact.value,
@@ -181,9 +191,14 @@ async function main(): Promise<void> {
       cases: accessibility,
       report: artifactReference(accessibilityArtifact),
     },
+    durableJourneys: {
+      status: "accepted",
+      cases: durableJourneys,
+      report: artifactReference(accessibilityArtifact),
+    },
     annualResultInvariance: {
       status: "accepted",
-      case: annualResultInvariance[0],
+      cases: annualResultInvariance,
       coveredMonthlyStates: RECENT_MOMENTUM_LAUNCH_STATES.map((state) => ({
         coverageState: state.coverageState,
         signalState: state.signalState,
@@ -220,8 +235,10 @@ async function main(): Promise<void> {
     },
     rollback: {
       status: "accepted",
+      productContractVersion: PRODUCT_CONTRACT_VERSION,
       contract: requiredContract(contracts, "rollback"),
       drill: rollback,
+      workspaceCases: durableJourneys,
       report: artifactReference(lifecycleArtifact),
     },
     sourceArtifacts: sourceArtifacts.map(artifactReference),
@@ -262,6 +279,7 @@ async function main(): Promise<void> {
       ANALYST_NEEDS_TRACEABILITY.length +
       accessibility.length +
       annualResultInvariance.length +
+      durableJourneys.length +
       originBenchmarks.length +
       browserLab.reduce((total, product) => total + product.trials.length, 0) +
       contracts.length,
@@ -298,6 +316,7 @@ async function main(): Promise<void> {
         activeDeploymentPairingId: identity.deploymentPairingId,
         analystNeeds: analystNeeds.counts,
         accessibilityCases: accessibility.length,
+        durableJourneyCases: durableJourneys.length,
         recentMomentumStates: RECENT_MOMENTUM_LAUNCH_STATES.length,
         originBenchmarkCases: originBenchmarks.length,
         browserTrials: browserLab.reduce(
@@ -348,10 +367,10 @@ async function measureAnalystNeeds() {
   for (const path of sourcePaths) {
     const source = await readFile(path, "utf8");
     if (
-      /AQ-\d{2}/u.test(source) ||
       /market-analysis-analyst-needs/u.test(source) ||
-      /AnalystQuestionId/u.test(source) ||
-      /questionAnswers/u.test(source)
+      MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS.some((pattern) =>
+        pattern.test(source),
+      )
     ) {
       violations.push(path.slice(REPO_ROOT.length + 1));
     }
@@ -415,15 +434,42 @@ function verifyOriginReport(
         );
       }
       const benchmark = matches[0]!;
+      const limits =
+        operation === "market-analysis-uncached"
+          ? { p95Ms: 2_500, p99Ms: 5_000, maximumRouteMs: 12_000 }
+          : { p95Ms: 100, p99Ms: 250, maximumRouteMs: 2_000 };
+      const p95Ms = nonnegativeNumber(benchmark.p95Ms, "origin p95");
+      const p99Ms = nonnegativeNumber(benchmark.p99Ms, "origin p99");
+      const maximumRouteMs = nonnegativeNumber(
+        benchmark.maximumRouteMs,
+        "origin maximum route time",
+      );
+      const resultBytes = positiveNumber(
+        benchmark.payloadBytes,
+        "origin result bytes",
+      );
+      const compressedResultBytes = positiveNumber(
+        benchmark.compressedPayloadBytes,
+        "origin compressed result bytes",
+      );
       if (
         positiveNumber(benchmark.warmupSamples, "origin warmup samples") < 5 ||
         positiveNumber(benchmark.timedSamples, "origin timed samples") < 100 ||
         benchmark.cacheStatesVerified !== true ||
         benchmark.errors !== 0 ||
-        benchmark.timeouts !== 0
+        benchmark.timeouts !== 0 ||
+        p95Ms > limits.p95Ms ||
+        p99Ms > limits.p99Ms ||
+        maximumRouteMs > limits.maximumRouteMs ||
+        compressedResultBytes > 300 * 1024
       ) {
         throw invalid(
           `${operation}/${productRole} does not preserve the accepted benchmark profile.`,
+        );
+      }
+      if (resultBytes >= 1024 * 1024) {
+        throw invalid(
+          `${operation}/${productRole} Market Analysis result must remain below 1048576 bytes.`,
         );
       }
       result.push({
@@ -433,20 +479,11 @@ function verifyOriginReport(
         timedSamples: benchmark.timedSamples,
         p50Ms: nonnegativeNumber(benchmark.p50Ms, "origin p50"),
         p75Ms: nonnegativeNumber(benchmark.p75Ms, "origin p75"),
-        p95Ms: nonnegativeNumber(benchmark.p95Ms, "origin p95"),
-        p99Ms: nonnegativeNumber(benchmark.p99Ms, "origin p99"),
-        maximumRouteMs: nonnegativeNumber(
-          benchmark.maximumRouteMs,
-          "origin maximum route time",
-        ),
-        resultBytes: positiveNumber(
-          benchmark.payloadBytes,
-          "origin result bytes",
-        ),
-        compressedResultBytes: positiveNumber(
-          benchmark.compressedPayloadBytes,
-          "origin compressed result bytes",
-        ),
+        p95Ms,
+        p99Ms,
+        maximumRouteMs,
+        resultBytes,
+        compressedResultBytes,
       });
     }
   }

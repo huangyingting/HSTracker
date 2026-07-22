@@ -15,6 +15,10 @@ import {
   parseOriginBenchmarkPlan,
   type OriginBenchmarkPlan,
 } from "../../src/promotion/http-performance-runner";
+import type {
+  OriginBenchmarkOperation,
+  PerformanceProductRole,
+} from "../../src/promotion/performance-gates";
 
 const REPO_ROOT = process.cwd();
 const DEFAULT_OUT_DIR = "reports/promotion/candidate/checks";
@@ -204,8 +208,8 @@ function resolveCachePlan(plan: OriginBenchmarkPlan): CachePlan {
 
 function requiredBenchmarkPath(
   plan: OriginBenchmarkPlan,
-  operation: string,
-  productRole: string | undefined,
+  operation: OriginBenchmarkOperation,
+  productRole: PerformanceProductRole | undefined,
 ): string {
   const matches = plan.requests.filter(
     (request) =>

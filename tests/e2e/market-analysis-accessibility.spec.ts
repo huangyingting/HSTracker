@@ -165,6 +165,65 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[4].title, async ({
   }
 });
 
+test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[5].title, async ({
+  browser,
+}, testInfo) => {
+  testInfo.setTimeout(120_000);
+  const viewports = [
+    { width: 1_440, height: 900 },
+    { width: 768, height: 1_024 },
+    { width: 390, height: 844 },
+    { width: 320, height: 844 },
+  ] as const;
+  const locales = [
+    {
+      query: "",
+      heading: "Netherlands · Market Analysis",
+      language: "en",
+    },
+    {
+      query: "&locale=zh-Hans",
+      heading: "Netherlands · 市场分析",
+      language: "zh-Hans",
+    },
+  ] as const;
+
+  for (const viewport of viewports) {
+    for (const colorScheme of ["light", "dark"] as const) {
+      for (const locale of locales) {
+        const context = await browser.newContext({
+          colorScheme,
+          hasTouch: viewport.width <= 390,
+          isMobile: viewport.width <= 390,
+          viewport,
+        });
+        const page = await context.newPage();
+        try {
+          await page.goto(`${CANONICAL_URL}${locale.query}`);
+          const view = page.getByRole("region", { name: locale.heading });
+          await expect(view).toBeVisible();
+          await expect(view.getByRole("heading", { level: 3 })).toHaveCount(8);
+          await expect(page.locator("html")).toHaveAttribute(
+            "data-theme",
+            colorScheme,
+          );
+          await expect(page.locator("html")).toHaveAttribute(
+            "lang",
+            locale.language,
+          );
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= window.innerWidth,
+            ),
+          ).toBe(true);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
+});
+
 test(MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE.title, async ({
   page,
 }) => {

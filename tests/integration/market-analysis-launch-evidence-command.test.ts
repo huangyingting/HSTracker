@@ -15,7 +15,9 @@ import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptanc
 import type { PromotionIdentity } from "../../src/promotion/promotion-report";
 import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
+  MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
   MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
+  MARKET_ANALYSIS_DURABLE_JOURNEY_CASES,
   MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES,
 } from "../support/market-analysis-launch-matrix";
 
@@ -65,7 +67,8 @@ describe("Market Analysis launch evidence command", () => {
       productContractVersion: "market-analysis-v1",
       activeDeploymentPairingId: IDENTITY.deploymentPairingId,
       analystNeeds: { DIRECT: 10, BOUNDED: 5, OUTSIDE: 5 },
-      accessibilityCases: 5,
+      accessibilityCases: 6,
+      durableJourneyCases: 15,
       recentMomentumStates: 11,
       originBenchmarkCases: 8,
       browserTrials: 10,
@@ -76,7 +79,10 @@ describe("Market Analysis launch evidence command", () => {
     ) as {
       analystNeeds: { rows: unknown[] };
       performance: { originBenchmarks: unknown[] };
-      annualResultInvariance: { coveredMonthlyStates: unknown[] };
+      annualResultInvariance: {
+        cases: unknown[];
+        coveredMonthlyStates: unknown[];
+      };
     };
     expect(evidence).toMatchObject({
       schemaVersion: "market-analysis-launch-readiness-evidence-v1",
@@ -93,6 +99,7 @@ describe("Market Analysis launch evidence command", () => {
         productionLeakageViolations: [],
       },
       accessibility: { status: "accepted" },
+      durableJourneys: { status: "accepted" },
       annualResultInvariance: { status: "accepted" },
       performance: { status: "accepted" },
       replay: { status: "accepted" },
@@ -104,6 +111,7 @@ describe("Market Analysis launch evidence command", () => {
     expect(evidence.annualResultInvariance.coveredMonthlyStates).toHaveLength(
       11,
     );
+    expect(evidence.annualResultInvariance.cases).toHaveLength(4);
 
     const checks = JSON.parse(
       await readFile(fixture.checksPath, "utf8"),
@@ -152,10 +160,34 @@ describe("Market Analysis launch evidence command", () => {
       ),
     });
   }, 30_000);
+
+  it("fails closed when a Market Analysis result is exactly one MiB", async () => {
+    const fixture = await writeFixtureReports({
+      originPayloadBytes: 1024 * 1024,
+    });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "Market Analysis result must remain below 1048576 bytes",
+      ),
+    });
+  }, 30_000);
 });
 
 async function writeFixtureReports(
-  options: { includesMarketAnalysis?: boolean } = {},
+  options: {
+    includesMarketAnalysis?: boolean;
+    originPayloadBytes?: number;
+  } = {},
 ) {
   const workspace = await mkdtemp(
     join(process.cwd(), "reports", "promotion", "launch-command-"),
@@ -190,7 +222,10 @@ async function writeFixtureReports(
       playwright: "1.61.1",
     },
   });
-  await writeJson(paths.origin, originReport());
+  await writeJson(
+    paths.origin,
+    originReport(options.originPayloadBytes ?? 4_096),
+  );
   await writeJson(paths.browser, browserReport());
   await writeJson(
     paths.targetLoad,
@@ -270,7 +305,7 @@ async function writeFixtureReports(
   };
 }
 
-function originReport() {
+function originReport(payloadBytes: number) {
   return {
     schemaVersion: "origin-benchmark-report-v1",
     measurementClass: "candidate",
@@ -294,7 +329,7 @@ function originReport() {
           cacheStatesVerified: true,
           errors: 0,
           timeouts: 0,
-          payloadBytes: 4_096,
+          payloadBytes,
           compressedPayloadBytes: 1_024,
         }),
       ),
@@ -360,6 +395,8 @@ function playwrightReport() {
   const cases = [
     ...MARKET_ANALYSIS_ACCESSIBILITY_CASES,
     MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
+    ...MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
+    ...MARKET_ANALYSIS_DURABLE_JOURNEY_CASES,
   ];
   return {
     suites: [

@@ -4,6 +4,7 @@ import { extname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ANALYST_NEEDS_TRACEABILITY } from "../support/market-analysis-analyst-needs";
+import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../support/market-analysis-production-boundary";
 import { MARKET_ANALYSIS_COPY } from "../../src/domain/market-analysis/copy";
 
 const VALID_CAPABILITIES = new Set<string>([
@@ -69,10 +70,10 @@ describe("Analyst-needs traceability (AQ-01..AQ-20)", () => {
     );
 
     for (const source of sources) {
-      expect(source).not.toMatch(/AQ-\d{2}/u);
       expect(source).not.toMatch(/market-analysis-analyst-needs/u);
-      expect(source).not.toMatch(/AnalystQuestionId/u);
-      expect(source).not.toMatch(/questionAnswers/u);
+      for (const pattern of MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS) {
+        expect(source).not.toMatch(pattern);
+      }
     }
   });
 });

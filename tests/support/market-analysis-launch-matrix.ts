@@ -22,6 +22,11 @@ export const MARKET_ANALYSIS_ACCESSIBILITY_CASES = [
     id: "touch-targets",
     title: "the collapsed area navigator remains touch-sized and operable",
   },
+  {
+    id: "locale-theme-viewport-matrix",
+    title:
+      "Market Analysis remains complete across both locales, both themes, and every launch viewport",
+  },
 ] as const;
 
 export const MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE = {
@@ -29,6 +34,99 @@ export const MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE = {
   title:
     "annual result bytes and presentation remain invariant across every Recent Momentum state",
 } as const;
+
+export const MARKET_ANALYSIS_ANNUAL_FAILURE_CASES = [
+  {
+    id: "annual-invariance-source-unavailable",
+    title:
+      "source unavailability is a bounded monthly state and leaves annual presentation and focus unchanged",
+  },
+  {
+    id: "annual-invariance-temporary-failure",
+    title:
+      "temporary monthly failure retries locally while annual data and DOM stay byte-for-byte invariant",
+  },
+  {
+    id: "annual-invariance-cancellation",
+    title:
+      "rapid market changes cannot paint a stale monthly response under the new annual heading",
+  },
+] as const;
+
+export const MARKET_ANALYSIS_DURABLE_JOURNEY_CASES = [
+  {
+    id: "locale-parity",
+    title:
+      "both locales expose identical values, evidence states, and actions for Market Analysis",
+  },
+  {
+    id: "mobile-journey",
+    title:
+      "the complete Market Analysis journey works at 390px and 320px without horizontal-only comprehension",
+  },
+  {
+    id: "theme-persistence",
+    title:
+      "the workspace defaults to light and remembers a switch to dark across reload",
+  },
+  {
+    id: "copy-reload-open",
+    title:
+      "copying, reloading, and opening a pinned Candidate Market link in another browser reproduce the same task and pin",
+  },
+  {
+    id: "explicit-current-refresh",
+    title:
+      "a pinned Candidate Market link that no longer matches the current recommendation shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin",
+  },
+  {
+    id: "retained-link",
+    title:
+      "a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current",
+  },
+  {
+    id: "back-forward",
+    title:
+      "browser back/forward reproduce the exact task and locale carried by each canonical URL, not client memory",
+  },
+  {
+    id: "opportunity-back",
+    title:
+      "a fixed-product opportunity opens Market Analysis explicitly and Back restores its action",
+  },
+  {
+    id: "direct-link-fallback",
+    title:
+      "a direct Market Analysis link falls back to its fixed-product opportunities",
+  },
+  {
+    id: "advanced-tools",
+    title:
+      "Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder",
+  },
+  {
+    id: "canonical-link-compatibility",
+    title:
+      "the canonical-link compatibility fixture set preserves recipe, inputs, locale, and Current identity",
+  },
+  {
+    id: "candidate-market-csv",
+    title: "Candidate Markets downloads the complete bilingual 13-row CSV",
+  },
+  {
+    id: "trade-trend-csv",
+    title: "an analyst downloads the complete contextual Trade Trend CSV",
+  },
+  {
+    id: "supplier-competition-csv",
+    title:
+      "an analyst downloads the complete contextual Supplier Competition CSV",
+  },
+  {
+    id: "trade-explorer-csv",
+    title: "an analyst downloads the complete bounded Trade Explorer CSV",
+  },
+] as const;
 
 export const MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES = [
   {

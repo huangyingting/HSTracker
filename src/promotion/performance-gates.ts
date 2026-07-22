@@ -261,6 +261,7 @@ type OriginThreshold = {
   p99LimitMs: number;
   routeDeadlineMs: number;
   payloadLimitBytes?: number;
+  payloadLimitExclusive?: boolean;
   compressedPayloadLimitBytes?: number;
 };
 
@@ -327,6 +328,7 @@ const ORIGIN_THRESHOLDS: Record<
     p99LimitMs: 5_000,
     routeDeadlineMs: 12_000,
     payloadLimitBytes: 1024 * KIB,
+    payloadLimitExclusive: true,
     compressedPayloadLimitBytes: 300 * KIB,
   },
   "market-analysis-process-hit": {
@@ -334,6 +336,7 @@ const ORIGIN_THRESHOLDS: Record<
     p99LimitMs: 250,
     routeDeadlineMs: 2_000,
     payloadLimitBytes: 1024 * KIB,
+    payloadLimitExclusive: true,
     compressedPayloadLimitBytes: 300 * KIB,
   },
   "csv-uncached": {
@@ -1014,7 +1017,9 @@ function evaluateOriginBenchmark(input: OriginBenchmarkInput) {
     errors === 0 &&
     timeouts === 0 &&
     (threshold.payloadLimitBytes === undefined ||
-      payloadBytes <= threshold.payloadLimitBytes) &&
+      (threshold.payloadLimitExclusive === true
+        ? payloadBytes < threshold.payloadLimitBytes
+        : payloadBytes <= threshold.payloadLimitBytes)) &&
     (threshold.compressedPayloadLimitBytes === undefined ||
       (compressedPayloadBytes !== null &&
         compressedPayloadBytes <=
@@ -1042,6 +1047,7 @@ function evaluateOriginBenchmark(input: OriginBenchmarkInput) {
     timeouts,
     payloadBytes,
     payloadLimitBytes: threshold.payloadLimitBytes ?? null,
+    payloadLimitExclusive: threshold.payloadLimitExclusive ?? false,
     compressedPayloadBytes,
     compressedPayloadLimitBytes:
       threshold.compressedPayloadLimitBytes ?? null,
