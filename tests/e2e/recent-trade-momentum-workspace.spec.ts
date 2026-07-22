@@ -307,10 +307,48 @@ test("a deployment without a monthly package keeps a truthful visible product ar
   await expect(momentum).toContainText(
     "This deployment does not publish a Recent Momentum Dataset Package.",
   );
-  await expect(momentum).toContainText("SOURCE_UNAVAILABLE");
+  await expect(momentum).toContainText("CAPABILITY_UNAVAILABLE");
   await expect(momentum).toContainText("Not available");
   expect(momentumRequests).toEqual([]);
 });
+
+for (const boundedRouteCase of [
+  {
+    label: "unknown reporter",
+    reporter: "AU",
+    product: "010121",
+    expectedCopy: "Unsupported market",
+  },
+  {
+    label: "unknown product",
+    reporter: "NL",
+    product: "999999",
+    expectedCopy: "Unsupported product mapping",
+  },
+] as const) {
+  test(`the real monthly route's ${boundedRouteCase.label} response is bounded without Retry`, async ({
+    page,
+  }) => {
+    let routeStatus: number | null = null;
+    await page.route("**/recent-trade-momentum?*", async (route) => {
+      const url = new URL(route.request().url());
+      url.searchParams.set("reporter", boundedRouteCase.reporter);
+      url.searchParams.set("product", boundedRouteCase.product);
+      const response = await route.fetch({ url: url.toString() });
+      routeStatus = response.status();
+      await route.fulfill({ response });
+    });
+
+    await page.goto(CANONICAL_MARKET_ANALYSIS_URL);
+
+    await expect.poll(() => routeStatus).toBe(404);
+    const momentum = page.getByRole("region", { name: "Recent Momentum" });
+    await expect(momentum).toContainText(boundedRouteCase.expectedCopy);
+    await expect(
+      momentum.getByRole("button", { name: /Retry/i }),
+    ).toHaveCount(0);
+  });
+}
 
 test("temporary monthly failure retries locally while annual data and DOM stay byte-for-byte invariant", async ({
   page,

@@ -1,8 +1,19 @@
+import type {
+  RecentTradeMomentumConfidenceReason,
+  RecentTradeMomentumReasonCode,
+} from "../domain/recent-trade-momentum/recent-trade-momentum-v1";
+import type { DatasetPackageIdentity } from "../domain/trade-analytics/dataset-package";
 import type { RecentTradeMomentumV1Payload } from "../domain/trade-analytics/recent-trade-momentum-v1-adapter";
+
+type RecentTradeMomentumClientErrorCode =
+  | "HTTP_ERROR"
+  | "INVALID_PAYLOAD"
+  | "UNKNOWN_REPORTER"
+  | "UNKNOWN_PRODUCT";
 
 export class RecentTradeMomentumClientError extends Error {
   constructor(
-    readonly code: "HTTP_ERROR" | "INVALID_PAYLOAD",
+    readonly code: RecentTradeMomentumClientErrorCode,
     message: string,
     readonly status: number | null = null,
   ) {
@@ -22,7 +33,7 @@ export async function loadRecentTradeMomentum({
   analysisBuildId: string;
   reporterIso2: string;
   productCode: string;
-  expectedDatasetPackageIdentity: string;
+  expectedDatasetPackageIdentity: DatasetPackageIdentity;
   fetcher: typeof fetch;
   signal: AbortSignal;
 }): Promise<RecentTradeMomentumV1Payload> {
@@ -35,8 +46,9 @@ export async function loadRecentTradeMomentum({
     { signal },
   );
   if (!response.ok) {
+    const boundedCode = await boundedRouteErrorCode(response);
     throw new RecentTradeMomentumClientError(
-      "HTTP_ERROR",
+      boundedCode ?? "HTTP_ERROR",
       `Recent Trade Momentum returned ${response.status}.`,
       response.status,
     );
@@ -46,6 +58,7 @@ export async function loadRecentTradeMomentum({
     !isRecentTradeMomentumPayload(payload) ||
     payload.reporterIso2 !== reporterIso2 ||
     payload.hs12Code !== productCode ||
+    payload.monthlyPackageId !== expectedDatasetPackageIdentity ||
     payload.datasetPackageIdentity !== expectedDatasetPackageIdentity
   ) {
     throw new RecentTradeMomentumClientError(
@@ -68,8 +81,8 @@ function isRecentTradeMomentumPayload(
     /^[A-Z]{2}$/u.test(String(value.reporterIso2)) &&
     /^[0-9]{6}$/u.test(String(value.hs12Code)) &&
     /^\d{4}-\d{2}$/u.test(String(value.cutoffMonth)) &&
-    isMonthList(value.recentMonths) &&
-    isMonthList(value.baselineMonths) &&
+    isMonthList(value.recentMonths, 3) &&
+    isMonthList(value.baselineMonths, 3) &&
     isOneOf(value.coverageState, [
       "SUPPORTED",
       "SUPPORTED_NO_SIGNAL",
@@ -87,8 +100,7 @@ function isRecentTradeMomentumPayload(
         "FALLING",
         "FALLING_FAST",
       ] as const)) &&
-    Array.isArray(value.reasonCodes) &&
-    value.reasonCodes.every(isNonemptyString) &&
+    isReasonCodeList(value.reasonCodes) &&
     isNullableNumericString(value.recentValueEur) &&
     isNullableNumericString(value.baselineValueEur) &&
     (value.growthRateDecimal === null ||
@@ -97,13 +109,44 @@ function isRecentTradeMomentumPayload(
       /^[-+]\d+\.\d$/u.test(String(value.growthPercentDisplay))) &&
     (value.confidence === null ||
       isOneOf(value.confidence, ["HIGH", "MEDIUM", "LOW"] as const)) &&
-    Array.isArray(value.confidenceReasons) &&
-    value.confidenceReasons.every(isNonemptyString) &&
+    isConfidenceReasonList(value.confidenceReasons) &&
     Number.isInteger(value.recordedHistoryMonths) &&
+    Number(value.recordedHistoryMonths) >= 0 &&
+    Number(value.recordedHistoryMonths) <= 24 &&
     value.expectedHistoryMonths === 24 &&
-    isNonemptyString(value.analysisIdentity) &&
-    isNonemptyString(value.datasetPackageIdentity)
+    isAnalysisIdentity(value.analysisIdentity) &&
+    isDatasetPackageIdentity(value.datasetPackageIdentity)
   );
+}
+
+async function boundedRouteErrorCode(
+  response: Response,
+): Promise<"UNKNOWN_REPORTER" | "UNKNOWN_PRODUCT" | null> {
+  if (
+    response.status !== 404 ||
+    !response.headers.get("content-type")?.includes("application/json")
+  ) {
+    return null;
+  }
+  const body = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+    return null;
+  }
+  if (!isRecord(payload) || !isRecord(payload.error)) {
+    return null;
+  }
+  return isOneOf(payload.error.code, [
+    "UNKNOWN_REPORTER",
+    "UNKNOWN_PRODUCT",
+  ] as const)
+    ? payload.error.code
+    : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -114,12 +157,70 @@ function isNonemptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-function isMonthList(value: unknown): value is readonly string[] {
+function isMonthList(
+  value: unknown,
+  expectedLength: number,
+): value is readonly string[] {
   return (
     Array.isArray(value) &&
+    value.length === expectedLength &&
+    new Set(value).size === value.length &&
     value.every(
       (month) => typeof month === "string" && /^\d{4}-\d{2}$/u.test(month),
     )
+  );
+}
+
+function isReasonCodeList(
+  value: unknown,
+): value is readonly RecentTradeMomentumReasonCode[] {
+  return (
+    Array.isArray(value) &&
+    value.every((reason) =>
+      isOneOf(reason, [
+        "INSUFFICIENT_COMPLETE_HISTORY",
+        "INSUFFICIENT_RECORDED_MONTHS",
+        "MISSING_COMPARISON_MONTH",
+        "SMALL_BASE",
+        "WINDOW_CONCENTRATION",
+        "SUPPRESSED_OR_REALLOCATED",
+        "CLASSIFICATION_BREAK",
+        "UNSUPPORTED_PRODUCT_MAPPING",
+        "UNSUPPORTED_MARKET",
+        "SOURCE_UNAVAILABLE",
+      ] as const),
+    )
+  );
+}
+
+function isConfidenceReasonList(
+  value: unknown,
+): value is readonly RecentTradeMomentumConfidenceReason[] {
+  return (
+    Array.isArray(value) &&
+    value.every((reason) =>
+      isOneOf(reason, [
+        "RECORDED_HISTORY_20_TO_23",
+        "RECORDED_HISTORY_18_TO_19",
+        "PRELIMINARY_COMPARISON_MONTH",
+        "MULTI_STEP_EXACT_CORRESPONDENCE",
+        "MATERIAL_SOURCE_REVISION",
+      ] as const),
+    )
+  );
+}
+
+function isAnalysisIdentity(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^analysis-identity-v1-[0-9a-f]{64}$/u.test(value)
+  );
+}
+
+function isDatasetPackageIdentity(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^dataset-package-v1-[0-9a-f]{64}$/u.test(value)
   );
 }
 

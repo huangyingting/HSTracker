@@ -14,11 +14,19 @@ import type {
 import type { RecentTradeMomentumV1Payload } from "../domain/trade-analytics/recent-trade-momentum-v1-adapter";
 import type { DatasetPackageIdentity } from "../domain/trade-analytics/dataset-package";
 import { resolveReviewedMonthlyReporter } from "../economy/reviewed-monthly-reporter";
-import { loadRecentTradeMomentum } from "./recent-trade-momentum-client";
+import {
+  loadRecentTradeMomentum,
+  RecentTradeMomentumClientError,
+} from "./recent-trade-momentum-client";
 
 type MomentumRequestState =
   | Readonly<{ contextKey: string; status: "loading" }>
   | Readonly<{ contextKey: string; status: "failed" }>
+  | Readonly<{
+      contextKey: string;
+      status: "bounded";
+      coverageState: "UNSUPPORTED_MARKET" | "UNSUPPORTED_PRODUCT_MAPPING";
+    }>
   | Readonly<{
       contextKey: string;
       status: "ready";
@@ -34,6 +42,8 @@ const copy = {
     unsupportedMarket: "Unsupported market",
     unsupportedMarketBody:
       "This market has no reviewed ISO3-to-ISO2 monthly reporter mapping. HS Tracker does not guess one.",
+    reporterUnavailableBody:
+      "The reviewed reporting market is not available in this monthly Dataset Package.",
     unavailable: "Monthly capability unavailable",
     unavailableBody:
       "This deployment does not publish a Recent Momentum Dataset Package. Annual Market Analysis remains available.",
@@ -117,6 +127,8 @@ const copy = {
     unsupportedMarket: "不支持的市场",
     unsupportedMarketBody:
       "该市场没有经审查的 ISO3 到 ISO2 月度申报方映射。HS Tracker 不会猜测映射。",
+    reporterUnavailableBody:
+      "经审查的申报市场在此月度数据集包中不可用。",
     unavailable: "月度功能不可用",
     unavailableBody:
       "此部署未发布近期动量数据集包。年度市场分析仍然可用。",
@@ -238,8 +250,23 @@ export function RecentMomentumPanel({
           !controller.signal.aborted &&
           requestSequence.current === sequence
         ) {
-          console.error("Recent Momentum request failed", error);
-          setRequestState({ contextKey, status: "failed" });
+          if (
+            error instanceof RecentTradeMomentumClientError &&
+            (error.code === "UNKNOWN_REPORTER" ||
+              error.code === "UNKNOWN_PRODUCT")
+          ) {
+            setRequestState({
+              contextKey,
+              status: "bounded",
+              coverageState:
+                error.code === "UNKNOWN_REPORTER"
+                  ? "UNSUPPORTED_MARKET"
+                  : "UNSUPPORTED_PRODUCT_MAPPING",
+            });
+          } else {
+            console.error("Recent Momentum request failed", error);
+            setRequestState({ contextKey, status: "failed" });
+          }
         }
       });
     return () => controller.abort();
@@ -280,6 +307,9 @@ export function RecentMomentumPanel({
             title={messages.unsupportedMarket}
             body={messages.unsupportedMarketBody}
             coverageState="UNSUPPORTED_MARKET"
+            reporterIso2={null}
+            productCode={analysis.context.product.code}
+            mapping={messages.notAvailable}
             datasetPackageIdentity={datasetPackageIdentity}
             messages={messages}
           />
@@ -287,7 +317,10 @@ export function RecentMomentumPanel({
           <MomentumBoundedState
             title={messages.unavailable}
             body={messages.unavailableBody}
-            coverageState="SOURCE_UNAVAILABLE"
+            coverageState="CAPABILITY_UNAVAILABLE"
+            reporterIso2={reporter.iso2}
+            productCode={analysis.context.product.code}
+            mapping={messages.notAvailable}
             datasetPackageIdentity={null}
             messages={messages}
           />
@@ -299,6 +332,19 @@ export function RecentMomentumPanel({
         ) : visibleState.status === "failed" ? (
           <div className="recent-momentum-local-failure" role="status">
             <p>{messages.failed}</p>
+            <dl className="market-evidence-ledger recent-momentum-facts">
+              <Fact label={messages.reporter} value={reporter.iso2} />
+              <Fact
+                label={messages.product}
+                value={`HS12 ${analysis.context.product.code}`}
+              />
+              <Fact label={messages.mapping} value={messages.notAvailable} />
+              <Fact
+                label={messages.datasetPackageIdentity}
+                value={datasetPackageIdentity}
+                identity
+              />
+            </dl>
             <button
               type="button"
               onClick={() => {
@@ -309,6 +355,29 @@ export function RecentMomentumPanel({
               {messages.retry}
             </button>
           </div>
+        ) : visibleState.status === "bounded" ? (
+          <MomentumBoundedState
+            title={
+              visibleState.coverageState === "UNSUPPORTED_MARKET"
+                ? messages.unsupportedMarket
+                : messages.unsupportedProduct
+            }
+            body={
+              visibleState.coverageState === "UNSUPPORTED_MARKET"
+                ? messages.reporterUnavailableBody
+                : messages.unsupportedProductReason
+            }
+            coverageState={visibleState.coverageState}
+            reporterIso2={reporter.iso2}
+            productCode={analysis.context.product.code}
+            mapping={
+              visibleState.coverageState === "UNSUPPORTED_PRODUCT_MAPPING"
+                ? messages.mappingUnsupported
+                : messages.notAvailable
+            }
+            datasetPackageIdentity={datasetPackageIdentity}
+            messages={messages}
+          />
         ) : (
           <MomentumEvidence
             payload={visibleState.payload}
@@ -425,12 +494,21 @@ function MomentumBoundedState({
   title,
   body,
   coverageState,
+  reporterIso2,
+  productCode,
+  mapping,
   datasetPackageIdentity,
   messages,
 }: {
   title: string;
   body: string;
-  coverageState: "UNSUPPORTED_MARKET" | "SOURCE_UNAVAILABLE";
+  coverageState:
+    | "UNSUPPORTED_MARKET"
+    | "UNSUPPORTED_PRODUCT_MAPPING"
+    | "CAPABILITY_UNAVAILABLE";
+  reporterIso2: string | null;
+  productCode: string;
+  mapping: string;
   datasetPackageIdentity: DatasetPackageIdentity | null;
   messages: (typeof copy)[MarketAnalysisLocale];
 }) {
@@ -440,6 +518,22 @@ function MomentumBoundedState({
       <p>{body}</p>
       <dl className="market-evidence-ledger">
         <Fact label={messages.coverage} value={coverageState} />
+        <Fact
+          label={messages.reporter}
+          value={reporterIso2 ?? messages.notAvailable}
+        />
+        <Fact label={messages.product} value={`HS12 ${productCode}`} />
+        <Fact label={messages.recentPeriod} value={messages.notAvailable} />
+        <Fact label={messages.baselinePeriod} value={messages.notAvailable} />
+        <Fact label={messages.values} value={messages.notAvailable} />
+        <Fact label={messages.currency} value={messages.notAvailable} />
+        <Fact label={messages.cutoff} value={messages.notAvailable} />
+        <Fact label={messages.history} value={messages.notAvailable} />
+        <Fact label={messages.confidence} value={messages.notSignalled} />
+        <Fact label={messages.mapping} value={mapping} />
+        <Fact label={messages.reasons} value={body} />
+        <Fact label={messages.sourceVintage} value={messages.notAvailable} />
+        <Fact label={messages.monthlyPackage} value={messages.notAvailable} />
         <Fact
           label={messages.analysisIdentity}
           value={messages.notAvailable}
