@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import type { CurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
+
 test("the bare product shell leads with Scope instead of recipe selection", async ({
   page,
 }) => {
@@ -204,6 +206,12 @@ test("header Advanced tools preserve the selected Market Analysis context and Ba
   const advancedTools = page.getByRole("group", { name: "Advanced tools" });
   await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
   const tradeTrend = advancedTools.getByRole("link", { name: "Trade Trend" });
+  const manifestResponse = await page.request.get("/api/v1/analyses/current");
+  const manifest = (await manifestResponse.json()) as CurrentAnalysisManifest;
+  const tradeTrendHref = await tradeTrend.getAttribute("href");
+  expect(
+    new URL(tradeTrendHref ?? "", page.url()).searchParams.get("pkg"),
+  ).toBe(manifest.recommendation.tradeTrend?.datasetPackageIdentity);
   await expect(tradeTrend).toHaveAttribute(
     "href",
     /recipe=trade-trend-v1.*importer=528.*product=010121.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,

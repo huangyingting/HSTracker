@@ -618,6 +618,7 @@ export type AdvancedToolRecipe =
 export function withAdvancedToolRecipe(
   context: TradeAnalysisContext,
   recipe: AdvancedToolRecipe,
+  pin: TradeAnalysisContextPin | null,
 ): TradeTrendContext | SupplierCompetitionContext | TradeExplorerContext {
   const transitioned = withRecipe(context, recipe);
   if (recipe === "trade-explorer") {
@@ -627,7 +628,7 @@ export function withAdvancedToolRecipe(
     const focused = focusedProductMarket(context);
     return {
       ...transitioned,
-      pin: context.pin,
+      pin,
       importEconomy:
         focused.marketCode === null
           ? transitioned.importEconomy
@@ -647,7 +648,7 @@ export function withAdvancedToolRecipe(
   const focused = focusedProductMarket(context);
   return {
     ...transitioned,
-    pin: context.pin,
+    pin,
     productCode: focused.productCode ?? transitioned.productCode,
     importerCode: focused.marketCode ?? transitioned.importerCode,
   };

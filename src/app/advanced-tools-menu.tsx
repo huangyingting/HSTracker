@@ -182,9 +182,8 @@ function translatedAdvancedContext(
   recipe: AdvancedToolRecipe,
   manifest: CurrentAnalysisManifest | null,
 ) {
-  const transitioned = withAdvancedToolRecipe(context, recipe);
   if (context.pin === null || manifest === null) {
-    return transitioned;
+    return withAdvancedToolRecipe(context, recipe, context.pin);
   }
   const sourceResolution = resolvePinnedContext(
     context.pin,
@@ -192,15 +191,13 @@ function translatedAdvancedContext(
     context.recipe,
   );
   if (sourceResolution.state === "retired") {
-    return transitioned;
+    return withAdvancedToolRecipe(context, recipe, context.pin);
   }
   const sourceBuildId =
     sourceResolution.state === "retained"
       ? sourceResolution.deployment.analysisBuildId
       : manifest.analysisBuildId;
-  return {
-    ...transitioned,
-    pin:
-      pinFromDeploymentWindow(manifest, sourceBuildId, recipe) ?? context.pin,
-  };
+  const targetPin =
+    pinFromDeploymentWindow(manifest, sourceBuildId, recipe) ?? context.pin;
+  return withAdvancedToolRecipe(context, recipe, targetPin);
 }

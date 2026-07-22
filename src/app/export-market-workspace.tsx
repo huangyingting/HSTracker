@@ -9,6 +9,7 @@ import {
   productCodeOf,
   serializeTradeAnalysisContext,
   withRecipe,
+  type OpportunityDiscoveryContext,
   type TradeAnalysisContext,
   type TradeAnalysisLocale,
 } from "./trade-analysis-context";
@@ -172,33 +173,54 @@ export function ExportMarketWorkspace({
     context,
   ]);
 
-  const selectPublicScope = useCallback((mode: PublicScopeMode) => {
-    const source = withRecipe(
-      parseTradeAnalysisContext(window.location.href),
-      "opportunity-discovery",
-    );
-    if (source.recipe !== "opportunity-discovery") {
-      return;
-    }
-    const nextContext = {
-      ...source,
-      productCodes: mode === "all" ? null : source.productCodes,
-      focusProductCode: mode === "all" ? null : source.focusProductCode,
-      focusedMarketCode: mode === "all" ? null : source.focusedMarketCode,
-      portfolioFilter: false,
-    };
-    const href = serializeTradeAnalysisContext(
-      window.location.href,
-      nextContext,
-    );
-    setOpportunityScopeMode("public");
-    setPublicScopeMode(mode);
-    setFocusExactProduct(mode === "exact");
-    setAccountAuthOpen(false);
-    setContext(nextContext);
-    window.history.pushState(null, "", href);
-    announceTradeAnalysisContextChange();
-  }, []);
+  const applyOpportunityScope = useCallback(
+    (
+      nextContext: OpportunityDiscoveryContext,
+      nextScopeMode: OpportunityScopeMode,
+      nextPublicMode: PublicScopeMode | null,
+    ) => {
+      setOpportunityScopeMode(nextScopeMode);
+      if (nextPublicMode !== null) {
+        setPublicScopeMode(nextPublicMode);
+      }
+      setFocusExactProduct(
+        nextScopeMode === "public" && nextPublicMode === "exact",
+      );
+      setAccountAuthOpen(false);
+      setContext(nextContext);
+      const href = serializeTradeAnalysisContext(
+        window.location.href,
+        nextContext,
+      );
+      window.history.pushState(null, "", href);
+      announceTradeAnalysisContextChange();
+    },
+    [],
+  );
+
+  const selectPublicScope = useCallback(
+    (mode: PublicScopeMode) => {
+      const source = withRecipe(
+        parseTradeAnalysisContext(window.location.href),
+        "opportunity-discovery",
+      );
+      if (source.recipe !== "opportunity-discovery") {
+        return;
+      }
+      applyOpportunityScope(
+        {
+          ...source,
+          productCodes: mode === "all" ? null : source.productCodes,
+          focusProductCode: mode === "all" ? null : source.focusProductCode,
+          focusedMarketCode: mode === "all" ? null : source.focusedMarketCode,
+          portfolioFilter: false,
+        },
+        "public",
+        mode,
+      );
+    },
+    [applyOpportunityScope],
+  );
 
   const handleProductMountFocus = useCallback(() => {
     setFocusExactProduct(false);
@@ -221,18 +243,9 @@ export function ExportMarketWorkspace({
         focusedMarketCode: null,
         portfolioFilter: true,
       };
-      const href = serializeTradeAnalysisContext(
-        window.location.href,
-        nextContext,
-      );
-      setOpportunityScopeMode("portfolio");
-      setFocusExactProduct(false);
-      setAccountAuthOpen(false);
-      setContext(nextContext);
-      window.history.pushState(null, "", href);
-      announceTradeAnalysisContextChange();
+      applyOpportunityScope(nextContext, "portfolio", null);
     },
-    [],
+    [applyOpportunityScope],
   );
 
   const confirmExactProduct = useCallback(() => {
