@@ -122,6 +122,9 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
   ).toBeVisible();
   await expect(netherlandsAnalysis.getByText("Rank 1 of 13")).toBeVisible();
 
+  await page
+    .getByRole("link", { name: "Back to opportunities" })
+    .click();
   await candidateMarkets.filter({ hasText: "Mexico" }).click();
 
   await expect(
@@ -152,24 +155,17 @@ test("a canonical analysis URL restores its complete selected context", async ({
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=484",
   );
 
-  await expect(page.getByLabel("Export economy")).toHaveValue("156 — China");
+  const scope = page.getByRole("region", { name: "Workspace scope" });
+  await expect(scope).toContainText("156 · China");
+  await expect(scope).toContainText("HS12 · 010121");
+  await expect(scope).toContainText("484 · Mexico");
   await expect(
-    page.getByRole("combobox", { name: "HS 2012 product" }),
-  ).toHaveValue(
-    "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
-  );
-  await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
-  await expect(
-    page
-      .getByRole("region", { name: "Selected Candidate Market evidence" })
-      .getByRole("heading", { name: "Mexico" }),
+    page.getByRole("heading", { name: "Mexico · Market Analysis" }),
   ).toBeVisible();
   expect(analysisRequests).toBe(1);
 });
 
-test("browser history restores Candidate Market evidence without reloading analysis", async ({
+test("browser history restores full-width Market Analysis without reloading its Candidate Market result", async ({
   page,
 }) => {
   let analysisRequests = 0;
@@ -180,35 +176,31 @@ test("browser history restores Candidate Market evidence without reloading analy
   });
 
   await page.goto(
-    "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
+    "/?locale=en&exporter=156&revision=HS12&product=010121",
   );
-
-  const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
-  });
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link");
+  await candidateMarkets.filter({ hasText: "Netherlands" }).click();
   await expect(
-    evidence.getByRole("heading", { name: "Netherlands" }),
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
-
-  await candidateMarkets.filter({ hasText: "Mexico" }).click();
-  await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
 
   await page.goBack();
-  await expect(page).toHaveURL(/market=528/);
+  await expect(page).not.toHaveURL(/market=/u);
   await expect(
-    evidence.getByRole("heading", { name: "Netherlands" }),
-  ).toBeVisible();
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
+  ).toHaveCount(13);
 
   await page.goForward();
-  await expect(page).toHaveURL(/market=484/);
-  await expect(evidence.getByRole("heading", { name: "Mexico" })).toBeVisible();
+  await expect(page).toHaveURL(/market=528/u);
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
   expect(analysisRequests).toBe(1);
 });
 
-test("browser history restores prior exporter and HS Product contexts", async ({
+test("browser history restores prior HS Product scope after an explicit scope change", async ({
   page,
 }) => {
   let analysisRequests = 0;
@@ -221,6 +213,7 @@ test("browser history restores prior exporter and HS Product contexts", async ({
   await page.goto(
     "/?exporter=156&revision=HS12&product=010121&market=528",
   );
+  await page.getByRole("button", { name: "Change scope" }).click();
   const candidateList = page.getByRole("list", {
     name: "Candidate Markets",
   });
@@ -242,17 +235,13 @@ test("browser history restores prior exporter and HS Product contexts", async ({
 
   await page.goBack();
   await expect(page).toHaveURL(
-    /exporter=156.*revision=HS12.*product=010121.*market=528/,
+    /exporter=156.*revision=HS12.*product=010121/,
   );
   await expect(product).toHaveValue(
     "HS 2012 · 010121 — Horses: live, pure-bred breeding animals",
   );
   await expect(candidateList.getByRole("link")).toHaveCount(13);
-  await expect(
-    page
-      .getByRole("region", { name: "Selected Candidate Market evidence" })
-      .getByRole("heading", { name: "Netherlands" }),
-  ).toBeVisible();
+  await expect(page).not.toHaveURL(/market=/u);
 
   await page.goForward();
   await expect(page).toHaveURL(
@@ -378,7 +367,7 @@ test("a stale analysis build can refresh the complete result", async ({
   await expect(workspace.getByRole("alert")).toContainText(
     "This analysis build has retired.",
   );
-  const retiredScope = workspace.getByRole("region", {
+  const retiredScope = page.getByRole("region", {
     name: "Workspace scope",
   });
   await expect(
@@ -666,14 +655,14 @@ test("an Export Market Analyst can inspect localized Chinese evidence", async ({
     "/?exporter=156&revision=HS12&product=010121&market=528",
   );
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "简体中文" }).click();
 
   await expect(
-    page.getByRole("list", { name: "候选市场" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("heading", { name: "Netherlands · 市场分析" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "工作区范围" }).getByText("BACI 发布版本"),
   ).toBeVisible();

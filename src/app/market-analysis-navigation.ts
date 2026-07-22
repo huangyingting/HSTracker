@@ -8,6 +8,7 @@ import {
   type CandidateMarketContext,
   type TradeAnalysisLocale,
 } from "./trade-analysis-context";
+import { announceTradeAnalysisNavigation } from "./trade-analysis-context-events";
 
 export type OpportunityReturnSource =
   "candidate-market" | "opportunity-discovery" | "portfolio";
@@ -38,9 +39,7 @@ export function openMarketAnalysis(
   );
   window.history.pushState({ [MARKET_ANALYSIS_ENTRY_KEY]: true }, "", href);
   if (notifyTaskNavigation) {
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: window.history.state }),
-    );
+    announceTradeAnalysisNavigation();
   }
 }
 
@@ -152,16 +151,28 @@ export function restoreOpportunityPosition(
   returnState: OpportunityReturnState,
   listElementId: string,
 ): void {
-  window.scrollTo({ top: returnState.scrollY });
-  const list = document.getElementById(listElementId);
-  if (list !== null && returnState.listScrollTop !== null) {
-    list.scrollTop = returnState.listScrollTop;
-  }
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      document.getElementById(returnState.actionId)?.focus();
-    });
-  });
+  const restoreScroll = () => {
+    window.scrollTo({ top: returnState.scrollY });
+    const list = document.getElementById(listElementId);
+    if (list !== null && returnState.listScrollTop !== null) {
+      list.scrollTop = returnState.listScrollTop;
+    }
+  };
+  restoreScroll();
+
+  let remainingSettlingFrames = 4;
+  const settlePosition = () => {
+    const action = document.getElementById(returnState.actionId);
+    if (action !== null && document.activeElement !== action) {
+      action.focus({ preventScroll: true });
+    }
+    restoreScroll();
+    remainingSettlingFrames -= 1;
+    if (remainingSettlingFrames > 0) {
+      window.requestAnimationFrame(settlePosition);
+    }
+  };
+  window.requestAnimationFrame(settlePosition);
 }
 
 function historyRecord(value: unknown): Record<string, unknown> {

@@ -535,12 +535,14 @@ test("material Release Revision evidence stays separate from historical growth",
   ).toContainText("No longer eligible in this release 2");
 
   const candidates = page.getByRole("list", { name: "Candidate Markets" });
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await candidates
     .getByRole("link", { name: "Analyze this market: Netherlands" })
     .click();
   await expect(revision).toContainText("No material revision flag");
   await expect(revision).toContainText("Previous-release recomputed score 82");
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await candidates
     .getByRole("link", { name: "Analyze this market: South Africa" })
     .click();

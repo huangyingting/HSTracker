@@ -98,6 +98,39 @@ test("Market Snapshot exposes deterministic interpretation, canonical score/rank
   await expect(snapshot.getByText("Candidate Market Score 85")).toBeVisible();
 });
 
+test("the global Scope Bar precedes the journey and Change scope restores the mounted controls", async ({
+  page,
+}) => {
+  await openNetherlandsMarketAnalysis(page);
+
+  expect(
+    await page.evaluate(() => {
+      const scope = document.querySelector(".workspace-scope");
+      const journey = document.querySelector(".journey-indicator");
+      return (
+        scope !== null &&
+        journey !== null &&
+        Boolean(
+          scope.compareDocumentPosition(journey) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        )
+      );
+    }),
+  ).toBe(true);
+
+  await page
+    .getByRole("region", { name: "Workspace scope" })
+    .getByRole("button", { name: "Change scope" })
+    .click();
+  await expect(page).not.toHaveURL(/market=/u);
+  await expect(
+    page.getByRole("combobox", { name: "Export economy" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toHaveCount(0);
+});
+
 test("Demand shows the finalized trend, summary, equivalent table, and separately labelled Provisional evidence", async ({
   page,
 }) => {
@@ -348,9 +381,21 @@ test("Explore Further links preserve market and product context, and Validation 
     "href",
     /recipe=supplier-competition-v1.*importer=528.*product=010121/u,
   );
-  await expect(
-    exploreFurther.getByRole("link", { name: "Trade Explorer" }),
-  ).toHaveAttribute("href", /recipe=trade-explorer-v1.*hsProduct=010121/u);
+  const tradeExplorerHref = await exploreFurther
+    .getByRole("link", { name: "Trade Explorer" })
+    .getAttribute("href");
+  expect(tradeExplorerHref).not.toBeNull();
+  const tradeExplorerContext = new URL(
+    tradeExplorerHref ?? "",
+    "http://localhost",
+  ).searchParams;
+  expect(tradeExplorerContext.get("recipe")).toBe("trade-explorer-v1");
+  expect(tradeExplorerContext.get("shape")).toBe("product-mix-v1");
+  expect(tradeExplorerContext.get("measures")).toBe("TRADE_VALUE_USD");
+  expect(tradeExplorerContext.get("years")).toBe("2023");
+  expect(tradeExplorerContext.get("exportEconomy")).toBe("156");
+  expect(tradeExplorerContext.get("importEconomy")).toBe("528");
+  expect(tradeExplorerContext.get("hsProduct")).toBe("010121");
 
   const validationPlan = page.locator("#validation-plan");
   const categoryHeadings = await validationPlan
@@ -386,6 +431,7 @@ test("selecting a different Candidate Market moves focus to the Market Analysis 
   });
   await expect(heading).not.toBeFocused();
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -421,6 +467,7 @@ test("an explicit market selection moves focus to the Market Analysis status whe
   });
   await openNetherlandsMarketAnalysis(page);
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -448,11 +495,20 @@ test("a rapid re-selection cancels the outstanding request so only the last sele
     await route.continue();
   });
 
-  await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
+  await page.goto("/?exporter=156&revision=HS12&product=010121");
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
   ).toHaveCount(13);
 
+  await page
+    .getByRole("list", { name: "Candidate Markets" })
+    .getByRole("link")
+    .filter({ hasText: "Netherlands" })
+    .click();
+  await page.goBack();
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
+  ).toHaveCount(13);
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -474,7 +530,7 @@ test("a rapid re-selection cancels the outstanding request so only the last sele
   expect(marketAnalysisRequests).toBeGreaterThanOrEqual(2);
 });
 
-test("a fatal annual Market Analysis failure surfaces an assertive recoverable state without the ranking disappearing", async ({
+test("a fatal annual Market Analysis failure surfaces a full-width assertive recoverable state", async ({
   page,
 }) => {
   await page.route("**/market-analysis?*", async (route) => {
@@ -493,7 +549,7 @@ test("a fatal annual Market Analysis failure surfaces an assertive recoverable s
   await page.goto(CANONICAL_URL);
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+  ).toHaveCount(0);
 
   const error = page
     .getByRole("region", { name: "Market Analysis" })
@@ -671,6 +727,8 @@ test("a retained build never exposes unpinned links for recipes it did not decla
   const limitedRecommendation = {
     ...manifest.recommendation,
     opportunityDiscovery: null,
+    tradeTrend: null,
+    supplierCompetition: null,
     tradeExplorer: null,
   };
   const retained = {
@@ -723,6 +781,22 @@ test("a retained build never exposes unpinned links for recipes it did not decla
   ).toHaveAttribute(
     "href",
     /recipe=candidate-market-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+  await expect(
+    page.locator("#demand").getByRole("link", {
+      name: "Open Trade Trend for this market",
+    }),
+  ).toHaveAttribute(
+    "href",
+    /recipe=trade-trend-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+  await expect(
+    page.locator("#supplier-landscape").getByRole("link", {
+      name: "Open Supplier Competition for this market",
+    }),
+  ).toHaveAttribute(
+    "href",
+    /recipe=supplier-competition-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
   await expect(
     page.locator("#explore-further").getByRole("link", {
@@ -800,6 +874,11 @@ test("the complete Market Analysis journey works at 390px and 320px without hori
         name: "Netherlands · Market Analysis",
       }),
     ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Workspace scope" })
+        .locator(".workspace-scope-summary"),
+    ).toContainText("528 · Netherlands");
     const headings = await view
       .getByRole("heading", { level: 3 })
       .allTextContents();

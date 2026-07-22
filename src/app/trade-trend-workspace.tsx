@@ -209,11 +209,13 @@ export function TradeTrendWorkspace({
       disposed = true;
       controller.abort();
       analysisController.current?.abort();
+      requestSequence.current += 1;
     };
   }, []);
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
+    requestSequence.current += 1;
     setResult(null);
     setStatus("idle");
     const context = withLocale(
@@ -261,16 +263,32 @@ export function TradeTrendWorkspace({
         `/api/v1/analyses/${analysisBuildId}/trade-trends?${parameters}`,
         { signal: controller.signal },
       );
-      if (requestSequence.current !== sequence) {
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
         return;
       }
       if (!response.ok) {
+        const error = trendErrorCode(await response.json());
+        if (
+          controller.signal.aborted ||
+          requestSequence.current !== sequence
+        ) {
+          return;
+        }
         setStatus(
-          trendErrorStatus(response.status, trendErrorCode(await response.json())),
+          trendErrorStatus(response.status, error),
         );
         return;
       }
       const trend = (await response.json()) as TradeTrendV1Payload;
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
+        return;
+      }
       // A retained execution validates against that exact retained
       // build's own BACI Release/artifact identity (from
       // manifest.deploymentWindow) rather than current's, with the same
@@ -318,6 +336,12 @@ export function TradeTrendWorkspace({
         pinResolution.state === "retained"
           ? { ...baseContext, pin: pinResolution.pin }
           : withPin(baseContext, manifest);
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
+        return;
+      }
       const url = serializeTradeAnalysisContext(window.location.href, context);
       window.history.replaceState(null, "", url);
     } catch (error) {

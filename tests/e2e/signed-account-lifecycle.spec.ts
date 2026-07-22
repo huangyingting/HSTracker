@@ -44,13 +44,13 @@ test("a signed-in analyst confirms a portfolio product, inspects it in both loca
   await page.getByRole("button", { name: "简体中文" }).click();
   await expect(page).toHaveURL(/locale=zh-Hans/u);
   await expect(
-    page.getByRole("list", { name: "组合机会候选项" }).getByRole("listitem"),
-  ).toHaveCount(2);
-  await expect(
-    page.getByRole("button", { name: "使用当前证据刷新" }),
+    page.getByRole("heading", { name: "Netherlands · 市场分析" }),
   ).toBeVisible();
-
   await page.getByRole("button", { name: "EN", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
+  await page.goBack();
   await expect(candidates).toHaveCount(2);
 
   const deleteResponse = await page.request.post("/api/account/delete");
@@ -59,6 +59,9 @@ test("a signed-in analyst confirms a portfolio product, inspects it in both loca
   await page.goto("/");
   await expect(page.getByText("No account required")).toBeVisible();
 
+  await page
+    .getByRole("button", { name: "Sign in to use a confirmed portfolio" })
+    .click();
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password").fill(password);
@@ -76,6 +79,9 @@ async function createPortfolioAccount(
   email: string,
   password: string,
 ) {
+  await page
+    .getByRole("button", { name: "Sign in to use a confirmed portfolio" })
+    .click();
   await page.getByRole("button", { name: "Create account" }).click();
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password").fill(password);

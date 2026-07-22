@@ -8,8 +8,8 @@ test("an Export Market Analyst copies a shareable analysis link", async ({
   );
 
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("heading", { name: "Mexico · Market Analysis" }),
+  ).toBeVisible();
 
   const copyLink = page.getByRole("button", {
     name: "Copy Market Analysis link",
@@ -31,8 +31,8 @@ test("the share affordance is localized for Simplified Chinese", async ({
   );
 
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("heading", { name: "Mexico · Market Analysis" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "简体中文" }).click();
 

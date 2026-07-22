@@ -610,6 +610,85 @@ export function withRecipe(
   return emptyTradeAnalysisContext(recipe, context.locale);
 }
 
+export type AdvancedToolRecipe =
+  | "trade-trend"
+  | "supplier-competition"
+  | "trade-explorer";
+
+export function withAdvancedToolRecipe(
+  context: TradeAnalysisContext,
+  recipe: AdvancedToolRecipe,
+  pin: TradeAnalysisContextPin | null,
+): TradeTrendContext | SupplierCompetitionContext | TradeExplorerContext {
+  const transitioned = withRecipe(context, recipe);
+  if (recipe === "trade-explorer") {
+    if (transitioned.recipe !== "trade-explorer") {
+      throw new TypeError("Trade Explorer transition produced the wrong context.");
+    }
+    const focused = focusedProductMarket(context);
+    return {
+      ...transitioned,
+      pin,
+      importEconomy:
+        focused.marketCode === null
+          ? transitioned.importEconomy
+          : [focused.marketCode],
+      hsProduct:
+        focused.productCode === null
+          ? transitioned.hsProduct
+          : [focused.productCode],
+    };
+  }
+  if (
+    transitioned.recipe !== "trade-trend" &&
+    transitioned.recipe !== "supplier-competition"
+  ) {
+    throw new TypeError("Advanced evidence transition produced the wrong context.");
+  }
+  const focused = focusedProductMarket(context);
+  return {
+    ...transitioned,
+    pin,
+    productCode: focused.productCode ?? transitioned.productCode,
+    importerCode: focused.marketCode ?? transitioned.importerCode,
+  };
+}
+
+function focusedProductMarket(context: TradeAnalysisContext): Readonly<{
+  productCode: string | null;
+  marketCode: string | null;
+}> {
+  switch (context.recipe) {
+    case "candidate-market":
+      return {
+        productCode: context.productCode,
+        marketCode: context.focusedMarketCode,
+      };
+    case "opportunity-discovery":
+      return {
+        productCode:
+          context.focusProductCode ??
+          (context.productCodes?.length === 1 ? context.productCodes[0]! : null),
+        marketCode: context.focusedMarketCode ?? null,
+      };
+    case "trade-trend":
+    case "supplier-competition":
+      return {
+        productCode: context.productCode,
+        marketCode: context.importerCode,
+      };
+    case "trade-explorer":
+      return {
+        productCode:
+          context.hsProduct.length === 1 ? context.hsProduct[0]! : null,
+        marketCode:
+          context.importEconomy.length === 1
+            ? context.importEconomy[0]!
+            : null,
+      };
+  }
+}
+
 /** Returns `context` with its pin explicitly discarded. */
 export function withoutPin(context: TradeAnalysisContext): TradeAnalysisContext {
   return { ...context, pin: null };

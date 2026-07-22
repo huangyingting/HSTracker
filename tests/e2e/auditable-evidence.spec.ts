@@ -334,12 +334,8 @@ test("BACI code 490 keeps its source identity and proxy caveat", async ({
     }),
   ).toBeVisible();
   await expect(
-    page
-      .getByRole("list", { name: "Candidate Markets" })
-      .getByRole("link", {
-        name: /Other Asia, n\.e\.s\. \(Taiwan proxy\)/,
-      }),
-  ).toBeVisible();
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
   await expect(evidence.getByText("BACI 490")).toBeVisible();
   await expect(evidence.getByText("No public ISO3")).toBeVisible();
   await expect(
@@ -375,7 +371,7 @@ test("Market Analysis replaces comparison with one explicit row action", async (
   const candidateMarkets = page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link");
-  await expect(candidateMarkets).toHaveCount(13);
+  await expect(candidateMarkets).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Candidate Market comparison" }),
   ).toHaveCount(0);
@@ -383,13 +379,14 @@ test("Market Analysis replaces comparison with one explicit row action", async (
     page.getByRole("button", { name: /Add .* to comparison/u }),
   ).toHaveCount(0);
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await candidateMarkets.filter({ hasText: "South Africa" }).click();
   await expect(
     page.getByRole("heading", { name: "South Africa · Market Analysis" }),
   ).toBeFocused();
   await expect(evidence.getByText("Candidate Market Score 50")).toBeVisible();
   await expect(evidence.getByText("LOW · 40")).toBeVisible();
-  expect(analysisRequestCount()).toBe(1);
+  expect(analysisRequestCount()).toBe(2);
 });
 
 test("both integer-score tie groups preserve competition ranks", async ({
@@ -407,25 +404,30 @@ test("both integer-score tie groups preserve competition ranks", async ({
       "Equal displayed integer scores share a competition rank.",
     ),
   ).toBeVisible();
-  await expect(
-    candidateMarkets.filter({ hasText: "Canada" }),
-  ).toContainText(
-    "Candidate Market Score 54 · Rank 5 of 13",
-  );
-  await expect(candidateMarkets.filter({ hasText: "Japan" })).toContainText(
-    "Candidate Market Score 54 · Rank 5 of 13",
-  );
-  await expect(
-    candidateMarkets.filter({ hasText: "South Africa" }),
-  ).toContainText(
-    "Candidate Market Score 50 · Rank 7 of 13",
-  );
-  await expect(
-    candidateMarkets.filter({ hasText: "United States" }),
-  ).toContainText(
-    "Candidate Market Score 50 · Rank 7 of 13",
-  );
-  expect(analysisRequestCount()).toBe(1);
+  await expect(evidence.getByText("Candidate Market Score 54")).toBeVisible();
+  await expect(evidence.getByText("Rank 5 of 13")).toBeVisible();
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
+  await candidateMarkets
+    .filter({ hasText: "Japan" })
+    .getByRole("link")
+    .click();
+  await expect(evidence.getByText("Candidate Market Score 54")).toBeVisible();
+  await expect(evidence.getByText("Rank 5 of 13")).toBeVisible();
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
+  await candidateMarkets
+    .filter({ hasText: "South Africa" })
+    .getByRole("link")
+    .click();
+  await expect(evidence.getByText("Candidate Market Score 50")).toBeVisible();
+  await expect(evidence.getByText("Rank 7 of 13")).toBeVisible();
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
+  await candidateMarkets
+    .filter({ hasText: "United States" })
+    .getByRole("link")
+    .click();
+  await expect(evidence.getByText("Candidate Market Score 50")).toBeVisible();
+  await expect(evidence.getByText("Rank 7 of 13")).toBeVisible();
+  expect(analysisRequestCount()).toBe(2);
 });
 
 test("audit evidence stacks without horizontal overflow on a narrow screen", async ({

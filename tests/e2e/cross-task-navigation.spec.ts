@@ -26,15 +26,16 @@ test("a direct task link renders the matching server snapshot before hydration",
 
   await serverOnlyPage.goto("/?recipe=trade-trend-v1");
 
-  const tasks = serverOnlyPage.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
   await expect(
-    tasks.getByRole("button", { name: /Trade Trend/ }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    serverOnlyPage.getByRole("heading", { name: "Inspect annual import evidence." }),
+    serverOnlyPage.getByRole("heading", {
+      name: "Inspect annual import evidence.",
+    }),
   ).toBeVisible();
+  await expect(
+    serverOnlyPage
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .locator("[aria-current=\"step\"]"),
+  ).toHaveCount(0);
   await serverOnlyPage.close();
 });
 
@@ -56,26 +57,25 @@ test("a direct non-default task link hydrates without a server/client mismatch",
 
   await page.goto("/?recipe=trade-trend-v1");
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toBeVisible();
   expect(hydrationErrors).toEqual([]);
   await expect(
-    tasks.getByRole("button", { name: /Trade Trend/ }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("navigation", {
+      name: "Export Market Workspace journey",
+    }),
+  ).toBeVisible();
 });
 
-test("Candidate Market's cross-task links live outside the locked ranking list and are keyboard-accessible", async ({
+test("Candidate Market's full-width cross-task links are keyboard-accessible without ranking controls", async ({
   page,
 }) => {
   await analyzeCandidateMarket(page);
 
-  const rankingList = page.getByRole("list", { name: "Candidate Markets" });
-  await expect(rankingList.getByRole("link")).toHaveCount(13);
-  await expect(rankingList.getByRole("button")).toHaveCount(0);
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
 
   const evidence = page.getByRole("region", {
     name: "Netherlands · Market Analysis",
@@ -128,6 +128,7 @@ test("Candidate Market's Supplier Competition link preselects the same importing
 }) => {
   await analyzeCandidateMarket(page);
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")
@@ -135,13 +136,17 @@ test("Candidate Market's Supplier Competition link preselects the same importing
     .click();
 
   const evidence = page.getByRole("region", {
-    name: "Selected Candidate Market evidence",
+    name: "Canada · Market Analysis",
   });
-  await expect(evidence.getByRole("heading", { name: "Canada" })).toBeVisible();
+  await expect(
+    evidence.getByRole("heading", { name: "Canada · Market Analysis" }),
+  ).toBeVisible();
 
-  const supplierCompetitionLink = evidence.getByRole("link", {
-    name: "Open Supplier Competition for this market",
-  });
+  const supplierCompetitionLink = evidence
+    .locator("#supplier-landscape")
+    .getByRole("link", {
+      name: "Open Supplier Competition for this market",
+    });
   await supplierCompetitionLink.focus();
   await supplierCompetitionLink.press("Enter");
 
@@ -176,16 +181,18 @@ test("Trade Trend and Supplier Competition preserve the importing economy and HS
   ).toBeVisible();
   await expect(page).toHaveURL(/build=acceptance-fixtures-v1&pkg=/);
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Supplier Competition/ }).click();
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
+  await advancedTools
+    .getByRole("link", { name: "Supplier Competition" })
+    .click();
 
   await expect(page).toHaveURL(
     /recipe=supplier-competition-v1.*importer=528.*revision=HS12.*product=010121/,
   );
-  // The pin never survives a recipe change; it must be re-earned.
-  await expect(page).not.toHaveURL(/build=/);
+  await expect(page).toHaveURL(
+    /build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toHaveValue("528 — Netherlands");
@@ -213,8 +220,8 @@ test("copying, reloading, and opening a pinned Candidate Market link in another 
   await page.reload();
   await expect(page).toHaveURL(pinnedUrl);
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
   await expect(
     page
       .getByRole("region", { name: "Netherlands · Market Analysis" })
@@ -462,8 +469,8 @@ test("a pinned Candidate Market link that still names a retained predecessor exe
   // as the original analysis -- without ever calling the new current
   // build for analysis, and without showing the typed retired state.
   await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+    page.getByRole("list", { name: "Candidate Markets" }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Netherlands · Market Analysis" }),
   ).toContainText("Netherlands");

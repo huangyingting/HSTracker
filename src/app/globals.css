@@ -275,6 +275,18 @@ a {
   outline-offset: 2px;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .site-shell {
   width: min(1520px, 100%);
   min-height: 100vh;
@@ -345,7 +357,257 @@ a {
 .header-tools {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 18px;
+}
+
+.header-sign-out {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.header-sign-out:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.advanced-tools-menu {
+  position: relative;
+  z-index: 20;
+}
+
+.advanced-tools-menu > button {
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--control-surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  box-shadow: var(--shadow-xs);
+}
+
+.advanced-tools-menu > button:hover {
+  border-color: var(--accent);
+}
+
+.advanced-tools-menu > button:focus-visible,
+.advanced-tools-menu > nav a:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.advanced-tools-menu > nav,
+.advanced-tools-menu > [role="status"],
+.advanced-tools-menu > [role="alert"] {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: max-content;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+}
+
+.advanced-tools-menu > [role="status"],
+.advanced-tools-menu > [role="alert"] {
+  padding: 14px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.advanced-tools-menu > nav {
+  display: grid;
+  gap: 4px;
+}
+
+.advanced-tools-menu > nav a {
+  min-height: 44px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.advanced-tools-menu > nav a:hover {
+  background: rgba(var(--ink-rgb), 0.06);
+  color: var(--accent-text);
+}
+
+.hero.product-entry {
+  align-items: center;
+  padding: clamp(36px, 4vw, 56px) 0 clamp(32px, 4vw, 52px);
+}
+
+.hero.product-entry h1 {
+  max-width: 760px;
+  font-size: clamp(2.5rem, 4.5vw, 4.6rem);
+  line-height: 0.98;
+}
+
+.hero.product-entry .eyebrow {
+  margin-bottom: 18px;
+}
+
+.hero.product-entry .lede {
+  margin-top: 20px;
+}
+
+.journey-indicator {
+  margin-bottom: 28px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--control-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.journey-indicator ol {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+}
+
+.journey-indicator li {
+  position: relative;
+  min-width: 0;
+  padding: 8px 14px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.journey-indicator li:not(:last-child)::after {
+  position: absolute;
+  z-index: 0;
+  top: 27px;
+  left: calc(100% - 12px);
+  width: 24px;
+  height: 1px;
+  background: var(--line-strong);
+  content: "";
+}
+
+.journey-indicator li > span {
+  position: relative;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.journey-indicator strong {
+  min-width: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.journey-indicator li[data-active="true"] {
+  background: rgba(var(--ink-rgb), 0.055);
+  color: var(--ink);
+}
+
+.journey-indicator li[data-active="true"] > span {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper-light);
+}
+
+.scope-mode-selector {
+  margin-bottom: 28px;
+  padding: 18px 20px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-xs);
+}
+
+.scope-mode-selector > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.scope-mode-selector > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scope-mode-selector button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.scope-mode-selector button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper-light);
+}
+
+.scope-mode-selector button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.scope-mode-selector > small {
+  color: var(--muted);
+}
+
+.scope-mode-selector .portfolio-sign-in {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .locale-switcher {
@@ -758,60 +1020,6 @@ a {
   border-top: 1px solid var(--line);
 }
 
-.analysis-task-home {
-  padding: 28px 0;
-  border-top: 1px solid var(--line);
-}
-
-.analysis-task-home > p {
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.analysis-task-home > div {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.analysis-task-home button {
-  min-height: 82px;
-  padding: 16px;
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.analysis-task-home button[aria-pressed="true"] {
-  border-color: var(--accent);
-  box-shadow: inset 4px 0 var(--accent);
-}
-
-.analysis-task-home strong {
-  font-size: 0.85rem;
-}
-
-.analysis-task-home span {
-  color: var(--muted);
-  font-size: 0.7rem;
-  line-height: 1.4;
-}
-
-.analysis-task-home button:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-
 .analysis-workspace:focus,
 .analysis-workspace:focus-visible {
   outline: none;
@@ -824,16 +1032,6 @@ a {
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-md);
-}
-
-/*
- * Reserve the resolved anonymous auth-panel height while the portfolio
- * session check is in flight, so swapping the loading placeholder for the
- * auth panel does not shove the analysis workspace below it (cumulative
- * layout shift). Heights track the measured auth panel at each breakpoint.
- */
-.account-panel--pending {
-  min-height: 354px;
 }
 
 .account-auth {
@@ -1010,7 +1208,7 @@ a {
   background: rgba(var(--ink-rgb), 0.03);
 }
 
-.workspace-scope h3 {
+.workspace-scope h2 {
   margin: 0 0 12px;
   font-size: 0.82rem;
 }
@@ -2223,13 +2421,9 @@ a {
 .candidate-workspace {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: minmax(360px, 0.85fr) minmax(440px, 1.15fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
-}
-
-.candidate-workspace[data-analysis-open="false"] {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .candidate-ranking,
@@ -3963,6 +4157,34 @@ tr[data-selected="true"] td {
     padding: 0 28px;
   }
 
+  .topbar {
+    padding: 14px 0;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .header-tools {
+    margin-left: auto;
+    gap: 14px;
+  }
+
+  .product-experience {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .product-entry {
+    display: contents;
+  }
+
+  .product-entry .hero-copy {
+    padding: 36px 0 28px;
+  }
+
+  .product-entry .boundary-card {
+    margin-bottom: 36px;
+  }
+
   .hero {
     grid-template-columns: 1fr;
     align-items: start;
@@ -4087,12 +4309,9 @@ tr[data-selected="true"] td {
     font-size: 0.72rem;
   }
 
-  .analysis-task-home > div {
-    grid-template-columns: 1fr;
-  }
-
   .topbar {
-    min-height: 84px;
+    min-height: 0;
+    padding: 14px 0;
   }
 
   .brand-name span,
@@ -4101,7 +4320,27 @@ tr[data-selected="true"] td {
   }
 
   .header-tools {
-    gap: 12px;
+    width: 100%;
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+  }
+
+  .advanced-tools-menu {
+    min-width: 0;
+  }
+
+  .advanced-tools-menu > button {
+    width: 100%;
+  }
+
+  .advanced-tools-menu > nav,
+  .advanced-tools-menu > [role="status"],
+  .advanced-tools-menu > [role="alert"] {
+    right: auto;
+    left: 0;
+    max-width: calc(100vw - 40px);
   }
 
   .theme-toggle-text {
@@ -4117,8 +4356,64 @@ tr[data-selected="true"] td {
     padding: 64px 0 80px;
   }
 
+  .product-entry {
+    gap: 30px;
+    padding: 40px 0 44px;
+  }
+
+  .product-entry .hero-copy {
+    padding: 40px 0 44px;
+  }
+
   .hero h1 {
     font-size: clamp(3rem, 15.5vw, 4.5rem);
+  }
+
+  .product-entry h1 {
+    font-size: clamp(2.55rem, 12vw, 3.35rem);
+    line-height: 0.98;
+  }
+
+  .product-entry .eyebrow {
+    margin-bottom: 20px;
+  }
+
+  .product-entry .lede {
+    margin-top: 22px;
+  }
+
+  .product-entry .boundary-card {
+    width: 100%;
+    margin-top: 48px;
+  }
+
+  .journey-indicator {
+    margin-bottom: 20px;
+    padding: 7px;
+  }
+
+  .journey-indicator li {
+    padding: 7px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+  }
+
+  .journey-indicator li:not(:last-child)::after {
+    top: 25px;
+    left: calc(100% - 14px);
+    width: 28px;
+  }
+
+  .journey-indicator li > span {
+    width: 36px;
+    height: 36px;
+  }
+
+  .journey-indicator strong {
+    font-size: 0.66rem;
+    line-height: 1.25;
   }
 
   .lede {
@@ -4211,10 +4506,6 @@ tr[data-selected="true"] td {
     margin-right: -4px;
     margin-left: -4px;
     padding: 20px;
-  }
-
-  .account-panel--pending {
-    min-height: 683px;
   }
 
   .portfolio-header,

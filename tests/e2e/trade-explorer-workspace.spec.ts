@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test, type Page } from "@playwright/test";
 
+async function openTradeExplorer(page: Page) {
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
+  await advancedTools.getByRole("link", { name: "Trade Explorer" }).click();
+}
+
 async function selectFinalizedTrendShape(
   page: Page,
   {
@@ -23,10 +29,7 @@ test("an analyst can run the finalized-trend-v1 shape, share it, and change loca
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
+  await openTradeExplorer(page);
 
   await selectFinalizedTrendShape(page, {
     exportEconomy: "156",
@@ -81,10 +84,7 @@ test("an analyst downloads the complete bounded Trade Explorer CSV", async ({
   });
 
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
+  await openTradeExplorer(page);
   await selectFinalizedTrendShape(page, {
     exportEconomy: "156",
     importEconomy: "528",
@@ -118,10 +118,7 @@ test("Trade Explorer reports a typed empty outcome for a non-enumerable combinat
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
+  await openTradeExplorer(page);
   await selectFinalizedTrendShape(page, {
     exportEconomy: "842",
     importEconomy: "276",
@@ -152,10 +149,7 @@ test("Trade Explorer reports an internal route failure as fatal rather than malf
       }),
   );
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
+  await openTradeExplorer(page);
   await selectFinalizedTrendShape(page, {
     exportEconomy: "156",
     importEconomy: "528",
@@ -192,10 +186,7 @@ test("switching from a fixed-year shape to finalized trend restores the full win
   page,
 }) => {
   await page.goto("/");
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
+  await openTradeExplorer(page);
   await page
     .getByRole("radio", { name: /Compare importing markets/ })
     .check();
@@ -223,14 +214,14 @@ test("switching to and from Trade Explorer transfers compatible analysis context
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),
   ).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
+  ).toHaveCount(13);
 
-  const tasks = page.getByRole("navigation", {
-    name: "Choose an analysis task",
-  });
-  await tasks.getByRole("button", { name: /Trade Explorer/ }).click();
+  await openTradeExplorer(page);
 
   await expect(page).toHaveURL(
-    /\?recipe=trade-explorer-v1&exportEconomy=156&hsProduct=010121$/u,
+    /\?recipe=trade-explorer-v1&exportEconomy=156&hsProduct=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
   );
   await page
     .getByRole("radio", { name: /Finalized-year trend for one market/ })
@@ -238,9 +229,9 @@ test("switching to and from Trade Explorer transfers compatible analysis context
   await expect(page.getByLabel("Export economy")).toHaveValue("156");
   await expect(page.getByLabel("HS12 product")).toHaveValue("010121");
 
-  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
+  await page.goBack();
   await expect(page).toHaveURL(
-    /\?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121$/u,
+    /\?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
   );
   await expect(
     page.getByText("Selected product: HS 2012 · 010121"),

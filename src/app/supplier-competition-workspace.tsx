@@ -221,6 +221,7 @@ export function SupplierCompetitionWorkspace({
       disposed = true;
       controller.abort();
       analysisController.current?.abort();
+      requestSequence.current += 1;
     };
   }, []);
 
@@ -241,6 +242,7 @@ export function SupplierCompetitionWorkspace({
 
   const clearResult = useCallback(() => {
     analysisController.current?.abort();
+    requestSequence.current += 1;
     setResult(null);
     setStatus("idle");
     const context = withLocale(
@@ -292,20 +294,33 @@ export function SupplierCompetitionWorkspace({
         `/api/v1/analyses/${analysisBuildId}/supplier-competitions?${parameters}`,
         { signal: controller.signal },
       );
-      if (requestSequence.current !== sequence) {
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
         return;
       }
       if (!response.ok) {
+        const error = supplierCompetitionErrorCode(await response.json());
+        if (
+          controller.signal.aborted ||
+          requestSequence.current !== sequence
+        ) {
+          return;
+        }
         setStatus(
-          supplierCompetitionErrorStatus(
-            response.status,
-            supplierCompetitionErrorCode(await response.json()),
-          ),
+          supplierCompetitionErrorStatus(response.status, error),
         );
         return;
       }
       const payload =
         (await response.json()) as SupplierCompetitionV1Payload;
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
+        return;
+      }
       // A retained execution validates against that exact retained
       // build's own BACI Release/artifact identity (from
       // manifest.deploymentWindow) rather than current's, with the same
@@ -354,6 +369,12 @@ export function SupplierCompetitionWorkspace({
         pinResolution.state === "retained"
           ? { ...baseContext, pin: pinResolution.pin }
           : withPin(baseContext, manifest);
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
+        return;
+      }
       const url = serializeTradeAnalysisContext(window.location.href, context);
       window.history.replaceState(null, "", url);
     } catch (error) {

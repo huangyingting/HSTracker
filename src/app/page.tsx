@@ -3,14 +3,25 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
-import { AccountWorkspace } from "./account-workspace";
-import { AnalysisTaskHome } from "./analysis-task-home";
+import {
+  loadAccountSession,
+  signOutAccount,
+  type AccountSessionPayload,
+} from "./account-client";
+import { AdvancedToolsMenu } from "./advanced-tools-menu";
+import { ExportMarketWorkspace } from "./export-market-workspace";
 import { ThemeToggle } from "./theme-toggle";
 import {
   parseTradeAnalysisContext,
   serializeTradeAnalysisContext,
   withLocale,
 } from "./trade-analysis-context";
+import {
+  announceTradeAnalysisNavigation,
+  TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+} from "./trade-analysis-context-events";
+import { workspaceRouteFamily } from "./workspace-route-family";
+import { WorkspaceRouteTelemetry } from "./workspace-route-telemetry";
 
 const copy = {
   en: {
@@ -18,9 +29,10 @@ const copy = {
     brandTagline: "Public trade intelligence",
     publicWorkspace: "Public workspace",
     signedWorkspace: "Signed-in workspace",
-    eyebrow: "Public merchandise-trade evidence",
-    heading: "Find candidate markets worth a closer look.",
-    lede: "HS Tracker helps export-oriented businesses interpret public international trade data and decide where deeper commercial investigation may be worthwhile.",
+    signOut: "Sign out",
+    eyebrow: "Export Market Workspace",
+    heading: "Analyze export markets with public trade evidence.",
+    lede: "Set an exporter and product scope, compare Candidate Markets, then open one Market Analysis.",
     noAccount: "No account required",
     accessDetail: "Open analysis built on public evidence",
     boundaryIndex: "Evidence boundary",
@@ -54,9 +66,10 @@ const copy = {
     brandTagline: "公共贸易洞察",
     publicWorkspace: "公共工作区",
     signedWorkspace: "已登录工作区",
-    eyebrow: "公共商品贸易证据",
-    heading: "寻找值得深入研究的候选市场。",
-    lede: "HS Tracker 帮助出口型企业解读公开的国际贸易数据，判断哪些市场值得开展更深入的商业调查。",
+    signOut: "退出登录",
+    eyebrow: "出口市场工作区",
+    heading: "使用公共贸易证据分析出口市场。",
+    lede: "设置出口经济体和产品范围、比较候选市场，然后打开单一市场分析。",
     noAccount: "无需注册",
     accessDetail: "基于公共证据的开放分析",
     boundaryIndex: "证据边界",
@@ -90,10 +103,6 @@ const copy = {
 type Locale = keyof typeof copy;
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
-function localeFromLocation(): Locale {
-  return parseTradeAnalysisContext(window.location.href).locale;
-}
-
 function contextFromSearchParams(searchParams: PageSearchParams) {
   const parameters = new URLSearchParams();
   for (const [name, value] of Object.entries(searchParams)) {
@@ -114,18 +123,59 @@ export default function Home({
   searchParams: Promise<PageSearchParams>;
 }) {
   const initialContext = contextFromSearchParams(use(searchParams));
+  const [context, setContext] = useState(initialContext);
   const [locale, setLocale] = useState<Locale>(initialContext.locale);
-  const [signedIn, setSignedIn] = useState(false);
+  const [accountSession, setAccountSession] =
+    useState<AccountSessionPayload | null>(null);
+  const [accountSessionStatus, setAccountSessionStatus] = useState<
+    "loading" | "ready"
+  >("loading");
   const messages = copy[locale];
+  const showProductEntry = workspaceRouteFamily(context) === "primary-scope";
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
   useEffect(() => {
-    const restoreLocale = () => setLocale(localeFromLocation());
-    window.addEventListener("popstate", restoreLocale);
-    return () => window.removeEventListener("popstate", restoreLocale);
+    let cancelled = false;
+    void loadAccountSession()
+      .then((session) => {
+        if (!cancelled) {
+          setAccountSession(session);
+          setAccountSessionStatus("ready");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error("Account session restore failed", error);
+          setAccountSession(null);
+          setAccountSessionStatus("ready");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const restoreContext = () => {
+      const restored = parseTradeAnalysisContext(window.location.href);
+      setContext(restored);
+      setLocale(restored.locale);
+    };
+    window.addEventListener("popstate", restoreContext);
+    window.addEventListener(
+      TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+      restoreContext,
+    );
+    return () => {
+      window.removeEventListener("popstate", restoreContext);
+      window.removeEventListener(
+        TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+        restoreContext,
+      );
+    };
   }, []);
 
   function selectLocale(nextLocale: Locale) {
@@ -139,6 +189,25 @@ export default function Home({
       context,
     );
     window.history.replaceState(window.history.state, "", nextHref);
+    setContext(context);
+  }
+
+  async function signOut() {
+    try {
+      await signOutAccount();
+      const context = parseTradeAnalysisContext(window.location.href);
+      if (context.recipe === "opportunity-discovery") {
+        const nextHref = serializeTradeAnalysisContext(window.location.href, {
+          ...context,
+          portfolioFilter: false,
+        });
+        window.history.replaceState(null, "", nextHref);
+        announceTradeAnalysisNavigation();
+      }
+      setAccountSession(null);
+    } catch (error) {
+      console.error("Account sign out failed", error);
+    }
   }
 
   return (
@@ -160,8 +229,24 @@ export default function Home({
         <div className="header-tools">
           <p className="public-status">
             <span aria-hidden="true" />
-            {signedIn ? messages.signedWorkspace : messages.publicWorkspace}
+            {accountSession === null
+              ? messages.publicWorkspace
+              : messages.signedWorkspace}
           </p>
+          {accountSession === null ? null : (
+            <button
+              className="header-sign-out"
+              type="button"
+              onClick={() => void signOut()}
+            >
+              {messages.signOut}
+            </button>
+          )}
+          <AdvancedToolsMenu
+            key={serializeTradeAnalysisContext("/", context)}
+            context={context}
+            locale={locale}
+          />
           <ThemeToggle locale={locale} />
           <div
             className="locale-switcher"
@@ -186,73 +271,86 @@ export default function Home({
         </div>
       </header>
 
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">
-            <span aria-hidden="true" />
-            {messages.eyebrow}
-          </p>
-          <h1>{messages.heading}</h1>
-          <p className="lede">{messages.lede}</p>
-          <p className="access-note">
-            <span className="access-icon" aria-hidden="true">
-              ↗
-            </span>
-            <span>
-              <strong>{messages.noAccount}</strong>
-              <small>{messages.accessDetail}</small>
-            </span>
-          </p>
-        </div>
+      <section className="product-experience">
+        <WorkspaceRouteTelemetry context={context} />
+        <ExportMarketWorkspace
+          initialContext={initialContext}
+          locale={locale}
+          accountSession={accountSession}
+          accountSessionStatus={accountSessionStatus}
+          onAccountSessionChange={setAccountSession}
+          pageIntroduction={
+            showProductEntry ? (
+              <section className="hero product-entry">
+                <div className="hero-copy">
+                  <p className="eyebrow">
+                    <span aria-hidden="true" />
+                    {messages.eyebrow}
+                  </p>
+                  <h1>{messages.heading}</h1>
+                  <p className="lede">{messages.lede}</p>
+                  <p className="access-note">
+                    <span className="access-icon" aria-hidden="true">
+                      ↗
+                    </span>
+                    <span>
+                      <strong>{messages.noAccount}</strong>
+                      <small>{messages.accessDetail}</small>
+                    </span>
+                  </p>
+                </div>
 
-        <aside className="boundary-card" aria-labelledby="boundary-title">
-          <div className="card-index">
-            <span>01</span>
-            {messages.boundaryIndex}
-          </div>
-          <div className="boundary-symbol" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-          <h2 id="boundary-title">{messages.boundaryTitle}</h2>
-          <p>{messages.boundaryBody}</p>
-          <dl>
-            <div>
-              <dt>{messages.uses}</dt>
-              <dd>{messages.usesValue}</dd>
-            </div>
-            <div>
-              <dt>{messages.supports}</dt>
-              <dd>{messages.supportsValue}</dd>
-            </div>
-          </dl>
-        </aside>
+                <aside
+                  className="boundary-card"
+                  aria-labelledby="boundary-title"
+                >
+                  <div className="card-index">
+                    <span>01</span>
+                    {messages.boundaryIndex}
+                  </div>
+                  <div className="boundary-symbol" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <h2 id="boundary-title">{messages.boundaryTitle}</h2>
+                  <p>{messages.boundaryBody}</p>
+                  <dl>
+                    <div>
+                      <dt>{messages.uses}</dt>
+                      <dd>{messages.usesValue}</dd>
+                    </div>
+                    <div>
+                      <dt>{messages.supports}</dt>
+                      <dd>{messages.supportsValue}</dd>
+                    </div>
+                  </dl>
+                </aside>
+              </section>
+            ) : (
+              <h1 className="visually-hidden">{messages.eyebrow}</h1>
+            )
+          }
+        />
       </section>
 
-      <AccountWorkspace
-        locale={locale}
-        onSignedInChange={setSignedIn}
-        onAnonymousFallback={() => setSignedIn(false)}
-      />
-
-      <AnalysisTaskHome initialTask={initialContext.recipe} locale={locale} />
-
-      <section className="reading-guide" aria-labelledby="guide-title">
-        <div className="guide-heading">
-          <p>{messages.guideEyebrow}</p>
-          <h2 id="guide-title">{messages.guideTitle}</h2>
-        </div>
-        <ol>
-          {messages.principles.map((principle, index) => (
-            <li key={principle.title}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <h3>{principle.title}</h3>
-              <p>{principle.body}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
+      {showProductEntry ? (
+        <section className="reading-guide" aria-labelledby="guide-title">
+          <div className="guide-heading">
+            <p>{messages.guideEyebrow}</p>
+            <h2 id="guide-title">{messages.guideTitle}</h2>
+          </div>
+          <ol>
+            {messages.principles.map((principle, index) => (
+              <li key={principle.title}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{principle.title}</h3>
+                <p>{principle.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       <footer className="footer">
         <p>HS Tracker</p>

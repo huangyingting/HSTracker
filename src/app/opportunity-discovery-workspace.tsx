@@ -44,17 +44,20 @@ import {
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withPin,
-  withProductCode,
   withRecipe,
   type TradeAnalysisContext,
 } from "./trade-analysis-context";
-import { WorkspaceScope } from "./workspace-scope";
+import {
+  announceTradeAnalysisContextChange,
+  announceTradeAnalysisNavigation,
+} from "./trade-analysis-context-events";
+import type { WorkspaceScopeConfiguration } from "./workspace-scope";
 
 const PAGE_LIMIT = 20;
 
 const copy = {
   en: {
-    eyebrow: "Opportunity Discovery workspace",
+    eyebrow: "Scope and opportunities",
     title: "Start with the exporter, then browse the public candidate feed.",
     lede: "Select an export economy to load Market Investigation Candidates. Add an HS12 product only after confirming the code.",
     loadingCurrent: "Loading the current analysis release…",
@@ -62,23 +65,25 @@ const copy = {
       "The current analysis release is temporarily unavailable.",
     retryCurrent: "Retry current release",
     unsupported:
-      "Opportunity Discovery is not available for this current analysis release. The supporting analytical journeys remain available.",
+      "Market Investigation Candidates are not available for this current analysis release. The supporting analytical tools remain available.",
     loading: "Loading Market Investigation Candidates…",
     refreshing: "Refreshing the current analysis release…",
     stale: "This analysis build has retired. Refresh the current context.",
     malformed:
-      "These opportunity inputs are invalid. Check the export economy or product code.",
+      "These Analysis Request inputs are invalid. Check the export economy or product code.",
     capacity:
       "Analysis capacity is temporarily busy. The candidate feed was not loaded.",
     rateLimit:
-      "Opportunity Discovery requests are temporarily limited. Wait a moment before retrying.",
+      "Analysis Requests are temporarily limited. Wait a moment before retrying.",
     budget:
-      "This Opportunity Discovery request exceeds the result size limit. Try a confirmed HS12 product projection.",
-    unavailable: "The compatible opportunity index is temporarily unavailable.",
-    fatal: "Opportunity Discovery could not be completed.",
+      "This Analysis Request exceeds the result size limit. Try a confirmed HS12 product projection.",
+    unavailable:
+      "The compatible Market Investigation Candidate index is temporarily unavailable.",
+    fatal: "Market Investigation Candidates could not be loaded.",
     refresh: "Refresh with current evidence",
     retry: "Retry candidate feed",
     allProducts: "All HS12 products",
+    exactProductPending: "Confirm one HS12 Product",
     showAllProducts: "Show all products",
     feedTitle: "Market Investigation Candidates",
     feedCount: "candidate rows in this exporter cohort",
@@ -102,25 +107,26 @@ const copy = {
       "Public trade evidence supports market investigation; it does not predict sales, profit, market access, or commercial success.",
   },
   "zh-Hans": {
-    eyebrow: "机会发现工作区",
+    eyebrow: "范围与机会",
     title: "先选择出口经济体，再浏览公共候选项列表。",
     lede: "选择出口经济体即可加载市场调查候选项。只有在确认 HS12 编码后才添加产品筛选。",
     loadingCurrent: "正在加载当前分析发布版本…",
     currentUnavailable: "当前分析发布版本暂时不可用。",
     retryCurrent: "重试当前发布版本",
-    unsupported: "当前分析发布版本不提供机会发现。辅助分析旅程仍可使用。",
+    unsupported: "当前分析发布版本不提供市场调查候选项。辅助分析工具仍可使用。",
     loading: "正在加载市场调查候选项…",
     refreshing: "正在刷新当前分析发布版本…",
     stale: "该分析构建已停用。请刷新当前情境。",
-    malformed: "机会发现输入无效。请检查出口经济体或产品编码。",
+    malformed: "分析请求输入无效。请检查出口经济体或产品编码。",
     capacity: "分析容量暂时繁忙。尚未加载候选项列表。",
-    rateLimit: "机会发现请求暂时受限。请稍候再试。",
-    budget: "该机会发现请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
-    unavailable: "兼容的机会索引暂时不可用。",
-    fatal: "无法完成机会发现。",
+    rateLimit: "分析请求暂时受限。请稍候再试。",
+    budget: "该分析请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
+    unavailable: "兼容的市场调查候选项索引暂时不可用。",
+    fatal: "无法加载市场调查候选项。",
     refresh: "使用当前证据刷新",
     retry: "重试候选项列表",
     allProducts: "全部 HS12 产品",
+    exactProductPending: "确认一个 HS12 产品",
     showAllProducts: "显示全部产品",
     feedTitle: "市场调查候选项",
     feedCount: "个出口经济体队列候选行",
@@ -163,8 +169,20 @@ type FeedStatus =
 
 export function OpportunityDiscoveryWorkspace({
   locale,
+  scopeMode,
+  onProductMountFocus,
+  onScopeModeChange,
+  onExactProductConfirmed,
+  onWorkspaceScopeChange,
 }: {
   locale: WorkspaceLocale;
+  scopeMode: "all" | "exact";
+  onProductMountFocus?: () => void;
+  onScopeModeChange: (mode: "all" | "exact") => void;
+  onExactProductConfirmed: () => void;
+  onWorkspaceScopeChange: (
+    scope: WorkspaceScopeConfiguration | null,
+  ) => void;
 }) {
   const messages = copy[locale];
   const requestSequence = useRef(0);
@@ -265,6 +283,9 @@ export function OpportunityDiscoveryWorkspace({
     (nextProduct: ProductSearchProduct | null, source: SelectionSource) => {
       setProduct(nextProduct);
       if (source === "explicit") {
+        if (nextProduct !== null) {
+          onExactProductConfirmed();
+        }
         scopeSubmissionRequired.current = true;
         if (nextProduct === null) {
           prepareForExplicitContextChange();
@@ -274,7 +295,7 @@ export function OpportunityDiscoveryWorkspace({
         }
       }
     },
-    [prepareForExplicitContextChange, resetFeed],
+    [onExactProductConfirmed, prepareForExplicitContextChange, resetFeed],
   );
 
   const loadFeed = useCallback(
@@ -283,7 +304,11 @@ export function OpportunityDiscoveryWorkspace({
       refreshedManifest?: CurrentAnalysisManifest,
     ) => {
       const manifest = refreshedManifest ?? currentManifest;
-      if (exporter === null || manifest === null) {
+      if (
+        exporter === null ||
+        manifest === null ||
+        (scopeMode === "exact" && product === null)
+      ) {
         return;
       }
       if (manifest.recommendation.opportunityDiscovery === null) {
@@ -403,6 +428,7 @@ export function OpportunityDiscoveryWorkspace({
         } else {
           window.history.pushState(null, "", nextUrl);
         }
+        announceTradeAnalysisContextChange();
         feedPinnedInHistory.current = true;
       } catch (error) {
         if (controller.signal.aborted || requestSequence.current !== sequence) {
@@ -416,16 +442,23 @@ export function OpportunityDiscoveryWorkspace({
         }
       }
     },
-    [currentManifest, exporter, product],
+    [currentManifest, exporter, product, scopeMode],
   );
 
   const discoverScope = useCallback(() => {
-    if (exporter === null || currentManifest === null) {
+    if (
+      exporter === null ||
+      currentManifest === null ||
+      (scopeMode === "exact" && product === null)
+    ) {
       return;
     }
     scopeSubmissionRequired.current = false;
-    if (product === null) {
+    if (scopeMode === "all") {
       void loadFeed();
+      return;
+    }
+    if (product === null) {
       return;
     }
 
@@ -464,15 +497,14 @@ export function OpportunityDiscoveryWorkspace({
       destination,
     );
     window.history.pushState(null, "", href);
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: window.history.state }),
-    );
-  }, [currentManifest, exporter, loadFeed, product, resetFeed]);
+    announceTradeAnalysisNavigation();
+  }, [currentManifest, exporter, loadFeed, product, resetFeed, scopeMode]);
 
   useEffect(() => {
     if (
       currentManifest === null ||
       exporter === null ||
+      (scopeMode === "exact" && product === null) ||
       retiredBuildRefreshPending.current ||
       scopeSubmissionRequired.current
     ) {
@@ -509,7 +541,7 @@ export function OpportunityDiscoveryWorkspace({
     }
     const timeout = window.setTimeout(() => void loadFeed(), 0);
     return () => window.clearTimeout(timeout);
-  }, [currentManifest, exporter, loadFeed, product]);
+  }, [currentManifest, exporter, loadFeed, product, scopeMode]);
 
   const candidateMarketPin =
     currentManifest === null || feed === null
@@ -587,16 +619,7 @@ export function OpportunityDiscoveryWorkspace({
   }
 
   function clearProductProjection() {
-    scopeSubmissionRequired.current = true;
-    prepareForExplicitContextChange();
-    setProduct(null);
-    const context = withProductCode(
-      parseTradeAnalysisContext(window.location.href),
-      null,
-    );
-    const url = serializeTradeAnalysisContext(window.location.href, context);
-    window.history.replaceState(null, "", url);
-    setControlRestorationKey((current) => current + 1);
+    onScopeModeChange("all");
   }
 
   async function loadNextPage() {
@@ -667,6 +690,80 @@ export function OpportunityDiscoveryWorkspace({
     currentManifest !== null &&
     feed !== null &&
     feed.analysisBuildId !== currentManifest.analysisBuildId;
+  const focusScopeControls = useCallback(() => {
+    scopeControlsRef.current
+      ?.querySelector<HTMLInputElement>('[role="combobox"]')
+      ?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (
+      currentManifest === null ||
+      exporter === null ||
+      (scopeMode === "exact" && product === null)
+    ) {
+      onWorkspaceScopeChange(null);
+      return;
+    }
+    onWorkspaceScopeChange({
+      exporter,
+      product:
+        scopeMode === "all" || product === null
+          ? { mode: "all" }
+          : {
+              mode: "exact",
+              revision: product.hsRevision,
+              code: product.code,
+              descriptionEn: product.sourceDescriptionEn,
+              descriptionZhHans: product.auxiliaryDescriptionZhHans,
+            },
+      deploymentState:
+        status === "stale"
+          ? "retired"
+          : showingRetainedFeed
+            ? "retained"
+            : "current",
+      deploymentActivation: currentManifest.freshness.deploymentActivation,
+      baciRelease:
+        status === "stale"
+          ? null
+          : (feed?.provenance.baciRelease ??
+            currentManifest.source.baciRelease),
+      finalizedWindow:
+        status === "stale"
+          ? null
+          : (feed?.provenance.scoreWindow ??
+            currentManifest.source.windows.score),
+      provisionalYear:
+        status === "stale"
+          ? null
+          : (feed?.provenance.provisionalYear ??
+            currentManifest.source.provisionalYear),
+      freshnessState:
+        status === "stale" || showingRetainedFeed
+          ? null
+          : currentManifest.freshness.state,
+      analysisIdentity: feed?.analysisIdentity,
+      datasetPackageIdentity: feed?.datasetPackageIdentity,
+      canCopyLink:
+        status === "success" || status === "empty" || status === "stale",
+      onChangeScope: focusScopeControls,
+      onSourceDetails:
+        status === "stale" || showingRetainedFeed
+          ? undefined
+          : () => setSourceDetailsOpen(true),
+    });
+  }, [
+    currentManifest,
+    exporter,
+    feed,
+    focusScopeControls,
+    onWorkspaceScopeChange,
+    product,
+    scopeMode,
+    showingRetainedFeed,
+    status,
+  ]);
 
   return (
     <section
@@ -731,14 +828,17 @@ export function OpportunityDiscoveryWorkspace({
               key={`opportunity-product-${controlRestorationKey}`}
               productSearchBuildId={currentManifest.productSearchBuildId}
               locale={locale}
+              onMountFocus={onProductMountFocus}
               onSelectionChange={handleProductSelection}
               onRetiredBuild={refreshCurrentAnalysis}
             />
             <div className="opportunity-scope-actions">
               <div className="opportunity-scope-product">
                 <strong>
-                  {product === null
+                  {scopeMode === "all"
                     ? messages.allProducts
+                    : product === null
+                      ? messages.exactProductPending
                     : `${product.hsRevision} ${product.code}`}
                 </strong>
                 {product === null ? null : (
@@ -750,11 +850,11 @@ export function OpportunityDiscoveryWorkspace({
                   </>
                 )}
               </div>
-              {product === null ? null : (
+              {scopeMode === "exact" && product !== null ? (
                 <button type="button" onClick={clearProductProjection}>
                   {messages.showAllProducts}
                 </button>
-              )}
+              ) : null}
             </div>
             <div className="analysis-submit">
               <button
@@ -763,13 +863,14 @@ export function OpportunityDiscoveryWorkspace({
                 aria-describedby="opportunity-discovery-requirement"
                 disabled={
                   exporter === null ||
+                  (scopeMode === "exact" && product === null) ||
                   status === "loading" ||
                   status === "refreshing" ||
                   status === "stale"
                 }
                 onClick={discoverScope}
               >
-                {product === null
+                {scopeMode === "all"
                   ? messages.discoverAll
                   : messages.discoverProduct}
               </button>
@@ -778,74 +879,6 @@ export function OpportunityDiscoveryWorkspace({
               </small>
             </div>
           </div>
-          {exporter === null ? null : (
-            <WorkspaceScope
-              locale={locale}
-              exporter={exporter}
-              product={
-                product === null
-                  ? { mode: "all" }
-                  : {
-                      mode: "exact",
-                      revision: product.hsRevision,
-                      code: product.code,
-                      descriptionEn: product.sourceDescriptionEn,
-                      descriptionZhHans:
-                        product.auxiliaryDescriptionZhHans,
-                    }
-              }
-              deploymentState={
-                status === "stale"
-                  ? "retired"
-                  : showingRetainedFeed
-                    ? "retained"
-                    : "current"
-              }
-              deploymentActivation={
-                currentManifest.freshness.deploymentActivation
-              }
-              baciRelease={
-                status === "stale"
-                  ? null
-                  : feed?.provenance.baciRelease ??
-                    currentManifest.source.baciRelease
-              }
-              finalizedWindow={
-                status === "stale"
-                  ? null
-                  : feed?.provenance.scoreWindow ??
-                    currentManifest.source.windows.score
-              }
-              provisionalYear={
-                status === "stale"
-                  ? null
-                  : feed?.provenance.provisionalYear ??
-                    currentManifest.source.provisionalYear
-              }
-              freshnessState={
-                status === "stale" || showingRetainedFeed
-                  ? null
-                  : currentManifest.freshness.state
-              }
-              analysisIdentity={feed?.analysisIdentity}
-              datasetPackageIdentity={feed?.datasetPackageIdentity}
-              canCopyLink={
-                status === "success" ||
-                status === "empty" ||
-                status === "stale"
-              }
-              onChangeScope={() =>
-                scopeControlsRef.current
-                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
-                  ?.focus()
-              }
-              onSourceDetails={
-                status === "stale" || showingRetainedFeed
-                  ? undefined
-                  : () => setSourceDetailsOpen(true)
-              }
-            />
-          )}
           {showingRetainedFeed ? null : (
             <SourceScope
               manifest={currentManifest}

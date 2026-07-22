@@ -287,6 +287,7 @@ export function TradeExplorerWorkspace({ locale }: { locale: WorkspaceLocale }) 
       disposed = true;
       controller.abort();
       analysisController.current?.abort();
+      requestSequence.current += 1;
     };
   }, []);
 
@@ -402,14 +403,30 @@ export function TradeExplorerWorkspace({ locale }: { locale: WorkspaceLocale }) 
           signal: controller.signal,
         },
       );
-      if (requestSequence.current !== sequence) {
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
         return;
       }
       if (!response.ok) {
-        setStatus(tradeExplorerErrorStatus(response.status, await response.json()));
+        const error = await response.json();
+        if (
+          controller.signal.aborted ||
+          requestSequence.current !== sequence
+        ) {
+          return;
+        }
+        setStatus(tradeExplorerErrorStatus(response.status, error));
         return;
       }
       const payload = (await response.json()) as TradeExplorerV1Payload;
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
+        return;
+      }
       if (
         pinResolution.state === "retained"
           ? payload.analysisBuildId !== analysisBuildId ||
@@ -428,6 +445,12 @@ export function TradeExplorerWorkspace({ locale }: { locale: WorkspaceLocale }) 
       analyzedInputsInHistory.current = true;
       const pin =
         pinResolution.state === "retained" ? pinResolution.pin : pinFromCurrentManifest(manifest);
+      if (
+        controller.signal.aborted ||
+        requestSequence.current !== sequence
+      ) {
+        return;
+      }
       writeContext(pin);
     } catch (error) {
       if (!controller.signal.aborted && requestSequence.current === sequence) {
@@ -779,6 +802,7 @@ export function TradeExplorerWorkspace({ locale }: { locale: WorkspaceLocale }) 
               disabled={status !== "loading"}
               onClick={() => {
                 analysisController.current?.abort();
+                requestSequence.current += 1;
                 setStatus("idle");
               }}
             >

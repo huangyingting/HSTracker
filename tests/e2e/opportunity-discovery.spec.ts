@@ -296,7 +296,6 @@ test("opportunity refresh and explicit Market Analysis links preserve canonical 
   ).toContainText("This analysis build has retired.");
   await expect(
     page
-      .locator(".opportunity-workspace")
       .getByRole("region", { name: "Workspace scope" })
       .locator("dd")
       .filter({ hasText: /^Retired$/u }),

@@ -1,6 +1,17 @@
 import { readFile } from "node:fs/promises";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function expectCandidateExportReady(page: Page, market: string) {
+  await expect(
+    page.getByRole("heading", { name: `${market} · Market Analysis` }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Download complete CSV for all 13 Candidate Markets",
+    }),
+  ).toBeVisible();
+}
 
 test("Candidate Markets downloads the complete bilingual 13-row CSV", async ({
   page,
@@ -24,10 +35,7 @@ test("Candidate Markets downloads the complete bilingual 13-row CSV", async ({
   await page.goto(
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=484",
   );
-  const candidateMarkets = page
-    .getByRole("list", { name: "Candidate Markets" })
-    .getByRole("link");
-  await expect(candidateMarkets).toHaveCount(13);
+  await expectCandidateExportReady(page, "Mexico");
 
   const downloadPromise = page.waitForEvent("download");
   await page
@@ -103,9 +111,7 @@ test("export preflight stops when the current analysis context changed", async (
   await page.goto(
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
   );
-  await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+  await expectCandidateExportReady(page, "Netherlands");
   await page
     .getByRole("button", {
       name: "Download complete CSV for all 13 Candidate Markets",
@@ -175,9 +181,7 @@ test("export preflight renders refreshed source status before requesting CSV", a
   await page.goto(
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
   );
-  await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+  await expectCandidateExportReady(page, "Netherlands");
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", {
@@ -273,9 +277,7 @@ test("a stale CSV response revalidates current context without substituting a do
   await page.goto(
     "/?locale=en&exporter=156&revision=HS12&product=010121&market=528",
   );
-  await expect(
-    page.getByRole("list", { name: "Candidate Markets" }).getByRole("link"),
-  ).toHaveCount(13);
+  await expectCandidateExportReady(page, "Netherlands");
   const documentStartedAt = await page.evaluate(() => performance.timeOrigin);
   await page
     .getByRole("button", {

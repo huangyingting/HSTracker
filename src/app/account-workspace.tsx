@@ -18,12 +18,10 @@ import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/op
 import {
   confirmPortfolioProduct,
   consumeRecoveryToken,
-  loadAccountSession,
   registerAccount,
   removePortfolioProduct,
   requestRecoveryToken,
   signInAccount,
-  signOutAccount,
   type AccountSessionPayload,
 } from "./account-client";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
@@ -54,13 +52,16 @@ import {
   withRecipe,
   type OpportunityDiscoveryContext,
 } from "./trade-analysis-context";
-import { WorkspaceScope } from "./workspace-scope";
+import {
+  announceTradeAnalysisContextChange,
+  announceTradeAnalysisNavigation,
+} from "./trade-analysis-context-events";
+import type { WorkspaceScopeConfiguration } from "./workspace-scope";
 
 const PAGE_LIMIT = 100;
 
 const copy = {
   en: {
-    loadingSession: "Checking portfolio session…",
     authEyebrow: "Analyst account",
     authTitle: "Restore your exporter and product portfolio.",
     authBody:
@@ -84,7 +85,6 @@ const copy = {
     workspaceTitle: "Your portfolio opportunity workspace",
     workspaceLede:
       "The public Opportunity Index is read live for your primary exporter. Portfolio products only filter which rows are visible; canonical public ranks and scores never change.",
-    signOut: "Sign out",
     primaryExporterLabel: "Primary exporter",
     portfolioProducts: "Portfolio products",
     emptyPortfolio: "No portfolio products confirmed",
@@ -119,7 +119,6 @@ const copy = {
       "Confirm at least one HS12 product before discovering portfolio opportunities.",
   },
   "zh-Hans": {
-    loadingSession: "正在检查组合会话…",
     authEyebrow: "分析师账户",
     authTitle: "恢复您的出口方与产品组合。",
     authBody:
@@ -143,7 +142,6 @@ const copy = {
     workspaceTitle: "您的组合机会工作区",
     workspaceLede:
       "系统会按您的主要出口方实时读取公共机会索引。组合产品只筛选可见行；公共规范排名和分数不会改变。",
-    signOut: "退出登录",
     primaryExporterLabel: "主要出口方",
     portfolioProducts: "组合产品",
     emptyPortfolio: "尚未确认组合产品",
@@ -197,96 +195,7 @@ function opportunityPortfolioModeFromLocation(): PortfolioProjectionMode {
     : "complete";
 }
 
-export function AccountWorkspace({
-  locale,
-  onSignedInChange,
-  onAnonymousFallback,
-}: {
-  locale: AccountLocale;
-  onSignedInChange: (signedIn: boolean) => void;
-  onAnonymousFallback: () => void;
-}) {
-  const messages = copy[locale];
-  const [session, setSession] = useState<AccountSessionPayload | null>(null);
-  const [sessionStatus, setSessionStatus] = useState<"loading" | "ready">(
-    "loading",
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    void loadAccountSession()
-      .then((payload) => {
-        if (!cancelled) {
-          setSession(payload);
-          onSignedInChange(payload !== null);
-          setSessionStatus("ready");
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          console.error("Account session restore failed", error);
-          setSession(null);
-          onSignedInChange(false);
-          setSessionStatus("ready");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [onSignedInChange]);
-
-  async function handleSignOut() {
-    await signOutAccount();
-    const context = parseTradeAnalysisContext(window.location.href);
-    if (
-      context.recipe === "opportunity-discovery" &&
-      context.portfolioFilter === true
-    ) {
-      const url = serializeTradeAnalysisContext(window.location.href, {
-        ...context,
-        portfolioFilter: false,
-      });
-      window.history.replaceState(null, "", url);
-      window.dispatchEvent(
-        new PopStateEvent("popstate", { state: window.history.state }),
-      );
-    }
-    setSession(null);
-    onSignedInChange(false);
-    onAnonymousFallback();
-  }
-
-  if (sessionStatus === "loading") {
-    return (
-      <section
-        className="account-panel account-panel--pending"
-        aria-live="polite"
-      >
-        <p>{messages.loadingSession}</p>
-      </section>
-    );
-  }
-
-  return session === null ? (
-    <AccountAuthPanel
-      locale={locale}
-      onAuthenticated={(payload) => {
-        setSession(payload);
-        onSignedInChange(true);
-      }}
-      onAnonymousFallback={onAnonymousFallback}
-    />
-  ) : (
-    <SignedInPortfolioWorkspace
-      locale={locale}
-      session={session}
-      onSessionChange={setSession}
-      onSignOut={() => void handleSignOut()}
-    />
-  );
-}
-
-function AccountAuthPanel({
+export function AccountAuthPanel({
   locale,
   onAuthenticated,
   onAnonymousFallback,
@@ -351,6 +260,8 @@ function AccountAuthPanel({
   return (
     <section
       className="account-panel account-auth"
+      id="discovery"
+      tabIndex={-1}
       aria-labelledby="account-auth-title"
     >
       <div className="account-copy">
@@ -475,16 +386,20 @@ function AccountAuthPanel({
   );
 }
 
-function SignedInPortfolioWorkspace({
+export function SignedInPortfolioWorkspace({
   locale,
   session,
   onSessionChange,
-  onSignOut,
+  onCompletePublicRanking,
+  onWorkspaceScopeChange,
 }: {
   locale: AccountLocale;
   session: AccountSessionPayload;
   onSessionChange: (session: AccountSessionPayload) => void;
-  onSignOut: () => void;
+  onCompletePublicRanking: () => void;
+  onWorkspaceScopeChange: (
+    scope: WorkspaceScopeConfiguration | null,
+  ) => void;
 }) {
   const messages = copy[locale];
   const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(
@@ -507,6 +422,7 @@ function SignedInPortfolioWorkspace({
   const portfolioRef = useRef(session.portfolio);
   const modeRef = useRef(mode);
   const loadedPageCountRef = useRef(0);
+  const restoredReturnAction = useRef<string | null>(null);
 
   useEffect(() => {
     portfolioRef.current = session.portfolio;
@@ -547,35 +463,19 @@ function SignedInPortfolioWorkspace({
         if (baseContext.recipe !== "opportunity-discovery") {
           return;
         }
-        const translatedPin =
-          locationContext.pin === null
-            ? null
-            : pinFromDeploymentWindow(
-                nextManifest,
-                locationContext.pin.analysisBuildId,
-                "opportunity-discovery",
-              );
-        if (
-          !revalidate &&
-          locationContext.pin !== null &&
-          translatedPin === null
-        ) {
+        const requestedPinResolution = resolvePinnedContext(
+          locationContext.pin,
+          nextManifest,
+          "opportunity-discovery",
+        );
+        if (!revalidate && requestedPinResolution.state === "retired") {
           setStatus("stale");
           return;
         }
-        const requestedPinState =
-          translatedPin === null
-            ? locationContext.pin === null
-              ? "current"
-              : "retired"
-            : resolvePinnedContext(
-                translatedPin,
-                nextManifest,
-                "opportunity-discovery",
-              ).state;
+        const requestedPinState = requestedPinResolution.state;
         const context: OpportunityDiscoveryContext = {
           ...baseContext,
-          pin: revalidate ? null : translatedPin,
+          pin: revalidate ? null : locationContext.pin,
         };
         if (portfolioRef.current.length === 0) {
           setFeed(null);
@@ -657,11 +557,10 @@ function SignedInPortfolioWorkspace({
         if (revalidate && requestedPinState !== "current") {
           const currentUrl = servedUrl;
           window.history.pushState(null, "", currentUrl);
-          window.dispatchEvent(
-            new PopStateEvent("popstate", { state: window.history.state }),
-          );
+          announceTradeAnalysisNavigation();
         } else {
           window.history.replaceState(window.history.state, "", servedUrl);
+          announceTradeAnalysisContextChange();
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -704,23 +603,25 @@ function SignedInPortfolioWorkspace({
         window.history.state,
         "portfolio",
       );
-      if (returnState !== null) {
+      if (
+        returnState !== null &&
+        restoredReturnAction.current !== returnState.actionId
+      ) {
+        restoredReturnAction.current = returnState.actionId;
         restoreOpportunityPosition(returnState, "portfolio-list-scroll");
         return;
       }
       const requestedBuildId =
-        context.pin?.analysisBuildId ?? manifest?.analysisBuildId ?? null;
-      if (
-        requestedBuildId !== null &&
-        requestedBuildId !== feed.analysisBuildId
-      ) {
+        context.pin?.analysisBuildId ?? feed.analysisBuildId;
+      if (requestedBuildId !== feed.analysisBuildId) {
         void loadFeed(false);
       }
     }
+    restoreFocusFromHistory();
     window.addEventListener("popstate", restoreFocusFromHistory);
     return () =>
       window.removeEventListener("popstate", restoreFocusFromHistory);
-  }, [feed, loadFeed, manifest]);
+  }, [feed, loadFeed]);
 
   async function addProduct() {
     if (portfolioProduct === null) {
@@ -750,7 +651,10 @@ function SignedInPortfolioWorkspace({
     updateMode("portfolio");
   }
 
-  function updateMode(nextMode: PortfolioProjectionMode) {
+  function updateMode(
+    nextMode: PortfolioProjectionMode,
+    navigation: "push" | "replace" = "replace",
+  ) {
     modeRef.current = nextMode;
     setMode(nextMode);
     const context = withRecipe(
@@ -763,7 +667,15 @@ function SignedInPortfolioWorkspace({
         exportEconomyCode: session.primaryExporter,
         portfolioFilter: nextMode === "portfolio",
       });
-      window.history.replaceState(window.history.state, "", url);
+      if (navigation === "push") {
+        window.history.pushState(null, "", url);
+      } else {
+        window.history.replaceState(window.history.state, "", url);
+      }
+      if (nextMode === "complete" && navigation === "push") {
+        onCompletePublicRanking();
+      }
+      announceTradeAnalysisContextChange();
     }
   }
 
@@ -796,10 +708,82 @@ function SignedInPortfolioWorkspace({
           pin: candidateMarketPin,
           exporterCode: feed.exporter.code,
         };
+  const focusPortfolioScopeControls = useCallback(() => {
+    document
+      .querySelector<HTMLElement>(
+        ".portfolio-product-tools [role=\"combobox\"]",
+      )
+      ?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (
+      manifest === null ||
+      (status !== "stale" &&
+        (feed === null || feedDeploymentState === null))
+    ) {
+      onWorkspaceScopeChange(null);
+      return;
+    }
+    onWorkspaceScopeChange({
+      exporter:
+        feed?.exporter ?? {
+          code: session.primaryExporter,
+          name: session.primaryExporter,
+        },
+      product: {
+        mode: "portfolio",
+        codes: session.portfolio.map(({ product }) => product.code),
+      },
+      deploymentState:
+        status === "stale"
+          ? "retired"
+          : (feedDeploymentState ?? "current"),
+      deploymentActivation: manifest.freshness.deploymentActivation,
+      baciRelease:
+        status === "stale"
+          ? null
+          : (feed?.provenance.baciRelease ?? manifest.source.baciRelease),
+      finalizedWindow:
+        status === "stale"
+          ? null
+          : (feed?.provenance.scoreWindow ?? manifest.source.windows.score),
+      provisionalYear:
+        status === "stale"
+          ? null
+          : (feed?.provenance.provisionalYear ??
+            manifest.source.provisionalYear),
+      freshnessState:
+        status !== "stale" && feedDeploymentState === "current"
+          ? manifest.freshness.state
+          : null,
+      analysisIdentity:
+        status === "stale" ? undefined : feed?.analysisIdentity,
+      datasetPackageIdentity:
+        status === "stale" ? undefined : feed?.datasetPackageIdentity,
+      canCopyLink: feed !== null || status === "stale",
+      onChangeScope: focusPortfolioScopeControls,
+      onSourceDetails:
+        status !== "stale" && feedDeploymentState === "current"
+          ? () => setSourceDetailsOpen(true)
+          : undefined,
+    });
+  }, [
+    feed,
+    feedDeploymentState,
+    focusPortfolioScopeControls,
+    manifest,
+    onWorkspaceScopeChange,
+    session.portfolio,
+    session.primaryExporter,
+    status,
+  ]);
 
   return (
     <section
-      className="account-panel portfolio-workspace"
+      className="analysis-workspace opportunity-workspace portfolio-workspace"
+      id="discovery"
+      tabIndex={-1}
       aria-labelledby="portfolio-title"
     >
       <div className="portfolio-header">
@@ -808,9 +792,6 @@ function SignedInPortfolioWorkspace({
           <h2 id="portfolio-title">{messages.workspaceTitle}</h2>
           <p>{messages.workspaceLede}</p>
         </div>
-        <button type="button" onClick={onSignOut}>
-          {messages.signOut}
-        </button>
       </div>
       <dl className="portfolio-account-summary">
         <div>
@@ -830,71 +811,6 @@ function SignedInPortfolioWorkspace({
           </dd>
         </div>
       </dl>
-      {manifest === null ||
-      (status !== "stale" &&
-        (feed === null || feedDeploymentState === null)) ? null : (
-        <WorkspaceScope
-          locale={locale}
-          exporter={
-            feed?.exporter ?? {
-              code: session.primaryExporter,
-              name: session.primaryExporter,
-            }
-          }
-          product={{
-            mode: "portfolio",
-            codes: session.portfolio.map(({ product }) => product.code),
-          }}
-          deploymentState={
-            status === "stale"
-              ? "retired"
-              : (feedDeploymentState ?? "current")
-          }
-          deploymentActivation={manifest.freshness.deploymentActivation}
-          baciRelease={
-            status === "stale"
-              ? null
-              : (feed?.provenance.baciRelease ??
-                manifest.source.baciRelease)
-          }
-          finalizedWindow={
-            status === "stale"
-              ? null
-              : (feed?.provenance.scoreWindow ??
-                manifest.source.windows.score)
-          }
-          provisionalYear={
-            status === "stale"
-              ? null
-              : (feed?.provenance.provisionalYear ??
-                manifest.source.provisionalYear)
-          }
-          freshnessState={
-            status !== "stale" && feedDeploymentState === "current"
-              ? manifest.freshness.state
-              : null
-          }
-          analysisIdentity={
-            status === "stale" ? undefined : feed?.analysisIdentity
-          }
-          datasetPackageIdentity={
-            status === "stale" ? undefined : feed?.datasetPackageIdentity
-          }
-          canCopyLink={feed !== null || status === "stale"}
-          onChangeScope={() =>
-            document
-              .querySelector<HTMLElement>(
-                ".portfolio-product-tools [role=\"combobox\"]",
-              )
-              ?.focus()
-          }
-          onSourceDetails={
-            status !== "stale" && feedDeploymentState === "current"
-              ? () => setSourceDetailsOpen(true)
-              : undefined
-          }
-        />
-      )}
       {manifest !== null &&
       status !== "stale" &&
       feedDeploymentState === "current" ? (
@@ -960,14 +876,14 @@ function SignedInPortfolioWorkspace({
         <button
           type="button"
           aria-pressed={mode === "complete"}
-          onClick={() => updateMode("complete")}
+          onClick={() => updateMode("complete", "push")}
         >
           {messages.showComplete}
         </button>
         <button
           type="button"
           aria-pressed={mode === "portfolio"}
-          onClick={() => updateMode("portfolio")}
+          onClick={() => updateMode("portfolio", "push")}
         >
           {messages.showPortfolio}
         </button>

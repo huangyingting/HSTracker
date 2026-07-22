@@ -23,6 +23,11 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
 
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
+  await expect(
+    page
+      .getByRole("group", { name: "Product scope" })
+      .getByRole("button", { name: "Set up portfolio" }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   const candidates = page
     .getByRole("list", { name: "Portfolio Opportunity Candidates" })
@@ -67,6 +72,11 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await discoverPortfolio.click();
 
   await expect(candidates).toHaveCount(2);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .getByText("Opportunities", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
   await expect(candidates.nth(0)).toContainText("Canonical public rank #1");
   await expect(candidates.nth(0)).toContainText("Mexico");
   await expect(candidates.nth(0)).toContainText("HS12 010121");
@@ -87,10 +97,22 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   expect(portfolioControlBox?.width).toBeGreaterThanOrEqual(44);
   expect(portfolioControlBox?.height).toBeGreaterThanOrEqual(44);
   await showCompleteRanking.click();
-  await expect(candidates).toHaveCount(4);
-  const scope = portfolio.getByRole("region", {
+  await expect(
+    page
+      .getByRole("list", { name: "Market Investigation Candidates" })
+      .getByRole("listitem"),
+  ).toHaveCount(4);
+  await page
+    .getByRole("group", { name: "Product scope" })
+    .getByRole("button", { name: "My confirmed portfolio" })
+    .click();
+  await expect(candidates).toHaveCount(2);
+  const scope = page.getByRole("region", {
     name: "Workspace scope",
   });
+  await expect(
+    page.getByRole("region", { name: "Workspace scope" }),
+  ).toHaveCount(1);
   await expect(scope).toContainText("Current");
   await expect(scope).toContainText("Finalized window");
   await expect(scope).toContainText("2019–2023");
@@ -98,16 +120,14 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(scope).toContainText("2024");
   await expect(scope).toContainText("Latest known BACI release");
   await expect(scope).toContainText("Confirmed portfolio · 010121");
-  await page.getByRole("button", { name: "Show portfolio filter" }).click();
-  await expect(candidates).toHaveCount(2);
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1.*exporter=156.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
-  await portfolio
+  await scope
     .getByRole("button", { name: "Copy link" })
     .click();
   await expect(
-    portfolio.getByRole("button", { name: "Link copied" }),
+    scope.getByRole("button", { name: "Link copied" }),
   ).toBeVisible();
 
   await page.reload();
@@ -127,9 +147,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     page.getByRole("list", { name: "组合机会候选项" }).getByRole("listitem"),
   ).toHaveCount(2);
   await expect(
-    page
-      .getByRole("region", { name: "您的组合机会工作区" })
-      .getByRole("region", { name: "工作区范围" }),
+    page.getByRole("region", { name: "工作区范围" }),
   ).toContainText("当前");
   expect(opportunityRequests).toBe(requestsBeforeLocale);
   await expect(
@@ -168,10 +186,20 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(candidates).toHaveCount(0);
   expect(opportunityRequests).toBe(requestsBeforeRemove);
 
+  await page
+    .getByRole("button", { name: "Show complete public ranking" })
+    .click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByText("No account required")).toBeVisible();
+  await expect(page.getByText("Public workspace")).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
+    page.getByRole("button", {
+      name: "Sign in to use a confirmed portfolio",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", {
+      name: "Export Market Workspace journey",
+    }),
   ).toBeVisible();
   await expect(
     page
@@ -239,7 +267,9 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
   await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
+    page.getByRole("navigation", {
+      name: "Export Market Workspace journey",
+    }),
   ).toBeVisible();
   expect(opportunityRequests).toBe(0);
 
@@ -320,8 +350,10 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
   await expect(
-    page.getByRole("navigation", { name: "Choose an analysis task" }),
-  ).toBeVisible();
+    page
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .getByText("Market Analysis", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
 
   await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(analyzeNetherlands).toBeFocused();
@@ -353,20 +385,38 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
     .getByRole("button", { name: "Discover portfolio opportunities" })
     .click();
 
-  await page.goto("/?recipe=opportunity-discovery-v1&exporter=156");
   await expect(page).toHaveURL(
-    /recipe=opportunity-discovery-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+    /recipe=opportunity-discovery-v1.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
-  const retiredUrl = new URL(page.url());
-  retiredUrl.searchParams.set("build", "retired-analysis-v1");
-  await page.goto(retiredUrl.toString());
-
+  const validUrl = page.url();
+  const mismatchedUrl = new URL(validUrl);
+  mismatchedUrl.searchParams.set(
+    "pkg",
+    `dataset-package-v1-${"0".repeat(64)}`,
+  );
+  await page.goto(mismatchedUrl.toString());
   const retiredAlert = portfolio.getByRole("alert");
   await expect(retiredAlert).toContainText(
     "This retained link points at a retired analysis build.",
   );
+  await expect(page).toHaveURL(/pkg=dataset-package-v1-0{64}/u);
+
+  await page.goto(validUrl);
   await expect(
     portfolio
+      .getByRole("list", { name: "Portfolio Opportunity Candidates" })
+      .getByRole("listitem"),
+  ).toHaveCount(2);
+
+  const retiredUrl = new URL(validUrl);
+  retiredUrl.searchParams.set("build", "retired-analysis-v1");
+  await page.goto(retiredUrl.toString());
+
+  await expect(retiredAlert).toContainText(
+    "This retained link points at a retired analysis build.",
+  );
+  await expect(
+    page
       .getByRole("region", { name: "Workspace scope" })
       .locator("dd")
       .filter({ hasText: /^Retired$/u }),
@@ -382,7 +432,7 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
     portfolio
       .getByRole("list", { name: "Portfolio Opportunity Candidates" })
       .getByRole("listitem"),
-  ).toHaveCount(4);
+  ).toHaveCount(2);
 
   await page.goBack();
   await expect(page).toHaveURL(/build=retired-analysis-v1/u);
@@ -396,6 +446,9 @@ async function createPortfolioAccount(
   email: string,
   password: string,
 ) {
+  await page
+    .getByRole("button", { name: "Sign in to use a confirmed portfolio" })
+    .click();
   await page.getByRole("button", { name: "Create account" }).click();
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password").fill(password);

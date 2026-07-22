@@ -97,6 +97,7 @@ test("bounded monthly outcomes remain distinct and an unmapped market is never g
   );
   await expect(momentum).not.toContainText("Broadly stable");
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await candidates
     .getByRole("link", { name: "Analyze this market: Chile" })
     .click();
@@ -105,6 +106,7 @@ test("bounded monthly outcomes remain distinct and an unmapped market is never g
     "At least one comparison month was not observed.",
   );
 
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await candidates
     .getByRole("link", { name: "Analyze this market: Poland" })
     .click();
@@ -114,6 +116,7 @@ test("bounded monthly outcomes remain distinct and an unmapped market is never g
   );
 
   const requestCountBeforeUnmappedMarket = momentumRequests.length;
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await candidates
     .getByRole("link", {
       name: "Analyze this market: Other Asia, n.e.s. (Taiwan proxy)",
@@ -465,6 +468,7 @@ test("rapid market changes cannot paint a stale monthly response under the new a
 
   await page.goto(CANONICAL_MARKET_ANALYSIS_URL);
   await expect.poll(() => requestedReporters).toContain("NL");
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await page
     .getByRole("list", { name: "Candidate Markets" })
     .getByRole("link")

@@ -10,7 +10,7 @@ test("an analyst can open the public discovery shell without signing in", async 
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Find candidate markets worth a closer look.",
+      name: "Analyze export markets with public trade evidence.",
     }),
   ).toBeVisible();
   await expect(
@@ -39,7 +39,7 @@ test("an analyst can switch the public shell to Simplified Chinese", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "寻找值得深入研究的候选市场。",
+      name: "使用公共贸易证据分析出口市场。",
     }),
   ).toBeVisible();
   await expect(page.getByText("发现线索，而非提供建议。")).toBeVisible();
@@ -72,7 +72,7 @@ test("the public evidence boundary remains readable on a narrow screen", async (
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Find candidate markets worth a closer look.",
+      name: "Analyze export markets with public trade evidence.",
     }),
   ).toBeVisible();
   await expect(

@@ -16,6 +16,7 @@ import {
   productCodeOf,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
+  withAdvancedToolRecipe,
   withEconomyCode,
   withLocale,
   withoutPin,
@@ -487,6 +488,65 @@ describe("Trade Analysis Context: withRecipe", () => {
       pin: null,
       exporterCode: "100",
       focusedMarketCode: null,
+    });
+  });
+});
+
+describe("Trade Analysis Context: Advanced tools", () => {
+  it("carries focused semantics with each advanced recipe's own deployment pin", () => {
+    const context: TradeAnalysisContext = {
+      recipe: "candidate-market",
+      locale: "zh-Hans",
+      productCode: "010121",
+      pin: CURRENT_CANDIDATE_MARKET_PIN,
+      exporterCode: "156",
+      focusedMarketCode: "528",
+    };
+    const tradeTrendPin = pinFromManifest(manifest, "trade-trend");
+    const supplierCompetitionPin = pinFromManifest(
+      manifest,
+      "supplier-competition",
+    );
+    const tradeExplorerPin = pinFromManifest(manifest, "trade-explorer");
+    expect(tradeTrendPin).not.toEqual(CURRENT_CANDIDATE_MARKET_PIN);
+    expect(supplierCompetitionPin).not.toEqual(CURRENT_CANDIDATE_MARKET_PIN);
+    expect(tradeExplorerPin).not.toEqual(CURRENT_CANDIDATE_MARKET_PIN);
+
+    expect(
+      withAdvancedToolRecipe(context, "trade-trend", tradeTrendPin),
+    ).toEqual({
+      recipe: "trade-trend",
+      locale: "zh-Hans",
+      productCode: "010121",
+      pin: tradeTrendPin,
+      importerCode: "528",
+    });
+    expect(
+      withAdvancedToolRecipe(
+        context,
+        "supplier-competition",
+        supplierCompetitionPin,
+      ),
+    ).toEqual({
+      recipe: "supplier-competition",
+      locale: "zh-Hans",
+      productCode: "010121",
+      pin: supplierCompetitionPin,
+      importerCode: "528",
+    });
+    expect(
+      withAdvancedToolRecipe(context, "trade-explorer", tradeExplorerPin),
+    ).toEqual({
+      recipe: "trade-explorer",
+      locale: "zh-Hans",
+      pin: tradeExplorerPin,
+      shape: null,
+      measures: [],
+      years: [],
+      exportEconomy: ["156"],
+      importEconomy: ["528"],
+      hsProduct: ["010121"],
+      sort: null,
     });
   });
 });
