@@ -80,7 +80,8 @@ describe("versioned Market Analysis route", () => {
     expect(firstBody).toBe(JSON.stringify(expected));
     expect(await second.text()).toBe(firstBody);
     expect(second.headers.get("etag")).toBe(first.headers.get("etag"));
-    expect(JSON.parse(firstBody)).toMatchObject({
+    const parsedBody = JSON.parse(firstBody);
+    expect(parsedBody).toMatchObject({
       schemaVersion: "market-analysis-v1",
       context: {
         analysisBuildId: "acceptance-fixtures-v1",
@@ -89,6 +90,21 @@ describe("versioned Market Analysis route", () => {
         market: { code: "528", name: "Netherlands" },
       },
     });
+    expect(Object.keys(parsedBody)).toEqual([
+      "schemaVersion",
+      "context",
+      "annualContext",
+      "constituentAnalyses",
+      "opportunity",
+      "demand",
+      "exporterPosition",
+      "supplierLandscape",
+      "evidenceQuality",
+      "discoveryDisclaimer",
+    ]);
+    expect(firstBody).not.toMatch(
+      /recent(?:Trade)?Momentum|recent-trade-momentum|monthlyPackageId|sourceVintageId/u,
+    );
 
     const notModified = await GET(
       new Request(url, {

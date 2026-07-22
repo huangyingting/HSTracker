@@ -778,6 +778,10 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           recipe,
         );
   const tradeExplorerNavigationPin = resolvedNavigationPin("trade-explorer");
+  const recentMomentumDatasetPackageIdentity =
+    resolvedAnalysisManifest?.deploymentWindow.find(
+      ({ analysisBuildId }) => analysisBuildId === resolvedAnalysisBuildId,
+    )?.recommendation.recentTradeMomentum?.datasetPackageIdentity ?? null;
 
   return (
     <section
@@ -1109,6 +1113,9 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                           ],
                           sort: null,
                         })
+                  }
+                  recentMomentumDatasetPackageIdentity={
+                    recentMomentumDatasetPackageIdentity
                   }
                 />
               ) : null}
