@@ -19,7 +19,8 @@ const copy = {
     eyebrow: "Choose a product",
     title: "Start with an HS 2012 product.",
     label: "HS 2012 product",
-    help: "Search HS 2012 code or English/Chinese product words.",
+    help:
+      "Search HS 2012 code or English/Chinese product words. Confirmation covers HS12 categories; it does not classify SKUs or convert HS17/HS22.",
     placeholder: "Code or product words",
     loading: "Searching products…",
     tooShort: "Enter at least two characters to search.",
@@ -31,13 +32,15 @@ const copy = {
     retired: "This product catalog has retired. Refresh the current analysis.",
     refresh: "Refresh current analysis",
     selected: "Selected product",
+    change: "Change product",
     match: "Matched",
   },
   "zh-Hans": {
     eyebrow: "选择产品",
     title: "从一个 HS 2012 产品开始。",
     label: "HS 2012 产品",
-    help: "搜索 HS 2012 编码或中英文产品词语。",
+    help:
+      "搜索 HS 2012 编码或中英文产品词语。确认仅涵盖 HS12 类别；不进行 SKU 归类或 HS17/HS22 转换。",
     placeholder: "编码或产品词语",
     loading: "正在搜索产品…",
     tooShort: "请输入至少两个字符进行搜索。",
@@ -47,6 +50,7 @@ const copy = {
     retired: "该产品目录已停用。请刷新当前分析。",
     refresh: "刷新当前分析",
     selected: "已选择产品",
+    change: "更改产品",
     match: "匹配内容",
   },
 } as const;
@@ -73,6 +77,7 @@ export function ProductCombobox({
 }: ProductComboboxProps) {
   const messages = copy[locale];
   const listboxId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const requestSequence = useRef(0);
   const explicitlyEdited = useRef(false);
   const initialLocale = useRef(locale);
@@ -285,6 +290,7 @@ export function ProductCombobox({
         <div className="product-input-frame">
           <span aria-hidden="true">HS12</span>
           <input
+            ref={inputRef}
             id="product-search"
             type="search"
             role="combobox"
@@ -336,6 +342,17 @@ export function ProductCombobox({
             <strong>HS 2012 · {selectedProduct.code}</strong>
             <span>{productDescription(selectedProduct, locale)}</span>
             <small>{adjacentProductDescription(selectedProduct, locale)}</small>
+            <button
+              type="button"
+              className="product-change-action"
+              onClick={() => {
+                clearSelectedIdentity();
+                setInputValue("");
+                inputRef.current?.focus();
+              }}
+            >
+              {messages.change}
+            </button>
           </div>
         )}
         {open ? (

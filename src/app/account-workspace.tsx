@@ -25,6 +25,7 @@ import {
   signOutAccount,
   type AccountSessionPayload,
 } from "./account-client";
+import { AnalysisShareLink } from "./analysis-share-link";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import {
   buildPortfolioProjection,
@@ -34,7 +35,7 @@ import {
 import { loadMarketInvestigationPage } from "./opportunity-discovery-client";
 import {
   candidateMarketAnalysisHref,
-  openMarketAnalysis,
+  openOpportunityMarketAnalysis,
   readOpportunityReturnState,
   restoreOpportunityPosition,
 } from "./market-analysis-navigation";
@@ -244,6 +245,20 @@ export function AccountWorkspace({
 
   async function handleSignOut() {
     await signOutAccount();
+    const context = parseTradeAnalysisContext(window.location.href);
+    if (
+      context.recipe === "opportunity-discovery" &&
+      context.portfolioFilter === true
+    ) {
+      const url = serializeTradeAnalysisContext(window.location.href, {
+        ...context,
+        portfolioFilter: false,
+      });
+      window.history.replaceState(null, "", url);
+      window.dispatchEvent(
+        new PopStateEvent("popstate", { state: window.history.state }),
+      );
+    }
     setSession(null);
     onSignedInChange(false);
     onAnonymousFallback();
@@ -484,6 +499,9 @@ function SignedInPortfolioWorkspace({
     null,
   );
   const [feed, setFeed] = useState<MarketInvestigationPage | null>(null);
+  const [feedDeploymentState, setFeedDeploymentState] = useState<
+    "current" | "retained" | null
+  >(null);
   const [status, setStatus] = useState<FeedStatus>("idle");
   const [mode, setMode] = useState<PortfolioProjectionMode>(
     opportunityPortfolioModeFromLocation,
@@ -559,6 +577,7 @@ function SignedInPortfolioWorkspace({
         };
         if (portfolioRef.current.length === 0) {
           setFeed(null);
+          setFeedDeploymentState(null);
           loadedPageCountRef.current = 0;
           setStatus("empty");
           return;
@@ -623,34 +642,44 @@ function SignedInPortfolioWorkspace({
         }
         loadedPageCountRef.current = loadedPages;
         setFeed(page);
+        setFeedDeploymentState(
+          pinResolution.state === "retained" ? "retained" : "current",
+        );
         const projection = buildPortfolioProjection(
           page,
           portfolioRef.current,
           modeRef.current,
         );
         setStatus(projection.visibleRows.length === 0 ? "empty" : "ready");
+        const servedPin =
+          pinResolution.state === "retained"
+            ? pinResolution.pin
+            : pinFromDeploymentWindow(
+                nextManifest,
+                nextManifest.analysisBuildId,
+                "opportunity-discovery",
+              );
+        if (servedPin === null) {
+          setStatus("current-failed");
+          return;
+        }
+        const servedUrl = serializeTradeAnalysisContext(
+          window.location.href,
+          {
+            ...baseContext,
+            pin: servedPin,
+            exportEconomyCode: session.primaryExporter,
+            portfolioFilter: modeRef.current === "portfolio",
+          },
+        );
         if (revalidate && requestedPinState !== "current") {
-          const currentPin = pinFromDeploymentWindow(
-            nextManifest,
-            nextManifest.analysisBuildId,
-            "opportunity-discovery",
-          );
-          if (currentPin === null) {
-            setStatus("current-failed");
-            return;
-          }
-          const currentUrl = serializeTradeAnalysisContext(
-            window.location.href,
-            {
-              ...baseContext,
-              pin: currentPin,
-              exportEconomyCode: session.primaryExporter,
-            },
-          );
+          const currentUrl = servedUrl;
           window.history.pushState(null, "", currentUrl);
           window.dispatchEvent(
             new PopStateEvent("popstate", { state: window.history.state }),
           );
+        } else {
+          window.history.replaceState(window.history.state, "", servedUrl);
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -737,6 +766,18 @@ function SignedInPortfolioWorkspace({
   function updateMode(nextMode: PortfolioProjectionMode) {
     modeRef.current = nextMode;
     setMode(nextMode);
+    const context = withRecipe(
+      parseTradeAnalysisContext(window.location.href),
+      "opportunity-discovery",
+    );
+    if (context.recipe === "opportunity-discovery") {
+      const url = serializeTradeAnalysisContext(window.location.href, {
+        ...context,
+        exportEconomyCode: session.primaryExporter,
+        portfolioFilter: nextMode === "portfolio",
+      });
+      window.history.replaceState(window.history.state, "", url);
+    }
   }
 
   function refreshCurrentAnalysis() {
@@ -764,24 +805,12 @@ function SignedInPortfolioWorkspace({
     }
     return candidateMarketAnalysisHref({
       baseUrl: window.location.href,
-      locale,
-      pin: candidateMarketPin,
-      exporterCode: feed.exporter.code,
+      scope: {
+        locale,
+        pin: candidateMarketPin,
+        exporterCode: feed.exporter.code,
+      },
       candidate,
-    });
-  }
-
-  function openCandidateMarket(
-    candidate: MarketInvestigationCandidate,
-    href: string,
-  ) {
-    const list = document.getElementById("portfolio-list-scroll");
-    openMarketAnalysis(href, {
-      source: "portfolio",
-      actionId: portfolioActionId(candidate),
-      scrollY: window.scrollY,
-      listScrollTop: list?.scrollTop ?? null,
-      loadedPages: loadedPageCountRef.current,
     });
   }
 
@@ -818,11 +847,14 @@ function SignedInPortfolioWorkspace({
           </dd>
         </div>
       </dl>
-      {manifest === null || feed === null ? null : (
+      {manifest === null ||
+      feed === null ||
+      feedDeploymentState === null ? null : (
         <PortfolioAnalysisScope
           manifest={manifest}
           feed={feed}
           locale={locale}
+          deploymentState={feedDeploymentState}
         />
       )}
       <div className="portfolio-product-tools">
@@ -875,6 +907,7 @@ function SignedInPortfolioWorkspace({
         <button type="button" onClick={refreshCurrentAnalysis}>
           {messages.refresh}
         </button>
+        {feed === null ? null : <AnalysisShareLink locale={locale} />}
         {projection === null ? null : (
           <span>
             {projection.visibleRows.length} {messages.visibleRows} ·{" "}
@@ -942,10 +975,12 @@ function SignedInPortfolioWorkspace({
                         href={analysisHref}
                         onOpen={() => {
                           if (analysisHref !== null) {
-                            openCandidateMarket(
-                              row.candidate,
-                              analysisHref,
-                            );
+                            openOpportunityMarketAnalysis(analysisHref, {
+                              source: "portfolio",
+                              actionId: portfolioActionId(row.candidate),
+                              listId: "portfolio-list-scroll",
+                              loadedPages: loadedPageCountRef.current,
+                            });
                           }
                         }}
                       />
@@ -969,13 +1004,18 @@ function PortfolioAnalysisScope({
   manifest,
   feed,
   locale,
+  deploymentState,
 }: {
   manifest: CurrentAnalysisManifest;
   feed: MarketInvestigationPage;
   locale: AccountLocale;
+  deploymentState: "current" | "retained";
 }) {
   const messages = copy[locale];
-  const isCurrent = feed.analysisBuildId === manifest.analysisBuildId;
+  const isCurrent =
+    deploymentState === "current" &&
+    feed.analysisBuildId === manifest.analysisBuildId &&
+    feed.provenance.baciRelease === manifest.source.baciRelease;
   return (
     <section
       className="portfolio-analysis-scope"

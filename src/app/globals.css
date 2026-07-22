@@ -679,6 +679,12 @@ a {
   line-height: 1.4;
 }
 
+.product-selection .product-change-action {
+  min-height: 44px;
+  justify-self: start;
+  margin-top: 4px;
+}
+
 .product-options {
   position: absolute;
   z-index: 10;
@@ -1198,8 +1204,7 @@ a {
 }
 
 .analysis-controls .product-eyebrow,
-.analysis-controls .product-discovery h2,
-.analysis-controls .product-selection {
+.analysis-controls .product-discovery h2 {
   display: none;
 }
 

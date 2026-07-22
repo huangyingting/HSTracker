@@ -33,6 +33,9 @@ test("a fixed-product opportunity opens Market Analysis explicitly and Back rest
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: /Add Netherlands to comparison/u }),
+  ).toHaveCount(0);
 
   await page.getByRole("link", { name: "Back to opportunities" }).click();
 
@@ -247,4 +250,27 @@ test("Back restores loaded opportunity pages, scroll, and row focus", async ({
       ),
     )
     .toBeLessThanOrEqual(1);
+});
+
+test("a direct Market Analysis link falls back to its fixed-product opportunities", async ({
+  page,
+}) => {
+  await page.goto(
+    "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=528",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
+
+  const back = page.getByRole("link", { name: "Back to opportunities" });
+  await expect(back).toHaveAttribute(
+    "href",
+    /recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
+  );
+  await expect(back).not.toHaveAttribute("href", /market=/u);
+
+  await back.click();
+  await expect(
+    page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
+  ).toHaveCount(13);
 });

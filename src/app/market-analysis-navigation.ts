@@ -46,24 +46,49 @@ export function openMarketAnalysis(
 
 export function candidateMarketAnalysisHref({
   baseUrl,
-  locale,
-  pin,
-  exporterCode,
+  scope,
   candidate,
 }: {
   baseUrl: string;
-  locale: TradeAnalysisLocale;
-  pin: NonNullable<CandidateMarketContext["pin"]>;
-  exporterCode: string;
+  scope: Readonly<{
+    locale: TradeAnalysisLocale;
+    pin: NonNullable<CandidateMarketContext["pin"]>;
+    exporterCode: string;
+  }>;
   candidate: MarketInvestigationCandidate;
 }): string {
   return serializeTradeAnalysisContext(baseUrl, {
     recipe: "candidate-market",
-    locale,
-    pin,
-    exporterCode,
+    ...scope,
     productCode: candidate.product.code,
     focusedMarketCode: candidate.market.code,
+  });
+}
+
+export function openOpportunityMarketAnalysis(
+  href: string,
+  {
+    source,
+    actionId,
+    listId,
+    loadedPages,
+  }: {
+    source: Extract<
+      OpportunityReturnSource,
+      "opportunity-discovery" | "portfolio"
+    >;
+    actionId: string;
+    listId: string;
+    loadedPages: number;
+  },
+): void {
+  const list = document.getElementById(listId);
+  openMarketAnalysis(href, {
+    source,
+    actionId,
+    scrollY: window.scrollY,
+    listScrollTop: list?.scrollTop ?? null,
+    loadedPages,
   });
 }
 

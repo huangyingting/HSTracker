@@ -56,6 +56,14 @@ test("all-product browse, product discovery, and known-product links reach the s
       .getByRole("list", { name: "Candidate Markets" })
       .getByRole("button"),
   ).toHaveCount(13);
+  await expect(
+    page.getByText(
+      "Confirmation covers HS12 categories; it does not classify SKUs or convert HS17/HS22.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Change product" }),
+  ).toBeVisible();
 
   await page.goto(OPPORTUNITY_PRODUCT_URL);
   await expect(

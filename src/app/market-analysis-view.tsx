@@ -22,7 +22,6 @@ import { MARKET_ANALYSIS_COPY, type MarketAnalysisLocale } from "../domain/marke
 import { MARKET_ANALYSIS_PRODUCT_AREAS } from "../domain/market-analysis/product-areas";
 import type { MarketAnalysisV1 } from "../domain/market-analysis/result";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
-import type { CandidateMarket } from "../domain/candidate-market/result";
 import { AnalysisShareLink } from "./analysis-share-link";
 import { MarketAnalysisClientError } from "./market-analysis-client";
 import {
@@ -174,9 +173,6 @@ export function MarketAnalysisView({
   analysis,
   locale,
   freshness,
-  isCompared,
-  comparisonFull,
-  onToggleComparison,
   onRetry,
   onRefreshCurrent,
   retryAfterSeconds,
@@ -194,9 +190,6 @@ export function MarketAnalysisView({
   analysis: MarketAnalysisV1 | null;
   locale: MarketAnalysisLocale;
   freshness: EffectiveSourceFreshness | null;
-  isCompared: boolean;
-  comparisonFull: boolean;
-  onToggleComparison: (candidate: CandidateMarket) => void;
   onRetry: () => void;
   onRefreshCurrent: () => void;
   retryAfterSeconds: number | null;
@@ -429,9 +422,6 @@ export function MarketAnalysisView({
       <MarketSnapshotPanel
         analysis={analysis}
         locale={locale}
-        isCompared={isCompared}
-        comparisonFull={comparisonFull}
-        onToggleComparison={onToggleComparison}
         tradeTrendHref={tradeTrendHref}
         supplierCompetitionHref={supplierCompetitionHref}
       />

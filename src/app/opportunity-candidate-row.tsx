@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import type { MarketInvestigationCandidate } from "../domain/opportunity-discovery/result";
+import { localizedDataConfidence } from "./data-confidence-presentation";
 import { shouldHandleMarketAnalysisClick } from "./market-analysis-navigation";
 import {
   marketAnalysisActionLabel,
@@ -75,7 +76,7 @@ export function OpportunityCandidateRow({
             </span>
             <span>
               {messages.confidence}:{" "}
-              {localizedConfidence(candidate.confidence.label, locale)}
+              {localizedDataConfidence(candidate.confidence.label, locale)}
             </span>
             <span>
               {messages.coverage}: {candidate.observedMarketYears.length}{" "}
@@ -117,14 +118,4 @@ export function OpportunityCandidateRow({
       )}
     </li>
   );
-}
-
-function localizedConfidence(
-  confidence: MarketInvestigationCandidate["confidence"]["label"],
-  locale: TradeAnalysisLocale,
-): string {
-  if (locale === "en") {
-    return confidence;
-  }
-  return confidence === "HIGH" ? "高" : confidence === "MEDIUM" ? "中" : "低";
 }

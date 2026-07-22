@@ -20,10 +20,6 @@ import type { MarketAnalysisV1 } from "../domain/market-analysis/result";
 import type { EconomyRecord } from "../economy/economy-directory";
 import { AnalysisShareLink } from "./analysis-share-link";
 import {
-  CandidateMarketComparison,
-  MAX_COMPARISON_CANDIDATES,
-} from "./candidate-market-comparison";
-import {
   localizedConfidence,
   candidateDisplayName,
   formatDecimalPercent,
@@ -199,9 +195,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
   const [result, setResult] = useState<CandidateMarketResult | null>(null);
-  const [comparedCandidateCodes, setComparedCandidateCodes] = useState<
-    readonly string[]
-  >([]);
   const [selectedCandidateCode, setSelectedCandidateCode] = useState<
     string | null
   >(null);
@@ -290,7 +283,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     marketAnalysisController.current?.abort();
     resetMarketAnalysisState();
     setResult(null);
-    setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("idle");
     const context = parseTradeAnalysisContext(window.location.href);
@@ -453,7 +445,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     analyzedInputsInHistory.current = true;
     setResult(null);
     setResolvedAnalysisManifest(null);
-    setComparedCandidateCodes([]);
     setSelectedCandidateCode(null);
     setStatus("loading");
 
@@ -685,7 +676,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       setExporter(null);
       setProduct(null);
       setResult(null);
-      setComparedCandidateCodes([]);
       setSelectedCandidateCode(null);
       setStatus("idle");
       setControlRestorationKey((current) => current + 1);
@@ -729,25 +719,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     [loadMarketAnalysisForCandidate],
   );
 
-  const toggleCandidateComparison = useCallback(
-    (candidate: CandidateMarket) => {
-      setComparedCandidateCodes((current) =>
-        current.includes(candidate.economy.code)
-          ? current.filter((code) => code !== candidate.economy.code)
-          : current.length < MAX_COMPARISON_CANDIDATES
-            ? [...current, candidate.economy.code]
-            : current,
-      );
-    },
-    [],
-  );
-
-  const removeComparedCandidate = useCallback((code: string) => {
-    setComparedCandidateCodes((current) =>
-      current.filter((candidateCode) => candidateCode !== code),
-    );
-  }, []);
-
   const selectedCandidate =
     result?.candidates.find(
       ({ economy }) => economy.code === selectedCandidateCode,
@@ -781,9 +752,8 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           resolvedAnalysisBuildId,
           recipe,
         );
-  const opportunityNavigationPin = resolvedNavigationPin(
-    "opportunity-discovery",
-  );
+  const candidateMarketNavigationPin =
+    resolvedNavigationPin("candidate-market");
   const tradeExplorerNavigationPin = resolvedNavigationPin("trade-explorer");
 
   return (
@@ -960,13 +930,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   analysis={marketAnalysis}
                   locale={locale}
                   freshness={resolvedAnalysisManifest?.freshness ?? null}
-                  isCompared={comparedCandidateCodes.includes(
-                    evidenceCandidate.economy.code,
-                  )}
-                  comparisonFull={
-                    comparedCandidateCodes.length >= MAX_COMPARISON_CANDIDATES
-                  }
-                  onToggleComparison={toggleCandidateComparison}
                   onRetry={() =>
                     void loadMarketAnalysisForCandidate(
                       evidenceCandidate.economy.code,
@@ -978,16 +941,15 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   requestedAnalysisBuildId={resolvedAnalysisBuildId}
                   headingRef={marketAnalysisHeadingRef}
                   opportunityHref={
-                    opportunityNavigationPin === null
+                    candidateMarketNavigationPin === null
                       ? null
                       : serializeTradeAnalysisContext("/", {
-                          recipe: "opportunity-discovery",
+                          recipe: "candidate-market",
                           locale,
-                          pin: opportunityNavigationPin,
-                          exportEconomyCode: result.query.exporter.code,
-                          productCodes: [result.query.product.code],
-                          focusProductCode: result.query.product.code,
-                          focusedMarketCode: evidenceCandidate.economy.code,
+                          pin: candidateMarketNavigationPin,
+                          exporterCode: result.query.exporter.code,
+                          productCode: result.query.product.code,
+                          focusedMarketCode: null,
                         })
                   }
                   onBackToOpportunities={(event) => {
@@ -1039,14 +1001,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 />
               ) : null}
             </div>
-            {selectedCandidate === null ? null : (
-              <CandidateMarketComparison
-                result={result}
-                comparedCodes={comparedCandidateCodes}
-                locale={locale}
-                onRemove={removeComparedCandidate}
-              />
-            )}
           </>
         ) : null}
 

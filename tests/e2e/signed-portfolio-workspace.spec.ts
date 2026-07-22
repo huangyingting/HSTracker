@@ -79,10 +79,17 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(scope).toContainText("Latest known BACI release");
   await page.getByRole("button", { name: "Show portfolio filter" }).click();
   await expect(candidates).toHaveCount(2);
+  await expect(page).toHaveURL(
+    /recipe=opportunity-discovery-v1.*exporter=156.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+  );
+  await portfolio
+    .getByRole("button", { name: "Copy analysis link" })
+    .click();
+  await expect(
+    portfolio.getByRole("button", { name: "Link copied" }),
+  ).toBeVisible();
 
   await page.reload();
-  await expect(candidates).toHaveCount(4);
-  await page.getByRole("button", { name: "Show portfolio filter" }).click();
   await expect(candidates).toHaveCount(2);
 
   const requestsBeforeRefresh = opportunityRequests;
@@ -128,7 +135,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
       secondPage
         .getByRole("list", { name: "Portfolio Opportunity Candidates" })
         .getByRole("listitem"),
-    ).toHaveCount(4);
+    ).toHaveCount(2);
   } finally {
     await secondContext.close();
   }
@@ -143,6 +150,11 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(
     page.getByRole("navigation", { name: "Choose an analysis task" }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("list", { name: "Market Investigation Candidates" })
+      .getByRole("listitem"),
+  ).toHaveCount(4);
 });
 
 test("portfolio controls coexist with public analysis and open byte-identical Market Analysis", async ({

@@ -7,6 +7,8 @@ import type {
   ConfidenceDeductionCode,
   StabilityEvidence,
 } from "../domain/candidate-market/result";
+import { localizedDataConfidence } from "./data-confidence-presentation";
+export { localizedDataConfidence as localizedConfidence } from "./data-confidence-presentation";
 
 const copy = {
   en: {
@@ -105,10 +107,6 @@ const copy = {
     rankPercentileChange: "Rank-percentile change",
     comparisonRelease: "Comparison release",
     noLongerEligible: "No longer eligible in this release",
-    addToComparison: "Add",
-    removeFromComparison: "Remove",
-    toComparison: "to comparison",
-    fromComparison: "from comparison",
     investigateHeading: "Continue the investigation",
     investigateTradeTrend: "Open Trade Trend for this market",
     investigateSupplierCompetition: "Open Supplier Competition for this market",
@@ -201,10 +199,6 @@ const copy = {
     rankPercentileChange: "排名百分位变化",
     comparisonRelease: "比较发布版本",
     noLongerEligible: "在此发布版本中不再符合条件",
-    addToComparison: "将",
-    removeFromComparison: "从比较栏移除",
-    toComparison: "加入比较栏",
-    fromComparison: "",
     investigateHeading: "继续调查",
     investigateTradeTrend: "为该市场打开贸易趋势",
     investigateSupplierCompetition: "为该市场打开供应商竞争",
@@ -241,9 +235,6 @@ type CandidateMarketEvidenceProps = {
   candidate: CandidateMarket;
   result: CandidateMarketScoreAuditContext;
   locale: EvidenceLocale;
-  isCompared: boolean;
-  comparisonFull: boolean;
-  onToggleComparison: (candidate: CandidateMarket) => void;
   // Cross-task hrefs preselecting this Candidate Market's importing
   // economy and the same HS12 product; see trade-analysis-context.ts.
   // Deliberately outside the locked ranking <ol> (see discovery-workspace).
@@ -266,9 +257,6 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
   candidate,
   result,
   locale,
-  isCompared,
-  comparisonFull,
-  onToggleComparison,
   tradeTrendHref,
   supplierCompetitionHref,
   headingLevel = 3,
@@ -318,7 +306,7 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
         </span>
         <span>
           {messages.confidence}:{" "}
-          {localizedConfidence(candidate.confidence.label, locale)}{" "}
+          {localizedDataConfidence(candidate.confidence.label, locale)}{" "}
           {candidate.confidence.score}
         </span>
       </div>
@@ -350,7 +338,7 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
             <EvidenceSubheading>{messages.confidence}</EvidenceSubheading>
           </div>
           <strong>
-            {localizedConfidence(candidate.confidence.label, locale)} ·{" "}
+            {localizedDataConfidence(candidate.confidence.label, locale)} ·{" "}
             {candidate.confidence.score}
           </strong>
         </div>
@@ -420,19 +408,6 @@ export const CandidateMarketEvidence = memo(function CandidateMarketEvidence({
         locale={locale}
         headingTag={EvidenceSubheading}
       />
-
-      <footer className="evidence-actions">
-        <button
-          type="button"
-          aria-pressed={isCompared}
-          disabled={comparisonFull && !isCompared}
-          onClick={() => onToggleComparison(candidate)}
-        >
-          {isCompared
-            ? `${messages.removeFromComparison} ${displayName} ${messages.fromComparison}`.trim()
-            : `${messages.addToComparison} ${displayName} ${messages.toComparison}`}
-        </button>
-      </footer>
 
       <nav
         className="candidate-market-investigate"
@@ -967,20 +942,6 @@ function growthReasonLabel(
       : messages.growthBelowMateriality,
   );
   return reasons.join(" · ");
-}
-
-export function localizedConfidence(
-  label: CandidateMarket["confidence"]["label"],
-  locale: EvidenceLocale,
-): string {
-  if (locale === "en") {
-    return label;
-  }
-  return {
-    HIGH: "高",
-    MEDIUM: "中",
-    LOW: "低",
-  }[label];
 }
 
 export function candidateDisplayName(

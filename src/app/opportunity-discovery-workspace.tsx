@@ -24,7 +24,7 @@ import {
 } from "./opportunity-discovery-client";
 import {
   candidateMarketAnalysisHref,
-  openMarketAnalysis,
+  openOpportunityMarketAnalysis,
   readOpportunityReturnState,
   restoreOpportunityPosition,
 } from "./market-analysis-navigation";
@@ -461,6 +461,9 @@ export function OpportunityDiscoveryWorkspace({
     if (context.recipe !== "opportunity-discovery") {
       return;
     }
+    if (context.portfolioFilter === true) {
+      return;
+    }
     const expectedProductCode = productCodeOf(context);
     if (
       expectedProductCode !== null &&
@@ -619,24 +622,12 @@ export function OpportunityDiscoveryWorkspace({
     }
     return candidateMarketAnalysisHref({
       baseUrl: window.location.href,
-      locale,
-      pin: candidateMarketPin,
-      exporterCode: feed.exporter.code,
+      scope: {
+        locale,
+        pin: candidateMarketPin,
+        exporterCode: feed.exporter.code,
+      },
       candidate,
-    });
-  }
-
-  function openCandidateMarket(
-    candidate: MarketInvestigationCandidate,
-    href: string,
-  ) {
-    const list = document.getElementById("opportunity-list-scroll");
-    openMarketAnalysis(href, {
-      source: "opportunity-discovery",
-      actionId: opportunityActionId(candidate),
-      scrollY: window.scrollY,
-      listScrollTop: list?.scrollTop ?? null,
-      loadedPages: loadedPageCount,
     });
   }
 
@@ -795,7 +786,12 @@ export function OpportunityDiscoveryWorkspace({
                           href={analysisHref}
                           onOpen={() => {
                             if (analysisHref !== null) {
-                              openCandidateMarket(candidate, analysisHref);
+                              openOpportunityMarketAnalysis(analysisHref, {
+                                source: "opportunity-discovery",
+                                actionId: opportunityActionId(candidate),
+                                listId: "opportunity-list-scroll",
+                                loadedPages: loadedPageCount,
+                              });
                             }
                           }}
                         />
