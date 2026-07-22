@@ -236,7 +236,9 @@ test("switching to and from Trade Explorer transfers compatible analysis context
   await expect(page.getByLabel("Export economy")).toHaveValue("156");
   await expect(page.getByLabel("HS12 product")).toHaveValue("010121");
 
-  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
+  await page
+    .getByRole("button", { name: "Return to Candidate Markets" })
+    .click();
   await expect(page).toHaveURL(
     /\?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121$/u,
   );

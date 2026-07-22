@@ -1,6 +1,3 @@
-import type {
-  MarketInvestigationCandidate,
-} from "../domain/opportunity-discovery/result";
 import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";

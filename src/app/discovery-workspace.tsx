@@ -879,23 +879,35 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   : selectedCandidate.economy
               }
               deploymentState={
-                resolvedDeploymentState === "retained"
+                status === "stale"
+                  ? "retired"
+                  : resolvedDeploymentState === "retained"
                   ? "retained"
                   : "current"
               }
+              deploymentActivation={
+                currentManifest.freshness.deploymentActivation
+              }
               baciRelease={
-                result?.provenance.baciRelease ??
-                currentManifest.source.baciRelease
+                status === "stale"
+                  ? null
+                  : result?.provenance.baciRelease ??
+                    currentManifest.source.baciRelease
               }
               finalizedWindow={
-                result?.provenance.scoreWindow ??
-                currentManifest.source.windows.score
+                status === "stale"
+                  ? null
+                  : result?.provenance.scoreWindow ??
+                    currentManifest.source.windows.score
               }
               provisionalYear={
-                result?.provenance.provisionalYear ??
-                currentManifest.source.provisionalYear
+                status === "stale"
+                  ? null
+                  : result?.provenance.provisionalYear ??
+                    currentManifest.source.provisionalYear
               }
               freshnessState={
+                status === "stale" ||
                 resolvedDeploymentState === "retained"
                   ? null
                   : currentManifest.freshness.state

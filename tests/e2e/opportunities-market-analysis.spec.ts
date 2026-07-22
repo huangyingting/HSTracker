@@ -120,6 +120,13 @@ test("the Chinese opportunity action is singular and keyboard/touch usable on mo
       "/?recipe=opportunity-discovery-v1&exporter=156&locale=zh-Hans",
     );
 
+    const scope = page.getByRole("region", { name: "工作区范围" });
+    const viewScope = scope.getByRole("button", { name: "查看范围" });
+    await expect(viewScope).toBeVisible();
+    await expect(scope.getByText("BACI 发布版本")).not.toBeVisible();
+    await viewScope.tap();
+    await expect(scope.getByText("BACI 发布版本")).toBeVisible();
+
     const candidate = page
       .getByRole("list", { name: "市场调查候选项" })
       .getByRole("listitem")

@@ -2,7 +2,6 @@ import type {
   MarketInvestigationCandidate,
   MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
-import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery/candidate-identity";
 import type { ConfirmedProduct } from "../operations/store/model";
 
 export type PortfolioProjectionMode = "complete" | "portfolio";

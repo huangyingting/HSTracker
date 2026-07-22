@@ -245,7 +245,9 @@ test("switching to Supplier Competition starts with a fresh analysis context", a
   ).not.toBeVisible();
 
   await selectSupplierCompetitionContext(page, "124", /Canada/);
-  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
+  await page
+    .getByRole("button", { name: "Return to Candidate Markets" })
+    .click();
 
   await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
   await expect(

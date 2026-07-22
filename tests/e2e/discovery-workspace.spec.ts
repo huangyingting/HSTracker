@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import type { CurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
+
 test("an Export Market Analyst loads and scans the complete fixture ranking", async ({
   page,
 }) => {
@@ -368,6 +370,13 @@ test("a stale analysis build can refresh the complete result", async ({
   await expect(workspace.getByRole("alert")).toContainText(
     "This analysis build has retired.",
   );
+  const retiredScope = workspace.getByRole("region", {
+    name: "Workspace scope",
+  });
+  await expect(
+    retiredScope.locator("dd").filter({ hasText: /^Retired$/u }),
+  ).toBeVisible();
+  await expect(retiredScope).toContainText("Unavailable for retired context");
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }),
   ).toHaveCount(0);
@@ -387,6 +396,39 @@ test("a stale analysis build can refresh the complete result", async ({
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeFocused();
   expect(analysisRequests).toBe(2);
+});
+
+test("Scope keeps deployment activation separate from Source Freshness Status", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    const response = await route.fetch();
+    const manifest = (await response.json()) as CurrentAnalysisManifest;
+    await route.fulfill({
+      response,
+      json: {
+        ...manifest,
+        freshness: {
+          ...manifest.freshness,
+          deploymentActivation: {
+            mode: "LAST_VERIFIED_RESIDENT_FALLBACK",
+            fallbackReason: "OBJECT_STORE_UNAVAILABLE",
+          },
+        },
+      },
+    });
+  });
+
+  await page.goto(
+    "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121",
+  );
+  const scope = page.getByRole("region", { name: "Workspace scope" });
+  await expect(scope).toContainText(
+    "Last Verified Resident Fallback · OBJECT_STORE_UNAVAILABLE",
+  );
+  await expect(scope).toContainText(
+    "Source Freshness StatusLatest known BACI release",
+  );
 });
 
 const analysisRejectionCases = [

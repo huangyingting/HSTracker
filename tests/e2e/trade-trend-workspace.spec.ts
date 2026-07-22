@@ -193,7 +193,9 @@ test("switching tasks starts with a fresh analysis context", async ({ page }) =>
   ).not.toBeVisible();
 
   await selectTrendContext(page);
-  await tasks.getByRole("button", { name: /Candidate Markets/ }).click();
+  await page
+    .getByRole("button", { name: "Return to Candidate Markets" })
+    .click();
 
   await expect(page).toHaveURL(/\?recipe=candidate-market-v1$/u);
   await expect(

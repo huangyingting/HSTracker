@@ -227,6 +227,13 @@ test("opportunity refresh and explicit Market Analysis links preserve canonical 
   await expect(
     page.locator(".opportunity-workspace").getByRole("alert"),
   ).toContainText("This analysis build has retired.");
+  await expect(
+    page
+      .locator(".opportunity-workspace")
+      .getByRole("region", { name: "Workspace scope" })
+      .locator("dd")
+      .filter({ hasText: /^Retired$/u }),
+  ).toBeVisible();
   const requestsBeforeRefresh = opportunityRequests;
   await page
     .getByRole("button", { name: "Refresh with current evidence" })
@@ -373,7 +380,8 @@ test("exact product confirmation translates a retained Opportunity pin without f
   await expect(
     page
       .getByRole("region", { name: "Workspace scope" })
-      .getByText("Retained", { exact: true }),
+      .locator("dd")
+      .filter({ hasText: /^Retained$/u }),
   ).toBeVisible();
   await expect(
     page.getByText("Not reported for retained evidence"),

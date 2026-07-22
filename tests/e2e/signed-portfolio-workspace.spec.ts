@@ -338,6 +338,12 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
   await expect(retiredAlert).toContainText(
     "This retained link points at a retired analysis build.",
   );
+  await expect(
+    portfolio
+      .getByRole("region", { name: "Workspace scope" })
+      .locator("dd")
+      .filter({ hasText: /^Retired$/u }),
+  ).toBeVisible();
   await retiredAlert
     .getByRole("button", { name: "Refresh with current evidence" })
     .click();

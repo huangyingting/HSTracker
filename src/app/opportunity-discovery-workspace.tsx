@@ -789,26 +789,39 @@ export function OpportunityDiscoveryWorkspace({
                     }
               }
               deploymentState={
-                feed !== null &&
+                status === "stale"
+                  ? "retired"
+                  : feed !== null &&
                 feed.analysisBuildId !== currentManifest.analysisBuildId
                   ? "retained"
                   : "current"
               }
+              deploymentActivation={
+                currentManifest.freshness.deploymentActivation
+              }
               baciRelease={
-                feed?.provenance.baciRelease ??
-                currentManifest.source.baciRelease
+                status === "stale"
+                  ? null
+                  : feed?.provenance.baciRelease ??
+                    currentManifest.source.baciRelease
               }
               finalizedWindow={
-                feed?.provenance.scoreWindow ??
-                currentManifest.source.windows.score
+                status === "stale"
+                  ? null
+                  : feed?.provenance.scoreWindow ??
+                    currentManifest.source.windows.score
               }
               provisionalYear={
-                feed?.provenance.provisionalYear ??
-                currentManifest.source.provisionalYear
+                status === "stale"
+                  ? null
+                  : feed?.provenance.provisionalYear ??
+                    currentManifest.source.provisionalYear
               }
               freshnessState={
-                feed !== null &&
+                status === "stale" ||
+                (feed !== null &&
                 feed.analysisBuildId !== currentManifest.analysisBuildId
+                )
                   ? null
                   : currentManifest.freshness.state
               }
@@ -851,15 +864,7 @@ export function OpportunityDiscoveryWorkspace({
           ) : null}
 
           {(status === "success" || status === "empty") && feed !== null ? (
-            <>
-              <AnalysisShareLink locale={locale} task="opportunity-discovery" />
-              <OpportunityExportAction
-                page={feed}
-                candidateKeys={null}
-                scope="cross-product"
-                locale={locale}
-              />
-            </>
+            <AnalysisShareLink locale={locale} task="opportunity-discovery" />
           ) : null}
 
           {status === "empty" ? (
@@ -955,6 +960,23 @@ export function OpportunityDiscoveryWorkspace({
               </div>
 
               <OpportunityBoundaries page={feed} locale={locale} />
+              <OpportunityExportAction
+                page={feed}
+                candidateKeys={null}
+                scope="cross-product"
+                locale={locale}
+              />
+            </>
+          ) : null}
+          {status === "empty" && feed !== null ? (
+            <>
+              <OpportunityBoundaries page={feed} locale={locale} />
+              <OpportunityExportAction
+                page={feed}
+                candidateKeys={null}
+                scope="cross-product"
+                locale={locale}
+              />
             </>
           ) : null}
         </>

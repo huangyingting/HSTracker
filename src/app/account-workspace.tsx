@@ -840,26 +840,55 @@ function SignedInPortfolioWorkspace({
         </div>
       </dl>
       {manifest === null ||
-      feed === null ||
-      feedDeploymentState === null ? null : (
+      (status !== "stale" &&
+        (feed === null || feedDeploymentState === null)) ? null : (
         <WorkspaceScope
           locale={locale}
-          exporter={feed.exporter}
+          exporter={
+            feed?.exporter ?? {
+              code: session.primaryExporter,
+              name: session.primaryExporter,
+            }
+          }
           product={{
             mode: "portfolio",
             codes: session.portfolio.map(({ product }) => product.code),
           }}
-          deploymentState={feedDeploymentState}
-          baciRelease={feed.provenance.baciRelease}
-          finalizedWindow={feed.provenance.scoreWindow}
-          provisionalYear={feed.provenance.provisionalYear}
+          deploymentState={
+            status === "stale"
+              ? "retired"
+              : (feedDeploymentState ?? "current")
+          }
+          deploymentActivation={manifest.freshness.deploymentActivation}
+          baciRelease={
+            status === "stale"
+              ? null
+              : (feed?.provenance.baciRelease ??
+                manifest.source.baciRelease)
+          }
+          finalizedWindow={
+            status === "stale"
+              ? null
+              : (feed?.provenance.scoreWindow ??
+                manifest.source.windows.score)
+          }
+          provisionalYear={
+            status === "stale"
+              ? null
+              : (feed?.provenance.provisionalYear ??
+                manifest.source.provisionalYear)
+          }
           freshnessState={
-            feedDeploymentState === "current"
+            status !== "stale" && feedDeploymentState === "current"
               ? manifest.freshness.state
               : null
           }
-          analysisIdentity={feed.analysisIdentity}
-          datasetPackageIdentity={feed.datasetPackageIdentity}
+          analysisIdentity={
+            status === "stale" ? undefined : feed?.analysisIdentity
+          }
+          datasetPackageIdentity={
+            status === "stale" ? undefined : feed?.datasetPackageIdentity
+          }
         />
       )}
       <div className="portfolio-product-tools">
@@ -920,16 +949,6 @@ function SignedInPortfolioWorkspace({
           </span>
         )}
       </div>
-      {feed === null || projection === null ? null : (
-        <OpportunityExportAction
-          page={feed}
-          candidateKeys={projection.scopeRows.map((row) =>
-            marketInvestigationCandidateKey(row.candidate),
-          )}
-          scope="portfolio"
-          locale={locale}
-        />
-      )}
       {status === "loading" ? (
         <div className="analysis-state analysis-loading" role="status">
           <span aria-hidden="true" />
@@ -1008,6 +1027,14 @@ function SignedInPortfolioWorkspace({
               )}
             </section>
           </div>
+          <OpportunityExportAction
+            page={feed}
+            candidateKeys={projection.scopeRows.map((row) =>
+              marketInvestigationCandidateKey(row.candidate),
+            )}
+            scope="portfolio"
+            locale={locale}
+          />
         </>
       ) : null}
     </section>
