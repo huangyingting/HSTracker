@@ -163,7 +163,7 @@ test("the compact journey and Advanced tools remain touch-ready on mobile", asyn
       name: "Discovery aid, not a recommendation.",
     })
     .boundingBox();
-  expect(boundaryBox?.y).toBeLessThan(journeyBox?.y ?? 0);
+  expect(journeyBox?.y).toBeLessThan(boundaryBox?.y ?? 0);
 
   const advancedTools = page.getByRole("group", { name: "Advanced tools" });
   const trigger = advancedTools.getByRole("button", {

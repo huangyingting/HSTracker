@@ -272,54 +272,6 @@ export default function Home({
       </header>
 
       <section className="product-experience">
-        {showProductEntry ? (
-          <section className="hero product-entry">
-            <div className="hero-copy">
-              <p className="eyebrow">
-                <span aria-hidden="true" />
-                {messages.eyebrow}
-              </p>
-              <h1>{messages.heading}</h1>
-              <p className="lede">{messages.lede}</p>
-              <p className="access-note">
-                <span className="access-icon" aria-hidden="true">
-                  ↗
-                </span>
-                <span>
-                  <strong>{messages.noAccount}</strong>
-                  <small>{messages.accessDetail}</small>
-                </span>
-              </p>
-            </div>
-
-            <aside className="boundary-card" aria-labelledby="boundary-title">
-              <div className="card-index">
-                <span>01</span>
-                {messages.boundaryIndex}
-              </div>
-              <div className="boundary-symbol" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <h2 id="boundary-title">{messages.boundaryTitle}</h2>
-              <p>{messages.boundaryBody}</p>
-              <dl>
-                <div>
-                  <dt>{messages.uses}</dt>
-                  <dd>{messages.usesValue}</dd>
-                </div>
-                <div>
-                  <dt>{messages.supports}</dt>
-                  <dd>{messages.supportsValue}</dd>
-                </div>
-              </dl>
-            </aside>
-          </section>
-        ) : (
-          <h1 className="visually-hidden">{messages.eyebrow}</h1>
-        )}
-
         <WorkspaceRouteTelemetry context={context} />
         <ExportMarketWorkspace
           initialContext={initialContext}
@@ -327,6 +279,58 @@ export default function Home({
           accountSession={accountSession}
           accountSessionStatus={accountSessionStatus}
           onAccountSessionChange={setAccountSession}
+          pageIntroduction={
+            showProductEntry ? (
+              <section className="hero product-entry">
+                <div className="hero-copy">
+                  <p className="eyebrow">
+                    <span aria-hidden="true" />
+                    {messages.eyebrow}
+                  </p>
+                  <h1>{messages.heading}</h1>
+                  <p className="lede">{messages.lede}</p>
+                  <p className="access-note">
+                    <span className="access-icon" aria-hidden="true">
+                      ↗
+                    </span>
+                    <span>
+                      <strong>{messages.noAccount}</strong>
+                      <small>{messages.accessDetail}</small>
+                    </span>
+                  </p>
+                </div>
+
+                <aside
+                  className="boundary-card"
+                  aria-labelledby="boundary-title"
+                >
+                  <div className="card-index">
+                    <span>01</span>
+                    {messages.boundaryIndex}
+                  </div>
+                  <div className="boundary-symbol" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <h2 id="boundary-title">{messages.boundaryTitle}</h2>
+                  <p>{messages.boundaryBody}</p>
+                  <dl>
+                    <div>
+                      <dt>{messages.uses}</dt>
+                      <dd>{messages.usesValue}</dd>
+                    </div>
+                    <div>
+                      <dt>{messages.supports}</dt>
+                      <dd>{messages.supportsValue}</dd>
+                    </div>
+                  </dl>
+                </aside>
+              </section>
+            ) : (
+              <h1 className="visually-hidden">{messages.eyebrow}</h1>
+            )
+          }
         />
       </section>
 

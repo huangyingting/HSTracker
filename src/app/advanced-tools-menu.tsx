@@ -150,7 +150,7 @@ export function AdvancedToolsMenu({
               key={recipe}
               href={serializeTradeAnalysisContext(
                 "/",
-                translatedAdvancedContext(menuContext, recipe, manifest),
+                targetAdvancedContext(menuContext, recipe, manifest),
               )}
               onClick={(event) => {
                 if (
@@ -177,7 +177,7 @@ export function AdvancedToolsMenu({
   );
 }
 
-function translatedAdvancedContext(
+function targetAdvancedContext(
   context: TradeAnalysisContext,
   recipe: AdvancedToolRecipe,
   manifest: CurrentAnalysisManifest | null,

@@ -23,7 +23,8 @@ export function workspaceRouteFamily(
   } else {
     hasOpportunityScope = context.exportEconomyCode !== null;
     hasFocusedMarket =
-      context.focusProductCode != null && context.focusedMarketCode != null;
+      context.focusProductCode !== null &&
+      context.focusedMarketCode !== null;
   }
 
   if (!hasOpportunityScope) {

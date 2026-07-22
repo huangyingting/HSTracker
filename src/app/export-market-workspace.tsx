@@ -1,7 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import type { AccountSessionPayload } from "./account-client";
 import { JourneyIndicator } from "./journey-indicator";
@@ -108,12 +113,14 @@ export function ExportMarketWorkspace({
   accountSession,
   accountSessionStatus,
   onAccountSessionChange,
+  pageIntroduction,
 }: {
   initialContext: TradeAnalysisContext;
   locale: TradeAnalysisLocale;
   accountSession: AccountSessionPayload | null;
   accountSessionStatus: "loading" | "ready";
   onAccountSessionChange: (session: AccountSessionPayload) => void;
+  pageIntroduction: ReactNode;
 }) {
   const [context, setContext] = useState(initialContext);
   const [registeredScopes, setRegisteredScopes] =
@@ -315,12 +322,11 @@ export function ExportMarketWorkspace({
     context.recipe === "opportunity-discovery"
       ? registeredScopes[context.recipe] ?? null
       : null;
-  const workspaceChrome = (
+  const workspaceLead = (
     <>
-      {activeScope === null ? null : (
-        <WorkspaceScope locale={locale} {...activeScope} />
-      )}
+      {activeScope === null ? null : <WorkspaceScope locale={locale} {...activeScope} />}
       <JourneyIndicator context={context} locale={locale} />
+      {pageIntroduction}
     </>
   );
 
@@ -329,7 +335,7 @@ export function ExportMarketWorkspace({
 
     return (
       <>
-        {workspaceChrome}
+        {workspaceLead}
         <section className="scope-mode-selector" aria-labelledby="scope-mode-title">
           <p id="scope-mode-title">{messages.legend}</p>
           <div role="group" aria-label={messages.legend}>
@@ -424,7 +430,7 @@ export function ExportMarketWorkspace({
 
   return (
     <>
-      {workspaceChrome}
+      {workspaceLead}
       {context.recipe === "candidate-market" ? (
         <DiscoveryWorkspace
           locale={locale}
