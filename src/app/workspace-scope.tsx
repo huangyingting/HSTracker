@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { PublicDeploymentActivation } from "../domain/release/deployment-activation";
 import type { SourceFreshnessState } from "../domain/release/source-freshness-states";
+import { AnalysisLinkCopyButton } from "./analysis-share-link";
 import { localizedSourceFreshness } from "./source-freshness-presentation";
 
 const copy = {
@@ -29,6 +30,10 @@ const copy = {
     retiredEvidence: "Unavailable for retired context",
     viewScope: "View scope",
     hideScope: "Hide scope",
+    changeScope: "Change scope",
+    copyLink: "Copy link",
+    linkCopied: "Link copied",
+    sourceDetails: "Source details",
     analysisIdentity: "Analysis Identity",
     datasetPackage: "Dataset Package",
   },
@@ -54,6 +59,10 @@ const copy = {
     retiredEvidence: "已停用情境不可用",
     viewScope: "查看范围",
     hideScope: "收起范围",
+    changeScope: "更改范围",
+    copyLink: "复制链接",
+    linkCopied: "已复制链接",
+    sourceDetails: "来源详情",
     analysisIdentity: "分析身份",
     datasetPackage: "数据集包",
   },
@@ -85,6 +94,9 @@ export function WorkspaceScope({
   freshnessState,
   analysisIdentity,
   datasetPackageIdentity,
+  canCopyLink = false,
+  onChangeScope,
+  onSourceDetails,
 }: {
   locale: WorkspaceScopeLocale;
   exporter: Readonly<{ code: string; name: string }>;
@@ -98,6 +110,9 @@ export function WorkspaceScope({
   freshnessState: SourceFreshnessState | null;
   analysisIdentity?: string;
   datasetPackageIdentity?: string;
+  canCopyLink?: boolean;
+  onChangeScope: () => void;
+  onSourceDetails?: () => void;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const messages = copy[locale];
@@ -123,6 +138,7 @@ export function WorkspaceScope({
       aria-label={messages.title}
       data-deployment-state={deploymentState}
       data-freshness-state={freshnessState ?? undefined}
+      data-details-open={detailsOpen || undefined}
     >
       <h3>{messages.title}</h3>
       <div className="workspace-scope-summary">
@@ -202,6 +218,22 @@ export function WorkspaceScope({
           />
         )}
       </dl>
+      <div className="workspace-scope-actions">
+        <button type="button" onClick={onChangeScope}>
+          {messages.changeScope}
+        </button>
+        {canCopyLink ? (
+          <AnalysisLinkCopyButton
+            idleLabel={messages.copyLink}
+            doneLabel={messages.linkCopied}
+          />
+        ) : null}
+        {onSourceDetails === undefined ? null : (
+          <button type="button" onClick={onSourceDetails}>
+            {messages.sourceDetails}
+          </button>
+        )}
+      </div>
     </section>
   );
 }

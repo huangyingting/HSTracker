@@ -126,6 +126,14 @@ test("the Chinese opportunity action is singular and keyboard/touch usable on mo
     await expect(scope.getByText("BACI 发布版本")).not.toBeVisible();
     await viewScope.tap();
     await expect(scope.getByText("BACI 发布版本")).toBeVisible();
+    await expect(
+      scope.getByRole("button", { name: "更改范围" }),
+    ).toBeVisible();
+    await expect(scope.getByRole("button", { name: "复制链接" })).toBeVisible();
+    await scope.getByRole("button", { name: "来源详情" }).tap();
+    await expect(
+      page.getByRole("region", { name: "来源详情" }),
+    ).toBeVisible();
 
     const candidate = page
       .getByRole("list", { name: "市场调查候选项" })

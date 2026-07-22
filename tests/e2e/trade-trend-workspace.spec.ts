@@ -174,7 +174,9 @@ test("Candidate Market remains reachable with its original ranking controls and 
   await expect(candidateMarkets.getByRole("button").first()).toHaveAccessibleName(
     "Analyze this market: Netherlands",
   );
-  await expect(page.getByRole("button", { name: "Analyze Candidate Markets" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Discover Candidate Markets" }),
+  ).toBeVisible();
   await expect(page).not.toHaveURL(/recipe=trade-trend-v1/);
 });
 

@@ -53,7 +53,14 @@ const copy = {
     advancedTools: "Advanced tools",
     advancedToolsDetail:
       "Open legacy recipe navigation for advanced and compatibility workflows.",
-    returnToOpportunities: "Return to Candidate Markets",
+    opportunityDiscovery: "Opportunity Discovery",
+    opportunityDiscoveryDetail:
+      "Browse public Market Investigation Candidates for one exporter.",
+    candidateMarket: "Candidate Markets",
+    candidateMarketBadge: "Evidence",
+    candidateMarketDetail:
+      "Drill into one exporter-product Candidate Market ranking.",
+    returnToCandidateMarkets: "Return to Candidate Markets",
     tradeTrend: "Trade Trend",
     tradeTrendDetail: "Inspect annual import evidence for one economy.",
     supplierCompetition: "Supplier Competition",
@@ -68,7 +75,12 @@ const copy = {
     title: "选择分析任务",
     advancedTools: "高级工具",
     advancedToolsDetail: "打开用于高级与兼容工作流的旧版分析方法导航。",
-    returnToOpportunities: "返回候选市场",
+    opportunityDiscovery: "机会发现",
+    opportunityDiscoveryDetail: "按一个出口经济体浏览公共市场调查候选项。",
+    candidateMarket: "候选市场",
+    candidateMarketBadge: "证据",
+    candidateMarketDetail: "深入查看一个出口经济体和产品的候选市场排名。",
+    returnToCandidateMarkets: "返回候选市场",
     tradeTrend: "贸易趋势",
     tradeTrendDetail: "查看一个经济体的年度进口证据。",
     supplierCompetition: "供应商竞争",
@@ -143,7 +155,7 @@ export function AnalysisTaskHome({
           type="button"
           onClick={() => selectTask("candidate-market")}
         >
-          {messages.returnToOpportunities}
+          {messages.returnToCandidateMarkets}
         </button>
       ) : null}
       <section className="advanced-tools">
@@ -165,6 +177,27 @@ export function AnalysisTaskHome({
           >
             <p>{messages.title}</p>
             <div>
+              <button
+                type="button"
+                aria-pressed={task === "opportunity-discovery"}
+                onClick={() => selectTask("opportunity-discovery")}
+              >
+                <strong>{messages.opportunityDiscovery}</strong>
+                <span>{messages.opportunityDiscoveryDetail}</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={task === "candidate-market"}
+                onClick={() => selectTask("candidate-market")}
+              >
+                <strong>
+                  {messages.candidateMarket}{" "}
+                  <span className="analysis-task-badge">
+                    {messages.candidateMarketBadge}
+                  </span>
+                </strong>
+                <span>{messages.candidateMarketDetail}</span>
+              </button>
               <button
                 type="button"
                 aria-pressed={task === "trade-trend"}

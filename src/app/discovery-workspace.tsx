@@ -18,7 +18,6 @@ import type {
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { MarketAnalysisV1 } from "../domain/market-analysis/result";
 import type { EconomyRecord } from "../economy/economy-directory";
-import { AnalysisShareLink } from "./analysis-share-link";
 import {
   candidateDisplayName,
   formatDecimalPercent,
@@ -64,7 +63,7 @@ const copy = {
     eyebrow: "Candidate Market workspace",
     title: "Define the analysis inputs.",
     lede: "Select an export economy and HS 2012 product, then load the complete canonical ranking.",
-    analyze: "Analyze Candidate Markets",
+    analyze: "Discover Candidate Markets",
     analyzeRequirement:
       "Select an export economy and one exact Product Catalog result. Free text is not an analytical input.",
     loading: "Loading the complete Candidate Market result…",
@@ -97,7 +96,6 @@ const copy = {
       "The selected context is valid, but no market has sufficient evidence in the finalized score window.",
     validEmpty: "This is a valid empty evidence result, not a temporary failure.",
     applicableFinalizedWindow: "Applicable Finalized window",
-    changeScope: "Change scope",
     malformed:
       "These analysis inputs are invalid. Check the selected export economy and HS Product.",
     stale:
@@ -125,7 +123,7 @@ const copy = {
     eyebrow: "候选市场工作区",
     title: "定义分析输入。",
     lede: "选择出口经济体和 HS 2012 产品，然后加载完整的规范排名。",
-    analyze: "分析候选市场",
+    analyze: "发现候选市场",
     analyzeRequirement:
       "请选择出口经济体和一个精确的产品目录结果。自由文本不是分析输入。",
     loading: "正在加载完整的候选市场结果…",
@@ -157,7 +155,6 @@ const copy = {
     emptyBody: "所选输入有效，但计分定稿窗口内没有候选市场具备足够证据。",
     validEmpty: "这是有效的空证据结果，并非暂时故障。",
     applicableFinalizedWindow: "适用的定稿窗口",
-    changeScope: "更改范围",
     malformed: "该分析情境无效。请检查所选出口经济体和产品。",
     stale: "该分析构建已停用。请刷新当前测试情境。",
     rateLimit: "候选市场请求暂时受限。请稍候再试。",
@@ -232,6 +229,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const [currentManifestStatus, setCurrentManifestStatus] = useState<
     "loading" | "ready" | "failed"
   >("loading");
+  const [sourceDetailsOpen, setSourceDetailsOpen] = useState(false);
 
   const resetMarketAnalysisState = useCallback(() => {
     resolvedAnalysisBuildIdRef.current = null;
@@ -304,7 +302,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     const context = parseTradeAnalysisContext(window.location.href);
     const nextContext: CandidateMarketContext =
       context.recipe === "candidate-market"
-        ? { ...context, locale, focusedMarketCode: null, pin: null }
+        ? { ...context, locale, focusedMarketCode: null }
         : {
             recipe: "candidate-market",
             locale,
@@ -912,13 +910,32 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                   ? null
                   : currentManifest.freshness.state
               }
+              canCopyLink={
+                status === "success" ||
+                status === "empty" ||
+                status === "stale"
+              }
+              onChangeScope={() =>
+                scopeControlsRef.current
+                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
+                  ?.focus()
+              }
+              onSourceDetails={
+                status === "stale"
+                  ? undefined
+                  : () => setSourceDetailsOpen(true)
+              }
             />
           )}
-          <SourceScope
-            manifest={currentManifest}
-            result={result}
-            locale={locale}
-          />
+          {status === "stale" ? null : (
+            <SourceScope
+              manifest={currentManifest}
+              result={result}
+              locale={locale}
+              detailsOpen={sourceDetailsOpen}
+              onDetailsOpenChange={setSourceDetailsOpen}
+            />
+          )}
         </>
       )}
 
@@ -934,14 +951,11 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         ) : null}
 
         {(status === "success" || status === "empty") && result !== null ? (
-          <>
-            <CandidateMarketExportAction
-              result={result}
-              locale={locale}
-              onManifestRevalidated={setCurrentManifest}
-            />
-            {status === "empty" ? <AnalysisShareLink locale={locale} /> : null}
-          </>
+          <CandidateMarketExportAction
+            result={result}
+            locale={locale}
+            onManifestRevalidated={setCurrentManifest}
+          />
         ) : null}
 
         {status === "success" && result !== null && product !== null ? (
@@ -1093,16 +1107,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                 {result.provenance.scoreWindow.end}
               </p>
             )}
-            <button
-              type="button"
-              onClick={() =>
-                scopeControlsRef.current
-                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
-                  ?.focus()
-              }
-            >
-              {messages.changeScope}
-            </button>
           </div>
         ) : null}
 

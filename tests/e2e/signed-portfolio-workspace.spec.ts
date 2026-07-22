@@ -33,6 +33,10 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   const portfolio = page.getByRole("region", {
     name: "Your portfolio opportunity workspace",
   });
+  const discoverPortfolio = portfolio.getByRole("button", {
+    name: "Discover portfolio opportunities",
+  });
+  await expect(discoverPortfolio).toBeDisabled();
   const productControlIds = await page
     .locator(".product-discovery [id]")
     .evaluateAll((elements) => elements.map(({ id }) => id));
@@ -55,6 +59,12 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await portfolio
     .getByRole("button", { name: "Add product to portfolio" })
     .click();
+  await expect(discoverPortfolio).toBeEnabled();
+  expect(opportunityRequests).toBe(0);
+  await page.reload();
+  await expect(discoverPortfolio).toBeEnabled();
+  expect(opportunityRequests).toBe(0);
+  await discoverPortfolio.click();
 
   await expect(candidates).toHaveCount(2);
   await expect(candidates.nth(0)).toContainText("Canonical public rank #1");
@@ -90,7 +100,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     /recipe=opportunity-discovery-v1.*exporter=156.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
   await portfolio
-    .getByRole("button", { name: "Copy analysis link" })
+    .getByRole("button", { name: "Copy link" })
     .click();
   await expect(
     portfolio.getByRole("button", { name: "Link copied" }),
@@ -246,6 +256,10 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
   await portfolio
     .getByRole("button", { name: "Add product to portfolio" })
     .click();
+  expect(opportunityRequests).toBe(0);
+  await portfolio
+    .getByRole("button", { name: "Discover portfolio opportunities" })
+    .click();
 
   const candidates = portfolio.getByRole("list", {
     name: "Portfolio Opportunity Candidates",
@@ -324,6 +338,9 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
   await product.press("Enter");
   await portfolio
     .getByRole("button", { name: "Add product to portfolio" })
+    .click();
+  await portfolio
+    .getByRole("button", { name: "Discover portfolio opportunities" })
     .click();
 
   await page.goto("/?recipe=opportunity-discovery-v1&exporter=156");

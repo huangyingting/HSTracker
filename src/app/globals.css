@@ -1099,6 +1099,18 @@ a {
   font-weight: 600;
 }
 
+.workspace-scope-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.workspace-scope-actions button {
+  min-height: 40px;
+}
+
 .portfolio-product-tools {
   grid-template-columns: minmax(180px, 260px) auto 1fr;
   align-items: end;
@@ -4474,6 +4486,20 @@ tr[data-selected="true"] td {
 
   .workspace-scope dl[data-expanded="true"] {
     margin-top: 14px;
+  }
+
+  .workspace-scope-actions {
+    display: none;
+    justify-content: stretch;
+  }
+
+  .workspace-scope[data-details-open="true"] .workspace-scope-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-scope-actions button {
+    min-height: 44px;
   }
 
   .advanced-tools-toggle {

@@ -14,7 +14,7 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
   await page.goto("/?recipe=candidate-market-v1");
 
   const analyze = page.getByRole("button", {
-    name: "Analyze Candidate Markets",
+    name: "Discover Candidate Markets",
   });
   await expect(analyze).toBeDisabled();
   await expect(
@@ -224,7 +224,7 @@ test("browser history restores prior exporter and HS Product contexts", async ({
   await product.fill("851712");
   await page.getByRole("option", { name: /851712/ }).click();
   await page
-    .getByRole("button", { name: "Analyze Candidate Markets" })
+    .getByRole("button", { name: "Discover Candidate Markets" })
     .click();
   await expect(
     page.getByRole("status").getByRole("heading", {

@@ -76,6 +76,14 @@ test("all-product browse, product discovery, and known-product links reach the s
 }) => {
   await page.goto("/");
   await selectChinaExporter(page);
+  const discoverAll = page.getByRole("button", {
+    name: "Discover product-market opportunities",
+  });
+  await expect(discoverAll).toBeEnabled();
+  await expect(
+    page.getByRole("list", { name: "Market Investigation Candidates" }),
+  ).toHaveCount(0);
+  await discoverAll.click();
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
@@ -86,6 +94,9 @@ test("all-product browse, product discovery, and known-product links reach the s
   await page.goto("/");
   await selectChinaExporter(page);
   await selectHorseProduct(page);
+  await page
+    .getByRole("button", { name: "Discover Candidate Markets" })
+    .click();
   await expect(page).toHaveURL(
     /recipe=candidate-market-v1.*exporter=156.*product=010121.*build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
   );
@@ -125,7 +136,7 @@ test("opportunity copy is honest and context survives filter, history, copied li
   await page.goto(OPPORTUNITY_PRODUCT_URL);
   await expectMexicoHorseCandidate(page);
   const stableShareButton = await page
-    .getByRole("button", { name: "Copy analysis link" })
+    .getByRole("button", { name: "Copy link" })
     .elementHandle();
   if (stableShareButton === null) {
     throw new Error("Expected the analysis share control to be mounted.");
@@ -152,7 +163,7 @@ test("opportunity copy is honest and context survives filter, history, copied li
   ).toBeVisible();
 
   const copiedUrl = page.url();
-  await page.getByRole("button", { name: "Copy analysis link" }).click();
+  await page.getByRole("button", { name: "Copy link" }).click();
   await expect(page.getByRole("button", { name: "Link copied" })).toBeVisible();
 
   const anotherContext = await browser.newContext();
@@ -162,6 +173,9 @@ test("opportunity copy is honest and context survives filter, history, copied li
   await anotherContext.close();
 
   await page.getByRole("button", { name: "Show all products" }).click();
+  await page
+    .getByRole("button", { name: "Discover product-market opportunities" })
+    .click();
   await expect(
     page
       .getByRole("list", { name: "Market Investigation Candidates" })
@@ -388,6 +402,9 @@ test("exact product confirmation translates a retained Opportunity pin without f
   ).toBeVisible();
   await expect(page.locator(".source-scope")).toHaveCount(0);
   await selectHorseProduct(page);
+  await page
+    .getByRole("button", { name: "Discover Candidate Markets" })
+    .click();
   await expect(page).toHaveURL(
     new RegExp(
       `recipe=candidate-market-v1.*product=010121.*build=${retainedBuild}&pkg=${retainedCandidatePackage}$`,

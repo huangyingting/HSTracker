@@ -50,6 +50,41 @@ export const AnalysisShareLink = memo(function AnalysisShareLink({
     | "trade-explorer";
 }) {
   const messages = copy[locale];
+  return (
+    <div className="analysis-share">
+      <div>
+        <p>{messages.kicker}</p>
+        <span>
+          {task === "candidate-market"
+            ? messages.hint
+            : task === "market-analysis"
+              ? messages.marketAnalysisHint
+            : task === "opportunity-discovery"
+              ? messages.opportunityContextHint
+            : task === "trade-explorer"
+              ? messages.explorerContextHint
+              : messages.importingContextHint}
+        </span>
+      </div>
+      <AnalysisLinkCopyButton
+        idleLabel={
+          task === "market-analysis"
+            ? messages.marketAnalysisIdle
+            : messages.idle
+        }
+        doneLabel={messages.done}
+      />
+    </div>
+  );
+});
+
+export const AnalysisLinkCopyButton = memo(function AnalysisLinkCopyButton({
+  idleLabel,
+  doneLabel,
+}: {
+  idleLabel: string;
+  doneLabel: string;
+}) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<number | null>(null);
 
@@ -67,8 +102,8 @@ export const AnalysisShareLink = memo(function AnalysisShareLink({
     try {
       await navigator.clipboard?.writeText(href);
     } catch {
-      // Clipboard access can be denied; the link remains visible in the
-      // address bar, so surface the copied acknowledgement regardless.
+      // Clipboard access can be denied; the canonical link remains in the
+      // address bar, so keep the same acknowledgement contract.
     }
     setCopied(true);
     if (resetTimer.current !== null) {
@@ -78,28 +113,8 @@ export const AnalysisShareLink = memo(function AnalysisShareLink({
   }
 
   return (
-    <div className="analysis-share">
-      <div>
-        <p>{messages.kicker}</p>
-        <span>
-          {task === "candidate-market"
-            ? messages.hint
-            : task === "market-analysis"
-              ? messages.marketAnalysisHint
-            : task === "opportunity-discovery"
-              ? messages.opportunityContextHint
-            : task === "trade-explorer"
-              ? messages.explorerContextHint
-              : messages.importingContextHint}
-        </span>
-      </div>
-      <button type="button" data-copied={copied} onClick={copyAnalysisLink}>
-        {copied
-          ? messages.done
-          : task === "market-analysis"
-            ? messages.marketAnalysisIdle
-            : messages.idle}
-      </button>
-    </div>
+    <button type="button" data-copied={copied} onClick={copyAnalysisLink}>
+      {copied ? doneLabel : idleLabel}
+    </button>
   );
 });

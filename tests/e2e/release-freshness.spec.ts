@@ -509,7 +509,10 @@ test("material Release Revision evidence stays separate from historical growth",
     "Release Revision means evidence changed between BACI releases, not historical growth.",
   );
 
-  await page.getByRole("button", { name: "Source details" }).click();
+  await page
+    .getByRole("region", { name: "Current source scope" })
+    .getByRole("button", { name: "Source details" })
+    .click();
   await expect(
     page.getByRole("region", { name: "Source details" }),
   ).toContainText("Release Revision comparison V202501");

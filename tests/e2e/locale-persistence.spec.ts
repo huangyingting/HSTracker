@@ -28,10 +28,10 @@ test("selecting a non-default locale on the bare landing page persists it throug
 
   await page.getByRole("button", { name: "高级工具" }).click();
   const tasks = page.getByRole("navigation", { name: "选择分析任务" });
-  await expect(tasks.getByRole("button")).toHaveCount(3);
-  await expect(tasks.getByRole("button", { name: /机会发现|候选市场/u })).toHaveCount(
-    0,
-  );
+  await expect(tasks.getByRole("button")).toHaveCount(5);
+  await expect(
+    tasks.getByRole("button", { name: /机会发现|候选市场/u }),
+  ).toHaveCount(2);
   await tasks.getByRole("button", { name: /贸易趋势/ }).click();
 
   // The exact versioned recipe identity now leads (deterministic first

@@ -26,7 +26,6 @@ import {
   signOutAccount,
   type AccountSessionPayload,
 } from "./account-client";
-import { AnalysisShareLink } from "./analysis-share-link";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import {
   buildPortfolioProjection,
@@ -46,6 +45,7 @@ import {
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
 import { ProductCombobox } from "./product-combobox";
+import { SourceScope } from "./source-scope";
 import {
   parseTradeAnalysisContext,
   pinFromDeploymentWindow,
@@ -127,6 +127,9 @@ const copy = {
     noVisibleRowsBody:
       "Add a portfolio product that appears in the current public feed, or show the complete public ranking.",
     anonymousFallback: "Continue without signing in",
+    discoverPortfolio: "Discover portfolio opportunities",
+    discoverPortfolioRequirement:
+      "Confirm at least one HS12 product before discovering portfolio opportunities.",
   },
   "zh-Hans": {
     loadingSession: "正在检查组合会话…",
@@ -192,6 +195,9 @@ const copy = {
     noVisibleRowsBody:
       "请添加出现在当前公共列表中的组合产品，或显示完整公共排名。",
     anonymousFallback: "不登录继续",
+    discoverPortfolio: "发现产品组合机会",
+    discoverPortfolioRequirement:
+      "请至少确认一个 HS12 产品后再发现产品组合机会。",
   },
 } as const;
 
@@ -521,6 +527,7 @@ function SignedInPortfolioWorkspace({
   const [portfolioProduct, setPortfolioProduct] =
     useState<ProductSearchProduct | null>(null);
   const [productControlKey, setProductControlKey] = useState(0);
+  const [sourceDetailsOpen, setSourceDetailsOpen] = useState(false);
   const currentController = useRef<AbortController | null>(null);
   const feedController = useRef<AbortController | null>(null);
   const portfolioRef = useRef(session.portfolio);
@@ -536,8 +543,8 @@ function SignedInPortfolioWorkspace({
   }, [mode]);
 
   const loadFeed = useCallback(
-    async (revalidate = false) => {
-      setStatus("loading");
+    async (revalidate = false, discover = true) => {
+      setStatus(discover ? "loading" : "idle");
       currentController.current?.abort();
       feedController.current?.abort();
       const current = new AbortController();
@@ -549,6 +556,15 @@ function SignedInPortfolioWorkspace({
           revalidate,
         });
         setManifest(nextManifest);
+        if (!discover) {
+          setFeed(null);
+          setFeedDeploymentState(null);
+          loadedPageCountRef.current = 0;
+          setStatus(
+            portfolioRef.current.length === 0 ? "empty" : "idle",
+          );
+          return;
+        }
         const locationContext = parseTradeAnalysisContext(window.location.href);
         const baseContext = withRecipe(
           locationContext,
@@ -685,7 +701,12 @@ function SignedInPortfolioWorkspace({
   );
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => void loadFeed(false), 0);
+    const context = parseTradeAnalysisContext(window.location.href);
+    const restoreSubmittedScope = context.pin !== null;
+    const timeout = window.setTimeout(
+      () => void loadFeed(false, restoreSubmittedScope),
+      0,
+    );
     return () => {
       window.clearTimeout(timeout);
       currentController.current?.abort();
@@ -741,7 +762,7 @@ function SignedInPortfolioWorkspace({
     setPortfolioProduct(null);
     setProductControlKey((current) => current + 1);
     if (feed === null) {
-      await loadFeed(false);
+      setStatus("idle");
     }
   }
 
@@ -774,6 +795,11 @@ function SignedInPortfolioWorkspace({
 
   function refreshCurrentAnalysis() {
     void loadFeed(true);
+  }
+
+  function discoverPortfolioOpportunities() {
+    updateMode("portfolio");
+    void loadFeed(false, true);
   }
 
   const projection =
@@ -889,8 +915,32 @@ function SignedInPortfolioWorkspace({
           datasetPackageIdentity={
             status === "stale" ? undefined : feed?.datasetPackageIdentity
           }
+          canCopyLink={feed !== null || status === "stale"}
+          onChangeScope={() =>
+            document
+              .querySelector<HTMLElement>(
+                ".portfolio-product-tools [role=\"combobox\"]",
+              )
+              ?.focus()
+          }
+          onSourceDetails={
+            status !== "stale" && feedDeploymentState === "current"
+              ? () => setSourceDetailsOpen(true)
+              : undefined
+          }
         />
       )}
+      {manifest !== null &&
+      status !== "stale" &&
+      feedDeploymentState === "current" ? (
+        <SourceScope
+          manifest={manifest}
+          result={null}
+          locale={locale}
+          detailsOpen={sourceDetailsOpen}
+          onDetailsOpenChange={setSourceDetailsOpen}
+        />
+      ) : null}
       <div className="portfolio-product-tools">
         {manifest === null ? null : (
           <ProductCombobox
@@ -923,6 +973,24 @@ function SignedInPortfolioWorkspace({
           </button>
         ))}
       </div>
+      <div className="analysis-submit">
+        <button
+          className="analyze-button"
+          type="button"
+          aria-describedby="portfolio-discovery-requirement"
+          disabled={
+            session.portfolio.length === 0 ||
+            status === "loading" ||
+            status === "stale"
+          }
+          onClick={discoverPortfolioOpportunities}
+        >
+          {messages.discoverPortfolio}
+        </button>
+        <small id="portfolio-discovery-requirement">
+          {messages.discoverPortfolioRequirement}
+        </small>
+      </div>
       <div className="portfolio-filter-bar" aria-label={messages.filterLabel}>
         <button
           type="button"
@@ -941,7 +1009,6 @@ function SignedInPortfolioWorkspace({
         <button type="button" onClick={refreshCurrentAnalysis}>
           {messages.refresh}
         </button>
-        {feed === null ? null : <AnalysisShareLink locale={locale} />}
         {projection === null ? null : (
           <span>
             {projection.scopeRows.length} {messages.visibleRows} ·{" "}

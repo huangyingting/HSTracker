@@ -96,12 +96,23 @@ export function SourceScope({
   manifest,
   result,
   locale,
+  detailsOpen: controlledDetailsOpen,
+  onDetailsOpenChange,
 }: {
   manifest: CurrentAnalysisManifest;
   result: CandidateMarketResult | null;
   locale: SourceScopeLocale;
+  detailsOpen?: boolean;
+  onDetailsOpenChange?: (open: boolean) => void;
 }) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [internalDetailsOpen, setInternalDetailsOpen] = useState(false);
+  const detailsOpen = controlledDetailsOpen ?? internalDetailsOpen;
+  function setDetailsOpen(open: boolean) {
+    if (controlledDetailsOpen === undefined) {
+      setInternalDetailsOpen(open);
+    }
+    onDetailsOpenChange?.(open);
+  }
   const messages = copy[locale];
   const { source, freshness } = manifest;
   const revisionComparison =
@@ -158,7 +169,7 @@ export function SourceScope({
         <button
           type="button"
           aria-expanded={detailsOpen}
-          onClick={() => setDetailsOpen((current) => !current)}
+          onClick={() => setDetailsOpen(!detailsOpen)}
         >
           {messages.detailsButton}
         </button>

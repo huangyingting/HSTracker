@@ -17,7 +17,6 @@ import { marketInvestigationCandidateKey } from "../domain/opportunity-discovery
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 import type { EconomyRecord } from "../economy/economy-directory";
-import { AnalysisShareLink } from "./analysis-share-link";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import { EconomyCombobox } from "./economy-combobox";
 import {
@@ -44,7 +43,6 @@ import {
   productCodeOf,
   resolvePinnedContext,
   serializeTradeAnalysisContext,
-  withoutPin,
   withPin,
   withProductCode,
   withRecipe,
@@ -109,7 +107,10 @@ const copy = {
       "The selected exporter and product projection are valid, but no candidate rows are available in this public feed.",
     validEmpty: "This is a valid empty evidence result, not a temporary failure.",
     applicableFinalizedWindow: "Applicable Finalized window",
-    changeScope: "Change scope",
+    discoverAll: "Discover product-market opportunities",
+    discoverProduct: "Discover Candidate Markets",
+    discoverRequirement:
+      "Select an export economy. Choose an exact Product Catalog result only when narrowing to one HS12 product.",
   },
   "zh-Hans": {
     eyebrow: "机会发现工作区",
@@ -159,7 +160,10 @@ const copy = {
       "所选出口经济体和产品投影有效，但该公共列表中没有候选行。",
     validEmpty: "这是有效的空证据结果，并非暂时故障。",
     applicableFinalizedWindow: "适用的定稿窗口",
-    changeScope: "更改范围",
+    discoverAll: "发现产品—市场机会",
+    discoverProduct: "发现候选市场",
+    discoverRequirement:
+      "请选择出口经济体。仅在缩小到一个 HS12 产品时选择精确的产品目录结果。",
   },
 } as const;
 
@@ -193,6 +197,7 @@ export function OpportunityDiscoveryWorkspace({
   const retiredBuildRefreshPending = useRef(false);
   const suppressedAutomaticLoadKey = useRef<string | null>(null);
   const restoredReturnAction = useRef<string | null>(null);
+  const scopeSubmissionRequired = useRef(false);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [currentManifest, setCurrentManifest] =
     useState<CurrentAnalysisManifest | null>(null);
@@ -207,6 +212,7 @@ export function OpportunityDiscoveryWorkspace({
     "idle" | "loading" | "failed"
   >("idle");
   const [loadedPageCount, setLoadedPageCount] = useState(0);
+  const [sourceDetailsOpen, setSourceDetailsOpen] = useState(false);
 
   const beginCurrentManifestRequest = useCallback((revalidate = false) => {
     manifestController.current?.abort();
@@ -263,12 +269,6 @@ export function OpportunityDiscoveryWorkspace({
       window.history.pushState(null, "", window.location.href);
       feedPinnedInHistory.current = false;
     }
-    const context = parseTradeAnalysisContext(window.location.href);
-    const url = serializeTradeAnalysisContext(
-      window.location.href,
-      withoutPin(context),
-    );
-    window.history.replaceState(null, "", url);
     resetFeed();
   }, [resetFeed]);
 
@@ -276,6 +276,7 @@ export function OpportunityDiscoveryWorkspace({
     (nextExporter: EconomyRecord | null, source: SelectionSource) => {
       setExporter(nextExporter);
       if (source === "explicit") {
+        scopeSubmissionRequired.current = true;
         prepareForExplicitContextChange();
       }
     },
@@ -285,62 +286,17 @@ export function OpportunityDiscoveryWorkspace({
   const handleProductSelection = useCallback(
     (nextProduct: ProductSearchProduct | null, source: SelectionSource) => {
       setProduct(nextProduct);
-      if (source !== "explicit") {
-        return;
+      if (source === "explicit") {
+        scopeSubmissionRequired.current = true;
+        if (nextProduct === null) {
+          prepareForExplicitContextChange();
+        } else {
+          feedPinnedInHistory.current = false;
+          resetFeed();
+        }
       }
-      if (
-        nextProduct === null ||
-        exporter === null ||
-        currentManifest === null
-      ) {
-        prepareForExplicitContextChange();
-        return;
-      }
-
-      const sourceContext = parseTradeAnalysisContext(window.location.href);
-      const sourcePin = resolvePinnedContext(
-        sourceContext.pin,
-        currentManifest,
-        "opportunity-discovery",
-      );
-      if (sourcePin.state === "retired") {
-        return;
-      }
-      feedPinnedInHistory.current = false;
-      resetFeed();
-      const sourceAnalysisBuildId =
-        sourcePin.state === "retained"
-          ? sourcePin.deployment.analysisBuildId
-          : currentManifest.analysisBuildId;
-      const candidateContext = withRecipe(sourceContext, "candidate-market");
-      if (candidateContext.recipe !== "candidate-market") {
-        return;
-      }
-      const destination = {
-        ...candidateContext,
-        exporterCode: exporter.code,
-        productCode: nextProduct.code,
-        pin: pinFromDeploymentWindow(
-          currentManifest,
-          sourceAnalysisBuildId,
-          "candidate-market",
-        ),
-      };
-      const href = serializeTradeAnalysisContext(
-        window.location.href,
-        destination,
-      );
-      window.history.pushState(null, "", href);
-      window.dispatchEvent(
-        new PopStateEvent("popstate", { state: window.history.state }),
-      );
     },
-    [
-      currentManifest,
-      exporter,
-      prepareForExplicitContextChange,
-      resetFeed,
-    ],
+    [prepareForExplicitContextChange, resetFeed],
   );
 
   const loadFeed = useCallback(
@@ -485,11 +441,62 @@ export function OpportunityDiscoveryWorkspace({
     [currentManifest, exporter, product],
   );
 
+  const discoverScope = useCallback(() => {
+    if (exporter === null || currentManifest === null) {
+      return;
+    }
+    scopeSubmissionRequired.current = false;
+    if (product === null) {
+      void loadFeed();
+      return;
+    }
+
+    const sourceContext = parseTradeAnalysisContext(window.location.href);
+    const sourcePin = resolvePinnedContext(
+      sourceContext.pin,
+      currentManifest,
+      "opportunity-discovery",
+    );
+    if (sourcePin.state === "retired") {
+      setStatus("stale");
+      return;
+    }
+    feedPinnedInHistory.current = false;
+    resetFeed();
+    const sourceAnalysisBuildId =
+      sourcePin.state === "retained"
+        ? sourcePin.deployment.analysisBuildId
+        : currentManifest.analysisBuildId;
+    const candidateContext = withRecipe(sourceContext, "candidate-market");
+    if (candidateContext.recipe !== "candidate-market") {
+      return;
+    }
+    const destination = {
+      ...candidateContext,
+      exporterCode: exporter.code,
+      productCode: product.code,
+      pin: pinFromDeploymentWindow(
+        currentManifest,
+        sourceAnalysisBuildId,
+        "candidate-market",
+      ),
+    };
+    const href = serializeTradeAnalysisContext(
+      window.location.href,
+      destination,
+    );
+    window.history.pushState(null, "", href);
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: window.history.state }),
+    );
+  }, [currentManifest, exporter, loadFeed, product, resetFeed]);
+
   useEffect(() => {
     if (
       currentManifest === null ||
       exporter === null ||
-      retiredBuildRefreshPending.current
+      retiredBuildRefreshPending.current ||
+      scopeSubmissionRequired.current
     ) {
       return;
     }
@@ -555,6 +562,7 @@ export function OpportunityDiscoveryWorkspace({
 
   useLayoutEffect(() => {
     function restoreContextFromHistory() {
+      scopeSubmissionRequired.current = false;
       resetFeed();
       setExporter(null);
       setProduct(null);
@@ -574,6 +582,7 @@ export function OpportunityDiscoveryWorkspace({
     const discovered = await promise;
     if (controller.signal.aborted || discovered === null) {
       retiredBuildRefreshPending.current = false;
+      suppressedAutomaticLoadKey.current = null;
       if (!controller.signal.aborted) {
         setStatus("stale");
       }
@@ -588,9 +597,11 @@ export function OpportunityDiscoveryWorkspace({
     }
     await loadFeed("refresh", discovered);
     retiredBuildRefreshPending.current = false;
+    suppressedAutomaticLoadKey.current = null;
   }
 
   function clearProductProjection() {
+    scopeSubmissionRequired.current = true;
     prepareForExplicitContextChange();
     setProduct(null);
     const context = withProductCode(
@@ -771,6 +782,27 @@ export function OpportunityDiscoveryWorkspace({
                 </button>
               )}
             </div>
+            <div className="analysis-submit">
+              <button
+                className="analyze-button"
+                type="button"
+                aria-describedby="opportunity-discovery-requirement"
+                disabled={
+                  exporter === null ||
+                  status === "loading" ||
+                  status === "refreshing" ||
+                  status === "stale"
+                }
+                onClick={discoverScope}
+              >
+                {product === null
+                  ? messages.discoverAll
+                  : messages.discoverProduct}
+              </button>
+              <small id="opportunity-discovery-requirement">
+                {messages.discoverRequirement}
+              </small>
+            </div>
           </div>
           {exporter === null ? null : (
             <WorkspaceScope
@@ -827,6 +859,23 @@ export function OpportunityDiscoveryWorkspace({
               }
               analysisIdentity={feed?.analysisIdentity}
               datasetPackageIdentity={feed?.datasetPackageIdentity}
+              canCopyLink={
+                status === "success" ||
+                status === "empty" ||
+                status === "stale"
+              }
+              onChangeScope={() =>
+                scopeControlsRef.current
+                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
+                  ?.focus()
+              }
+              onSourceDetails={
+                status === "stale" ||
+                (feed !== null &&
+                  feed.analysisBuildId !== currentManifest.analysisBuildId)
+                  ? undefined
+                  : () => setSourceDetailsOpen(true)
+              }
             />
           )}
           {feed !== null &&
@@ -835,6 +884,8 @@ export function OpportunityDiscoveryWorkspace({
               manifest={currentManifest}
               result={null}
               locale={locale}
+              detailsOpen={sourceDetailsOpen}
+              onDetailsOpenChange={setSourceDetailsOpen}
             />
           )}
 
@@ -863,10 +914,6 @@ export function OpportunityDiscoveryWorkspace({
             </div>
           ) : null}
 
-          {(status === "success" || status === "empty") && feed !== null ? (
-            <AnalysisShareLink locale={locale} task="opportunity-discovery" />
-          ) : null}
-
           {status === "empty" ? (
             <div className="analysis-state" role="status">
               <h3>{messages.noCandidates}</h3>
@@ -879,16 +926,6 @@ export function OpportunityDiscoveryWorkspace({
                   {feed.provenance.scoreWindow.end}
                 </p>
               )}
-              <button
-                type="button"
-                onClick={() =>
-                  scopeControlsRef.current
-                    ?.querySelector<HTMLInputElement>('[role="combobox"]')
-                    ?.focus()
-                }
-              >
-                {messages.changeScope}
-              </button>
             </div>
           ) : null}
 
