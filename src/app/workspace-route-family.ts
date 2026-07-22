@@ -24,7 +24,9 @@ export function workspaceRouteFamily(
     hasOpportunityScope = context.exportEconomyCode !== null;
     hasFocusedMarket =
       context.focusProductCode !== null &&
-      context.focusedMarketCode !== null;
+      context.focusProductCode !== undefined &&
+      context.focusedMarketCode !== null &&
+      context.focusedMarketCode !== undefined;
   }
 
   if (!hasOpportunityScope) {

@@ -151,23 +151,28 @@ export function restoreOpportunityPosition(
   returnState: OpportunityReturnState,
   listElementId: string,
 ): void {
-  window.scrollTo({ top: returnState.scrollY });
-  const list = document.getElementById(listElementId);
-  if (list !== null && returnState.listScrollTop !== null) {
-    list.scrollTop = returnState.listScrollTop;
-  }
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(returnState.actionId)
-        ?.focus({ preventScroll: true });
-      window.scrollTo({ top: returnState.scrollY });
-      const restoredList = document.getElementById(listElementId);
-      if (restoredList !== null && returnState.listScrollTop !== null) {
-        restoredList.scrollTop = returnState.listScrollTop;
-      }
-    });
-  });
+  const restoreScroll = () => {
+    window.scrollTo({ top: returnState.scrollY });
+    const list = document.getElementById(listElementId);
+    if (list !== null && returnState.listScrollTop !== null) {
+      list.scrollTop = returnState.listScrollTop;
+    }
+  };
+  restoreScroll();
+
+  let remainingSettlingFrames = 4;
+  const settlePosition = () => {
+    const action = document.getElementById(returnState.actionId);
+    if (action !== null && document.activeElement !== action) {
+      action.focus({ preventScroll: true });
+    }
+    restoreScroll();
+    remainingSettlingFrames -= 1;
+    if (remainingSettlingFrames > 0) {
+      window.requestAnimationFrame(settlePosition);
+    }
+  };
+  window.requestAnimationFrame(settlePosition);
 }
 
 function historyRecord(value: unknown): Record<string, unknown> {

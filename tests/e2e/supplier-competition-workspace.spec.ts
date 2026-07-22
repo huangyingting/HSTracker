@@ -215,14 +215,19 @@ test("Supplier Competition keeps the Provisional Year snapshot separate from fin
   await expect(page.getByText("5000.000000", { exact: true })).toBeVisible();
 });
 
-test("Candidate Market remains reachable alongside Supplier Competition", async ({
+test("a direct Market Analysis link remains reachable and Back restores Candidate Markets", async ({
   page,
 }) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
 
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
   const candidateMarkets = page.getByRole("list", {
     name: "Candidate Markets",
   });
+  await expect(candidateMarkets).toHaveCount(0);
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(candidateMarkets.getByRole("link")).toHaveCount(13);
   await expect(page).not.toHaveURL(/recipe=supplier-competition-v1/);
 });

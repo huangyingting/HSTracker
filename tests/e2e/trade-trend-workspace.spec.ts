@@ -161,14 +161,19 @@ test("Trade Trend distinguishes sparse, unavailable, and absent provisional evid
   expect(hasHorizontalOverflow).toBe(false);
 });
 
-test("Candidate Market remains reachable with its original ranking controls and list", async ({
+test("a direct Market Analysis link keeps its Candidate Market Back path", async ({
   page,
 }) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=528");
 
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
   const candidateMarkets = page.getByRole("list", {
     name: "Candidate Markets",
   });
+  await expect(candidateMarkets).toHaveCount(0);
+  await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(candidateMarkets.getByRole("link")).toHaveCount(13);
   await expect(candidateMarkets.getByRole("link").first()).toHaveAccessibleName(
     "Analyze this market: Netherlands",
