@@ -63,8 +63,10 @@ p75 <= 2.5 seconds and p95 <= 4 seconds.
 Each uncached origin benchmark entry supplies 105 never-reused semantic
 requests: five warmups followed by 100 timed samples. Uncached Candidate-
 analysis, Trade Trend, Supplier Competition, and CSV samples may not share
-analysis semantic keys. Cache-hit entries reuse their one declared request
-after five warmups. The origin report verifies the deployment-owned
+analysis semantic keys. The origin runner spaces request starts at the
+anonymous-source refill rate; the probe header excludes measurement traffic
+from SLI accounting but never bypasses the public rate limit. Cache-hit entries
+reuse their one declared request after five warmups. The origin report verifies the deployment-owned
 `X-HS-Tracker-Cache-State` header: every uncached request must report
 `miss`, and cache-hit warmups after the first request plus every timed
 cache-hit sample must report `hit`. The 91 required route/role cases cover all
