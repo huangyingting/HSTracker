@@ -694,6 +694,11 @@ export function OpportunityDiscoveryWorkspace({
     });
   }
 
+  const showingRetainedFeed =
+    currentManifest !== null &&
+    feed !== null &&
+    feed.analysisBuildId !== currentManifest.analysisBuildId;
+
   return (
     <section
       className="analysis-workspace opportunity-workspace"
@@ -823,10 +828,9 @@ export function OpportunityDiscoveryWorkspace({
               deploymentState={
                 status === "stale"
                   ? "retired"
-                  : feed !== null &&
-                feed.analysisBuildId !== currentManifest.analysisBuildId
-                  ? "retained"
-                  : "current"
+                  : showingRetainedFeed
+                    ? "retained"
+                    : "current"
               }
               deploymentActivation={
                 currentManifest.freshness.deploymentActivation
@@ -850,10 +854,7 @@ export function OpportunityDiscoveryWorkspace({
                     currentManifest.source.provisionalYear
               }
               freshnessState={
-                status === "stale" ||
-                (feed !== null &&
-                feed.analysisBuildId !== currentManifest.analysisBuildId
-                )
+                status === "stale" || showingRetainedFeed
                   ? null
                   : currentManifest.freshness.state
               }
@@ -870,16 +871,13 @@ export function OpportunityDiscoveryWorkspace({
                   ?.focus()
               }
               onSourceDetails={
-                status === "stale" ||
-                (feed !== null &&
-                  feed.analysisBuildId !== currentManifest.analysisBuildId)
+                status === "stale" || showingRetainedFeed
                   ? undefined
                   : () => setSourceDetailsOpen(true)
               }
             />
           )}
-          {feed !== null &&
-          feed.analysisBuildId !== currentManifest.analysisBuildId ? null : (
+          {showingRetainedFeed ? null : (
             <SourceScope
               manifest={currentManifest}
               result={null}

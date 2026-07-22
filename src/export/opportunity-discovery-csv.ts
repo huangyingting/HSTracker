@@ -148,17 +148,17 @@ function createRow(
     page.datasetPackageIdentity,
     page.analysisBuildId,
     page.exporter.code,
-    protectedHumanCell(page.exporter.name, "exporter_name_en", escapedColumns),
+    protectHumanText(page.exporter.name, "exporter_name_en", escapedColumns),
     page.exporter.iso3 ?? "",
     candidate.product.hsRevision,
     candidate.product.code,
-    protectedHumanCell(
+    protectHumanText(
       candidate.product.descriptionEn,
       "product_description_en",
       escapedColumns,
     ),
     candidate.market.code,
-    protectedHumanCell(
+    protectHumanText(
       candidate.market.name,
       "market_name_en",
       escapedColumns,
@@ -190,20 +190,12 @@ function createRow(
     provenance.artifactSchemaVersion,
     provenance.artifactSha256,
     provenance.valueUnit,
-    protectedHumanCell(
+    protectHumanText(
       page.discoveryDisclaimer,
       "discovery_disclaimer",
       escapedColumns,
     ),
   ];
-}
-
-function protectedHumanCell(
-  value: string,
-  column: Column,
-  escapedColumns: Set<Column>,
-): string {
-  return protectHumanText(value, column, escapedColumns);
 }
 
 function safeFilenameSegment(value: string): string {
