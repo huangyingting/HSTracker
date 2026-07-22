@@ -360,6 +360,26 @@ export function MarketAnalysisView({
       <AnalysisShareLink locale={locale} task="market-analysis" />
     </div>
   );
+  const navigateToArea = (
+    event: MouseEvent<HTMLAnchorElement>,
+    area: (typeof RENDERED_PRODUCT_AREAS)[number],
+  ) => {
+    const anchor = areaAnchor(area);
+    const target = document.getElementById(anchor);
+    if (target === null) {
+      return;
+    }
+    event.preventDefault();
+    window.history.pushState(window.history.state, "", `#${anchor}`);
+    target.scrollIntoView({ block: "start" });
+    setActiveArea(area);
+
+    const heading = target.querySelector<HTMLElement>("h3");
+    if (heading !== null) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  };
   const areaLinks = () => (
     <ul>
       {RENDERED_PRODUCT_AREAS.map((area) => (
@@ -367,7 +387,7 @@ export function MarketAnalysisView({
           <a
             aria-current={activeArea === area ? "location" : undefined}
             href={`#${areaAnchor(area)}`}
-            onClick={() => setActiveArea(area)}
+            onClick={(event) => navigateToArea(event, area)}
           >
             {areaCopy.productAreas[area]}
           </a>

@@ -28,7 +28,7 @@ describe("production performance gates", () => {
         },
         origin: {
           status: "accepted",
-          benchmarkCount: 91,
+          benchmarkCount: 99,
         },
         tradeExplorer: { status: "accepted" },
         targetLoad: {
@@ -104,6 +104,29 @@ describe("production performance gates", () => {
     expect(result.gates.browserLab.products.median).toMatchObject({
       analyzeToCompleteListP75Ms: 2_501,
       analyzeToCompleteListP95Ms: 3_000,
+      status: "blocked",
+    });
+  });
+
+  it("gates Market Analysis navigation completion p75 and p95", () => {
+    const input = acceptedInput();
+    input.browserLab[0].trials = [
+      2_000,
+      2_000,
+      2_500,
+      2_500,
+      4_001,
+    ].map((marketAnalysisToCompleteMs) => ({
+      ...input.browserLab[0].trials[0],
+      marketAnalysisToCompleteMs,
+    }));
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.browserLab.products.median).toMatchObject({
+      marketAnalysisToCompleteP75Ms: 2_500,
+      marketAnalysisToCompleteP95Ms: 4_001,
       status: "blocked",
     });
   });
@@ -204,6 +227,20 @@ describe("production performance gates", () => {
       cpuPressureStatus: "blocked",
       status: "blocked",
     });
+
+  });
+
+  it("blocks target load that omits the primary Market Analysis route", () => {
+    const input = acceptedInput();
+    input.targetLoad.includesMarketAnalysis = false;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.targetLoad).toMatchObject({
+      includesMarketAnalysis: false,
+      status: "blocked",
+    });
   });
 
   it("blocks a shared-CPU load that reports dedicated-CPU evidence", () => {
@@ -235,6 +272,34 @@ describe("production performance gates", () => {
         "Missing origin benchmark candidate-analysis-uncached:maximum-row.",
       ),
     );
+  });
+
+  it("gates Market Analysis latency and serialized result size", () => {
+    const input = acceptedInput();
+    const benchmark = input.originBenchmarks.find(
+      (candidate) =>
+        candidate.operation === "market-analysis-uncached" &&
+        candidate.productRole === "maximum-row",
+    )!;
+    benchmark.p95Ms = 2_501;
+    benchmark.payloadBytes = 1024 * KIB + 1;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.gates.origin.benchmarks.find(
+        (evaluated) =>
+          evaluated.operation === "market-analysis-uncached" &&
+          evaluated.productRole === "maximum-row",
+      ),
+    ).toMatchObject({
+      p95Ms: 2_501,
+      p95LimitMs: 2_500,
+      payloadBytes: 1024 * KIB + 1,
+      payloadLimitBytes: 1024 * KIB,
+      status: "blocked",
+    });
   });
 
   it("requires Trade Trend sparse/median/upper-quartile/maximum-row queries the same way as Candidate Market", () => {
@@ -337,6 +402,31 @@ describe("production performance gates", () => {
         "Missing origin benchmark recent-trade-momentum-uncached:sparse.",
       ),
     );
+  });
+
+  it("accepts the core 91-case profile when both optional capabilities are absent", () => {
+    const input = acceptedInput();
+    input.originCapabilities = {
+      recentTradeMomentum: false,
+      opportunityDiscovery: false,
+    };
+    input.originBenchmarks = input.originBenchmarks.filter(
+      (benchmark) =>
+        benchmark.operation !== "recent-trade-momentum-uncached" &&
+        benchmark.operation !== "opportunity-feed-uncached",
+    );
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("accepted");
+    expect(result.gates.origin).toMatchObject({
+      benchmarkCount: 91,
+      capabilities: {
+        recentTradeMomentum: false,
+        opportunityDiscovery: false,
+      },
+      status: "accepted",
+    });
   });
 
   it("blocks a Trade Trend origin benchmark that misses its accept/block threshold", () => {
@@ -510,6 +600,7 @@ describe("production performance gates", () => {
 function acceptedInput(): PerformanceGateInput {
   const browserTrial = () => ({
     analyzeToCompleteListMs: 2_500,
+    marketAnalysisToCompleteMs: 2_500,
     lcpMs: 2_500,
     cls: 0.1,
     interactionToNextPaintMs: 200,
@@ -547,6 +638,10 @@ function acceptedInput(): PerformanceGateInput {
         failedTrialCount: 0,
       },
     ],
+    originCapabilities: {
+      recentTradeMomentum: true,
+      opportunityDiscovery: true,
+    },
     originBenchmarks: completeOriginBenchmarks(),
     tradeExplorer: {
       benchmarkQueries: ([
@@ -616,6 +711,7 @@ function acceptedInput(): PerformanceGateInput {
       coordinatedBurstIntervalSeconds: 60,
       includesMaximumRowProduct: true,
       includesTradeExplorer: true,
+      includesMarketAnalysis: true,
       cacheStatesVerified: true,
       queueRejections: 0,
       unretryableErrors: 0,
@@ -657,6 +753,8 @@ function completeOriginBenchmarks(): OriginBenchmarkInput[] {
     "product-search-process-hit",
     "candidate-analysis-uncached",
     "candidate-analysis-process-hit",
+    "market-analysis-uncached",
+    "market-analysis-process-hit",
     "csv-uncached",
     "csv-analysis-hit",
     "trade-trend-analysis-uncached",
@@ -703,6 +801,8 @@ function benchmark(
     "product-search-process-hit": [50, 100, 2_000],
     "candidate-analysis-uncached": [2_000, 4_000, 12_000],
     "candidate-analysis-process-hit": [100, 250, 2_000],
+    "market-analysis-uncached": [2_500, 5_000, 12_000],
+    "market-analysis-process-hit": [100, 250, 2_000],
     "csv-uncached": [3_000, 6_000, 15_000],
     "csv-analysis-hit": [250, 500, 15_000],
     "trade-trend-analysis-uncached": [2_000, 4_000, 12_000],
@@ -730,6 +830,8 @@ function benchmark(
      : operation.includes("search")
         ? 64 * KIB
         : operation.startsWith("trade-explorer")
+          ? 1024 * KIB
+        : operation.startsWith("market-analysis")
           ? 1024 * KIB
         : operation.startsWith("candidate-analysis") ||
             operation.startsWith("trade-trend-analysis") ||
@@ -760,6 +862,7 @@ function benchmark(
     payloadBytes,
     compressedPayloadBytes:
       operation.startsWith("candidate-analysis") ||
+      operation.startsWith("market-analysis") ||
       operation.startsWith("trade-trend-analysis") ||
       operation.startsWith("supplier-competition-analysis") ||
       operation.startsWith("trade-explorer-analysis")

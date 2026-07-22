@@ -12,12 +12,13 @@ Every browser, origin, and load plan carries the same identity:
 - BACI Release;
 - analysis and product-search build IDs;
 - analysis artifact SHA-256; and
-- Fly Machine ID, `shared-cpu-2x` class, and region.
+- Machine ID, accepted Machine class, and region.
 
 Before sending measurement traffic, each runner independently reads
 `/healthz` and `/api/v1/analyses/current`. The health response attests the
 application and Machine fields through `X-HS-Tracker-*` headers; the current
-manifest attests the release, analysis, search, and artifact fields. A
+manifest attests the release, analysis, search, artifact, and optional-package
+capability fields. A
 manifest-selected sparse, median, upper-quartile, and maximum-row benchmark
 query is also included in this attestation; plans cannot assign those roles
 to different exporter/product pairs. A mismatch stops the run before its first
@@ -32,19 +33,32 @@ credentials.
 The individual runners are:
 
 ```bash
+node_modules/.bin/tsx scripts/promotion/build-candidate-origin-plan.ts \
+  --config <candidate-origin-config.json> \
+  --manifest <current-manifest.json> \
+  --out <origin-plan.json>
 npm run --silent promotion:browser-lab -- --plan <browser-plan.json>
 npm run --silent promotion:origin-benchmark -- --plan <origin-plan.json>
 npm run --silent promotion:mixed-load -- --plan <load-plan.json>
+npm run --silent promotion:measure-http-cache-and-deadlines -- \
+  --origin-plan <origin-plan.json>
 ```
+
+The origin-plan config supplies the HTTPS origin, build/Machine identity, one
+real Candidate Market code for each representative role, and either an ISO
+alpha-2 Recent Momentum reporter or `null`. The current manifest supplies every
+release identity, artifact-attested annual and Trade Explorer query, freshness
+status, and optional capability declaration. The builder rejects disagreement
+between those inputs and validates the complete plan before writing it.
 
 The browser plan must name median and maximum-row journeys with at least five
 trials each. Chromium applies the fixed 390 x 844 mobile profile, 150 ms RTT,
 1.6 Mbps down, 750 Kbps up, and 4x CPU throttle. Each journey selects context,
-loads the complete Candidate Market list, changes the selected market, and
-opens and closes the mobile Score details disclosure. Failed trials remain in
-the report and are never retried or discarded. The measured
-analyze-to-complete-list duration must meet p75 <= 2.5 seconds and p95 <= 4
-seconds.
+loads the complete Candidate Market list, opens one complete Market Analysis,
+and opens and closes the mobile Score details disclosure. Failed trials remain
+in the report and are never retried or discarded. Both the measured
+analyze-to-complete-list and Market-Analysis-to-complete durations must meet
+p75 <= 2.5 seconds and p95 <= 4 seconds.
 
 Each uncached origin benchmark entry supplies 105 never-reused semantic
 requests: five warmups followed by 100 timed samples. Uncached Candidate-
@@ -53,26 +67,33 @@ analysis semantic keys. Cache-hit entries reuse their one declared request
 after five warmups. The origin report verifies the deployment-owned
 `X-HS-Tracker-Cache-State` header: every uncached request must report
 `miss`, and cache-hit warmups after the first request plus every timed
-cache-hit sample must report `hit`. The 87 route/role cases cover all four
-artifact-attested representative roles for each product operation --
-including Trade Trend, Supplier Competition, Trade Explorer analysis/CSV,
-and Opportunity feed operations -- plus the three singleton routes.
+cache-hit sample must report `hit`. The 91 required route/role cases cover all
+four artifact-attested representative roles for every core product operation,
+including Trade Trend, Supplier Competition, Trade Explorer analysis/CSV, and
+Market Analysis hit/miss, plus the three singleton routes. Four Recent Trade
+Momentum cases and four Opportunity feed cases are added only when the deployed
+current manifest declares those optional capabilities, producing 95 or 99
+cases. Plan capability declarations are attested before traffic, so optional
+routes can be neither fabricated nor silently omitted.
 
-Every executed Candidate Market or Trade Explorer analysis and CSV sample
-retains the artifact-attested exporter/product pair for its role. Trade
-Explorer binds the same identity through its `exportEconomy` and `hsProduct`
-parameters. Opportunity feed samples bind the representative role's
-artifact-attested exporter and must meet p95 <= 500 ms, p99 <= 1 s, 2 s route
-deadline, and <= 256 KiB serialized page size. Uncached samples vary only the
+Every executed Candidate Market, Market Analysis, or Trade Explorer analysis
+and CSV sample retains the artifact-attested exporter/product pair for its
+role. Market Analysis additionally requires the exact immutable route and only
+the `exporter`, `product`, and numeric `market` query parameters. Trade Explorer
+binds the same identity through its `exportEconomy` and `hsProduct` parameters.
+Opportunity feed samples bind the representative role's artifact-attested
+exporter and must meet p95 <= 500 ms, p99 <= 1 s, 2 s route deadline, and
+<= 256 KiB serialized page size. Uncached analysis samples vary only the
 `X-HS-Tracker-Cache-Partition` value, which must equal the sample's unique
 semantic key; the bounded runtime includes that partition in its process-cache
 key without changing the query sent to DuckDB. This provides real misses
-without substituting an easier, caller-selected product. Trade Trend's and
-Supplier Competition's own operations are measured and accepted/blocked by
-the same origin gate and thresholds; binding their samples to the
-artifact-attested importer/product pair the way Candidate Market's are is
-tracked for #48, alongside the actual provider execution against a deployed
-candidate.
+without substituting an easier, caller-selected product.
+
+The HTTP cache drill derives its immutable Candidate Market and Market Analysis
+paths from the same retained origin plan. It requires a successful GET with the
+immutable cache policy and ETag, a 304 conditional GET, and a bodyless HEAD with
+the same ETag and cache policy. Both the drill evidence and its source plan are
+SHA-256-bound into the generated gate check set.
 
 The candidate load plan is exact:
 
@@ -202,7 +223,10 @@ npm run --silent promotion:performance -- \
 The combined command preserves all raw reports and evaluates the fixed
 thresholds. It does not deploy, promote, or roll back a release.
 
-The canonical ten-gate promotion report is produced separately:
+The canonical eleven-gate promotion report is produced separately. Its
+Market Analysis launch gate binds the product contract, analyst-needs matrix,
+accessibility and annual-invariance matrix, exact performance reports,
+current/retained/retired replay, startup smoke, and rollback proof:
 
 ```bash
 npm run --silent promotion:check -- \

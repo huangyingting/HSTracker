@@ -62,6 +62,7 @@ export type BrowserLabProductRole = "median" | "maximum-row";
 export type BrowserLabRole =
   | "button"
   | "combobox"
+  | "link"
   | "list"
   | "option"
   | "region";
@@ -90,10 +91,11 @@ export type BrowserLabAnalyzeAction = {
   readonly completeListLocator: BrowserLabLocator;
 };
 
-export type BrowserLabChangeCandidateMarketAction = {
-  readonly kind: "change-candidate-market";
+export type BrowserLabOpenMarketAnalysisAction = {
+  readonly kind: "open-market-analysis";
   readonly label: string;
-  readonly candidateLocator: BrowserLabLocator;
+  readonly marketLinkLocator: BrowserLabLocator;
+  readonly completeAnalysisLocator: BrowserLabLocator;
 };
 
 export type BrowserLabOpenScoreDetailAction = {
@@ -112,14 +114,14 @@ export type BrowserLabCloseScoreDetailAction = {
 export type BrowserLabJourneyAction =
   | BrowserLabSelectContextAction
   | BrowserLabAnalyzeAction
-  | BrowserLabChangeCandidateMarketAction
+  | BrowserLabOpenMarketAnalysisAction
   | BrowserLabOpenScoreDetailAction
   | BrowserLabCloseScoreDetailAction;
 
 export type BrowserLabJourneyActions = readonly [
   BrowserLabSelectContextAction,
   BrowserLabAnalyzeAction,
-  BrowserLabChangeCandidateMarketAction,
+  BrowserLabOpenMarketAnalysisAction,
   BrowserLabOpenScoreDetailAction,
   BrowserLabCloseScoreDetailAction,
 ];
@@ -142,7 +144,7 @@ const MINIMUM_CANDIDATE_TRIALS = 5;
 const REQUIRED_ACTION_KINDS = [
   "select-context",
   "analyze",
-  "change-candidate-market",
+  "open-market-analysis",
   "open-score-detail",
   "close-score-detail",
 ] as const;
@@ -220,7 +222,7 @@ function validateJourney(
   const actionsInput = journey.actions;
   if (!Array.isArray(actionsInput) || actionsInput.length !== REQUIRED_ACTION_KINDS.length) {
     throw new BrowserLabPlanError(
-      `${productRole} journey must declare exactly the select-context, analyze, change-candidate-market, open-score-detail, and close-score-detail actions in order.`,
+      `${productRole} journey must declare exactly the select-context, analyze, open-market-analysis, open-score-detail, and close-score-detail actions in order.`,
     );
   }
   return {
@@ -239,7 +241,7 @@ function validateJourney(
       ),
       validateAction(
         record(actionsInput[2], `${productRole} journey action 3`),
-        "change-candidate-market",
+        "open-market-analysis",
         productRole,
       ),
       validateAction(
@@ -268,9 +270,9 @@ function validateAction(
 ): BrowserLabAnalyzeAction;
 function validateAction(
   action: Record<string, unknown>,
-  expectedKind: "change-candidate-market",
+  expectedKind: "open-market-analysis",
   productRole: BrowserLabProductRole,
-): BrowserLabChangeCandidateMarketAction;
+): BrowserLabOpenMarketAnalysisAction;
 function validateAction(
   action: Record<string, unknown>,
   expectedKind: "open-score-detail",
@@ -338,13 +340,17 @@ function validateAction(
           `${productRole} analyze complete-list locator`,
         ),
       };
-    case "change-candidate-market":
+    case "open-market-analysis":
       return {
-        kind: "change-candidate-market",
+        kind: "open-market-analysis",
         label,
-        candidateLocator: validateLocator(
-          action.candidateLocator,
-          `${productRole} change-candidate-market candidate locator`,
+        marketLinkLocator: validateLocator(
+          action.marketLinkLocator,
+          `${productRole} open-market-analysis link locator`,
+        ),
+        completeAnalysisLocator: validateLocator(
+          action.completeAnalysisLocator,
+          `${productRole} open-market-analysis complete locator`,
         ),
       };
     case "open-score-detail":
@@ -618,6 +624,10 @@ export type BrowserLabAnalyzeOutcome = {
   readonly candidateResponseBytes: BrowserLabCandidateResponseBytes | null;
 };
 
+export type BrowserLabOpenMarketAnalysisOutcome = BrowserLabActionOutcome & {
+  readonly marketAnalysisToCompleteMs: number | null;
+};
+
 export type BrowserLabPerformanceSnapshot = {
   readonly lcpMs: number | null;
   readonly cls: number | null;
@@ -634,9 +644,9 @@ export interface BrowserLabTrialSession {
   navigate(origin: string): Promise<void>;
   selectContext(action: BrowserLabSelectContextAction): Promise<void>;
   analyze(action: BrowserLabAnalyzeAction): Promise<BrowserLabAnalyzeOutcome>;
-  changeCandidateMarket(
-    action: BrowserLabChangeCandidateMarketAction,
-  ): Promise<BrowserLabActionOutcome>;
+  openMarketAnalysis(
+    action: BrowserLabOpenMarketAnalysisAction,
+  ): Promise<BrowserLabOpenMarketAnalysisOutcome>;
   openScoreDetail(
     action: BrowserLabOpenScoreDetailAction,
   ): Promise<BrowserLabActionOutcome>;
@@ -662,10 +672,7 @@ export interface BrowserLabDriver {
 export type BrowserLabViolation =
   | {
       readonly kind: "client-local-network-request";
-      readonly interaction:
-        | "change-candidate-market"
-        | "open-score-detail"
-        | "close-score-detail";
+      readonly interaction: "open-score-detail" | "close-score-detail";
       readonly requestUrl: string;
     }
   | {
@@ -676,7 +683,8 @@ export type BrowserLabViolation =
 
 export type BrowserLabTrialDiagnostics = {
   readonly analyzeToCompleteListMs: number;
-  readonly candidateMarketChangeInteractionToNextPaintMs: number;
+  readonly marketAnalysisToCompleteMs: number;
+  readonly marketAnalysisOpenInteractionToNextPaintMs: number;
   readonly scoreDetailOpenInteractionToNextPaintMs: number;
   readonly scoreDetailCloseInteractionToNextPaintMs: number;
 };
@@ -710,15 +718,22 @@ export async function runBrowserLabTrial(
   journey: BrowserLabJourney,
   trialIndex: number,
 ): Promise<BrowserLabTrialOutcome> {
-  const [selectContextAction, analyzeAction, changeAction, openAction, closeAction] =
-    journey.actions;
+  const [
+    selectContextAction,
+    analyzeAction,
+    openMarketAnalysisAction,
+    openAction,
+    closeAction,
+  ] = journey.actions;
   let session: BrowserLabTrialSession | null = null;
   try {
     session = await driver.openTrialSession(measurementClass);
     await session.navigate(origin);
     await session.selectContext(selectContextAction);
     const analyzeOutcome = await session.analyze(analyzeAction);
-    const changeOutcome = await session.changeCandidateMarket(changeAction);
+    const marketAnalysisOutcome = await session.openMarketAnalysis(
+      openMarketAnalysisAction,
+    );
     const openOutcome = await session.openScoreDetail(openAction);
     const closeOutcome = await session.closeScoreDetail(closeAction);
     const snapshot = await session.performanceSnapshot();
@@ -726,7 +741,6 @@ export async function runBrowserLabTrial(
 
     const violations: BrowserLabViolation[] = [];
     for (const [interaction, outcome] of [
-      ["change-candidate-market", changeOutcome],
       ["open-score-detail", openOutcome],
       ["close-score-detail", closeOutcome],
     ] as const) {
@@ -741,7 +755,7 @@ export async function runBrowserLabTrial(
 
     const unsupported = firstUnsupportedMeasurement({
       analyzeOutcome,
-      changeOutcome,
+      marketAnalysisOutcome,
       openOutcome,
       closeOutcome,
       snapshot,
@@ -769,10 +783,13 @@ export async function runBrowserLabTrial(
       analyzeToCompleteListMs: nonNull(
         analyzeOutcome.analyzeToCompleteListMs,
       ),
+      marketAnalysisToCompleteMs: nonNull(
+        marketAnalysisOutcome.marketAnalysisToCompleteMs,
+      ),
       lcpMs: nonNull(snapshot.lcpMs),
       cls: nonNull(snapshot.cls),
       interactionToNextPaintMs: Math.max(
-        nonNull(changeOutcome.interactionToNextPaintMs),
+        nonNull(marketAnalysisOutcome.interactionToNextPaintMs),
         nonNull(openOutcome.interactionToNextPaintMs),
         nonNull(closeOutcome.interactionToNextPaintMs),
       ),
@@ -790,8 +807,11 @@ export async function runBrowserLabTrial(
     };
     const diagnostics: BrowserLabTrialDiagnostics = {
       analyzeToCompleteListMs: nonNull(analyzeOutcome.analyzeToCompleteListMs),
-      candidateMarketChangeInteractionToNextPaintMs: nonNull(
-        changeOutcome.interactionToNextPaintMs,
+      marketAnalysisToCompleteMs: nonNull(
+        marketAnalysisOutcome.marketAnalysisToCompleteMs,
+      ),
+      marketAnalysisOpenInteractionToNextPaintMs: nonNull(
+        marketAnalysisOutcome.interactionToNextPaintMs,
       ),
       scoreDetailOpenInteractionToNextPaintMs: nonNull(
         openOutcome.interactionToNextPaintMs,
@@ -830,7 +850,7 @@ export async function runBrowserLabTrial(
 
 function firstUnsupportedMeasurement(measurements: {
   analyzeOutcome: BrowserLabAnalyzeOutcome;
-  changeOutcome: BrowserLabActionOutcome;
+  marketAnalysisOutcome: BrowserLabOpenMarketAnalysisOutcome;
   openOutcome: BrowserLabActionOutcome;
   closeOutcome: BrowserLabActionOutcome;
   snapshot: BrowserLabPerformanceSnapshot;
@@ -840,8 +860,12 @@ function firstUnsupportedMeasurement(measurements: {
     ["analyze-to-complete-list duration", measurements.analyzeOutcome.analyzeToCompleteListMs],
     ["Candidate Market response bytes", measurements.analyzeOutcome.candidateResponseBytes],
     [
-      "change-candidate-market interaction-to-next-paint",
-      measurements.changeOutcome.interactionToNextPaintMs,
+      "Market Analysis-to-complete duration",
+      measurements.marketAnalysisOutcome.marketAnalysisToCompleteMs,
+    ],
+    [
+      "open-market-analysis interaction-to-next-paint",
+      measurements.marketAnalysisOutcome.interactionToNextPaintMs,
     ],
     [
       "open-score-detail interaction-to-next-paint",
@@ -1296,18 +1320,27 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     };
   }
 
-  async changeCandidateMarket(
-    action: BrowserLabChangeCandidateMarketAction,
-  ): Promise<BrowserLabActionOutcome> {
-    return this.measureClientLocalInteraction(async () => {
-      await this.locatorFor(action.candidateLocator).click();
+  async openMarketAnalysis(
+    action: BrowserLabOpenMarketAnalysisAction,
+  ): Promise<BrowserLabOpenMarketAnalysisOutcome> {
+    const startedAtMs = await this.page.evaluate(() => performance.now());
+    const outcome = await this.measureInteraction(async () => {
+      await this.locatorFor(action.marketLinkLocator).click();
+      await this.locatorFor(action.completeAnalysisLocator).waitFor({
+        state: "visible",
+      });
     });
+    const finishedAtMs = await this.page.evaluate(() => performance.now());
+    return {
+      ...outcome,
+      marketAnalysisToCompleteMs: finishedAtMs - startedAtMs,
+    };
   }
 
   async openScoreDetail(
     action: BrowserLabOpenScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
-    return this.measureClientLocalInteraction(async () => {
+    return this.measureInteraction(async () => {
       await this.locatorFor(action.openTriggerLocator).click();
       await this.locatorFor(action.detailLocator).waitFor({ state: "visible" });
     });
@@ -1316,7 +1349,7 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   async closeScoreDetail(
     action: BrowserLabCloseScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
-    return this.measureClientLocalInteraction(async () => {
+    return this.measureInteraction(async () => {
       await this.locatorFor(action.closeTriggerLocator).click();
     });
   }
@@ -1364,7 +1397,7 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     await this.context.close();
   }
 
-  private async measureClientLocalInteraction(
+  private async measureInteraction(
     perform: () => Promise<void>,
   ): Promise<BrowserLabActionOutcome> {
     this.pendingInteractionRequestUrls = [];

@@ -1,5 +1,6 @@
 import type { ProductCatalog } from "../catalog/product-catalog";
 import { ImmutableProductCatalog } from "../catalog/immutable-product-catalog";
+import { createMarketAnalysis } from "../domain/market-analysis/market-analysis";
 import type { CurrentAnalysisDeployment } from "../domain/release/current-analysis";
 import { resolveCurrentAnalysisManifest } from "../domain/release/current-analysis";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
@@ -918,6 +919,13 @@ async function verifyStartupSmoke(
           analysisOutcome.state === "empty"
         ? analysisOutcome.payload
         : null;
+  const candidateMarketAnalysisIdentity =
+    analysisOutcome === null
+      ? null
+      : analysisOutcome.state === "success" ||
+          analysisOutcome.state === "empty"
+        ? analysisOutcome.analysisIdentity
+        : null;
   const tradeTrendResult =
     tradeTrendOutcome === null
       ? null
@@ -980,6 +988,73 @@ async function verifyStartupSmoke(
     economyResult.matches[0]?.economy.code !== benchmark.exporterCode
   ) {
     throw new Error("Verified release startup smoke validation failed.");
+  }
+
+  if (
+    runAnalyticalSmoke &&
+    runTradeTrendSmoke &&
+    runSupplierCompetitionSmoke
+  ) {
+    const market = analysisResult?.candidates[0];
+    if (analysisResult === null || market === undefined) {
+      throw new Error("Verified release startup smoke validation failed.");
+    }
+    const marketAnalysis = await createMarketAnalysis(tradeAnalytics).load({
+      analysisBuildId,
+      exportEconomyCode: benchmark.exporterCode,
+      productCode: benchmark.productCode,
+      marketCode: market.economy.code,
+    });
+    const expectedConstituents = [
+      {
+        recipe: "candidate-market-v1",
+        datasetPackageIdentity: bundle.datasetPackage.identity,
+      },
+      {
+        recipe: "trade-trend-v1",
+        datasetPackageIdentity: bundle.tradeTrendDatasetPackage.identity,
+      },
+      {
+        recipe: "supplier-competition-v1",
+        datasetPackageIdentity:
+          bundle.supplierCompetitionDatasetPackage.identity,
+      },
+    ] as const;
+    const constituentIdentities = marketAnalysis.constituentAnalyses.map(
+      ({ analysisIdentity }) => analysisIdentity,
+    );
+    const marketAnalysisIsValid =
+      marketAnalysis.context.analysisBuildId === analysisBuildId &&
+      marketAnalysis.context.exporter.code === benchmark.exporterCode &&
+      marketAnalysis.context.product.code === benchmark.productCode &&
+      marketAnalysis.context.market.code === market.economy.code &&
+      marketAnalysis.annualContext.baciRelease ===
+        analysisResult.provenance.baciRelease &&
+      marketAnalysis.annualContext.hsRevision ===
+        analysisResult.provenance.hsRevision &&
+      marketAnalysis.annualContext.finalizedWindow.start ===
+        analysisResult.provenance.scoreWindow.start &&
+      marketAnalysis.annualContext.finalizedWindow.end ===
+        analysisResult.provenance.scoreWindow.end &&
+      marketAnalysis.annualContext.provisionalYear ===
+        analysisResult.provenance.provisionalYear &&
+      marketAnalysis.annualContext.valueUnit ===
+        analysisResult.provenance.valueUnit &&
+      marketAnalysis.constituentAnalyses.length ===
+        expectedConstituents.length &&
+      marketAnalysis.constituentAnalyses.every(
+        (constituent, index) =>
+          constituent.recipe === expectedConstituents[index]?.recipe &&
+          constituent.datasetPackageIdentity ===
+            expectedConstituents[index]?.datasetPackageIdentity &&
+          constituent.analysisIdentity.startsWith("analysis-identity-v1-"),
+      ) &&
+      marketAnalysis.constituentAnalyses[0]?.analysisIdentity ===
+        candidateMarketAnalysisIdentity &&
+      new Set(constituentIdentities).size === expectedConstituents.length;
+    if (!marketAnalysisIsValid) {
+      throw new Error("Verified release startup smoke validation failed.");
+    }
   }
 }
 

@@ -17,6 +17,8 @@ const BROWSER_LIMITS = {
   candidateResultCompressedBytes: 300 * KIB,
   analyzeToCompleteListP75Ms: 2_500,
   analyzeToCompleteListP95Ms: 4_000,
+  marketAnalysisToCompleteP75Ms: 2_500,
+  marketAnalysisToCompleteP95Ms: 4_000,
 } as const;
 
 const TARGET_ROUTE_P95_MS = {
@@ -40,6 +42,8 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "product-search-process-hit",
   "candidate-analysis-uncached",
   "candidate-analysis-process-hit",
+  "market-analysis-uncached",
+  "market-analysis-process-hit",
   "csv-uncached",
   "csv-analysis-hit",
   // Trade Trend reuses the same origin p95/p99 measurement contract as
@@ -74,6 +78,16 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "trade-explorer-csv-analysis-hit",
 ] as const;
 
+export type OriginBenchmarkCapabilities = {
+  recentTradeMomentum: boolean;
+  opportunityDiscovery: boolean;
+};
+
+const ALL_ORIGIN_BENCHMARK_CAPABILITIES: OriginBenchmarkCapabilities = {
+  recentTradeMomentum: true,
+  opportunityDiscovery: true,
+};
+
 const SINGLETON_BENCHMARK_OPERATIONS = [
   "html-shell",
   "current-manifest",
@@ -106,6 +120,7 @@ export type PerformanceMeasurementIdentity = {
 
 export type BrowserLabTrialInput = {
   analyzeToCompleteListMs: number;
+  marketAnalysisToCompleteMs: number;
   lcpMs: number;
   cls: number;
   interactionToNextPaintMs: number;
@@ -192,6 +207,7 @@ export type TargetLoadInput = {
   coordinatedBurstIntervalSeconds: number;
   includesMaximumRowProduct: boolean;
   includesTradeExplorer: boolean;
+  includesMarketAnalysis: boolean;
   cacheStatesVerified: boolean;
   queueRejections: number;
   unretryableErrors: number;
@@ -224,6 +240,7 @@ export type PerformanceGateInput = {
   measuredAt: string;
   identity: PerformanceMeasurementIdentity;
   browserLab: BrowserLabProductInput[];
+  originCapabilities: OriginBenchmarkCapabilities;
   originBenchmarks: OriginBenchmarkInput[];
   tradeExplorer: TradeExplorerMeasurementInput;
   targetLoad: TargetLoadInput;
@@ -303,6 +320,20 @@ const ORIGIN_THRESHOLDS: Record<
     p99LimitMs: 250,
     routeDeadlineMs: 2_000,
     payloadLimitBytes: 1_536 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "market-analysis-uncached": {
+    p95LimitMs: 2_500,
+    p99LimitMs: 5_000,
+    routeDeadlineMs: 12_000,
+    payloadLimitBytes: 1024 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "market-analysis-process-hit": {
+    p95LimitMs: 100,
+    p99LimitMs: 250,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 1024 * KIB,
     compressedPayloadLimitBytes: 300 * KIB,
   },
   "csv-uncached": {
@@ -426,7 +457,10 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
     ) as PerformanceGateStatus,
   };
   const browserLab = evaluateBrowserLab(input.browserLab);
-  const origin = evaluateOriginBenchmarks(input.originBenchmarks);
+  const origin = evaluateOriginBenchmarks(
+    input.originBenchmarks,
+    input.originCapabilities,
+  );
   const tradeExplorer = evaluateTradeExplorer(input.tradeExplorer);
   const targetLoad = evaluateTargetLoad(
     input.targetLoad,
@@ -693,6 +727,14 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     trials.map((trial) => trial.analyzeToCompleteListMs),
     0.95,
   );
+  const marketAnalysisToCompleteP75Ms = percentile(
+    trials.map((trial) => trial.marketAnalysisToCompleteMs),
+    0.75,
+  );
+  const marketAnalysisToCompleteP95Ms = percentile(
+    trials.map((trial) => trial.marketAnalysisToCompleteMs),
+    0.95,
+  );
   const thresholdStatus: PerformanceGateStatus =
     medianLcpMs <= BROWSER_LIMITS.lcpMs &&
     medianCls <= BROWSER_LIMITS.cls &&
@@ -711,7 +753,11 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     analyzeToCompleteListP75Ms <=
       BROWSER_LIMITS.analyzeToCompleteListP75Ms &&
     analyzeToCompleteListP95Ms <=
-      BROWSER_LIMITS.analyzeToCompleteListP95Ms
+      BROWSER_LIMITS.analyzeToCompleteListP95Ms &&
+    marketAnalysisToCompleteP75Ms <=
+      BROWSER_LIMITS.marketAnalysisToCompleteP75Ms &&
+    marketAnalysisToCompleteP95Ms <=
+      BROWSER_LIMITS.marketAnalysisToCompleteP95Ms
       ? "accepted"
       : "blocked";
 
@@ -748,6 +794,12 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     analyzeToCompleteListP95Ms,
     analyzeToCompleteListP95LimitMs:
       BROWSER_LIMITS.analyzeToCompleteListP95Ms,
+    marketAnalysisToCompleteP75Ms,
+    marketAnalysisToCompleteP75LimitMs:
+      BROWSER_LIMITS.marketAnalysisToCompleteP75Ms,
+    marketAnalysisToCompleteP95Ms,
+    marketAnalysisToCompleteP95LimitMs:
+      BROWSER_LIMITS.marketAnalysisToCompleteP95Ms,
     status: combinedStatus([sampleStatus, thresholdStatus]),
   };
 }
@@ -759,6 +811,10 @@ function validateBrowserTrial(
   positiveNumber(
     input.analyzeToCompleteListMs,
     `${label} analyze-to-complete-list`,
+  );
+  positiveNumber(
+    input.marketAnalysisToCompleteMs,
+    `${label} Market Analysis-to-complete`,
   );
   nonnegativeNumber(input.lcpMs, `${label} LCP`);
   fraction(input.cls, `${label} CLS`);
@@ -790,7 +846,14 @@ function validateBrowserTrial(
   return input;
 }
 
-export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
+export function evaluateOriginBenchmarks(
+  input: OriginBenchmarkInput[],
+  capabilities: OriginBenchmarkCapabilities = ALL_ORIGIN_BENCHMARK_CAPABILITIES,
+) {
+  const validatedCapabilities = validateOriginBenchmarkCapabilities(capabilities);
+  const requiredProductOperations = requiredProductBenchmarkOperations(
+    validatedCapabilities,
+  );
   const benchmarks = new Map<
     string,
     ReturnType<typeof evaluateOriginBenchmark>
@@ -808,14 +871,14 @@ export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
   for (const operation of SINGLETON_BENCHMARK_OPERATIONS) {
     requireOriginBenchmark(benchmarks, `${operation}:all`);
   }
-  for (const operation of PRODUCT_BENCHMARK_OPERATIONS) {
+  for (const operation of requiredProductOperations) {
     for (const role of REQUIRED_PRODUCT_ROLES) {
       requireOriginBenchmark(benchmarks, `${operation}:${role}`);
     }
   }
   const requiredBenchmarkCount =
     SINGLETON_BENCHMARK_OPERATIONS.length +
-    PRODUCT_BENCHMARK_OPERATIONS.length * REQUIRED_PRODUCT_ROLES.length;
+    requiredProductOperations.length * REQUIRED_PRODUCT_ROLES.length;
   if (benchmarks.size !== requiredBenchmarkCount) {
     throw new PerformanceGateInputError(
       "Origin evidence contains an unsupported benchmark.",
@@ -826,8 +889,40 @@ export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
   return {
     benchmarkCount: results.length,
     benchmarks: results,
+    capabilities: validatedCapabilities,
     status: combinedStatus(results.map((result) => result.status)),
   };
+}
+
+function validateOriginBenchmarkCapabilities(
+  capabilities: OriginBenchmarkCapabilities,
+): OriginBenchmarkCapabilities {
+  if (
+    typeof capabilities !== "object" ||
+    capabilities === null ||
+    typeof capabilities.recentTradeMomentum !== "boolean" ||
+    typeof capabilities.opportunityDiscovery !== "boolean"
+  ) {
+    throw new PerformanceGateInputError(
+      "Origin benchmark capabilities must explicitly declare Recent Trade Momentum and Opportunity Discovery availability.",
+    );
+  }
+  return {
+    recentTradeMomentum: capabilities.recentTradeMomentum,
+    opportunityDiscovery: capabilities.opportunityDiscovery,
+  };
+}
+
+function requiredProductBenchmarkOperations(
+  capabilities: OriginBenchmarkCapabilities,
+): readonly (typeof PRODUCT_BENCHMARK_OPERATIONS)[number][] {
+  return PRODUCT_BENCHMARK_OPERATIONS.filter(
+    (operation) =>
+      (operation !== "recent-trade-momentum-uncached" ||
+        capabilities.recentTradeMomentum) &&
+      (operation !== "opportunity-feed-uncached" ||
+        capabilities.opportunityDiscovery),
+  );
 }
 
 function originBenchmarkKey(input: OriginBenchmarkInput): string {
@@ -1140,6 +1235,7 @@ function evaluateTargetLoad(
     coordinatedBurstIntervalSeconds > 60 ||
     !input.includesMaximumRowProduct ||
     !input.includesTradeExplorer ||
+    !input.includesMarketAnalysis ||
     !input.cacheStatesVerified ||
     queueRejections > 0 ||
     unretryableErrors > 0 ||
@@ -1191,6 +1287,7 @@ function evaluateTargetLoad(
     maximumCoordinatedBurstIntervalSeconds: 60,
     includesMaximumRowProduct: input.includesMaximumRowProduct,
     includesTradeExplorer: input.includesTradeExplorer,
+    includesMarketAnalysis: input.includesMarketAnalysis,
     cacheStatesVerified: input.cacheStatesVerified,
     queueRejections,
     unretryableErrors,

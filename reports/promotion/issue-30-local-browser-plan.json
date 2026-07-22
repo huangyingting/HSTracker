@@ -59,11 +59,15 @@
           }
         },
         {
-          "kind": "change-candidate-market",
-          "label": "Select second-ranked market",
-          "candidateLocator": {
+          "kind": "open-market-analysis",
+          "label": "Analyze second-ranked Candidate Market",
+          "marketLinkLocator": {
             "by": "css",
-            "selector": ".candidate-ranking ol li:nth-child(2) button"
+            "selector": ".candidate-ranking ol li:nth-child(2) a"
+          },
+          "completeAnalysisLocator": {
+            "by": "css",
+            "selector": ".market-analysis-view"
           }
         },
         {
@@ -136,11 +140,15 @@
           }
         },
         {
-          "kind": "change-candidate-market",
-          "label": "Select second-ranked market",
-          "candidateLocator": {
+          "kind": "open-market-analysis",
+          "label": "Analyze second-ranked Candidate Market",
+          "marketLinkLocator": {
             "by": "css",
-            "selector": ".candidate-ranking ol li:nth-child(2) button"
+            "selector": ".candidate-ranking ol li:nth-child(2) a"
+          },
+          "completeAnalysisLocator": {
+            "by": "css",
+            "selector": ".market-analysis-view"
           }
         },
         {

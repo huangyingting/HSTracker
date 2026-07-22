@@ -39,6 +39,7 @@
     "promotion:measure-trade-explorer": "tsx scripts/promotion/measure-trade-explorer.ts",
     "promotion:measure-coalescing-and-capacity": "tsx scripts/promotion/measure-coalescing-and-capacity.ts",
     "promotion:measure-source-and-domain": "tsx scripts/promotion/measure-source-and-domain.ts",
+    "promotion:measure-market-analysis-launch": "tsx scripts/promotion/measure-market-analysis-launch.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "next typegen && tsc --noEmit",

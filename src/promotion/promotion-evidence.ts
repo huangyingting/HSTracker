@@ -49,6 +49,16 @@ export const PROMOTION_GATE_REQUIRED_CHECKS: Readonly<
     "alerts-and-dashboard",
   ],
   "recurring-cost": ["monthly-cost"],
+  "market-analysis-launch": [
+    "product-contract",
+    "analyst-needs",
+    "accessibility",
+    "annual-result-invariance",
+    "performance",
+    "retained-replay",
+    "startup-smoke",
+    "rollback",
+  ],
 };
 
 export class PromotionEvidenceFileError extends Error {
@@ -118,6 +128,22 @@ export async function verifyRetainedPromotionEvidence(
         );
       }
       const report = verifyRetainedReport(reportLog.content, gateEvidence);
+      const additionalLogs = retainedLogs.filter(
+        (log) => log.path !== reportLog.path,
+      );
+      if (additionalLogs.length !== report.retainedLogDigests.size) {
+        throw new PromotionEvidenceFileError(
+          `${gateEvidence.gate} retained report does not bind every additional retained log.`,
+        );
+      }
+      for (const log of additionalLogs) {
+        const expectedDigest = report.retainedLogDigests.get(log.path);
+        if (expectedDigest !== log.sha256) {
+          throw new PromotionEvidenceFileError(
+            `${gateEvidence.gate} retained log ${log.path} does not match its bound SHA-256.`,
+          );
+        }
+      }
       for (const attempt of gateEvidence.attempts) {
         if (!retainedDigests.has(attempt.logSha256)) {
           throw new PromotionEvidenceFileError(
@@ -128,7 +154,11 @@ export async function verifyRetainedPromotionEvidence(
       return {
         gate: gateEvidence.gate,
         reportSha256: gateEvidence.reportSha256,
-        report,
+        report: {
+          schemaVersion: report.schemaVersion,
+          measurementClass: report.measurementClass,
+          status: report.status,
+        },
         retainedLogs: retainedLogs.map((log) => ({
           path: log.path,
           bytes: log.bytes,
@@ -146,6 +176,7 @@ function verifyRetainedReport(
   schemaVersion: string;
   measurementClass: "candidate" | "local-smoke";
   status: PromotionEvidence["status"];
+  retainedLogDigests: ReadonlyMap<string, string>;
 } {
   let value: unknown;
   try {
@@ -217,11 +248,54 @@ function verifyRetainedReport(
     );
   }
   verifyGateChecks(report.checks, evidence);
+  const retainedLogDigests = verifyRetainedLogDigests(
+    report.retainedLogDigests,
+    evidence,
+  );
   return {
     schemaVersion: evidence.schemaVersion,
     measurementClass,
     status: evidence.status,
+    retainedLogDigests,
   };
+}
+
+function verifyRetainedLogDigests(
+  value: unknown,
+  evidence: PromotionEvidence,
+): ReadonlyMap<string, string> {
+  if (value === undefined) {
+    return new Map();
+  }
+  if (!Array.isArray(value)) {
+    throw new PromotionEvidenceFileError(
+      `${evidence.gate} retained report must bind its additional retained logs.`,
+    );
+  }
+  const digests = new Map<string, string>();
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new PromotionEvidenceFileError(
+        `${evidence.gate} retained log digest ${index + 1} must be an object.`,
+      );
+    }
+    const binding = entry as Record<string, unknown>;
+    if (
+      typeof binding.path !== "string" ||
+      !binding.path.startsWith("reports/") ||
+      binding.path.includes("..") ||
+      binding.path.includes("\\") ||
+      typeof binding.sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/u.test(binding.sha256) ||
+      digests.has(binding.path)
+    ) {
+      throw new PromotionEvidenceFileError(
+        `${evidence.gate} retained log digest ${index + 1} is malformed or duplicated.`,
+      );
+    }
+    digests.set(binding.path, binding.sha256);
+  }
+  return digests;
 }
 
 function verifyGateChecks(

@@ -15,6 +15,7 @@ import {
   type BrowserLabDriver,
   type BrowserLabJourney,
   type BrowserLabJourneyAction,
+  type BrowserLabOpenMarketAnalysisOutcome,
   type BrowserLabPerformanceSnapshot,
   type BrowserLabPlan,
   type BrowserLabTrialSession,
@@ -59,7 +60,7 @@ describe("browser-lab plan validation", () => {
     expect(plan.journeys[0].actions.map((action) => action.kind)).toEqual([
       "select-context",
       "analyze",
-      "change-candidate-market",
+      "open-market-analysis",
       "open-score-detail",
       "close-score-detail",
     ]);
@@ -149,7 +150,7 @@ describe("browser-lab plan validation", () => {
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "median journey must declare exactly the select-context, analyze, change-candidate-market, open-score-detail, and close-score-detail actions in order.",
+        "median journey must declare exactly the select-context, analyze, open-market-analysis, open-score-detail, and close-score-detail actions in order.",
       ),
     );
   });
@@ -185,6 +186,7 @@ describe("browser-lab trial execution", () => {
       productRole: "median",
       status: "measured",
       metrics: {
+        marketAnalysisToCompleteMs: 1_200,
         lcpMs: 1_800,
         cls: 0.05,
         interactionToNextPaintMs: 120,
@@ -197,7 +199,8 @@ describe("browser-lab trial execution", () => {
       },
       diagnostics: {
         analyzeToCompleteListMs: 850,
-        candidateMarketChangeInteractionToNextPaintMs: 120,
+        marketAnalysisToCompleteMs: 1_200,
+        marketAnalysisOpenInteractionToNextPaintMs: 120,
         scoreDetailOpenInteractionToNextPaintMs: 90,
         scoreDetailCloseInteractionToNextPaintMs: 60,
       },
@@ -209,7 +212,7 @@ describe("browser-lab trial execution", () => {
   it("takes the maximum of the three next-paint interactions as interactionToNextPaintMs", async () => {
     const plan = validateBrowserLabPlan(candidatePlanInput());
     const session = fakeSession({
-      changeCandidateMarket: async () => actionOutcome(120),
+      openMarketAnalysis: async () => marketAnalysisOutcome(1_200, 120),
       openScoreDetail: async () => actionOutcome(310),
       closeScoreDetail: async () => actionOutcome(75),
     });
@@ -229,11 +232,11 @@ describe("browser-lab trial execution", () => {
     }
   });
 
-  it("fails closed and preserves the trial when a candidate-market change triggers a network request", async () => {
+  it("allows the Market Analysis navigation requests while retaining its timing", async () => {
     const plan = validateBrowserLabPlan(candidatePlanInput());
     const session = fakeSession({
-      changeCandidateMarket: async () =>
-        actionOutcome(120, [
+      openMarketAnalysis: async () =>
+        marketAnalysisOutcome(1_200, 120, [
           "https://candidate.example.com/api/v1/analyses/analysis-1/candidate-markets",
         ]),
     });
@@ -250,19 +253,12 @@ describe("browser-lab trial execution", () => {
     expect(outcome).toMatchObject({
       trialIndex: 2,
       productRole: "median",
-      status: "failed",
-      code: "BROWSER_LAB_TRIAL_VIOLATION",
+      status: "measured",
+      metrics: {
+        marketAnalysisToCompleteMs: 1_200,
+      },
+      violations: [],
     });
-    if (outcome.status === "failed") {
-      expect(outcome.violations).toEqual([
-        {
-          kind: "client-local-network-request",
-          interaction: "change-candidate-market",
-          requestUrl:
-            "https://candidate.example.com/api/v1/analyses/analysis-1/candidate-markets",
-        },
-      ]);
-    }
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 
@@ -455,6 +451,10 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
   schemaVersion: "runtime-identity-attestation-v1",
   origin,
   identity,
+  capabilities: {
+    recentTradeMomentum: true,
+    opportunityDiscovery: true,
+  },
   benchmarkQueries: [
     {
       role: "sparse",
@@ -501,12 +501,24 @@ function actionOutcome(
   return { interactionToNextPaintMs, networkRequestUrls };
 }
 
+function marketAnalysisOutcome(
+  marketAnalysisToCompleteMs: number | null,
+  interactionToNextPaintMs: number | null,
+  networkRequestUrls: readonly string[] = [],
+): BrowserLabOpenMarketAnalysisOutcome {
+  return {
+    marketAnalysisToCompleteMs,
+    interactionToNextPaintMs,
+    networkRequestUrls,
+  };
+}
+
 function fakeSession(
   overrides: Partial<{
     navigate: BrowserLabTrialSession["navigate"];
     selectContext: BrowserLabTrialSession["selectContext"];
     analyze: () => Promise<BrowserLabAnalyzeOutcome>;
-    changeCandidateMarket: () => Promise<BrowserLabActionOutcome>;
+    openMarketAnalysis: () => Promise<BrowserLabOpenMarketAnalysisOutcome>;
     openScoreDetail: () => Promise<BrowserLabActionOutcome>;
     closeScoreDetail: () => Promise<BrowserLabActionOutcome>;
     performanceSnapshot: () => Promise<BrowserLabPerformanceSnapshot>;
@@ -522,8 +534,9 @@ function fakeSession(
         analyzeToCompleteListMs: 850,
         candidateResponseBytes: { encodedBytes: 90_000, decodedBytes: 420_000 },
       })),
-    changeCandidateMarket:
-      overrides.changeCandidateMarket ?? (async () => actionOutcome(120)),
+    openMarketAnalysis:
+      overrides.openMarketAnalysis ??
+      (async () => marketAnalysisOutcome(1_200, 120)),
     openScoreDetail:
       overrides.openScoreDetail ?? (async () => actionOutcome(90)),
     closeScoreDetail:
@@ -617,9 +630,13 @@ function journey(productRole: "median" | "maximum-row"): MutableJourney {
         completeListLocator: { by: "testId", testId: "candidate-market-list" },
       },
       {
-        kind: "change-candidate-market",
-        label: "Select the second-ranked candidate",
-        candidateLocator: { by: "testId", testId: "candidate-market-row-2" },
+        kind: "open-market-analysis",
+        label: "Analyze the second-ranked Candidate Market",
+        marketLinkLocator: { by: "testId", testId: "candidate-market-row-2" },
+        completeAnalysisLocator: {
+          by: "testId",
+          testId: "market-analysis",
+        },
       },
       {
         kind: "open-score-detail",

@@ -15,6 +15,7 @@ const REQUIRED_GATES = [
   "deployment-resources",
   "external-smoke-and-observability",
   "recurring-cost",
+  "market-analysis-launch",
 ] as const;
 
 const IDENTITY_FIELDS = [

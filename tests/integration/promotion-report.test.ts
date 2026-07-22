@@ -21,6 +21,7 @@ const REQUIRED_GATES: readonly PromotionGateId[] = [
   "deployment-resources",
   "external-smoke-and-observability",
   "recurring-cost",
+  "market-analysis-launch",
 ];
 
 describe("production promotion report", () => {
@@ -54,7 +55,7 @@ describe("production promotion report", () => {
       schemaVersion: "production-promotion-report-v1",
       evaluatedAt: "2026-07-12T16:00:00Z",
       status: "accepted",
-      gateCount: 10,
+      gateCount: 11,
       priorFailureCount: 0,
       unresolvedFailureCount: 0,
       identity: {

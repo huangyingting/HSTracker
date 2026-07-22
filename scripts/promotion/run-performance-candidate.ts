@@ -138,6 +138,7 @@ async function main(): Promise<void> {
       ),
       failedTrialCount: product.failedTrialCount,
     })),
+    originCapabilities: originReport.capabilities,
     originBenchmarks: [...originReport.originBenchmarks],
     tradeExplorer: {
       ...tradeExplorer.measurements,

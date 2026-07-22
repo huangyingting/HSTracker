@@ -35,8 +35,26 @@ describe("origin-benchmark plan parsing", () => {
 
     expect(plan.measurementClass).toBe("candidate");
     expect(plan.origin).toBe("https://staging.example.com");
-    expect(plan.requests).toHaveLength(91);
+    expect(plan.requests).toHaveLength(99);
     expect(plan.warmupSamples).toBe(5);
+  });
+
+  it("requires only the core 91 cases when optional capabilities are unavailable", () => {
+    const input = acceptedPlanInput();
+    input.capabilities = {
+      recentTradeMomentum: false,
+      opportunityDiscovery: false,
+    };
+    input.requests = input.requests.filter(
+      (request) =>
+        request.operation !== "recent-trade-momentum-uncached" &&
+        request.operation !== "opportunity-feed-uncached",
+    );
+
+    const plan = parseOriginBenchmarkPlan(input);
+
+    expect(plan.requests).toHaveLength(91);
+    expect(plan.capabilities).toEqual(input.capabilities);
   });
 
   it("rejects an http origin for candidate evidence", () => {
@@ -193,10 +211,10 @@ describe("runOriginBenchmark", () => {
 
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
-        // 1 health check + 91 routes * (5 warmups + timedSamples).
+        // 1 health check + 99 routes * (5 warmups + timedSamples).
         const perRoute = 5 + plan.timedSamples;
-        expect(calls.length).toBe(1 + 91 * perRoute);
-        expect(report.originBenchmarks).toHaveLength(91);
+        expect(calls.length).toBe(1 + 99 * perRoute);
+        expect(report.originBenchmarks).toHaveLength(99);
         expect(report.status).toBe("measurement-complete");
         expect(report.meetsAcceptanceEvidenceSampleSize).toBe(true);
         expect(report.firstFailure).toBeNull();
@@ -426,6 +444,62 @@ describe("runOriginBenchmark", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("binds Market Analysis paths and query parameters to the artifact-attested role", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const requestCase = input.requests.find(
+      (request) =>
+        request.operation === "market-analysis-uncached" &&
+        request.productRole === "maximum-row",
+    );
+    if (requestCase?.sampleRequests === undefined) {
+      throw new Error("Expected maximum-row Market Analysis samples.");
+    }
+    requestCase.sampleRequests[0].request.path += "&unexpected=1";
+    const plan = parseOriginBenchmarkPlan(input);
+    const calls: HttpBenchmarkRequest[] = [];
+
+    await expect(
+      runOriginBenchmark(
+        plan,
+        fakeExecutor(calls, () => {
+          throw new Error("must not execute");
+        }),
+        originRunnerDependencies(),
+      ),
+    ).rejects.toThrow(
+      "market-analysis-uncached:maximum-row sample",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("requires every uncached Market Analysis sample to use its semantic cache partition", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const requestCase = input.requests.find(
+      (request) =>
+        request.operation === "market-analysis-uncached" &&
+        request.productRole === "maximum-row",
+    );
+    if (requestCase?.sampleRequests === undefined) {
+      throw new Error("Expected maximum-row Market Analysis samples.");
+    }
+    requestCase.sampleRequests[0].request.headers![
+      RUNTIME_PROBE_CACHE_PARTITION_HEADER
+    ] = "different-partition";
+    const plan = parseOriginBenchmarkPlan(input);
+    const calls: HttpBenchmarkRequest[] = [];
+
+    await expect(
+      runOriginBenchmark(
+        plan,
+        fakeExecutor(calls, () => {
+          throw new Error("must not execute");
+        }),
+        originRunnerDependencies(),
+      ),
+    ).rejects.toThrow(/must use its semantic key as the probe cache partition/u);
+    expect(calls).toHaveLength(0);
+  });
+
   it("accepts Trade Explorer CSV requests that carry the export envelope the CSV route requires", async () => {
     const input = acceptedPlanInput({ timedSamples: 1 });
     const envelope = "&freshnessStatusId=fresh-1&schema=trade-explorers-csv-v1";
@@ -650,7 +724,8 @@ function fakeOriginCacheState(request: HttpBenchmarkRequest): string | null {
   }
   if (
     request.url.pathname.includes("-process-hit/") ||
-    request.url.pathname.includes("-analysis-hit/")
+    request.url.pathname.includes("-analysis-hit/") ||
+    request.url.pathname.endsWith("/market-analysis")
   ) {
     return "hit";
   }
@@ -708,6 +783,10 @@ type TestPlanInput = {
   schemaVersion: string;
   measurementClass: string;
   identity: Record<string, unknown>;
+  capabilities: {
+    recentTradeMomentum: boolean;
+    opportunityDiscovery: boolean;
+  };
   origin: string;
   healthCheck: { method: string; path: string };
   identityAssertion?: { headerName: string; expectedValue: string };
@@ -738,6 +817,8 @@ function acceptedPlanInput(
     "product-search-process-hit",
     "candidate-analysis-uncached",
     "candidate-analysis-process-hit",
+    "market-analysis-uncached",
+    "market-analysis-process-hit",
     "csv-uncached",
     "csv-analysis-hit",
     "trade-trend-analysis-uncached",
@@ -759,6 +840,7 @@ function acceptedPlanInput(
     "economy-search-uncached",
     "product-search-uncached",
     "candidate-analysis-uncached",
+    "market-analysis-uncached",
     "csv-uncached",
     "trade-trend-analysis-uncached",
     "trade-trend-csv-uncached",
@@ -795,6 +877,8 @@ function acceptedPlanInput(
               ? `/api/v1/analyses/analysis-build-v1-620a5047a1a306ca/recent-trade-momentum?reporter=NL&product=${roleProductCodes[role]}`
               : operation.startsWith("trade-explorer")
               ? `/api/v1/${operation}/${role}?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct=${roleProductCodes[role]}`
+              : operation.startsWith("market-analysis")
+              ? `/api/v1/analyses/analysis-build-v1-620a5047a1a306ca/market-analysis?exporter=156&product=${roleProductCodes[role]}&market=528`
               : operation.startsWith("candidate-analysis") ||
                   operation.startsWith("csv-")
               ? `/api/v1/${operation}/${role}?exporter=156&product=${roleProductCodes[role]}`
@@ -802,6 +886,7 @@ function acceptedPlanInput(
         };
         const attestedUncachedOperation =
           operation === "candidate-analysis-uncached" ||
+          operation === "market-analysis-uncached" ||
           operation === "csv-uncached" ||
           operation === "recent-trade-momentum-uncached" ||
           operation === "opportunity-feed-uncached" ||
@@ -844,7 +929,7 @@ function acceptedPlanInput(
   ];
 
   return {
-    schemaVersion: "origin-benchmark-plan-v1",
+    schemaVersion: "origin-benchmark-plan-v2",
     measurementClass: "candidate",
     identity: {
       fixtureManifestSha256: ACCEPTANCE_FIXTURE_CONTENT_SHA256,
@@ -856,6 +941,10 @@ function acceptedPlanInput(
       machineId: "machine-01J00000000000000000000000",
       machineClass: "shared-cpu-2x",
       region: "sin",
+    },
+    capabilities: {
+      recentTradeMomentum: true,
+      opportunityDiscovery: true,
     },
     origin: "https://staging.example.com",
     healthCheck: { method: "GET", path: "/healthz" },
@@ -939,6 +1028,15 @@ function acceptedMixedLoadPlanInput(overrides: MixedLoadPlanOverrides = {}) {
           ? `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/trade-explorer?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}`
           : "/api/v1/analyses/{analysisKey}",
       },
+      marketAnalysis: {
+        method: "GET",
+        pathTemplate: candidate
+          ? `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/market-analysis?exporter=156&product=851712&market=276`
+          : "/api/v1/market-analysis",
+        headers: {
+          "X-HS-Tracker-Cache-Partition": "market-analysis-{analysisKey}",
+        },
+      },
       csv: {
         method: "GET",
         pathTemplate: candidate
@@ -982,6 +1080,11 @@ describe("mixed-load plan parsing", () => {
     expect(plan.sustainedRequestsPerSecond).toBe(100);
     expect(plan.sustainedSeconds).toBe(20);
     expect(plan.analysisDistinctKeys).toContain("max-row-key");
+    expect(
+      plan.routeTemplates.marketAnalysis.headers?.[
+        "X-HS-Tracker-Cache-Partition"
+      ],
+    ).toBe("market-analysis-{analysisKey}");
   });
 
   it("rejects plan-controlled cache verification", () => {
@@ -1091,11 +1194,31 @@ describe("mixed-load plan parsing", () => {
       burstSeconds: 30,
       coordinatedBurstIntervalSeconds: 60,
     });
+
     input.routeTemplates.analysis.pathTemplate =
       "/api/v1/analyses/{analysisKey}/candidate-markets";
 
     expect(() => parseMixedLoadPlan(input)).toThrow(
       "Candidate mixed-load analysis template must execute",
+    );
+  });
+
+  it("rejects candidate mixed load without an immutable Market Analysis cache-partition template", () => {
+    const input = acceptedMixedLoadPlanInput({
+      measurementClass: "candidate",
+      origin: "https://staging.example.com",
+      sustainedRequestsPerSecond: 4,
+      sustainedSeconds: 600,
+      burstRequestsPerSecond: 10,
+      burstSeconds: 30,
+      coordinatedBurstIntervalSeconds: 60,
+    });
+    input.routeTemplates.marketAnalysis.headers = {
+      "X-HS-Tracker-Cache-Partition": "{analysisKey}",
+    };
+
+    expect(() => parseMixedLoadPlan(input)).toThrow(
+      "Candidate mixed-load Market Analysis template",
     );
   });
 
@@ -1332,8 +1455,39 @@ describe("mixed-load schedule", () => {
         expect(request.analysisKey).toBe(
           lastAnalysisKeyBySession.get(request.sessionId),
         );
+        const precedingAnalysis = [...schedule.sustained]
+          .slice(0, request.sequence)
+          .filter(
+            (candidate) =>
+              candidate.sessionId === request.sessionId &&
+              candidate.routeKind === "analysis",
+          )
+          .at(-1);
+        expect(precedingAnalysis?.analysisOperation).toBe("trade-explorer");
       }
     }
+  });
+
+  it("runs Market Analysis throughout sustained load and every coordinated capacity burst", () => {
+    const schedule = buildMixedLoadSchedule(
+      parseMixedLoadPlan(acceptedMixedLoadPlanInput()),
+    );
+
+    expect(
+      schedule.sustained.some(
+        (request) => request.analysisOperation === "market-analysis",
+      ),
+    ).toBe(true);
+    expect(
+      schedule.sustained.some(
+        (request) => request.analysisOperation === "trade-explorer",
+      ),
+    ).toBe(true);
+    expect(
+      schedule.coordinated.every(
+        (request) => request.analysisOperation === "market-analysis",
+      ),
+    ).toBe(true);
   });
 
   it("includes the maximum-row analysis key at least once", () => {
@@ -1425,13 +1579,31 @@ function fakeMixedLoadExecutor(options: {
         return injected;
       }
       let cacheValue = "MISS";
+      const cachePartition = Object.entries(request.headers).find(
+        ([name]) =>
+          name.toLowerCase() === "x-hs-tracker-cache-partition",
+      )?.[1];
       const analysisMatch =
         /^\/api\/v1\/analyses\/([^/]+)(\/export\.csv)?$/u.exec(
           request.url.pathname,
         );
-      if (analysisMatch) {
-        const key = decodeURIComponent(analysisMatch[1]);
-        const isCsv = analysisMatch[2] !== undefined;
+      const isMarketAnalysis = request.url.pathname.endsWith(
+        "/market-analysis",
+      );
+      const isTradeExplorer =
+        request.url.pathname.endsWith("/trade-explorer") ||
+        request.url.pathname.endsWith("/trade-explorer.csv");
+      if (analysisMatch || isMarketAnalysis || isTradeExplorer) {
+        const key = isMarketAnalysis
+          ? `market:${cachePartition}`
+          : `trade:${
+              isTradeExplorer
+                ? request.url.searchParams.get("hsProduct")
+                : decodeURIComponent(analysisMatch![1])
+            }`;
+        const isCsv =
+          analysisMatch?.[2] !== undefined ||
+          request.url.pathname.endsWith("/trade-explorer.csv");
         cacheValue = cachedAnalysisKeys.has(key) ? "HIT" : "MISS";
         if (!isCsv) {
           cachedAnalysisKeys.add(key);
@@ -1468,6 +1640,10 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
   schemaVersion: "runtime-identity-attestation-v1",
   origin,
   identity,
+  capabilities: {
+    recentTradeMomentum: true,
+    opportunityDiscovery: true,
+  },
   benchmarkQueries: [
     {
       role: "sparse",
@@ -1623,6 +1799,10 @@ describe("mixed-load runner", () => {
       expect(report.targetLoad.cacheStatesVerified).toBe(true);
       expect(report.targetLoad.includesMaximumRowProduct).toBe(true);
       expect(report.targetLoad.includesTradeExplorer).toBe(false);
+      expect(report.targetLoad.includesMarketAnalysis).toBe(true);
+      expect(
+        calls.some((call) => call.url.pathname.endsWith("/market-analysis")),
+      ).toBe(true);
     });
   });
 
@@ -1650,6 +1830,57 @@ describe("mixed-load runner", () => {
     expect(maximumActive).toBeGreaterThan(20);
   });
 
+  it("attests and executes both Market Analysis and Trade Explorer in the candidate workload", async () => {
+    const plan = parseMixedLoadPlan(
+      acceptedMixedLoadPlanInput({
+        measurementClass: "candidate",
+        origin: "https://staging.example.com",
+        sustainedRequestsPerSecond: 4,
+        sustainedSeconds: 600,
+        burstRequestsPerSecond: 10,
+        burstSeconds: 30,
+        coordinatedBurstIntervalSeconds: 60,
+      }),
+    );
+    const calls: HttpBenchmarkRequest[] = [];
+    const report = await runMixedLoad(
+      plan,
+      fakeMixedLoadExecutor({ calls }),
+      mixedRunnerDependencies({
+        observationAdapter: {
+          async observeDuring(work) {
+            return {
+              output: await work(),
+              observations: {
+                source: "runtime-prometheus-v1",
+                sampleCount: 2,
+                peakCgroupMemoryFraction: 0.5,
+                peakProcessRssFraction: 0.4,
+                peakSpillBytes: 0,
+                sparseOrMedianSpillCount: 0,
+                minimumVolumeFreeFraction: 0.6,
+                sharedCpuBurstBalanceDepleted: true,
+              },
+            };
+          },
+        },
+      }),
+    );
+
+    expect(report.cacheViolations).toEqual([]);
+    expect(report.targetLoad.includesTradeExplorer).toBe(true);
+    expect(report.targetLoad.includesMarketAnalysis).toBe(true);
+    expect(
+      calls.some(
+        (call) =>
+          call.url.pathname.endsWith("/market-analysis") &&
+          call.headers["X-HS-Tracker-Cache-Partition"]?.startsWith(
+            "market-analysis-",
+          ),
+      ),
+    ).toBe(true);
+  });
+
   it("does not send health, prime, or load traffic when deployment identity attestation fails", async () => {
     const plan = parseMixedLoadPlan(acceptedMixedLoadPlanInput());
     const calls: HttpBenchmarkRequest[] = [];
@@ -1673,7 +1904,7 @@ describe("mixed-load runner", () => {
     const calls: HttpBenchmarkRequest[] = [];
     const failures = new Map<number, HttpBenchmarkOutcome>([
       [
-        MIXED_LOAD_HOT_KEYS.length + 3,
+        MIXED_LOAD_HOT_KEYS.length * 2 + 3,
         {
           timedOut: false,
           status: 503,
@@ -1684,7 +1915,7 @@ describe("mixed-load runner", () => {
         },
       ],
       [
-        MIXED_LOAD_HOT_KEYS.length + 50,
+        MIXED_LOAD_HOT_KEYS.length * 2 + 50,
         {
           timedOut: false,
           status: 500,
@@ -1695,7 +1926,7 @@ describe("mixed-load runner", () => {
         },
       ],
       [
-        MIXED_LOAD_HOT_KEYS.length + 100,
+        MIXED_LOAD_HOT_KEYS.length * 2 + 100,
         { timedOut: true, elapsedMs: 4_999 },
       ],
     ]);
@@ -1710,7 +1941,7 @@ describe("mixed-load runner", () => {
       expect(report.targetLoad.timeouts).toBe(1);
       // Every scheduled request executed exactly once: no retry could have
       // erased or duplicated the recorded failures.
-      expect(calls.length).toBe(1 + 5 + 2_000 + 4 + 30);
+      expect(calls.length).toBe(1 + 10 + 2_000 + 4 + 30);
     });
   });
 

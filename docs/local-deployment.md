@@ -104,8 +104,8 @@ V202601 artifact and are recomputed if the artifact changes.
 
 Promotion is a control-plane operation: point it at the **writable** object
 store directory (not the read-only runtime mount) and give it an accepted
-promotion input. Producing a genuinely accepted 10-gate promotion input on the
-local machine class is the subject of issue #30; the release publication
+promotion input. The eleven gates include the Market Analysis launch evidence
+bound to the exact build and active deployment. The release publication
 mechanics are in [`release-publication.md`](release-publication.md).
 
 ```bash

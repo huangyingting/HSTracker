@@ -11,6 +11,7 @@ import {
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 import { resolveTargetLoadCpuPressure } from "./performance-gates";
 import type {
+  OriginBenchmarkCapabilities,
   OriginBenchmarkInput,
   OriginBenchmarkOperation,
   PerformanceMeasurementIdentity,
@@ -320,6 +321,8 @@ const PRODUCT_OPERATIONS = [
   "product-search-process-hit",
   "candidate-analysis-uncached",
   "candidate-analysis-process-hit",
+  "market-analysis-uncached",
+  "market-analysis-process-hit",
   "csv-uncached",
   "csv-analysis-hit",
   "trade-trend-analysis-uncached",
@@ -337,10 +340,15 @@ const PRODUCT_OPERATIONS = [
   "trade-explorer-csv-uncached",
   "trade-explorer-csv-analysis-hit",
 ] as const satisfies readonly OriginBenchmarkOperation[];
+const ALL_ORIGIN_BENCHMARK_CAPABILITIES: OriginBenchmarkCapabilities = {
+  recentTradeMomentum: true,
+  opportunityDiscovery: true,
+};
 const UNCACHED_OPERATIONS = [
   "economy-search-uncached",
   "product-search-uncached",
   "candidate-analysis-uncached",
+  "market-analysis-uncached",
   "csv-uncached",
   "trade-trend-analysis-uncached",
   "trade-trend-csv-uncached",
@@ -379,6 +387,8 @@ const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
   "product-search-process-hit": 2_000,
   "candidate-analysis-uncached": 12_000,
   "candidate-analysis-process-hit": 2_000,
+  "market-analysis-uncached": 12_000,
+  "market-analysis-process-hit": 2_000,
   "csv-uncached": 15_000,
   "csv-analysis-hit": 15_000,
   "trade-trend-analysis-uncached": 12_000,
@@ -396,10 +406,6 @@ const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
   "trade-explorer-csv-uncached": 15_000,
   "trade-explorer-csv-analysis-hit": 15_000,
 };
-
-const REQUIRED_ORIGIN_BENCHMARK_COUNT =
-  SINGLETON_OPERATIONS.length +
-  PRODUCT_OPERATIONS.length * PRODUCT_ROLES.length;
 
 function originBenchmarkKey(
   operation: OriginBenchmarkOperation,
@@ -440,9 +446,12 @@ export type OriginBenchmarkIdentityAssertion = {
 };
 
 export type OriginBenchmarkPlan = {
-  readonly schemaVersion: "origin-benchmark-plan-v1";
+  readonly schemaVersion:
+    | "origin-benchmark-plan-v1"
+    | "origin-benchmark-plan-v2";
   readonly measurementClass: "candidate" | "local-smoke";
   readonly identity: PerformanceMeasurementIdentity;
+  readonly capabilities: OriginBenchmarkCapabilities;
   readonly origin: string;
   readonly healthCheck: HttpRequestCase;
   readonly identityAssertion?: OriginBenchmarkIdentityAssertion;
@@ -456,11 +465,21 @@ const FIXED_WARMUP_SAMPLES = 5;
 
 export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
   const plan = record(value, "origin-benchmark plan");
-  if (plan.schemaVersion !== "origin-benchmark-plan-v1") {
+  if (
+    plan.schemaVersion !== "origin-benchmark-plan-v1" &&
+    plan.schemaVersion !== "origin-benchmark-plan-v2"
+  ) {
     throw planError(
-      "origin-benchmark plan schemaVersion must be origin-benchmark-plan-v1.",
+      "origin-benchmark plan schemaVersion must be origin-benchmark-plan-v1 or origin-benchmark-plan-v2.",
     );
   }
+  const schemaVersion = plan.schemaVersion;
+  const capabilities =
+    schemaVersion === "origin-benchmark-plan-v1"
+      ? ALL_ORIGIN_BENCHMARK_CAPABILITIES
+      : validateOriginBenchmarkCapabilities(plan.capabilities);
+  const requiredProductOperations =
+    requiredOriginProductOperations(capabilities);
   const measurementClass = measurementClassOf(plan.measurementClass);
   const identity = validateIdentity(plan.identity);
   const origin = validatePlanOrigin(plan.origin, measurementClass);
@@ -602,7 +621,7 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
       throw planError(`Missing origin-benchmark request ${operation}:all.`);
     }
   }
-  for (const operation of PRODUCT_OPERATIONS) {
+  for (const operation of requiredProductOperations) {
     for (const role of PRODUCT_ROLES) {
       if (!seenKeys.has(`${operation}:${role}`)) {
         throw planError(
@@ -611,16 +630,20 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
       }
     }
   }
-  if (seenKeys.size !== REQUIRED_ORIGIN_BENCHMARK_COUNT) {
+  const requiredBenchmarkCount =
+    SINGLETON_OPERATIONS.length +
+    requiredProductOperations.length * PRODUCT_ROLES.length;
+  if (seenKeys.size !== requiredBenchmarkCount) {
     throw planError(
       "origin-benchmark plan requests must name exactly the required operation/product-role set.",
     );
   }
 
   return {
-    schemaVersion: "origin-benchmark-plan-v1",
+    schemaVersion,
     measurementClass,
     identity,
+    capabilities,
     origin,
     healthCheck,
     identityAssertion,
@@ -628,6 +651,36 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
     timedSamples,
     requests,
   };
+}
+
+function validateOriginBenchmarkCapabilities(
+  value: unknown,
+): OriginBenchmarkCapabilities {
+  const capabilities = record(value, "origin-benchmark plan capabilities");
+  if (
+    typeof capabilities.recentTradeMomentum !== "boolean" ||
+    typeof capabilities.opportunityDiscovery !== "boolean"
+  ) {
+    throw planError(
+      "origin-benchmark plan capabilities must explicitly declare Recent Trade Momentum and Opportunity Discovery availability.",
+    );
+  }
+  return {
+    recentTradeMomentum: capabilities.recentTradeMomentum,
+    opportunityDiscovery: capabilities.opportunityDiscovery,
+  };
+}
+
+function requiredOriginProductOperations(
+  capabilities: OriginBenchmarkCapabilities,
+): readonly (typeof PRODUCT_OPERATIONS)[number][] {
+  return PRODUCT_OPERATIONS.filter(
+    (operation) =>
+      (operation !== "recent-trade-momentum-uncached" ||
+        capabilities.recentTradeMomentum) &&
+      (operation !== "opportunity-feed-uncached" ||
+        capabilities.opportunityDiscovery),
+  );
 }
 
 function requiredProductRole(
@@ -766,6 +819,7 @@ export type OriginBenchmarkReport = {
   readonly schemaVersion: "origin-benchmark-report-v1";
   readonly measurementClass: "candidate" | "local-smoke";
   readonly identity: PerformanceMeasurementIdentity;
+  readonly capabilities: OriginBenchmarkCapabilities;
   readonly attestation: RuntimeIdentityAttestation;
   readonly origin: string;
   readonly generatedAt: string;
@@ -789,11 +843,23 @@ function assertAttestedOriginBenchmarks(
   plan: OriginBenchmarkPlan,
   attestation: RuntimeIdentityAttestation,
 ): void {
+  if (
+    plan.capabilities.recentTradeMomentum !==
+      attestation.capabilities.recentTradeMomentum ||
+    plan.capabilities.opportunityDiscovery !==
+      attestation.capabilities.opportunityDiscovery
+  ) {
+    throw planError(
+      "Origin-benchmark plan capabilities do not match the deployed current manifest.",
+    );
+  }
   for (const requestCase of plan.requests) {
     if (
       requestCase.productRole === undefined ||
       (requestCase.operation !== "candidate-analysis-uncached" &&
         requestCase.operation !== "candidate-analysis-process-hit" &&
+        requestCase.operation !== "market-analysis-uncached" &&
+        requestCase.operation !== "market-analysis-process-hit" &&
         requestCase.operation !== "csv-uncached" &&
         requestCase.operation !== "csv-analysis-hit" &&
         requestCase.operation !== "recent-trade-momentum-uncached" &&
@@ -808,6 +874,7 @@ function assertAttestedOriginBenchmarks(
     const tradeExplorer = requestCase.operation.startsWith("trade-explorer-");
     const recentTradeMomentum =
       requestCase.operation === "recent-trade-momentum-uncached";
+    const marketAnalysis = requestCase.operation.startsWith("market-analysis-");
     const opportunityFeed =
       requestCase.operation === "opportunity-feed-uncached";
     const benchmark = (
@@ -820,7 +887,15 @@ function assertAttestedOriginBenchmarks(
         `The deployed artifact does not attest a ${requestCase.productRole} benchmark query.`,
       );
     }
-    if (tradeExplorer) {
+    if (marketAnalysis) {
+      assertMarketAnalysisRequestMatchesBenchmark(
+        plan.origin,
+        requestCase.request,
+        benchmark as RuntimeIdentityAttestation["benchmarkQueries"][number],
+        plan.identity.analysisBuildId,
+        `${requestCase.operation}:${requestCase.productRole}`,
+      );
+    } else if (tradeExplorer) {
       assertTradeExplorerRequestMatchesBenchmark(
         plan.origin,
         requestCase.request,
@@ -851,6 +926,7 @@ function assertAttestedOriginBenchmarks(
     }
     if (
       requestCase.operation === "candidate-analysis-uncached" ||
+      requestCase.operation === "market-analysis-uncached" ||
       requestCase.operation === "csv-uncached" ||
       requestCase.operation === "recent-trade-momentum-uncached" ||
       requestCase.operation === "opportunity-feed-uncached" ||
@@ -859,7 +935,15 @@ function assertAttestedOriginBenchmarks(
     ) {
       for (const sample of requestCase.sampleRequests ?? []) {
         const label = `${requestCase.operation}:${requestCase.productRole} sample ${sample.semanticKey}`;
-        if (tradeExplorer) {
+        if (marketAnalysis) {
+          assertMarketAnalysisRequestMatchesBenchmark(
+            plan.origin,
+            sample.request,
+            benchmark as RuntimeIdentityAttestation["benchmarkQueries"][number],
+            plan.identity.analysisBuildId,
+            label,
+          );
+        } else if (tradeExplorer) {
           assertTradeExplorerRequestMatchesBenchmark(
             plan.origin,
             sample.request,
@@ -888,6 +972,7 @@ function assertAttestedOriginBenchmarks(
             label,
           );
         }
+
         if (
           requestHeader(
             sample.request.headers,
@@ -900,6 +985,34 @@ function assertAttestedOriginBenchmarks(
         }
       }
     }
+  }
+}
+
+function assertMarketAnalysisRequestMatchesBenchmark(
+  origin: string,
+  request: HttpRequestCase,
+  benchmark: RuntimeIdentityAttestation["benchmarkQueries"][number],
+  analysisBuildId: string,
+  label: string,
+): void {
+  const requestUrl = resolveRequestUrl(origin, request.path);
+  const parameterNames = [...requestUrl.searchParams.keys()];
+  if (
+    request.method !== "GET" ||
+    requestUrl.pathname !==
+      `/api/v1/analyses/${analysisBuildId}/market-analysis` ||
+    parameterNames.length !== 3 ||
+    new Set(parameterNames).size !== 3 ||
+    !parameterNames.includes("exporter") ||
+    !parameterNames.includes("product") ||
+    !parameterNames.includes("market") ||
+    requestUrl.searchParams.get("exporter") !== benchmark.exporterCode ||
+    requestUrl.searchParams.get("product") !== benchmark.productCode ||
+    !/^\d{1,3}$/u.test(requestUrl.searchParams.get("market") ?? "")
+  ) {
+    throw planError(
+      `${label} does not match the deployed artifact Market Analysis benchmark query.`,
+    );
   }
 }
 
@@ -1170,6 +1283,7 @@ export async function runOriginBenchmark(
     schemaVersion: "origin-benchmark-report-v1",
     measurementClass: plan.measurementClass,
     identity: plan.identity,
+    capabilities: plan.capabilities,
     attestation,
     origin: plan.origin,
     generatedAt: utcTimestamp(now()),
@@ -1277,6 +1391,7 @@ function assertResponseIdentity(
 
 const SESSION_COUNT = 20;
 export type RouteKind = "currentManifest" | "search" | "analysis" | "csv";
+export type AnalysisOperation = "trade-explorer" | "market-analysis";
 const ROUTE_KIND_ORDER: readonly RouteKind[] = [
   "currentManifest",
   "search",
@@ -1327,6 +1442,7 @@ export type MixedLoadRouteTemplates = {
   readonly currentManifest: HttpRequestTemplate;
   readonly search: HttpRequestTemplate;
   readonly analysis: HttpRequestTemplate;
+  readonly marketAnalysis: HttpRequestTemplate;
   readonly csv: HttpRequestTemplate;
 };
 
@@ -1581,6 +1697,19 @@ function placeholderOccurrences(pathTemplate: string): number {
   return pathTemplate.split(ANALYSIS_KEY_PLACEHOLDER).length - 1;
 }
 
+function requestTemplatePlaceholderOccurrences(
+  pathTemplate: string,
+  headers: Readonly<Record<string, string>>,
+): number {
+  return (
+    placeholderOccurrences(pathTemplate) +
+    Object.values(headers).reduce(
+      (total, value) => total + placeholderOccurrences(value),
+      0,
+    )
+  );
+}
+
 function validateRequestTemplate(
   value: unknown,
   label: string,
@@ -1595,21 +1724,25 @@ function validateRequestTemplate(
     template.pathTemplate,
     `${label} pathTemplate`,
   );
-  const occurrences = placeholderOccurrences(pathTemplate);
+  const headers = optionalHeaders(template.headers, `${label} headers`);
+  const occurrences = requestTemplatePlaceholderOccurrences(
+    pathTemplate,
+    headers ?? {},
+  );
   if (requiresAnalysisKey && occurrences !== 1) {
     throw planError(
-      `${label} pathTemplate must contain exactly one ${ANALYSIS_KEY_PLACEHOLDER} placeholder.`,
+      `${label} must contain exactly one ${ANALYSIS_KEY_PLACEHOLDER} placeholder across its path and header values.`,
     );
   }
   if (!requiresAnalysisKey && occurrences !== 0) {
     throw planError(
-      `${label} pathTemplate must not contain an ${ANALYSIS_KEY_PLACEHOLDER} placeholder.`,
+      `${label} must not contain an ${ANALYSIS_KEY_PLACEHOLDER} placeholder.`,
     );
   }
   return {
     method,
     pathTemplate,
-    headers: optionalHeaders(template.headers, `${label} headers`),
+    headers,
   };
 }
 
@@ -1658,6 +1791,36 @@ function validateCandidateTradeExplorerTemplate(
   ) {
     throw planError(
       `Candidate mixed-load ${exportCsv ? "CSV" : "analysis"} template must execute a full-window finalized-trend-v1 Trade Explorer query.`,
+    );
+  }
+}
+
+function validateCandidateMarketAnalysisTemplate(
+  template: HttpRequestTemplate,
+): void {
+  const partitionTemplate =
+    template.headers?.["X-HS-Tracker-Cache-Partition"];
+  const request = renderRequestTemplate(template, "market-analysis-probe");
+  const requestUrl = resolveRequestUrl(
+    "https://candidate.invalid",
+    request.path,
+  );
+  const parameterNames = [...requestUrl.searchParams.keys()].sort();
+  if (
+    !requestUrl.pathname.startsWith("/api/v1/analyses/") ||
+    !requestUrl.pathname.endsWith("/market-analysis") ||
+    parameterNames.join(",") !== "exporter,market,product" ||
+    !/^\d{1,3}$/u.test(requestUrl.searchParams.get("exporter") ?? "") ||
+    !/^\d{6}$/u.test(requestUrl.searchParams.get("product") ?? "") ||
+    !/^\d{1,3}$/u.test(requestUrl.searchParams.get("market") ?? "") ||
+    placeholderOccurrences(template.pathTemplate) !== 0 ||
+    partitionTemplate === undefined ||
+    placeholderOccurrences(partitionTemplate) !== 1 ||
+    request.headers?.["X-HS-Tracker-Cache-Partition"] !==
+      "market-analysis-market-analysis-probe"
+  ) {
+    throw planError(
+      "Candidate mixed-load Market Analysis template must execute one immutable Market Analysis query and vary only X-HS-Tracker-Cache-Partition by analysis key.",
     );
   }
 }
@@ -1756,6 +1919,11 @@ export function parseMixedLoadPlan(value: unknown): MixedLoadPlan {
       "mixed-load plan routeTemplates.analysis",
       true,
     ),
+    marketAnalysis: validateRequestTemplate(
+      routeTemplatesInput.marketAnalysis,
+      "mixed-load plan routeTemplates.marketAnalysis",
+      true,
+    ),
     csv: validateRequestTemplate(
       routeTemplatesInput.csv,
       "mixed-load plan routeTemplates.csv",
@@ -1764,6 +1932,7 @@ export function parseMixedLoadPlan(value: unknown): MixedLoadPlan {
   };
   if (measurementClass === "candidate") {
     validateCandidateTradeExplorerTemplate(routeTemplates.analysis, false);
+    validateCandidateMarketAnalysisTemplate(routeTemplates.marketAnalysis);
     validateCandidateTradeExplorerTemplate(routeTemplates.csv, true);
   }
   const analysisHotKeys = stringArray(
@@ -1943,6 +2112,7 @@ function weightedRoundRobinSequence<Kind extends string>(
 
 type SessionSlot = {
   readonly routeKind: RouteKind;
+  readonly analysisOperation: AnalysisOperation | null;
   readonly analysisKey: string | null;
   readonly analysisKeyClass: AnalysisKeyClass | null;
 };
@@ -2012,15 +2182,30 @@ function buildSessionTemplate(
     ]),
     classOrder,
   );
+  const csvSourceAnalysisSlots = new Set<number>();
+  let latestAnalysisSlot: number | null = null;
+  for (const [slotIndex, routeKind] of routeSequence.entries()) {
+    if (routeKind === "analysis") {
+      latestAnalysisSlot = slotIndex;
+    } else if (routeKind === "csv") {
+      if (latestAnalysisSlot === null) {
+        throw scheduleError(
+          "A csv slot was scheduled before any analysis key was assigned in its session.",
+        );
+      }
+      csvSourceAnalysisSlots.add(latestAnalysisSlot);
+    }
+  }
 
   let hotKeyCursor = hotKeyCursorOffset;
   let analysisCursor = 0;
   let lastAnalysisKey: string | null = null;
   let lastAnalysisKeyClass: AnalysisKeyClass | null = null;
 
-  return routeSequence.map((routeKind) => {
+  return routeSequence.map((routeKind, slotIndex) => {
     if (routeKind === "analysis") {
-      const keyClass = analysisClassSequence[analysisCursor];
+      const analysisIndex = analysisCursor;
+      const keyClass = analysisClassSequence[analysisIndex];
       analysisCursor += 1;
       const key =
         keyClass === "hot"
@@ -2038,7 +2223,15 @@ function buildSessionTemplate(
       }
       lastAnalysisKey = key;
       lastAnalysisKeyClass = keyClass;
-      return { routeKind, analysisKey: key, analysisKeyClass: keyClass };
+      return {
+        routeKind,
+        analysisOperation:
+          csvSourceAnalysisSlots.has(slotIndex) || analysisIndex % 2 === 0
+            ? "trade-explorer"
+            : "market-analysis",
+        analysisKey: key,
+        analysisKeyClass: keyClass,
+      };
     }
     if (routeKind === "csv") {
       if (lastAnalysisKey === null || lastAnalysisKeyClass === null) {
@@ -2048,11 +2241,17 @@ function buildSessionTemplate(
       }
       return {
         routeKind,
+        analysisOperation: null,
         analysisKey: lastAnalysisKey,
         analysisKeyClass: lastAnalysisKeyClass,
       };
     }
-    return { routeKind, analysisKey: null, analysisKeyClass: null };
+    return {
+      routeKind,
+      analysisOperation: null,
+      analysisKey: null,
+      analysisKeyClass: null,
+    };
   });
 }
 
@@ -2062,6 +2261,7 @@ export type ScheduledRequest = {
   readonly sequence: number;
   readonly offsetSeconds: number;
   readonly routeKind: RouteKind;
+  readonly analysisOperation: AnalysisOperation | null;
   readonly analysisKey: string | null;
   readonly analysisKeyClass: AnalysisKeyClass | null;
 };
@@ -2115,6 +2315,7 @@ function buildCoordinatedDistinctKeyBursts(
           windowIndex * MINIMUM_COORDINATED_DISTINCT_KEYS + keyIndex,
         offsetSeconds,
         routeKind: "analysis",
+        analysisOperation: "market-analysis",
         analysisKey,
         analysisKeyClass: "distinct",
       });
@@ -2202,6 +2403,7 @@ export function buildMixedLoadSchedule(
       sequence: index,
       offsetSeconds: index / plan.sustainedRequestsPerSecond,
       routeKind: slot.routeKind,
+      analysisOperation: slot.analysisOperation,
       analysisKey: slot.analysisKey,
       analysisKeyClass: slot.analysisKeyClass,
     });
@@ -2254,6 +2456,7 @@ export function buildMixedLoadSchedule(
     sequence: index,
     offsetSeconds: index / plan.burstRequestsPerSecond,
     routeKind: slot.routeKind,
+    analysisOperation: slot.analysisOperation,
     analysisKey: slot.analysisKey,
     analysisKeyClass: slot.analysisKeyClass,
   }));
@@ -2292,6 +2495,40 @@ function renderPathTemplate(
     );
   }
   return pathTemplate.split(ANALYSIS_KEY_PLACEHOLDER).join(encodeURIComponent(analysisKey));
+}
+
+function renderRequestTemplate(
+  template: HttpRequestTemplate,
+  analysisKey: string | null,
+): HttpRequestCase {
+  const headers = template.headers ?? {};
+  const occurrences = requestTemplatePlaceholderOccurrences(
+    template.pathTemplate,
+    headers,
+  );
+  if (occurrences === 0 && analysisKey !== null) {
+    throw scheduleError(
+      `A route without an ${ANALYSIS_KEY_PLACEHOLDER} placeholder was scheduled with an analysis key.`,
+    );
+  }
+  if (occurrences > 0 && analysisKey === null) {
+    throw scheduleError(
+      `A route with an ${ANALYSIS_KEY_PLACEHOLDER} placeholder was scheduled without an analysis key.`,
+    );
+  }
+  const replacement =
+    analysisKey === null ? null : encodeURIComponent(analysisKey);
+  const render = (value: string): string =>
+    replacement === null
+      ? value
+      : value.split(ANALYSIS_KEY_PLACEHOLDER).join(replacement);
+  return {
+    method: template.method,
+    path: render(template.pathTemplate),
+    headers: Object.fromEntries(
+      Object.entries(headers).map(([name, value]) => [name, render(value)]),
+    ),
+  };
 }
 
 export type MixedLoadCacheViolation = {
@@ -2384,22 +2621,24 @@ async function primeHotAnalysisKeys(
   plan: MixedLoadPlan,
   executor: HttpBenchmarkExecutor,
 ): Promise<void> {
-  const template = plan.routeTemplates.analysis;
   for (const analysisKey of plan.analysisHotKeys) {
-    const outcome = await executor.execute({
-      method: template.method,
-      url: resolveRequestUrl(
-        plan.origin,
-        renderPathTemplate(template.pathTemplate, analysisKey),
-      ),
-      headers: template.headers ?? {},
-      timeoutMs: MIXED_LOAD_ROUTE_TIMEOUT_MS.analysis,
-    });
-    if (outcome.timedOut || !successfulStatus(outcome.status)) {
-      throw new HttpPerformanceRunnerError(
-        "HTTP_PERFORMANCE_HOT_KEY_PRIME_FAILED",
-        `Could not prime hot analysis key ${analysisKey}.`,
-      );
+    for (const [operation, template] of [
+      ["Trade Explorer", plan.routeTemplates.analysis],
+      ["Market Analysis", plan.routeTemplates.marketAnalysis],
+    ] as const) {
+      const request = renderRequestTemplate(template, analysisKey);
+      const outcome = await executor.execute({
+        method: request.method,
+        url: resolveRequestUrl(plan.origin, request.path),
+        headers: request.headers ?? {},
+        timeoutMs: MIXED_LOAD_ROUTE_TIMEOUT_MS.analysis,
+      });
+      if (outcome.timedOut || !successfulStatus(outcome.status)) {
+        throw new HttpPerformanceRunnerError(
+          "HTTP_PERFORMANCE_HOT_KEY_PRIME_FAILED",
+          `Could not prime ${operation} hot analysis key ${analysisKey}.`,
+        );
+      }
     }
   }
 }
@@ -2434,9 +2673,15 @@ export async function runMixedLoad(
     const maximumBenchmark = attestation.tradeExplorerBenchmarkQueries.find(
       ({ role }) => role === "maximum-row",
     );
-    if (maximumBenchmark === undefined) {
+    const maximumCandidateBenchmark = attestation.benchmarkQueries.find(
+      ({ role }) => role === "maximum-row",
+    );
+    if (
+      maximumBenchmark === undefined ||
+      maximumCandidateBenchmark === undefined
+    ) {
       throw planError(
-        "The deployed artifact does not attest a maximum-row Trade Explorer benchmark query.",
+        "The deployed artifact does not attest maximum-row Candidate Market and Trade Explorer benchmark queries.",
       );
     }
     assertTradeExplorerRequestMatchesBenchmark(
@@ -2464,6 +2709,16 @@ export async function runMixedLoad(
       },
       maximumBenchmark,
       "mixed-load maximum-row CSV template",
+    );
+    const marketAnalysisRequest = renderRequestTemplate(
+      plan.routeTemplates.marketAnalysis,
+      plan.maximumRowAnalysisKey,
+    );
+    assertRequestMatchesBenchmark(
+      plan.origin,
+      marketAnalysisRequest,
+      maximumCandidateBenchmark,
+      "mixed-load maximum-row Market Analysis template",
     );
   }
 
@@ -2498,13 +2753,17 @@ export async function runMixedLoad(
   const executeScheduledRequest = async (
     request: ScheduledRequest,
   ): Promise<void> => {
-    const template = plan.routeTemplates[request.routeKind];
-    const path = renderPathTemplate(template.pathTemplate, request.analysisKey);
-    const url = resolveRequestUrl(plan.origin, path);
+    const template =
+      request.routeKind === "analysis" &&
+      request.analysisOperation === "market-analysis"
+        ? plan.routeTemplates.marketAnalysis
+        : plan.routeTemplates[request.routeKind];
+    const rendered = renderRequestTemplate(template, request.analysisKey);
+    const url = resolveRequestUrl(plan.origin, rendered.path);
     const outcome = await executor.execute({
-      method: template.method,
+      method: rendered.method,
       url,
-      headers: template.headers ?? {},
+      headers: rendered.headers ?? {},
       timeoutMs: MIXED_LOAD_ROUTE_TIMEOUT_MS[request.routeKind],
     });
 
@@ -2623,6 +2882,15 @@ export async function runMixedLoad(
       plan.measurementClass === "candidate" ||
       (plan.routeTemplates.analysis.pathTemplate.includes("/trade-explorer") &&
         plan.routeTemplates.csv.pathTemplate.includes("/trade-explorer.csv")),
+    includesMarketAnalysis: [
+      ...schedule.sustained,
+      ...schedule.coordinated,
+      ...schedule.burst,
+    ].some(
+      (request) =>
+        request.routeKind === "analysis" &&
+        request.analysisOperation === "market-analysis",
+    ),
     cacheStatesVerified: cacheViolations.length === 0,
     queueRejections,
     unretryableErrors,

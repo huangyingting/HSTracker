@@ -57,6 +57,10 @@ describe("runtime identity attestation", () => {
       schemaVersion: "runtime-identity-attestation-v1",
       origin: "https://candidate.example",
       identity,
+      capabilities: {
+        recentTradeMomentum: true,
+        opportunityDiscovery: false,
+      },
       health: { path: "/healthz" },
       currentManifest: {
         path: "/api/v1/analyses/current",
@@ -172,6 +176,10 @@ function identityFetch(
           productSearchBuildId: identity.productSearchBuildId,
           benchmarkQueries: queries,
           tradeExplorerBenchmarkQueries,
+          recommendation: {
+            recentTradeMomentum: { recipe: "recent-trade-momentum-v1" },
+            opportunityDiscovery: null,
+          },
           source: {
             baciRelease: identity.baciRelease,
             artifact: { sha256: identity.artifactSha256 },
