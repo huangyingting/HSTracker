@@ -359,7 +359,8 @@ a {
 }
 
 .locale-switcher button {
-  min-height: 32px;
+  min-width: 44px;
+  min-height: 45px;
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
@@ -894,7 +895,8 @@ a {
 .portfolio-header button,
 .portfolio-product-tools button,
 .portfolio-filter-bar button {
-  min-height: 40px;
+  min-width: 44px;
+  min-height: 45px;
   padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-pill);
@@ -1276,8 +1278,13 @@ a {
 }
 
 .economy-refresh-button {
+  min-width: 44px;
+  min-height: 45px;
   margin-top: 9px;
-  padding: 0;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-bottom: 1px solid currentColor;
   background: transparent;
@@ -1405,8 +1412,6 @@ a {
 /* These buttons live inside overflow-clipped cards, so an inset outline is
    used to keep the focus indicator fully visible (a glow ring would clip). */
 .candidate-ranking button:focus-visible,
-.evidence-actions button:focus-visible,
-.candidate-comparison button:focus-visible,
 .source-scope-summary button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -3px;
@@ -1456,7 +1461,8 @@ a {
 }
 
 .analysis-state button {
-  min-height: 42px;
+  min-width: 44px;
+  min-height: 45px;
   margin-top: 16px;
   padding: 0 18px;
   border: 0;
@@ -1915,7 +1921,8 @@ a {
 }
 
 .source-scope-summary button {
-  min-height: 38px;
+  min-width: 44px;
+  min-height: 45px;
   padding: 0 15px;
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: var(--radius-pill);
@@ -2841,99 +2848,6 @@ tr[data-selected="true"] td {
   opacity: 0.55;
 }
 
-.opportunity-axis-grid {
-  margin: 20px 0 24px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.opportunity-axis-grid > div {
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(var(--ink-rgb), 0.03);
-}
-
-.opportunity-axis-grid dt {
-  color: var(--muted);
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.opportunity-axis-grid dd {
-  margin: 8px 0 0;
-  color: var(--accent);
-  font-size: 1.25rem;
-  font-weight: 900;
-}
-
-.opportunity-years {
-  margin-top: 22px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(var(--ink-rgb), 0.03);
-}
-
-.opportunity-years h4 {
-  margin: 0 0 12px;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 500;
-}
-
-.opportunity-years table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.68rem;
-}
-
-.opportunity-years th,
-.opportunity-years td {
-  padding: 9px 6px;
-  border-top: 1px solid var(--line);
-  text-align: left;
-}
-
-.opportunity-adjacent {
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.opportunity-adjacent p {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--accent);
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.opportunity-adjacent a {
-  min-height: 42px;
-  padding: 0 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
-  color: var(--ink);
-  font-size: 0.66rem;
-  font-weight: 900;
-  text-align: center;
-  text-decoration: none;
-}
-
-.opportunity-adjacent a:hover {
-  border-color: var(--ink);
-}
-
 .opportunity-boundaries {
   margin-top: 24px;
   padding: 24px;
@@ -3631,146 +3545,6 @@ tr[data-selected="true"] td {
   font-weight: 900;
 }
 
-.evidence-actions {
-  margin-top: 22px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.evidence-actions button,
-.candidate-comparison button {
-  min-height: 42px;
-  padding: 0 16px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.66rem;
-  font-weight: 900;
-  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
-}
-
-.evidence-actions button:hover:not(:disabled),
-.candidate-comparison button:hover:not(:disabled) {
-  border-color: var(--ink);
-}
-
-.evidence-actions button[aria-pressed="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper-light);
-}
-
-.evidence-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
-.candidate-comparison {
-  margin-top: 24px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-.candidate-comparison[data-active="true"] {
-  position: fixed;
-  z-index: 20;
-  bottom: 16px;
-  left: 50%;
-  width: min(1424px, calc(100vw - 96px));
-  box-shadow: var(--shadow-lg);
-  transform: translateX(-50%);
-}
-
-.comparison-heading {
-  padding: 18px 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-bottom: 1px solid var(--line);
-  background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
-  color: #fff;
-}
-
-.comparison-heading p {
-  margin: 0 0 5px;
-  color: var(--signal);
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.comparison-heading h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 500;
-}
-
-.comparison-heading > span {
-  color: rgba(250, 248, 242, 0.72);
-  font-size: 0.68rem;
-  text-align: right;
-}
-
-.comparison-table-wrap {
-  max-height: min(34vh, 320px);
-  overflow-x: auto;
-  overflow-y: auto;
-}
-
-.candidate-comparison table {
-  width: 100%;
-  min-width: 1180px;
-  border-collapse: collapse;
-  font-size: 0.66rem;
-}
-
-.candidate-comparison th,
-.candidate-comparison td {
-  padding: 13px 12px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-
-.candidate-comparison tr:last-child > * {
-  border-bottom: 0;
-}
-
-.candidate-comparison tr > *:last-child {
-  border-right: 0;
-}
-
-.candidate-comparison thead th {
-  color: var(--muted);
-  font-size: 0.56rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.candidate-comparison tbody th {
-  min-width: 180px;
-}
-
-.candidate-comparison tbody th > * {
-  display: block;
-}
-
-.candidate-comparison tbody th small {
-  margin-top: 5px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
 .evidence-source,
 .workspace-disclaimer {
   color: var(--muted);
@@ -4174,11 +3948,6 @@ tr[data-selected="true"] td {
     position: static;
   }
 
-  .opportunity-axis-grid,
-  .opportunity-adjacent {
-    grid-template-columns: 1fr;
-  }
-
   .analysis-context {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -4201,9 +3970,6 @@ tr[data-selected="true"] td {
     grid-row: 1 / span 2;
   }
 
-  .candidate-comparison[data-active="true"] {
-    width: calc(100vw - 56px);
-  }
 }
 
 @media (max-width: 620px) {
@@ -4573,8 +4339,7 @@ tr[data-selected="true"] td {
 
   .confidence-heading,
   .confidence-coverage,
-  .quantity-completeness,
-  .comparison-heading {
+  .quantity-completeness {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -4583,17 +4348,8 @@ tr[data-selected="true"] td {
     text-align: left;
   }
 
-  .candidate-comparison[data-active="true"] {
-    bottom: 10px;
-    width: calc(100vw - 40px);
-  }
-
   .provisional-evidence dl {
     grid-template-columns: 1fr;
-  }
-
-  .comparison-heading > span {
-    text-align: left;
   }
 
   .boundary-card {

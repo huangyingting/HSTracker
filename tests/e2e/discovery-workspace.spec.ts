@@ -385,9 +385,13 @@ test("a stale analysis build can refresh the complete result", async ({
     page.getByRole("list", { name: "Candidate Markets" }),
   ).toHaveCount(0);
 
-  await workspace
-    .getByRole("button", { name: "Refresh with current evidence" })
-    .click();
+  const refreshCurrentEvidence = workspace.getByRole("button", {
+    name: "Refresh with current evidence",
+  });
+  const recoveryActionBox = await refreshCurrentEvidence.boundingBox();
+  expect(recoveryActionBox?.width).toBeGreaterThanOrEqual(44);
+  expect(recoveryActionBox?.height).toBeGreaterThanOrEqual(44);
+  await refreshCurrentEvidence.click();
 
   await expect(
     page.getByRole("list", { name: "Candidate Markets" }).getByRole("button"),
@@ -636,9 +640,13 @@ test("a retired economy directory offers a current-analysis refresh", async ({
       "This economy directory has retired. Refresh the current analysis.",
     ),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Refresh current analysis" }),
-  ).toBeVisible();
+  const refreshCurrentAnalysis = page.getByRole("button", {
+    name: "Refresh current analysis",
+  });
+  await expect(refreshCurrentAnalysis).toBeVisible();
+  const catalogRefreshBox = await refreshCurrentAnalysis.boundingBox();
+  expect(catalogRefreshBox?.width).toBeGreaterThanOrEqual(44);
+  expect(catalogRefreshBox?.height).toBeGreaterThanOrEqual(44);
 });
 
 test("an Export Market Analyst can inspect localized Chinese evidence", async ({

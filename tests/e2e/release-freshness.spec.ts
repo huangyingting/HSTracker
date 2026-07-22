@@ -30,7 +30,11 @@ test("an Export Market Analyst can inspect the exact current source scope", asyn
     scope.locator(".source-scope-facts").getByText("V202601", { exact: true }),
   ).toBeVisible();
   await expect(scope.getByText("Latest known BACI release")).toBeVisible();
-  await scope.getByRole("button", { name: "Source details" }).click();
+  const sourceDetails = scope.getByRole("button", { name: "Source details" });
+  const sourceDetailsBox = await sourceDetails.boundingBox();
+  expect(sourceDetailsBox?.width).toBeGreaterThanOrEqual(44);
+  expect(sourceDetailsBox?.height).toBeGreaterThanOrEqual(44);
+  await sourceDetails.click();
 
   const details = page.getByRole("region", { name: "Source details" });
   await expect(details).toContainText(

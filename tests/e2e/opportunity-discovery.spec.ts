@@ -216,9 +216,12 @@ test("opportunity copy is honest and context survives filter, history, copied li
       .getByRole("list", { name: "Market Investigation Candidates" })
       .getByRole("listitem"),
   ).toHaveCount(4);
-
   const requestsBeforeLocale = opportunityRequests;
-  await page.getByRole("button", { name: "简体中文" }).click();
+  const localeSwitch = page.getByRole("button", { name: "简体中文" });
+  const localeSwitchBox = await localeSwitch.boundingBox();
+  expect(localeSwitchBox?.width).toBeGreaterThanOrEqual(44);
+  expect(localeSwitchBox?.height).toBeGreaterThanOrEqual(44);
+  await localeSwitch.click();
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1&locale=zh-Hans&exporter=156.*build=acceptance-fixtures-v1&pkg=dataset-package-v1-[0-9a-f]{64}$/u,
   );

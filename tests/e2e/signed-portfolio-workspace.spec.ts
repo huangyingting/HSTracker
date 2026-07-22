@@ -80,9 +80,13 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     "Investigation Priority 66/100",
   );
   expect(opportunityRequests).toBe(1);
-  await page
-    .getByRole("button", { name: "Show complete public ranking" })
-    .click();
+  const showCompleteRanking = page.getByRole("button", {
+    name: "Show complete public ranking",
+  });
+  const portfolioControlBox = await showCompleteRanking.boundingBox();
+  expect(portfolioControlBox?.width).toBeGreaterThanOrEqual(44);
+  expect(portfolioControlBox?.height).toBeGreaterThanOrEqual(44);
+  await showCompleteRanking.click();
   await expect(candidates).toHaveCount(4);
   const scope = portfolio.getByRole("region", {
     name: "Workspace scope",
