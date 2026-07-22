@@ -148,17 +148,21 @@ function createRow(
     page.datasetPackageIdentity,
     page.analysisBuildId,
     page.exporter.code,
-    human(page.exporter.name, "exporter_name_en", escapedColumns),
+    protectedHumanCell(page.exporter.name, "exporter_name_en", escapedColumns),
     page.exporter.iso3 ?? "",
     candidate.product.hsRevision,
     candidate.product.code,
-    human(
+    protectedHumanCell(
       candidate.product.descriptionEn,
       "product_description_en",
       escapedColumns,
     ),
     candidate.market.code,
-    human(candidate.market.name, "market_name_en", escapedColumns),
+    protectedHumanCell(
+      candidate.market.name,
+      "market_name_en",
+      escapedColumns,
+    ),
     candidate.market.iso3 ?? "",
     String(candidate.investigationPriority.display),
     String(candidate.marketAttractiveness.display),
@@ -186,7 +190,7 @@ function createRow(
     provenance.artifactSchemaVersion,
     provenance.artifactSha256,
     provenance.valueUnit,
-    human(
+    protectedHumanCell(
       page.discoveryDisclaimer,
       "discovery_disclaimer",
       escapedColumns,
@@ -194,7 +198,7 @@ function createRow(
   ];
 }
 
-function human(
+function protectedHumanCell(
   value: string,
   column: Column,
   escapedColumns: Set<Column>,

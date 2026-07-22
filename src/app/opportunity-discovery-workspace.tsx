@@ -996,16 +996,9 @@ export function OpportunityDiscoveryWorkspace({
 
               </div>
 
-              <OpportunityBoundaries page={feed} locale={locale} />
-              <OpportunityExportAction
-                page={feed}
-                candidateKeys={null}
-                scope="cross-product"
-                locale={locale}
-              />
             </>
           ) : null}
-          {status === "empty" && feed !== null ? (
+          {(status === "success" || status === "empty") && feed !== null ? (
             <>
               <OpportunityBoundaries page={feed} locale={locale} />
               <OpportunityExportAction
