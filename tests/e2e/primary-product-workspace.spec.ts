@@ -26,6 +26,19 @@ test("the bare product shell leads with Scope instead of recipe selection", asyn
   await expect(
     page.getByRole("navigation", { name: "Choose an analysis task" }),
   ).toHaveCount(0);
+  const productScope = page.getByRole("group", { name: "Product scope" });
+  await expect(productScope.getByRole("button")).toHaveText([
+    "Across published products",
+    "One confirmed HS Product",
+  ]);
+  await expect(
+    productScope.getByRole("button", { name: "My confirmed portfolio" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "Sign in to use a confirmed portfolio",
+    }),
+  ).toBeVisible();
 
   const advancedTools = page.getByRole("group", { name: "Advanced tools" });
   await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
@@ -34,6 +47,10 @@ test("the bare product shell leads with Scope instead of recipe selection", asyn
     "Supplier Competition",
     "Trade Explorer",
   ]);
+  await productScope
+    .getByRole("button", { name: "One confirmed HS Product" })
+    .click();
+  await expect(advancedTools.getByRole("link")).toHaveCount(0);
 });
 
 test("migration telemetry reports anonymous route families only", async ({
@@ -84,6 +101,29 @@ test("migration telemetry reports anonymous route families only", async ({
         (headers) => headers.cookie === undefined && headers.referer === undefined,
     ),
   ).toBe(true);
+});
+
+test("an anonymous portfolio URL normalizes to the public workspace with a sign-in affordance", async ({
+  page,
+}) => {
+  await page.goto("/?recipe=opportunity-discovery-v1&portfolio=filter");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Start with the exporter, then browse the public candidate feed.",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Sign in to use a confirmed portfolio",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Restore your exporter and product portfolio.",
+    }),
+  ).toHaveCount(0);
+  await expect(page).not.toHaveURL(/portfolio=filter/u);
 });
 
 test("the compact journey and Advanced tools remain touch-ready on mobile", async ({
@@ -147,10 +187,36 @@ test("header Advanced tools preserve the selected Market Analysis context and Ba
   await expect(
     page.getByRole("combobox", { name: "Importing economy" }),
   ).toHaveValue(/Netherlands/u);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Export Market Workspace journey" })
+      .locator("[aria-current=\"step\"]"),
+  ).toHaveCount(0);
   await page.goBack();
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
+});
+
+test("header Advanced tools preserve a mismatched source package so every destination fails closed", async ({
+  page,
+}) => {
+  const mismatchedPackage = `dataset-package-v1-${"0".repeat(64)}`;
+  await page.goto(
+    `/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=528&build=acceptance-fixtures-v1&pkg=${mismatchedPackage}`,
+  );
+
+  const advancedTools = page.getByRole("group", { name: "Advanced tools" });
+  await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
+  const tradeTrend = advancedTools.getByRole("link", { name: "Trade Trend" });
+  await expect(tradeTrend).toHaveAttribute(
+    "href",
+    new RegExp(`build=acceptance-fixtures-v1.*pkg=${mismatchedPackage}`, "u"),
+  );
+  await tradeTrend.click();
+  await expect(page.locator(".analysis-error")).toContainText(
+    "This analysis build has retired.",
+  );
 });
 
 test("the primary journey advances from Scope through Opportunities to Market Analysis", async ({

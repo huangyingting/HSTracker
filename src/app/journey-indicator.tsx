@@ -52,13 +52,13 @@ export function JourneyIndicator({
   );
 }
 
-function journeyStage(context: TradeAnalysisContext): JourneyStage {
+function journeyStage(context: TradeAnalysisContext): JourneyStage | null {
   const routeFamily = workspaceRouteFamily(context);
   if (routeFamily === "primary-market-analysis") {
     return "market-analysis";
   }
-  if (routeFamily !== "primary-scope") {
+  if (routeFamily === "primary-opportunities") {
     return "opportunities";
   }
-  return "scope";
+  return routeFamily === "primary-scope" ? "scope" : null;
 }

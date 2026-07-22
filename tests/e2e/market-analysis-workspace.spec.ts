@@ -348,9 +348,20 @@ test("Explore Further links preserve market and product context, and Validation 
     "href",
     /recipe=supplier-competition-v1.*importer=528.*product=010121/u,
   );
-  await expect(
-    exploreFurther.getByRole("link", { name: "Trade Explorer" }),
-  ).toHaveAttribute("href", /recipe=trade-explorer-v1.*hsProduct=010121/u);
+  const tradeExplorerHref = await exploreFurther
+    .getByRole("link", { name: "Trade Explorer" })
+    .getAttribute("href");
+  expect(tradeExplorerHref).not.toBeNull();
+  const tradeExplorerContext = new URL(
+    tradeExplorerHref ?? "",
+    "http://localhost",
+  ).searchParams;
+  expect(tradeExplorerContext.get("recipe")).toBe("trade-explorer-v1");
+  expect(tradeExplorerContext.get("shape")).toBe("finalized-trend-v1");
+  expect(tradeExplorerContext.get("measures")).toBe("TRADE_VALUE_USD");
+  expect(tradeExplorerContext.get("exportEconomy")).toBe("156");
+  expect(tradeExplorerContext.get("importEconomy")).toBe("528");
+  expect(tradeExplorerContext.get("hsProduct")).toBe("010121");
 
   const validationPlan = page.locator("#validation-plan");
   const categoryHeadings = await validationPlan

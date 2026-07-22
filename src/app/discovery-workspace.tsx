@@ -1103,11 +1103,13 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                           recipe: "trade-explorer",
                           locale,
                           pin: tradeExplorerNavigationPin,
-                          shape: "product-mix-v1",
-                          measures: [],
+                          shape: "finalized-trend-v1",
+                          measures: ["TRADE_VALUE_USD"],
                           years: [],
-                          exportEconomy: [],
-                          importEconomy: [],
+                          exportEconomy: [
+                            loadedCandidateResult.result.query.exporter.code,
+                          ],
+                          importEconomy: [evidenceCandidate.economy.code],
                           hsProduct: [
                             loadedCandidateResult.result.query.product.code,
                           ],

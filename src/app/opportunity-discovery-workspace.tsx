@@ -44,7 +44,6 @@ import {
   resolvePinnedContext,
   serializeTradeAnalysisContext,
   withPin,
-  withProductCode,
   withRecipe,
   type TradeAnalysisContext,
 } from "./trade-analysis-context";
@@ -80,6 +79,7 @@ const copy = {
     refresh: "Refresh with current evidence",
     retry: "Retry candidate feed",
     allProducts: "All HS12 products",
+    exactProductPending: "Confirm one HS12 Product",
     showAllProducts: "Show all products",
     feedTitle: "Market Investigation Candidates",
     feedCount: "candidate rows in this exporter cohort",
@@ -122,6 +122,7 @@ const copy = {
     refresh: "使用当前证据刷新",
     retry: "重试候选项列表",
     allProducts: "全部 HS12 产品",
+    exactProductPending: "确认一个 HS12 产品",
     showAllProducts: "显示全部产品",
     feedTitle: "市场调查候选项",
     feedCount: "个出口经济体队列候选行",
@@ -164,8 +165,14 @@ type FeedStatus =
 
 export function OpportunityDiscoveryWorkspace({
   locale,
+  scopeMode,
+  onScopeModeChange,
+  onExactProductConfirmed,
 }: {
   locale: WorkspaceLocale;
+  scopeMode: "all" | "exact";
+  onScopeModeChange: (mode: "all" | "exact") => void;
+  onExactProductConfirmed: () => void;
 }) {
   const messages = copy[locale];
   const requestSequence = useRef(0);
@@ -266,6 +273,9 @@ export function OpportunityDiscoveryWorkspace({
     (nextProduct: ProductSearchProduct | null, source: SelectionSource) => {
       setProduct(nextProduct);
       if (source === "explicit") {
+        if (nextProduct !== null) {
+          onExactProductConfirmed();
+        }
         scopeSubmissionRequired.current = true;
         if (nextProduct === null) {
           prepareForExplicitContextChange();
@@ -275,7 +285,7 @@ export function OpportunityDiscoveryWorkspace({
         }
       }
     },
-    [prepareForExplicitContextChange, resetFeed],
+    [onExactProductConfirmed, prepareForExplicitContextChange, resetFeed],
   );
 
   const loadFeed = useCallback(
@@ -284,7 +294,11 @@ export function OpportunityDiscoveryWorkspace({
       refreshedManifest?: CurrentAnalysisManifest,
     ) => {
       const manifest = refreshedManifest ?? currentManifest;
-      if (exporter === null || manifest === null) {
+      if (
+        exporter === null ||
+        manifest === null ||
+        (scopeMode === "exact" && product === null)
+      ) {
         return;
       }
       if (manifest.recommendation.opportunityDiscovery === null) {
@@ -418,16 +432,23 @@ export function OpportunityDiscoveryWorkspace({
         }
       }
     },
-    [currentManifest, exporter, product],
+    [currentManifest, exporter, product, scopeMode],
   );
 
   const discoverScope = useCallback(() => {
-    if (exporter === null || currentManifest === null) {
+    if (
+      exporter === null ||
+      currentManifest === null ||
+      (scopeMode === "exact" && product === null)
+    ) {
       return;
     }
     scopeSubmissionRequired.current = false;
-    if (product === null) {
+    if (scopeMode === "all") {
       void loadFeed();
+      return;
+    }
+    if (product === null) {
       return;
     }
 
@@ -469,12 +490,13 @@ export function OpportunityDiscoveryWorkspace({
     window.dispatchEvent(
       new PopStateEvent("popstate", { state: window.history.state }),
     );
-  }, [currentManifest, exporter, loadFeed, product, resetFeed]);
+  }, [currentManifest, exporter, loadFeed, product, resetFeed, scopeMode]);
 
   useEffect(() => {
     if (
       currentManifest === null ||
       exporter === null ||
+      (scopeMode === "exact" && product === null) ||
       retiredBuildRefreshPending.current ||
       scopeSubmissionRequired.current
     ) {
@@ -511,7 +533,7 @@ export function OpportunityDiscoveryWorkspace({
     }
     const timeout = window.setTimeout(() => void loadFeed(), 0);
     return () => window.clearTimeout(timeout);
-  }, [currentManifest, exporter, loadFeed, product]);
+  }, [currentManifest, exporter, loadFeed, product, scopeMode]);
 
   const candidateMarketPin =
     currentManifest === null || feed === null
@@ -589,16 +611,7 @@ export function OpportunityDiscoveryWorkspace({
   }
 
   function clearProductProjection() {
-    scopeSubmissionRequired.current = true;
-    prepareForExplicitContextChange();
-    setProduct(null);
-    const context = withProductCode(
-      parseTradeAnalysisContext(window.location.href),
-      null,
-    );
-    const url = serializeTradeAnalysisContext(window.location.href, context);
-    window.history.replaceState(null, "", url);
-    setControlRestorationKey((current) => current + 1);
+    onScopeModeChange("all");
   }
 
   async function loadNextPage() {
@@ -739,8 +752,10 @@ export function OpportunityDiscoveryWorkspace({
             <div className="opportunity-scope-actions">
               <div className="opportunity-scope-product">
                 <strong>
-                  {product === null
+                  {scopeMode === "all"
                     ? messages.allProducts
+                    : product === null
+                      ? messages.exactProductPending
                     : `${product.hsRevision} ${product.code}`}
                 </strong>
                 {product === null ? null : (
@@ -752,11 +767,11 @@ export function OpportunityDiscoveryWorkspace({
                   </>
                 )}
               </div>
-              {product === null ? null : (
+              {scopeMode === "exact" && product !== null ? (
                 <button type="button" onClick={clearProductProjection}>
                   {messages.showAllProducts}
                 </button>
-              )}
+              ) : null}
             </div>
             <div className="analysis-submit">
               <button
@@ -765,13 +780,14 @@ export function OpportunityDiscoveryWorkspace({
                 aria-describedby="opportunity-discovery-requirement"
                 disabled={
                   exporter === null ||
+                  (scopeMode === "exact" && product === null) ||
                   status === "loading" ||
                   status === "refreshing" ||
                   status === "stale"
                 }
                 onClick={discoverScope}
               >
-                {product === null
+                {scopeMode === "all"
                   ? messages.discoverAll
                   : messages.discoverProduct}
               </button>
@@ -780,12 +796,13 @@ export function OpportunityDiscoveryWorkspace({
               </small>
             </div>
           </div>
-          {exporter === null ? null : (
+          {exporter === null ||
+          (scopeMode === "exact" && product === null) ? null : (
             <WorkspaceScope
               locale={locale}
               exporter={exporter}
               product={
-                product === null
+                scopeMode === "all" || product === null
                   ? { mode: "all" }
                   : {
                       mode: "exact",

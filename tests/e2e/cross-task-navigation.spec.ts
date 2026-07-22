@@ -34,8 +34,8 @@ test("a direct task link renders the matching server snapshot before hydration",
   await expect(
     serverOnlyPage
       .getByRole("navigation", { name: "Export Market Workspace journey" })
-      .getByText("Opportunities", { exact: true }),
-  ).toHaveAttribute("aria-current", "step");
+      .locator("[aria-current=\"step\"]"),
+  ).toHaveCount(0);
   await serverOnlyPage.close();
 });
 

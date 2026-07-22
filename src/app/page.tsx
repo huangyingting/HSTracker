@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
-import { AccountWorkspace } from "./account-workspace";
+import {
+  loadAccountSession,
+  signOutAccount,
+  type AccountSessionPayload,
+} from "./account-client";
 import { AdvancedToolsMenu } from "./advanced-tools-menu";
 import { ExportMarketWorkspace } from "./export-market-workspace";
 import { JourneyIndicator } from "./journey-indicator";
@@ -22,6 +26,7 @@ const copy = {
     brandTagline: "Public trade intelligence",
     publicWorkspace: "Public workspace",
     signedWorkspace: "Signed-in workspace",
+    signOut: "Sign out",
     eyebrow: "Export Market Workspace",
     heading: "Analyze export markets with public trade evidence.",
     lede: "Set an exporter and product scope, compare Candidate Markets, then open one Market Analysis.",
@@ -58,6 +63,7 @@ const copy = {
     brandTagline: "公共贸易洞察",
     publicWorkspace: "公共工作区",
     signedWorkspace: "已登录工作区",
+    signOut: "退出登录",
     eyebrow: "出口市场工作区",
     heading: "使用公共贸易证据分析出口市场。",
     lede: "设置出口经济体和产品范围、比较候选市场，然后打开单一市场分析。",
@@ -116,12 +122,37 @@ export default function Home({
   const initialContext = contextFromSearchParams(use(searchParams));
   const [context, setContext] = useState(initialContext);
   const [locale, setLocale] = useState<Locale>(initialContext.locale);
-  const [signedIn, setSignedIn] = useState(false);
+  const [accountSession, setAccountSession] =
+    useState<AccountSessionPayload | null>(null);
+  const [accountSessionStatus, setAccountSessionStatus] = useState<
+    "loading" | "ready"
+  >("loading");
   const messages = copy[locale];
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadAccountSession()
+      .then((session) => {
+        if (!cancelled) {
+          setAccountSession(session);
+          setAccountSessionStatus("ready");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error("Account session restore failed", error);
+          setAccountSession(null);
+          setAccountSessionStatus("ready");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const restoreContext = () => {
@@ -157,6 +188,26 @@ export default function Home({
     setContext(context);
   }
 
+  async function signOut() {
+    try {
+      await signOutAccount();
+      const context = parseTradeAnalysisContext(window.location.href);
+      if (context.recipe === "opportunity-discovery") {
+        const nextHref = serializeTradeAnalysisContext(window.location.href, {
+          ...context,
+          portfolioFilter: false,
+        });
+        window.history.replaceState(null, "", nextHref);
+        window.dispatchEvent(
+          new PopStateEvent("popstate", { state: window.history.state }),
+        );
+      }
+      setAccountSession(null);
+    } catch (error) {
+      console.error("Account sign out failed", error);
+    }
+  }
+
   return (
     <main className="site-shell">
       <a className="skip-link" href="#discovery">
@@ -176,9 +227,24 @@ export default function Home({
         <div className="header-tools">
           <p className="public-status">
             <span aria-hidden="true" />
-            {signedIn ? messages.signedWorkspace : messages.publicWorkspace}
+            {accountSession === null
+              ? messages.publicWorkspace
+              : messages.signedWorkspace}
           </p>
-          <AdvancedToolsMenu context={context} locale={locale} />
+          {accountSession === null ? null : (
+            <button
+              className="header-sign-out"
+              type="button"
+              onClick={() => void signOut()}
+            >
+              {messages.signOut}
+            </button>
+          )}
+          <AdvancedToolsMenu
+            key={serializeTradeAnalysisContext("/", context)}
+            context={context}
+            locale={locale}
+          />
           <ThemeToggle locale={locale} />
           <div
             className="locale-switcher"
@@ -252,16 +318,13 @@ export default function Home({
         <JourneyIndicator context={context} locale={locale} />
 
         <ExportMarketWorkspace
-          initialRecipe={initialContext.recipe}
+          initialContext={initialContext}
           locale={locale}
+          accountSession={accountSession}
+          accountSessionStatus={accountSessionStatus}
+          onAccountSessionChange={setAccountSession}
         />
       </section>
-
-      <AccountWorkspace
-        locale={locale}
-        onSignedInChange={setSignedIn}
-        onAnonymousFallback={() => setSignedIn(false)}
-      />
 
       <section className="reading-guide" aria-labelledby="guide-title">
         <div className="guide-heading">

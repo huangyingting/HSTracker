@@ -92,10 +92,22 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   expect(portfolioControlBox?.width).toBeGreaterThanOrEqual(44);
   expect(portfolioControlBox?.height).toBeGreaterThanOrEqual(44);
   await showCompleteRanking.click();
-  await expect(candidates).toHaveCount(4);
+  await expect(
+    page
+      .getByRole("list", { name: "Market Investigation Candidates" })
+      .getByRole("listitem"),
+  ).toHaveCount(4);
+  await page
+    .getByRole("group", { name: "Product scope" })
+    .getByRole("button", { name: "My confirmed portfolio" })
+    .click();
+  await expect(candidates).toHaveCount(2);
   const scope = portfolio.getByRole("region", {
     name: "Workspace scope",
   });
+  await expect(
+    page.getByRole("region", { name: "Workspace scope" }),
+  ).toHaveCount(1);
   await expect(scope).toContainText("Current");
   await expect(scope).toContainText("Finalized window");
   await expect(scope).toContainText("2019–2023");
@@ -103,8 +115,6 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(scope).toContainText("2024");
   await expect(scope).toContainText("Latest known BACI release");
   await expect(scope).toContainText("Confirmed portfolio · 010121");
-  await page.getByRole("button", { name: "Show portfolio filter" }).click();
-  await expect(candidates).toHaveCount(2);
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1.*exporter=156.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
@@ -173,6 +183,9 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(candidates).toHaveCount(0);
   expect(opportunityRequests).toBe(requestsBeforeRemove);
 
+  await page
+    .getByRole("button", { name: "Show complete public ranking" })
+    .click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("No account required")).toBeVisible();
   await expect(
@@ -364,9 +377,8 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
     .getByRole("button", { name: "Discover portfolio opportunities" })
     .click();
 
-  await page.goto("/?recipe=opportunity-discovery-v1&exporter=156");
   await expect(page).toHaveURL(
-    /recipe=opportunity-discovery-v1.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
+    /recipe=opportunity-discovery-v1.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
   const retiredUrl = new URL(page.url());
   retiredUrl.searchParams.set("build", "retired-analysis-v1");
@@ -393,7 +405,7 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
     portfolio
       .getByRole("list", { name: "Portfolio Opportunity Candidates" })
       .getByRole("listitem"),
-  ).toHaveCount(4);
+  ).toHaveCount(2);
 
   await page.goBack();
   await expect(page).toHaveURL(/build=retired-analysis-v1/u);
@@ -407,6 +419,9 @@ async function createPortfolioAccount(
   email: string,
   password: string,
 ) {
+  await page
+    .getByRole("button", { name: "Sign in to use a confirmed portfolio" })
+    .click();
   await page.getByRole("button", { name: "Create account" }).click();
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password").fill(password);

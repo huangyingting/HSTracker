@@ -7,12 +7,14 @@ import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
 import {
   parseTradeAnalysisContext,
   pinFromDeploymentWindow,
+  resolvePinnedContext,
   serializeTradeAnalysisContext,
   withAdvancedToolRecipe,
   type AdvancedToolRecipe,
   type TradeAnalysisContext,
   type TradeAnalysisLocale,
 } from "./trade-analysis-context";
+import { TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT } from "./trade-analysis-context-events";
 
 const copy = {
   en: {
@@ -60,6 +62,27 @@ export function AdvancedToolsMenu({
     },
     [],
   );
+
+  useEffect(() => {
+    const closeForContextChange = () => {
+      manifestController.current?.abort();
+      setOpen(false);
+      setManifest(null);
+      setResolution("idle");
+    };
+    window.addEventListener("popstate", closeForContextChange);
+    window.addEventListener(
+      TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+      closeForContextChange,
+    );
+    return () => {
+      window.removeEventListener("popstate", closeForContextChange);
+      window.removeEventListener(
+        TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
+        closeForContextChange,
+      );
+    };
+  }, []);
 
   function toggleMenu() {
     if (open) {
@@ -164,13 +187,21 @@ function translatedAdvancedContext(
   if (context.pin === null || manifest === null) {
     return transitioned;
   }
+  const sourceResolution = resolvePinnedContext(
+    context.pin,
+    manifest,
+    context.recipe,
+  );
+  if (sourceResolution.state === "retired") {
+    return transitioned;
+  }
+  const sourceBuildId =
+    sourceResolution.state === "retained"
+      ? sourceResolution.deployment.analysisBuildId
+      : manifest.analysisBuildId;
   return {
     ...transitioned,
     pin:
-      pinFromDeploymentWindow(
-        manifest,
-        context.pin.analysisBuildId,
-        recipe,
-      ) ?? context.pin,
+      pinFromDeploymentWindow(manifest, sourceBuildId, recipe) ?? context.pin,
   };
 }

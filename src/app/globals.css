@@ -348,6 +348,25 @@ a {
   gap: 18px;
 }
 
+.header-sign-out {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.header-sign-out:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
 .advanced-tools-menu {
   position: relative;
   z-index: 20;
@@ -423,13 +442,23 @@ a {
   color: var(--accent-text);
 }
 
-.product-entry {
-  padding: clamp(48px, 6vw, 88px) 0 clamp(44px, 6vw, 80px);
+.hero.product-entry {
+  align-items: center;
+  padding: clamp(36px, 4vw, 56px) 0 clamp(32px, 4vw, 52px);
 }
 
-.product-entry h1 {
-  max-width: 850px;
-  font-size: clamp(3.25rem, 6vw, 6.4rem);
+.hero.product-entry h1 {
+  max-width: 760px;
+  font-size: clamp(2.5rem, 4.5vw, 4.6rem);
+  line-height: 0.98;
+}
+
+.hero.product-entry .eyebrow {
+  margin-bottom: 18px;
+}
+
+.hero.product-entry .lede {
+  margin-top: 20px;
 }
 
 .journey-indicator {
@@ -502,6 +531,71 @@ a {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper-light);
+}
+
+.scope-mode-selector {
+  margin-bottom: 28px;
+  padding: 18px 20px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-xs);
+}
+
+.scope-mode-selector > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.scope-mode-selector > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scope-mode-selector button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.scope-mode-selector button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper-light);
+}
+
+.scope-mode-selector button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.scope-mode-selector > small {
+  color: var(--muted);
+}
+
+.scope-mode-selector .portfolio-sign-in {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .locale-switcher {
@@ -926,16 +1020,6 @@ a {
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-md);
-}
-
-/*
- * Reserve the resolved anonymous auth-panel height while the portfolio
- * session check is in flight, so swapping the loading placeholder for the
- * auth panel does not shove the analysis workspace below it (cumulative
- * layout shift). Heights track the measured auth panel at each breakpoint.
- */
-.account-panel--pending {
-  min-height: 354px;
 }
 
 .account-auth {
@@ -4087,19 +4171,24 @@ tr[data-selected="true"] td {
 
   .product-entry .hero-copy {
     order: 1;
-    padding: 56px 0 48px;
+    padding: 36px 0 28px;
   }
 
   .product-experience > .journey-indicator {
     order: 2;
   }
 
-  .product-experience > .analysis-workspace {
+  .product-experience > .scope-mode-selector {
     order: 3;
   }
 
-  .product-entry .boundary-card {
+  .product-experience > .analysis-workspace,
+  .product-experience > .account-panel {
     order: 4;
+  }
+
+  .product-entry .boundary-card {
+    order: 5;
     margin-top: 64px;
   }
 
@@ -4424,10 +4513,6 @@ tr[data-selected="true"] td {
     margin-right: -4px;
     margin-left: -4px;
     padding: 20px;
-  }
-
-  .account-panel--pending {
-    min-height: 683px;
   }
 
   .portfolio-header,
