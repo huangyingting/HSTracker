@@ -42,7 +42,7 @@ import {
 import { OpportunityCandidateRow } from "./opportunity-candidate-row";
 import { OpportunityExportAction } from "./opportunity-export-action";
 import {
-  appendOpportunityPage,
+  loadCompleteOpportunityFeed,
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
 import { ProductCombobox } from "./product-combobox";
@@ -98,7 +98,7 @@ const copy = {
     finalizedPeriod: "Finalized score period",
     provisionalPeriod: "Provisional context",
     provisionalOnly: "supporting evidence only",
-    sourceFreshness: "Current source freshness",
+    sourceFreshness: "Source Freshness Status",
     retainedFreshness: "Not reported for retained evidence",
     addProductLabel: "Confirm HS12 product code",
     addProduct: "Add product to portfolio",
@@ -165,7 +165,7 @@ const copy = {
     finalizedPeriod: "定稿评分期间",
     provisionalPeriod: "暂定年份背景",
     provisionalOnly: "仅作辅助证据",
-    sourceFreshness: "当前来源新鲜度",
+    sourceFreshness: "来源新鲜度状态",
     retainedFreshness: "保留证据未报告此状态",
     addProductLabel: "确认 HS12 产品编码",
     addProduct: "添加产品到组合",
@@ -620,35 +620,15 @@ function SignedInPortfolioWorkspace({
           nextManifest,
           pinResolution,
         );
-        let loadedPages = 1;
-        const requestedCursors = new Set<string>();
-        while (page.page.nextCursor !== null) {
-          const cursor = page.page.nextCursor;
-          if (requestedCursors.has(cursor)) {
-            throw new TypeError(
-              "Portfolio opportunity pagination repeated a cursor.",
-            );
-          }
-          requestedCursors.add(cursor);
-          const nextPage = await loadMarketInvestigationPage({
-            analysisBuildId,
-            exporterCode: session.primaryExporter,
-            productCodes: null,
-            limit: PAGE_LIMIT,
-            cursor,
-            fetcher: fetch,
-            signal: feedRequest.signal,
-          });
-          validateOpportunityPageIdentity(
-            nextPage,
-            analysisBuildId,
-            nextManifest,
-            pinResolution,
-          );
-          page = appendOpportunityPage(page, nextPage, cursor);
-          loadedPages += 1;
-        }
-        loadedPageCountRef.current = loadedPages;
+        page = await loadCompleteOpportunityFeed({
+          page,
+          fetcher: fetch,
+          signal: feedRequest.signal,
+        });
+        loadedPageCountRef.current = Math.max(
+          1,
+          Math.ceil(page.candidates.length / PAGE_LIMIT),
+        );
         setFeed(page);
         setFeedDeploymentState(
           pinResolution.state === "retained" ? "retained" : "current",
@@ -658,7 +638,7 @@ function SignedInPortfolioWorkspace({
           portfolioRef.current,
           modeRef.current,
         );
-        setStatus(projection.visibleRows.length === 0 ? "empty" : "ready");
+        setStatus(projection.scopeRows.length === 0 ? "empty" : "ready");
         const servedPin =
           pinResolution.state === "retained"
             ? pinResolution.pin
@@ -918,7 +898,7 @@ function SignedInPortfolioWorkspace({
         {feed === null ? null : <AnalysisShareLink locale={locale} />}
         {projection === null ? null : (
           <span>
-            {projection.visibleRows.length} {messages.visibleRows} ·{" "}
+            {projection.scopeRows.length} {messages.visibleRows} ·{" "}
             {projection.completeRows.length} {messages.completeRows}
           </span>
         )}
@@ -926,7 +906,7 @@ function SignedInPortfolioWorkspace({
       {feed === null || projection === null ? null : (
         <OpportunityExportAction
           page={feed}
-          candidateKeys={projection.visibleRows.map((row) =>
+          candidateKeys={projection.scopeRows.map((row) =>
             candidateProjectionKey(row.candidate),
           )}
           scope="portfolio"
@@ -973,14 +953,14 @@ function SignedInPortfolioWorkspace({
                 </div>
                 <strong>{feed.provenance.baciRelease}</strong>
               </div>
-              {projection.visibleRows.length === 0 ? (
+              {projection.scopeRows.length === 0 ? (
                 <div className="analysis-state" role="status">
                   <h3>{messages.noVisibleRows}</h3>
                   <p>{messages.noVisibleRowsBody}</p>
                 </div>
               ) : (
                 <ol id="portfolio-list-scroll" aria-label={messages.listLabel}>
-                  {projection.visibleRows.map((row) => {
+                  {projection.scopeRows.map((row) => {
                     const analysisHref = marketAnalysisHref(row.candidate);
                     return (
                       <OpportunityCandidateRow

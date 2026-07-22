@@ -257,12 +257,18 @@ test("a valid empty analysis preserves context without a partial ranking", async
   await expect(page.getByText("V202601", { exact: true })).toBeVisible();
   await expect(page.getByText("Finalized Years 2019–2023")).toBeVisible();
   await expect(
+    page.getByText("This is a valid empty evidence result, not a temporary failure."),
+  ).toBeVisible();
+  await expect(page.getByText("Applicable Finalized window: 2019–2023")).toBeVisible();
+  await expect(
     page.getByRole("list", { name: "Candidate Markets" }),
   ).toHaveCount(0);
   await expect(page).toHaveURL(
     /exporter=156.*revision=HS12.*product=851712/,
   );
   expect(analysisRequests).toBe(1);
+  await page.getByRole("button", { name: "Change scope" }).click();
+  await expect(page.getByRole("combobox", { name: "Export economy" })).toBeFocused();
 });
 
 test("a malformed analysis response keeps the context but exposes no ranking", async ({

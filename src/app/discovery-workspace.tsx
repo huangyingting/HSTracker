@@ -20,13 +20,13 @@ import type { MarketAnalysisV1 } from "../domain/market-analysis/result";
 import type { EconomyRecord } from "../economy/economy-directory";
 import { AnalysisShareLink } from "./analysis-share-link";
 import {
-  localizedConfidence,
   candidateDisplayName,
   formatDecimalPercent,
   formatUsd,
 } from "./candidate-market-evidence";
 import { CandidateMarketExportAction } from "./candidate-market-export-action";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
+import { localizedDataConfidence as localizedConfidence } from "./data-confidence-presentation";
 import { EconomyCombobox } from "./economy-combobox";
 import {
   loadMarketAnalysis,
@@ -90,6 +90,9 @@ const copy = {
     emptyTitle: "No eligible Candidate Markets",
     emptyBody:
       "The selected context is valid, but no market has sufficient evidence in the finalized score window.",
+    validEmpty: "This is a valid empty evidence result, not a temporary failure.",
+    applicableFinalizedWindow: "Applicable Finalized window",
+    changeScope: "Change scope",
     malformed:
       "These analysis inputs are invalid. Check the selected export economy and HS Product.",
     stale:
@@ -143,6 +146,9 @@ const copy = {
     neutral: "中性",
     emptyTitle: "没有符合条件的候选市场",
     emptyBody: "所选输入有效，但计分定稿窗口内没有候选市场具备足够证据。",
+    validEmpty: "这是有效的空证据结果，并非暂时故障。",
+    applicableFinalizedWindow: "适用的定稿窗口",
+    changeScope: "更改范围",
     malformed: "该分析情境无效。请检查所选出口经济体和产品。",
     stale: "该分析构建已停用。请刷新当前测试情境。",
     rateLimit: "候选市场请求暂时受限。请稍候再试。",
@@ -190,6 +196,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const marketAnalysisController = useRef<AbortController | null>(null);
   const marketAnalysisRequestSequence = useRef(0);
   const marketAnalysisHeadingRef = useRef<HTMLHeadingElement>(null);
+  const scopeControlsRef = useRef<HTMLDivElement>(null);
   const pendingMarketAnalysisFocusRef = useRef(false);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
@@ -800,7 +807,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         </div>
       ) : (
         <>
-          <div className="analysis-controls">
+          <div ref={scopeControlsRef} className="analysis-controls">
             <EconomyCombobox
               key={`economy-${controlRestorationKey}`}
               analysisBuildId={currentManifest.analysisBuildId}
@@ -1008,6 +1015,24 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
           <div className="analysis-state" role="status">
             <h3>{messages.emptyTitle}</h3>
             <p>{messages.emptyBody}</p>
+            <p>{messages.validEmpty}</p>
+            {result === null ? null : (
+              <p>
+                {messages.applicableFinalizedWindow}:{" "}
+                {result.provenance.scoreWindow.start}–
+                {result.provenance.scoreWindow.end}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                scopeControlsRef.current
+                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
+                  ?.focus()
+              }
+            >
+              {messages.changeScope}
+            </button>
           </div>
         ) : null}
 
@@ -1066,11 +1091,9 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
       className={offsetTop === undefined ? undefined : "candidate-row-virtual"}
       style={offsetTop === undefined ? undefined : { top: offsetTop }}
     >
-      <button
-        type="button"
-        id={candidateMarketActionId(candidate.economy.code)}
-        aria-pressed={selected}
-        onClick={() => onSelect(candidate)}
+      <div
+        className="candidate-row-content"
+        data-selected={selected}
       >
         <span className="candidate-rank">#{candidate.rank}</span>
         <span>
@@ -1106,7 +1129,15 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
             BACI {candidate.economy.code} · {confidenceLabel}:{" "}
             {localizedConfidence(candidate.confidence.label, locale)}
           </small>
-          <small className="candidate-analyze-label">{analyzeLabel} →</small>
+          <button
+            type="button"
+            className="candidate-analyze-action"
+            id={candidateMarketActionId(candidate.economy.code)}
+            onClick={() => onSelect(candidate)}
+          >
+            {analyzeLabel}: {candidateDisplayName(candidate, locale)}
+            <span aria-hidden="true"> →</span>
+          </button>
           <span className="candidate-score-bar" aria-hidden="true">
             <span style={{ width: `${candidate.score}%` }} />
           </span>
@@ -1115,7 +1146,7 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
           {candidate.score}
           <small>/100</small>
         </span>
-      </button>
+      </div>
     </li>
   );
 });

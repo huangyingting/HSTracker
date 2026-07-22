@@ -96,7 +96,7 @@ const copy = {
     deploymentState: "Deployment state",
     currentDeployment: "Current deployment",
     retainedDeployment: "Retained deployment",
-    sourceFreshness: "Source freshness",
+    sourceFreshness: "Source Freshness Status",
     retainedFreshness: "Not reported for retained evidence",
     baciRelease: "BACI Release",
     scoreWindow: "Finalized score window",
@@ -105,6 +105,9 @@ const copy = {
     noCandidates: "No eligible Market Investigation Candidates",
     noCandidatesBody:
       "The selected exporter and product projection are valid, but no candidate rows are available in this public feed.",
+    validEmpty: "This is a valid empty evidence result, not a temporary failure.",
+    applicableFinalizedWindow: "Applicable Finalized window",
+    changeScope: "Change scope",
   },
   "zh-Hans": {
     eyebrow: "机会发现工作区",
@@ -141,7 +144,7 @@ const copy = {
     deploymentState: "部署状态",
     currentDeployment: "当前部署",
     retainedDeployment: "保留部署",
-    sourceFreshness: "来源新鲜度",
+    sourceFreshness: "来源新鲜度状态",
     retainedFreshness: "保留证据未报告此状态",
     baciRelease: "BACI 发布版本",
     scoreWindow: "定稿计分窗口",
@@ -150,6 +153,9 @@ const copy = {
     noCandidates: "没有符合条件的市场调查候选项",
     noCandidatesBody:
       "所选出口经济体和产品投影有效，但该公共列表中没有候选行。",
+    validEmpty: "这是有效的空证据结果，并非暂时故障。",
+    applicableFinalizedWindow: "适用的定稿窗口",
+    changeScope: "更改范围",
   },
 } as const;
 
@@ -179,7 +185,8 @@ export function OpportunityDiscoveryWorkspace({
   const feedController = useRef<AbortController | null>(null);
   const manifestController = useRef<AbortController | null>(null);
   const feedPinnedInHistory = useRef(false);
-  const retiredRefreshInFlight = useRef(false);
+  const scopeControlsRef = useRef<HTMLDivElement>(null);
+  const retiredBuildRefreshPending = useRef(false);
   const restoredReturnAction = useRef<string | null>(null);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [currentManifest, setCurrentManifest] =
@@ -477,7 +484,7 @@ export function OpportunityDiscoveryWorkspace({
     if (
       currentManifest === null ||
       exporter === null ||
-      retiredRefreshInFlight.current
+      retiredBuildRefreshPending.current
     ) {
       return;
     }
@@ -546,20 +553,20 @@ export function OpportunityDiscoveryWorkspace({
   }, [resetFeed]);
 
   async function refreshCurrentAnalysis() {
-    retiredRefreshInFlight.current = true;
+    retiredBuildRefreshPending.current = true;
     feedController.current?.abort();
     setStatus("refreshing");
     const { controller, promise } = beginCurrentManifestRequest(true);
     const discovered = await promise;
     if (controller.signal.aborted || discovered === null) {
-      retiredRefreshInFlight.current = false;
+      retiredBuildRefreshPending.current = false;
       if (!controller.signal.aborted) {
         setStatus("stale");
       }
       return;
     }
     await loadFeed("refresh", discovered);
-    retiredRefreshInFlight.current = false;
+    retiredBuildRefreshPending.current = false;
   }
 
   function clearProductProjection() {
@@ -703,7 +710,10 @@ export function OpportunityDiscoveryWorkspace({
         </div>
       ) : (
         <>
-          <div className="analysis-controls opportunity-controls">
+          <div
+            ref={scopeControlsRef}
+            className="analysis-controls opportunity-controls"
+          >
             <EconomyCombobox
               key={`opportunity-economy-${controlRestorationKey}`}
               analysisBuildId={currentManifest.analysisBuildId}
@@ -719,11 +729,21 @@ export function OpportunityDiscoveryWorkspace({
               onRetiredBuild={refreshCurrentAnalysis}
             />
             <div className="opportunity-scope-actions">
-              <span>
-                {product === null
-                  ? messages.allProducts
-                  : `${messages.productProjection}: ${product.code}`}
-              </span>
+              <div className="opportunity-scope-product">
+                <strong>
+                  {product === null
+                    ? messages.allProducts
+                    : `${product.hsRevision} ${product.code}`}
+                </strong>
+                {product === null ? null : (
+                  <>
+                    <span>{product.sourceDescriptionEn}</span>
+                    <span lang="zh-Hans">
+                      {product.auxiliaryDescriptionZhHans}
+                    </span>
+                  </>
+                )}
+              </div>
               {product === null ? null : (
                 <button type="button" onClick={clearProductProjection}>
                   {messages.showAllProducts}
@@ -786,6 +806,24 @@ export function OpportunityDiscoveryWorkspace({
             <div className="analysis-state" role="status">
               <h3>{messages.noCandidates}</h3>
               <p>{messages.noCandidatesBody}</p>
+              <p>{messages.validEmpty}</p>
+              {feed === null ? null : (
+                <p>
+                  {messages.applicableFinalizedWindow}:{" "}
+                  {feed.provenance.scoreWindow.start}–
+                  {feed.provenance.scoreWindow.end}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  scopeControlsRef.current
+                    ?.querySelector<HTMLInputElement>('[role="combobox"]')
+                    ?.focus()
+                }
+              >
+                {messages.changeScope}
+              </button>
             </div>
           ) : null}
 

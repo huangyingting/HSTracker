@@ -53,7 +53,7 @@ describe("signed-in portfolio projection", () => {
 
     expect(complete.completeCandidates).toBe(page.candidates);
     expect(filtered.completeCandidates).toBe(page.candidates);
-    expect(filtered.visibleRows.map((row) => ({
+    expect(filtered.scopeRows.map((row) => ({
       canonicalRank: row.canonicalRank,
       product: row.candidate.product.code,
       market: row.candidate.market.name,
@@ -78,7 +78,7 @@ describe("signed-in portfolio projection", () => {
         exporterFit: 80,
       },
     ]);
-    expect(filtered.visibleRows.map((row) => JSON.stringify(row.candidate))).toEqual(
+    expect(filtered.scopeRows.map((row) => JSON.stringify(row.candidate))).toEqual(
       [page.candidates[0], page.candidates[1]].map((candidate) =>
         JSON.stringify(candidate),
       ),

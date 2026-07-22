@@ -2641,7 +2641,18 @@ tr[data-selected="true"] td {
   background: rgba(var(--ink-rgb), 0.03);
 }
 
-.opportunity-scope-actions span {
+.opportunity-scope-product {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.opportunity-scope-product strong,
+.opportunity-scope-product span {
+  overflow-wrap: anywhere;
+}
+
+.opportunity-scope-product span {
   color: var(--muted);
   font-size: 0.7rem;
   font-weight: 800;
@@ -2649,7 +2660,7 @@ tr[data-selected="true"] td {
 }
 
 .opportunity-scope-actions button {
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-pill);
@@ -2984,7 +2995,7 @@ tr[data-selected="true"] td {
   border-bottom: 0;
 }
 
-.candidate-ranking button {
+.candidate-row-content {
   width: 100%;
   min-height: 167px;
   padding: 13px 16px;
@@ -2995,16 +3006,11 @@ tr[data-selected="true"] td {
   border: 0;
   background: transparent;
   color: var(--ink);
-  cursor: pointer;
   text-align: left;
   transition: background 0.16s ease, box-shadow 0.16s ease;
 }
 
-.candidate-ranking button:hover {
-  background: rgba(var(--ink-rgb), 0.05);
-}
-
-.candidate-ranking button[aria-pressed="true"] {
+.candidate-row-content[data-selected="true"] {
   background: linear-gradient(160deg, var(--panel-a) 0%, var(--panel-b) 100%);
   color: #fff;
   box-shadow: inset 4px 0 0 var(--accent);
@@ -3016,16 +3022,16 @@ tr[data-selected="true"] td {
   font-weight: 900;
 }
 
-.candidate-ranking button > span:nth-child(2) {
+.candidate-row-content > span:nth-child(2) {
   display: grid;
   gap: 5px;
 }
 
-.candidate-ranking button > span:nth-child(2) > strong {
+.candidate-row-content > span:nth-child(2) > strong {
   font-size: 0.88rem;
 }
 
-.candidate-ranking button small {
+.candidate-row-content small {
   color: var(--muted);
   font-size: 0.65rem;
 }
@@ -3045,13 +3051,33 @@ tr[data-selected="true"] td {
   line-height: 1.35;
 }
 
-.candidate-ranking button[aria-pressed="true"] .candidate-order-components {
+.candidate-row-content[data-selected="true"] .candidate-order-components {
   color: rgba(255, 255, 255, 0.72);
 }
 
-.candidate-ranking .candidate-analyze-label {
+.candidate-analyze-action {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
   color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.66rem;
   font-weight: 900;
+  text-align: left;
+}
+
+.candidate-analyze-action:hover {
+  border-color: currentColor;
+}
+
+.candidate-row-content[data-selected="true"] .candidate-analyze-action {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .candidate-score-bar {
@@ -3069,15 +3095,15 @@ tr[data-selected="true"] td {
   background: linear-gradient(90deg, var(--signal) 0%, var(--accent) 100%);
 }
 
-.candidate-ranking button[aria-pressed="true"] .candidate-score-bar {
+.candidate-row-content[data-selected="true"] .candidate-score-bar {
   background: rgba(255, 255, 255, 0.18);
 }
 
-.candidate-ranking button[aria-pressed="true"] .candidate-score-bar > span {
+.candidate-row-content[data-selected="true"] .candidate-score-bar > span {
   background: linear-gradient(90deg, var(--signal-soft) 0%, #ff8a5c 100%);
 }
 
-.candidate-ranking button[aria-pressed="true"] small {
+.candidate-row-content[data-selected="true"] small {
   color: rgba(255, 255, 255, 0.68);
 }
 
@@ -3093,7 +3119,7 @@ tr[data-selected="true"] td {
   font-weight: 900;
 }
 
-.candidate-ranking button[aria-pressed="true"] .candidate-score {
+.candidate-row-content[data-selected="true"] .candidate-score {
   border-color: var(--signal-soft);
 }
 

@@ -14,7 +14,7 @@ export type PortfolioProjectionRow = Readonly<{
 export type PortfolioProjection = Readonly<{
   completeCandidates: MarketInvestigationPage["candidates"];
   completeRows: readonly PortfolioProjectionRow[];
-  visibleRows: readonly PortfolioProjectionRow[];
+  scopeRows: readonly PortfolioProjectionRow[];
   portfolioProductCodes: readonly string[];
   mode: PortfolioProjectionMode;
 }>;
@@ -33,7 +33,7 @@ export function buildPortfolioProjection(
   return {
     completeCandidates: page.candidates,
     completeRows: rows,
-    visibleRows:
+    scopeRows:
       mode === "portfolio"
         ? rows.filter((row) => portfolioProducts.has(row.candidate.product.code))
         : rows,

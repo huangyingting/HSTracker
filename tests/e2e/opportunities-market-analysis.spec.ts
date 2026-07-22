@@ -15,16 +15,20 @@ test("a fixed-product opportunity opens Market Analysis explicitly and Back rest
     page.getByRole("heading", { name: /Market Analysis/u }),
   ).toHaveCount(0);
 
-  const analyzeNetherlands = candidates.getByRole("button", {
-    name: /Netherlands.*Analyze this market/u,
+  const netherlandsRow = candidates
+    .getByRole("listitem")
+    .filter({ hasText: "Netherlands" });
+  const analyzeNetherlands = netherlandsRow.getByRole("button", {
+    name: "Analyze this market: Netherlands",
   });
-  await expect(analyzeNetherlands).toContainText("Candidate Market Score 85");
-  await expect(analyzeNetherlands).toContainText("Rank 1 of 13");
-  await expect(analyzeNetherlands).toContainText("Market Size USD 3.70M/year");
-  await expect(analyzeNetherlands).toContainText("Market Growth 31.6%");
-  await expect(analyzeNetherlands).toContainText("Recorded Foothold 30.0%");
-  await expect(analyzeNetherlands).toContainText("Supplier Diversity 1");
-  await expect(analyzeNetherlands).toContainText("Data Confidence: HIGH");
+  await expect(netherlandsRow).toContainText("Candidate Market Score 85");
+  await expect(netherlandsRow).toContainText("Rank 1 of 13");
+  await expect(netherlandsRow).toContainText("Market Size USD 3.70M/year");
+  await expect(netherlandsRow).toContainText("Market Growth 31.6%");
+  await expect(netherlandsRow).toContainText("Recorded Foothold 30.0%");
+  await expect(netherlandsRow).toContainText("Supplier Diversity 1");
+  await expect(netherlandsRow).toContainText("Data Confidence: HIGH");
+  await expect(netherlandsRow.getByRole("button")).toHaveCount(1);
   await analyzeNetherlands.click();
 
   await expect(page).toHaveURL(

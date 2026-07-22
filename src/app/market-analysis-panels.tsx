@@ -25,10 +25,10 @@ import {
   formattedMarketGrowth,
   formattedRecordedFoothold,
   formattedSupplierDiversity,
-  localizedConfidence,
   CandidateMarketEvidence,
   type CandidateMarketScoreAuditContext,
 } from "./candidate-market-evidence";
+import { localizedDataConfidence as localizedConfidence } from "./data-confidence-presentation";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
 import {
   MARKET_ANALYSIS_COPY,

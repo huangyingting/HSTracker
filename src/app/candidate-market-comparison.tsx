@@ -10,8 +10,8 @@ import {
   formattedRecordedFoothold,
   formattedSupplierDiversity,
   formatUsd,
-  localizedConfidence,
 } from "./candidate-market-evidence";
+import { localizedDataConfidence as localizedConfidence } from "./data-confidence-presentation";
 
 const copy = {
   en: {

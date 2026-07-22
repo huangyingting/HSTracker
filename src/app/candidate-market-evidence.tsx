@@ -8,7 +8,6 @@ import type {
   StabilityEvidence,
 } from "../domain/candidate-market/result";
 import { localizedDataConfidence } from "./data-confidence-presentation";
-export { localizedDataConfidence as localizedConfidence } from "./data-confidence-presentation";
 
 const copy = {
   en: {
