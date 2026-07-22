@@ -14,6 +14,7 @@ import type {
   MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 import type { EconomyRecord } from "../economy/economy-directory";
 import { AnalysisShareLink } from "./analysis-share-link";
 import { loadCurrentAnalysisManifest } from "./current-analysis-discovery";
@@ -29,12 +30,14 @@ import {
   restoreOpportunityPosition,
 } from "./market-analysis-navigation";
 import { OpportunityCandidateRow } from "./opportunity-candidate-row";
+import { OpportunityExportAction } from "./opportunity-export-action";
 import {
   appendOpportunityPage,
   opportunityCandidateKey,
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
 import { ProductCombobox } from "./product-combobox";
+import { localizedSourceFreshness } from "./source-freshness-presentation";
 import { SourceScope } from "./source-scope";
 import {
   parseTradeAnalysisContext,
@@ -88,6 +91,13 @@ const copy = {
     nonClaims: "What this feed does not claim",
     disclaimer: "Discovery disclaimer",
     provenance: "Analysis source scope",
+    analysisIdentity: "Analysis Identity",
+    datasetPackage: "Dataset Package",
+    deploymentState: "Deployment state",
+    currentDeployment: "Current deployment",
+    retainedDeployment: "Retained deployment",
+    sourceFreshness: "Source freshness",
+    retainedFreshness: "Not reported for retained evidence",
     baciRelease: "BACI Release",
     scoreWindow: "Finalized score window",
     provisionalYear: "Provisional Year",
@@ -126,6 +136,13 @@ const copy = {
     nonClaims: "该列表不声称的内容",
     disclaimer: "发现免责声明",
     provenance: "分析来源范围",
+    analysisIdentity: "分析身份",
+    datasetPackage: "数据集包",
+    deploymentState: "部署状态",
+    currentDeployment: "当前部署",
+    retainedDeployment: "保留部署",
+    sourceFreshness: "来源新鲜度",
+    retainedFreshness: "保留证据未报告此状态",
     baciRelease: "BACI 发布版本",
     scoreWindow: "定稿计分窗口",
     provisionalYear: "暂定年份",
@@ -172,7 +189,7 @@ export function OpportunityDiscoveryWorkspace({
   >("loading");
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
-  const [feed, setFeed] = useState<MarketInvestigationPage | null>(null);
+  const [feed, setFeed] = useState<OpportunityDiscoveryV1Payload | null>(null);
   const [status, setStatus] = useState<FeedStatus>("idle");
   const [paginationStatus, setPaginationStatus] = useState<
     "idle" | "loading" | "failed"
@@ -259,12 +276,12 @@ export function OpportunityDiscoveryWorkspace({
       if (source !== "explicit") {
         return;
       }
-      prepareForExplicitContextChange();
       if (
         nextProduct === null ||
         exporter === null ||
         currentManifest === null
       ) {
+        prepareForExplicitContextChange();
         return;
       }
 
@@ -277,6 +294,8 @@ export function OpportunityDiscoveryWorkspace({
       if (sourcePin.state === "retired") {
         return;
       }
+      feedPinnedInHistory.current = false;
+      resetFeed();
       const sourceAnalysisBuildId =
         sourcePin.state === "retained"
           ? sourcePin.deployment.analysisBuildId
@@ -304,7 +323,12 @@ export function OpportunityDiscoveryWorkspace({
         new PopStateEvent("popstate", { state: window.history.state }),
       );
     },
-    [currentManifest, exporter, prepareForExplicitContextChange],
+    [
+      currentManifest,
+      exporter,
+      prepareForExplicitContextChange,
+      resetFeed,
+    ],
   );
 
   const loadFeed = useCallback(
@@ -707,11 +731,14 @@ export function OpportunityDiscoveryWorkspace({
               )}
             </div>
           </div>
-          <SourceScope
-            manifest={currentManifest}
-            result={null}
-            locale={locale}
-          />
+          {feed !== null &&
+          feed.analysisBuildId !== currentManifest.analysisBuildId ? null : (
+            <SourceScope
+              manifest={currentManifest}
+              result={null}
+              locale={locale}
+            />
+          )}
 
           {status === "loading" || status === "refreshing" ? (
             <div className="analysis-state analysis-loading" role="status">
@@ -740,8 +767,18 @@ export function OpportunityDiscoveryWorkspace({
 
           {(status === "success" || status === "empty") && feed !== null ? (
             <>
-              <OpportunityProvenance page={feed} locale={locale} />
+              <OpportunityProvenance
+                page={feed}
+                manifest={currentManifest}
+                locale={locale}
+              />
               <AnalysisShareLink locale={locale} task="opportunity-discovery" />
+              <OpportunityExportAction
+                page={feed}
+                candidateKeys={null}
+                scope="cross-product"
+                locale={locale}
+              />
             </>
           ) : null}
 
@@ -827,20 +864,47 @@ export function OpportunityDiscoveryWorkspace({
 
 function OpportunityProvenance({
   page,
+  manifest,
   locale,
 }: {
-  page: MarketInvestigationPage;
+  page: OpportunityDiscoveryV1Payload;
+  manifest: CurrentAnalysisManifest;
   locale: WorkspaceLocale;
 }) {
   const messages = copy[locale];
+  const isCurrent = page.analysisBuildId === manifest.analysisBuildId;
   return (
     <dl
       className="analysis-context opportunity-context"
       aria-label={messages.provenance}
     >
       <div>
+        <dt>{messages.deploymentState}</dt>
+        <dd>
+          {isCurrent
+            ? messages.currentDeployment
+            : messages.retainedDeployment}
+        </dd>
+      </div>
+      <div>
+        <dt>{messages.analysisIdentity}</dt>
+        <dd>{page.analysisIdentity}</dd>
+      </div>
+      <div>
+        <dt>{messages.datasetPackage}</dt>
+        <dd>{page.datasetPackageIdentity}</dd>
+      </div>
+      <div>
         <dt>{messages.baciRelease}</dt>
         <dd>{page.provenance.baciRelease}</dd>
+      </div>
+      <div>
+        <dt>{messages.sourceFreshness}</dt>
+        <dd>
+          {isCurrent
+            ? localizedSourceFreshness(manifest.freshness.state, locale)
+            : messages.retainedFreshness}
+        </dd>
       </div>
       <div>
         <dt>{messages.scoreWindow}</dt>

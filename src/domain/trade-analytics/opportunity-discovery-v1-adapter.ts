@@ -12,9 +12,17 @@ import { AnalysisCapacityExceededError } from "../../runtime/analysis-capacity-e
 import { AnalysisRateLimitedError } from "../../runtime/analysis-rate-limit-error";
 import type {
   AnalysisExecutionOptions,
+  AnalysisIdentity,
+  DatasetPackageIdentity,
   OpportunityDiscoveryV1AnalysisRequest,
   TradeAnalyticsPlatform,
 } from "./trade-analytics-platform";
+
+export type OpportunityDiscoveryV1Payload = MarketInvestigationPage &
+  Readonly<{
+    analysisIdentity: AnalysisIdentity;
+    datasetPackageIdentity: DatasetPackageIdentity;
+  }>;
 
 // Serves the ordered Market Investigation feed for one exporter by running the
 // opportunity-discovery-v1 recipe through the platform and mapping its typed
@@ -24,7 +32,7 @@ export async function executeOpportunityDiscoveryV1(
   platform: TradeAnalyticsPlatform,
   request: Omit<OpportunityDiscoveryV1AnalysisRequest, "recipe">,
   options?: AnalysisExecutionOptions,
-): Promise<MarketInvestigationPage> {
+): Promise<OpportunityDiscoveryV1Payload> {
   const outcome = await platform.execute(
     {
       recipe: "opportunity-discovery-v1",
@@ -36,7 +44,11 @@ export async function executeOpportunityDiscoveryV1(
   switch (outcome.state) {
     case "success":
     case "empty":
-      return outcome.payload;
+      return {
+        ...outcome.payload,
+        analysisIdentity: outcome.analysisIdentity,
+        datasetPackageIdentity: outcome.datasetPackageIdentity,
+      };
     case "invalid-input": {
       switch (outcome.error.code) {
         case "INVALID_ANALYSIS_QUERY":

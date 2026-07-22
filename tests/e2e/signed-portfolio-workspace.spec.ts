@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test, type Page } from "@playwright/test";
 
 import type { MarketInvestigationPage } from "../../src/domain/opportunity-discovery/result";
@@ -31,6 +33,10 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   const portfolio = page.getByRole("region", {
     name: "Your portfolio opportunity workspace",
   });
+  const productControlIds = await page
+    .locator(".product-discovery [id]")
+    .evaluateAll((elements) => elements.map(({ id }) => id));
+  expect(new Set(productControlIds).size).toBe(productControlIds.length);
   const product = portfolio.getByRole("combobox", {
     name: "HS 2012 product",
   });
@@ -247,6 +253,22 @@ test("portfolio controls coexist with public analysis and open byte-identical Ma
   });
   await expect(candidates.getByRole("listitem")).toHaveCount(2);
   expect(opportunityRequests).toBe(2);
+
+  const downloadPromise = page.waitForEvent("download");
+  await portfolio
+    .getByRole("button", { name: "Download complete CSV" })
+    .click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (path === null) {
+    throw new Error("The portfolio Opportunity CSV did not produce a local file.");
+  }
+  const csv = (await readFile(path)).toString("utf8");
+  expect(download.suggestedFilename()).toBe(
+    "hs-tracker_opportunities_portfolio_from-156_acceptance-fixtures-v1.csv",
+  );
+  expect(csv.match(/\r\n/g)).toHaveLength(3);
+  expect(csv).toContain('"010121"');
 
   const direct = await page.request.get(
     "/api/v1/analyses/acceptance-fixtures-v1/market-analysis?exporter=156&product=010121&market=528",

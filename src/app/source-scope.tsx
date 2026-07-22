@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { CandidateMarketResult } from "../domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import { localizedSourceFreshness } from "./source-freshness-presentation";
 
 const copy = {
   en: {
@@ -20,11 +21,6 @@ const copy = {
     provisionalContext: "provisional context",
     detailsButton: "Source details",
     details: "Source details",
-    latestKnown: "Latest known BACI release",
-    updateInProgress: "New BACI release is being validated",
-    refreshDelayed: "Data refresh delayed - showing the last validated release",
-    checkOverdue:
-      "Source freshness check overdue - showing the last validated release",
     serving: "Currently serving",
     detected: "Detected",
     due: "Refresh due",
@@ -66,10 +62,6 @@ const copy = {
     provisionalContext: "暂定年份背景",
     detailsButton: "来源详情",
     details: "来源详情",
-    latestKnown: "当前已知最新 BACI 数据版",
-    updateInProgress: "正在验证新的 BACI 数据版",
-    refreshDelayed: "数据刷新延迟 - 当前显示最近验证通过的数据版",
-    checkOverdue: "来源新鲜度检查已逾期 - 当前显示最近验证通过的数据版",
     serving: "当前提供",
     detected: "检测时间",
     due: "刷新期限",
@@ -127,7 +119,7 @@ export function SourceScope({
   const warning =
     freshness.state === "LATEST_KNOWN" ? null : (
       <p className="source-scope-warning" role="alert">
-        <strong>{freshnessLabel(manifest, locale)}</strong>
+        <strong>{localizedSourceFreshness(freshness.state, locale)}</strong>
         {freshness.state === "UPDATE_IN_PROGRESS" ? (
           <span>
             {messages.detected} {freshness.newerReleaseDetectedAt} ·{" "}
@@ -161,7 +153,7 @@ export function SourceScope({
         </div>
         <p className="source-freshness">
           <span aria-hidden="true" />
-          {freshnessLabel(manifest, locale)}
+          {localizedSourceFreshness(freshness.state, locale)}
         </p>
         <button
           type="button"
@@ -290,19 +282,6 @@ function SourceDetail({ label, value }: { label: string; value: string }) {
       <dd>{value}</dd>
     </div>
   );
-}
-
-function freshnessLabel(
-  manifest: CurrentAnalysisManifest,
-  locale: SourceScopeLocale,
-): string {
-  const messages = copy[locale];
-  return {
-    LATEST_KNOWN: messages.latestKnown,
-    UPDATE_IN_PROGRESS: messages.updateInProgress,
-    REFRESH_DELAYED: messages.refreshDelayed,
-    CHECK_OVERDUE: messages.checkOverdue,
-  }[manifest.freshness.state];
 }
 
 function releaseComparisonLabel(

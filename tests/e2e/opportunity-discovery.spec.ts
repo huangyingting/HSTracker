@@ -1,7 +1,45 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test, type Page } from "@playwright/test";
 
 const OPPORTUNITY_PRODUCT_URL =
   "/?recipe=opportunity-discovery-v1&exporter=156&products=010121";
+
+test("cross-product Opportunities downloads the complete pinned CSV", async ({
+  page,
+}) => {
+  await page.goto("/?recipe=opportunity-discovery-v1&exporter=156");
+  await expect(
+    page
+      .getByRole("list", { name: "Market Investigation Candidates" })
+      .getByRole("listitem"),
+  ).toHaveCount(4);
+  await expect(
+    page.getByText(
+      "All 4 rows in this Scope, independent of the visible viewport",
+    ),
+  ).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download complete CSV" })
+    .click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (path === null) {
+    throw new Error("The Opportunity CSV did not produce a local file.");
+  }
+  const bytes = await readFile(path);
+  const text = bytes.toString("utf8");
+
+  expect(download.suggestedFilename()).toBe(
+    "hs-tracker_opportunities_cross-product_from-156_acceptance-fixtures-v1.csv",
+  );
+  expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+  expect(text.match(/\r\n/g)).toHaveLength(5);
+  expect(text).toContain('"opportunity-discovery-csv-v1"');
+  expect(text).toContain('"dataset-package-v1-');
+});
 
 async function selectChinaExporter(page: Page) {
   const economy = page.getByRole("combobox", { name: "Export economy" });
@@ -257,4 +295,99 @@ test("opportunity refresh and explicit Market Analysis links preserve canonical 
     .check();
   await expect(page.getByLabel("Export economy")).toHaveValue("156");
   await expect(page.getByLabel("HS12 product")).toHaveValue("010121");
+});
+
+test("exact product confirmation translates a retained Opportunity pin without falling forward", async ({
+  page,
+}) => {
+  const retainedBuild = "retained-opportunity-v0";
+  const retainedCandidatePackage = `dataset-package-v1-${"b".repeat(64)}`;
+  const retainedOpportunityPackage = `dataset-package-v1-${"c".repeat(64)}`;
+  let retainedArtifactSha256 = "";
+
+  await page.route("**/api/v1/analyses/current", async (route) => {
+    const response = await route.fetch();
+    const manifest = (await response.json()) as {
+      source: { artifact: { sha256: string } };
+      recommendation: Record<string, unknown> & {
+        opportunityDiscovery: Record<string, unknown>;
+      };
+      deploymentWindow: readonly unknown[];
+    };
+    retainedArtifactSha256 = manifest.source.artifact.sha256;
+    const retainedRecommendation = {
+      ...manifest.recommendation,
+      datasetPackageIdentity: retainedCandidatePackage,
+      opportunityDiscovery: {
+        ...manifest.recommendation.opportunityDiscovery,
+        datasetPackageIdentity: retainedOpportunityPackage,
+      },
+    };
+    await route.fulfill({
+      response,
+      json: {
+        ...manifest,
+        deploymentWindow: [
+          ...manifest.deploymentWindow,
+          {
+            analysisBuildId: retainedBuild,
+            recommendation: retainedRecommendation,
+            baciRelease: "V202601",
+            artifactSha256: retainedArtifactSha256,
+          },
+        ],
+      },
+    });
+  });
+  await page.route(
+    `**/api/v1/analyses/${retainedBuild}/opportunities?*`,
+    async (route) => {
+      const response = await route.fetch({
+        url: route
+          .request()
+          .url()
+          .replace(retainedBuild, "acceptance-fixtures-v1"),
+      });
+      const pageResult = (await response.json()) as {
+        provenance: Record<string, unknown>;
+      };
+      await route.fulfill({
+        response,
+        json: {
+          ...pageResult,
+          analysisBuildId: retainedBuild,
+          datasetPackageIdentity: retainedOpportunityPackage,
+          provenance: {
+            ...pageResult.provenance,
+            artifactSha256: retainedArtifactSha256,
+          },
+        },
+      });
+    },
+  );
+
+  await page.goto(
+    `/?recipe=opportunity-discovery-v1&exporter=156&build=${retainedBuild}&pkg=${retainedOpportunityPackage}`,
+  );
+  await expectMexicoHorseCandidate(page);
+  await expect(page.getByText("Retained deployment")).toBeVisible();
+  await expect(
+    page.getByText("Not reported for retained evidence"),
+  ).toBeVisible();
+  await expect(page.locator(".source-scope")).toHaveCount(0);
+  await selectHorseProduct(page);
+  await expect(page).toHaveURL(
+    new RegExp(
+      `recipe=candidate-market-v1.*product=010121.*build=${retainedBuild}&pkg=${retainedCandidatePackage}$`,
+      "u",
+    ),
+  );
+  await page.goBack();
+  await expect(page).toHaveURL(
+    new RegExp(
+      `recipe=opportunity-discovery-v1.*build=${retainedBuild}&pkg=${retainedOpportunityPackage}$`,
+      "u",
+    ),
+  );
+  await expectMexicoHorseCandidate(page);
 });

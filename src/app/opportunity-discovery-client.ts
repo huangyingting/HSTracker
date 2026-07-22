@@ -1,9 +1,9 @@
 import type {
   MarketInvestigationCandidate,
-  MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
 import type { OpportunityDetailEvidence } from "../evidence/opportunity-evidence-source";
 import type { RecentTradeMomentumV1Payload } from "../domain/trade-analytics/recent-trade-momentum-v1-adapter";
+import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 
 type OpportunityClientErrorCode =
   | "HTTP_ERROR"
@@ -38,7 +38,7 @@ export async function loadMarketInvestigationPage({
   cursor: string | null;
   fetcher: typeof fetch;
   signal: AbortSignal;
-}): Promise<MarketInvestigationPage> {
+}): Promise<OpportunityDiscoveryV1Payload> {
   const parameters = new URLSearchParams({
     exporter: exporterCode,
     limit: String(limit),
@@ -152,12 +152,14 @@ export async function loadRecentTradeMomentum({
 
 function isMarketInvestigationPage(
   value: unknown,
-): value is MarketInvestigationPage {
+): value is OpportunityDiscoveryV1Payload {
   if (!isRecord(value) || value.schemaVersion !== "market-investigation-result-v1") {
     return false;
   }
   return (
     isNonemptyString(value.analysisBuildId) &&
+    isNonemptyString(value.analysisIdentity) &&
+    isNonemptyString(value.datasetPackageIdentity) &&
     isEconomyIdentity(value.exporter) &&
     isOpportunityProvenance(value.provenance) &&
     isNonnegativeInteger(value.cohortSize) &&

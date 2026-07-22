@@ -76,7 +76,12 @@ export function ProductCombobox({
   syncUrl = true,
 }: ProductComboboxProps) {
   const messages = copy[locale];
-  const listboxId = useId();
+  const instanceId = useId();
+  const titleId = `${instanceId}-title`;
+  const inputId = `${instanceId}-search`;
+  const helpId = `${instanceId}-help`;
+  const statusId = `${instanceId}-status`;
+  const listboxId = `${instanceId}-options`;
   const inputRef = useRef<HTMLInputElement>(null);
   const requestSequence = useRef(0);
   const explicitlyEdited = useRef(false);
@@ -282,16 +287,16 @@ export function ProductCombobox({
   }
 
   return (
-    <section className="product-discovery" aria-labelledby="product-title">
+    <section className="product-discovery" aria-labelledby={titleId}>
       <p className="product-eyebrow">{messages.eyebrow}</p>
-      <h2 id="product-title">{messages.title}</h2>
+      <h2 id={titleId}>{messages.title}</h2>
       <div className="product-field">
-        <label htmlFor="product-search">{messages.label}</label>
+        <label htmlFor={inputId}>{messages.label}</label>
         <div className="product-input-frame">
           <span aria-hidden="true">HS12</span>
           <input
             ref={inputRef}
-            id="product-search"
+            id={inputId}
             type="search"
             role="combobox"
             autoComplete="off"
@@ -307,10 +312,10 @@ export function ProductCombobox({
             aria-expanded={open}
             aria-activedescendant={
               open && activeIndex >= 0
-                ? optionId(matches[activeIndex].product.code)
+                ? optionId(listboxId, matches[activeIndex].product.code)
                 : undefined
             }
-            aria-describedby="product-search-help product-search-status"
+            aria-describedby={`${helpId} ${statusId}`}
             onChange={(event) => {
               explicitlyEdited.current = true;
               const nextValue = event.target.value;
@@ -334,7 +339,7 @@ export function ProductCombobox({
             onKeyDown={handleKeyDown}
           />
         </div>
-        <p id="product-search-help" className="product-help">
+        <p id={helpId} className="product-help">
           {messages.help}
         </p>
         {selectedProduct === null ? null : (
@@ -364,7 +369,7 @@ export function ProductCombobox({
           >
             {matches.map(({ product, match }, index) => (
               <li
-                id={optionId(product.code)}
+                id={optionId(listboxId, product.code)}
                 key={product.code}
                 role="option"
                 aria-selected={index === activeIndex}
@@ -386,7 +391,7 @@ export function ProductCombobox({
           </ul>
         ) : null}
         <p
-          id="product-search-status"
+          id={statusId}
           className={`product-status product-status-${status}`}
           aria-live="polite"
         >
@@ -446,8 +451,8 @@ function adjacentProductDescription(
     : product.sourceDescriptionEn;
 }
 
-function optionId(productCode: string): string {
-  return `product-option-${productCode}`;
+function optionId(listboxId: string, productCode: string): string {
+  return `${listboxId}-option-${productCode}`;
 }
 
 function productSearchUrl(

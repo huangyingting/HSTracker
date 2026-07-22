@@ -1,8 +1,9 @@
 import type {
   MarketInvestigationCandidate,
-  MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
+import { loadMarketInvestigationPage } from "./opportunity-discovery-client";
 import { resolvePinnedContext } from "./trade-analysis-context";
 
 type ResolvedOpportunityPin = ReturnType<typeof resolvePinnedContext>;
@@ -14,15 +15,17 @@ export function opportunityCandidateKey(
 }
 
 export function appendOpportunityPage(
-  current: MarketInvestigationPage,
-  next: MarketInvestigationPage,
+  current: OpportunityDiscoveryV1Payload,
+  next: OpportunityDiscoveryV1Payload,
   requestedCursor: string,
-): MarketInvestigationPage {
+): OpportunityDiscoveryV1Payload {
   const currentProducts = current.projection.productCodes ?? [];
   const nextProducts = next.projection.productCodes ?? [];
   if (
     next.page.requestedCursor !== requestedCursor ||
     next.analysisBuildId !== current.analysisBuildId ||
+    next.analysisIdentity !== current.analysisIdentity ||
+    next.datasetPackageIdentity !== current.datasetPackageIdentity ||
     next.exporter.code !== current.exporter.code ||
     next.cohortSize !== current.cohortSize ||
     next.provenance.artifactSha256 !== current.provenance.artifactSha256 ||
@@ -55,7 +58,7 @@ export function appendOpportunityPage(
 }
 
 export function validateOpportunityPageIdentity(
-  page: MarketInvestigationPage,
+  page: OpportunityDiscoveryV1Payload,
   analysisBuildId: string,
   manifest: CurrentAnalysisManifest,
   pinResolution: ResolvedOpportunityPin,
@@ -63,11 +66,21 @@ export function validateOpportunityPageIdentity(
   if (page.analysisBuildId !== analysisBuildId) {
     throw new TypeError("Opportunity feed does not match the requested build.");
   }
+  const deployment =
+    pinResolution.state === "retained" ? pinResolution.deployment : manifest;
+  const opportunityMapping =
+    deployment.recommendation.opportunityDiscovery;
+  if (
+    opportunityMapping === null ||
+    page.datasetPackageIdentity !==
+      opportunityMapping.datasetPackageIdentity
+  ) {
+    throw new TypeError(
+      "Opportunity feed does not match the declared Dataset Package.",
+    );
+  }
   if (pinResolution.state === "retained") {
-    if (
-      page.provenance.baciRelease !== pinResolution.deployment.baciRelease ||
-      page.provenance.artifactSha256 !== pinResolution.deployment.artifactSha256
-    ) {
+    if (page.provenance.baciRelease !== pinResolution.deployment.baciRelease) {
       throw new TypeError(
         "Opportunity feed does not match the retained manifest.",
       );
@@ -82,4 +95,37 @@ export function validateOpportunityPageIdentity(
       "Opportunity feed does not match the current manifest.",
     );
   }
+}
+
+export async function loadCompleteOpportunityFeed({
+  page,
+  fetcher,
+  signal,
+}: {
+  page: OpportunityDiscoveryV1Payload;
+  fetcher: typeof fetch;
+  signal: AbortSignal;
+}): Promise<OpportunityDiscoveryV1Payload> {
+  let completePage = page;
+  const requestedCursors = new Set<string>();
+  while (completePage.page.nextCursor !== null) {
+    const cursor = completePage.page.nextCursor;
+    if (requestedCursors.has(cursor)) {
+      throw new TypeError(
+        "Opportunity export pagination repeated a cursor.",
+      );
+    }
+    requestedCursors.add(cursor);
+    const nextPage = await loadMarketInvestigationPage({
+      analysisBuildId: completePage.analysisBuildId,
+      exporterCode: completePage.exporter.code,
+      productCodes: completePage.projection.productCodes,
+      limit: completePage.page.limit,
+      cursor,
+      fetcher,
+      signal,
+    });
+    completePage = appendOpportunityPage(completePage, nextPage, cursor);
+  }
+  return completePage;
 }

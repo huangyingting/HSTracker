@@ -10,10 +10,10 @@ import {
 
 import type {
   MarketInvestigationCandidate,
-  MarketInvestigationPage,
 } from "../domain/opportunity-discovery/result";
 import type { ProductSearchProduct } from "../catalog/product-catalog";
 import type { CurrentAnalysisManifest } from "../domain/release/current-analysis";
+import type { OpportunityDiscoveryV1Payload } from "../domain/trade-analytics/opportunity-discovery-v1-adapter";
 import {
   confirmPortfolioProduct,
   consumeRecoveryToken,
@@ -40,11 +40,13 @@ import {
   restoreOpportunityPosition,
 } from "./market-analysis-navigation";
 import { OpportunityCandidateRow } from "./opportunity-candidate-row";
+import { OpportunityExportAction } from "./opportunity-export-action";
 import {
   appendOpportunityPage,
   validateOpportunityPageIdentity,
 } from "./opportunity-feed-pages";
 import { ProductCombobox } from "./product-combobox";
+import { localizedSourceFreshness } from "./source-freshness-presentation";
 import {
   parseTradeAnalysisContext,
   pinFromDeploymentWindow,
@@ -87,6 +89,8 @@ const copy = {
     portfolioProducts: "Portfolio products",
     emptyPortfolio: "No portfolio products confirmed",
     analysisScope: "Portfolio analysis scope",
+    analysisIdentity: "Analysis Identity",
+    datasetPackage: "Dataset Package",
     deploymentState: "Deployment state",
     currentDeployment: "Current deployment",
     retainedDeployment: "Retained deployment",
@@ -95,6 +99,7 @@ const copy = {
     provisionalPeriod: "Provisional context",
     provisionalOnly: "supporting evidence only",
     sourceFreshness: "Current source freshness",
+    retainedFreshness: "Not reported for retained evidence",
     addProductLabel: "Confirm HS12 product code",
     addProduct: "Add product to portfolio",
     addProductHint:
@@ -151,6 +156,8 @@ const copy = {
     portfolioProducts: "组合产品",
     emptyPortfolio: "尚未确认组合产品",
     analysisScope: "组合分析范围",
+    analysisIdentity: "分析身份",
+    datasetPackage: "数据集包",
     deploymentState: "部署状态",
     currentDeployment: "当前部署",
     retainedDeployment: "保留部署",
@@ -159,6 +166,7 @@ const copy = {
     provisionalPeriod: "暂定年份背景",
     provisionalOnly: "仅作辅助证据",
     sourceFreshness: "当前来源新鲜度",
+    retainedFreshness: "保留证据未报告此状态",
     addProductLabel: "确认 HS12 产品编码",
     addProduct: "添加产品到组合",
     addProductHint: "输入精确的六位 HS12 编码，然后确认到运营组合中。",
@@ -498,7 +506,7 @@ function SignedInPortfolioWorkspace({
   const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(
     null,
   );
-  const [feed, setFeed] = useState<MarketInvestigationPage | null>(null);
+  const [feed, setFeed] = useState<OpportunityDiscoveryV1Payload | null>(null);
   const [feedDeploymentState, setFeedDeploymentState] = useState<
     "current" | "retained" | null
   >(null);
@@ -915,6 +923,16 @@ function SignedInPortfolioWorkspace({
           </span>
         )}
       </div>
+      {feed === null || projection === null ? null : (
+        <OpportunityExportAction
+          page={feed}
+          candidateKeys={projection.visibleRows.map((row) =>
+            candidateProjectionKey(row.candidate),
+          )}
+          scope="portfolio"
+          locale={locale}
+        />
+      )}
       {status === "loading" ? (
         <div className="analysis-state analysis-loading" role="status">
           <span aria-hidden="true" />
@@ -1007,7 +1025,7 @@ function PortfolioAnalysisScope({
   deploymentState,
 }: {
   manifest: CurrentAnalysisManifest;
-  feed: MarketInvestigationPage;
+  feed: OpportunityDiscoveryV1Payload;
   locale: AccountLocale;
   deploymentState: "current" | "retained";
 }) {
@@ -1021,7 +1039,7 @@ function PortfolioAnalysisScope({
       className="portfolio-analysis-scope"
       aria-label={messages.analysisScope}
       data-deployment-state={isCurrent ? "current" : "retained"}
-      data-freshness-state={manifest.freshness.state}
+      data-freshness-state={isCurrent ? manifest.freshness.state : undefined}
     >
       <h3>{messages.analysisScope}</h3>
       <dl>
@@ -1032,6 +1050,14 @@ function PortfolioAnalysisScope({
               ? messages.currentDeployment
               : messages.retainedDeployment}
           </dd>
+        </div>
+        <div>
+          <dt>{messages.analysisIdentity}</dt>
+          <dd>{feed.analysisIdentity}</dd>
+        </div>
+        <div>
+          <dt>{messages.datasetPackage}</dt>
+          <dd>{feed.datasetPackageIdentity}</dd>
         </div>
         <div>
           <dt>{messages.baciRelease}</dt>
@@ -1052,30 +1078,13 @@ function PortfolioAnalysisScope({
         </div>
         <div>
           <dt>{messages.sourceFreshness}</dt>
-          <dd>{portfolioFreshnessLabel(manifest.freshness.state, locale)}</dd>
+          <dd>
+            {isCurrent
+              ? localizedSourceFreshness(manifest.freshness.state, locale)
+              : messages.retainedFreshness}
+          </dd>
         </div>
       </dl>
     </section>
   );
-}
-
-function portfolioFreshnessLabel(
-  state: CurrentAnalysisManifest["freshness"]["state"],
-  locale: AccountLocale,
-): string {
-  const labels = {
-    en: {
-      LATEST_KNOWN: "Latest known BACI release",
-      UPDATE_IN_PROGRESS: "New BACI release is being validated",
-      REFRESH_DELAYED: "Data refresh delayed",
-      CHECK_OVERDUE: "Source freshness check overdue",
-    },
-    "zh-Hans": {
-      LATEST_KNOWN: "当前已知最新 BACI 数据版",
-      UPDATE_IN_PROGRESS: "正在验证新的 BACI 数据版",
-      REFRESH_DELAYED: "数据刷新延迟",
-      CHECK_OVERDUE: "来源新鲜度检查已逾期",
-    },
-  } as const;
-  return labels[locale][state];
 }
