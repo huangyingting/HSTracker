@@ -187,7 +187,12 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     .getByRole("button", { name: "Show complete public ranking" })
     .click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByText("No account required")).toBeVisible();
+  await expect(page.getByText("Public workspace")).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Sign in to use a confirmed portfolio",
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole("navigation", {
       name: "Export Market Workspace journey",

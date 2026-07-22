@@ -334,6 +334,7 @@ export function ExportMarketWorkspace({
           )
         ) : (
           <OpportunityDiscoveryWorkspace
+            key={publicScopeMode}
             locale={locale}
             scopeMode={publicScopeMode}
             onScopeModeChange={selectPublicScope}

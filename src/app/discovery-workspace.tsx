@@ -58,6 +58,7 @@ import {
   type TradeAnalysisContextPin,
   type TradeAnalysisRecipe,
 } from "./trade-analysis-context";
+import { announceTradeAnalysisContextChange } from "./trade-analysis-context-events";
 import { WorkspaceScope } from "./workspace-scope";
 
 const copy = {
@@ -740,6 +741,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
         },
         false,
       );
+      announceTradeAnalysisContextChange();
     },
     [loadMarketAnalysisForCandidate],
   );

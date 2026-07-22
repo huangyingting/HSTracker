@@ -13,20 +13,26 @@ export function workspaceRouteFamily(
   if (context.recipe === "trade-explorer") {
     return "advanced-trade-explorer";
   }
+  if (context.recipe === "candidate-market") {
+    if (
+      context.exporterCode !== null &&
+      context.productCode !== null &&
+      context.focusedMarketCode !== null
+    ) {
+      return "primary-market-analysis";
+    }
+    return context.exporterCode !== null && context.productCode !== null
+      ? "primary-opportunities"
+      : "primary-scope";
+  }
   if (
-    context.focusedMarketCode !== null &&
-    (context.recipe === "candidate-market" ||
-      context.focusProductCode != null)
+    context.exportEconomyCode !== null &&
+    context.focusProductCode != null &&
+    context.focusedMarketCode != null
   ) {
     return "primary-market-analysis";
   }
-  if (
-    (context.recipe === "candidate-market" && context.productCode !== null) ||
-    (context.recipe === "opportunity-discovery" &&
-      context.pin !== null &&
-      context.exportEconomyCode !== null)
-  ) {
-    return "primary-opportunities";
-  }
-  return "primary-scope";
+  return context.exportEconomyCode !== null
+    ? "primary-opportunities"
+    : "primary-scope";
 }

@@ -275,6 +275,18 @@ a {
   outline-offset: 2px;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .site-shell {
   width: min(1520px, 100%);
   min-height: 100vh;
@@ -4170,26 +4182,11 @@ tr[data-selected="true"] td {
   }
 
   .product-entry .hero-copy {
-    order: 1;
     padding: 36px 0 28px;
   }
 
-  .product-experience > .journey-indicator {
-    order: 2;
-  }
-
-  .product-experience > .scope-mode-selector {
-    order: 3;
-  }
-
-  .product-experience > .analysis-workspace,
-  .product-experience > .account-panel {
-    order: 4;
-  }
-
   .product-entry .boundary-card {
-    order: 5;
-    margin-top: 64px;
+    margin-bottom: 36px;
   }
 
   .hero {

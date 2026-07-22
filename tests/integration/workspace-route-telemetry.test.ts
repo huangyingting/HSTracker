@@ -2,8 +2,41 @@ import { describe, expect, it } from "vitest";
 
 import { POST } from "../../src/app/api/telemetry/workspace-route/route";
 import { GET as getMetrics } from "../../src/app/metrics/route";
+import { parseTradeAnalysisContext } from "../../src/app/trade-analysis-context";
+import { workspaceRouteFamily } from "../../src/app/workspace-route-family";
 
 describe("workspace route telemetry", () => {
+  it("classifies primary stages only from complete semantic scope", () => {
+    expect(
+      workspaceRouteFamily(
+        parseTradeAnalysisContext(
+          "/?recipe=candidate-market-v1&revision=HS12&product=010121&market=528",
+        ),
+      ),
+    ).toBe("primary-scope");
+    expect(
+      workspaceRouteFamily(
+        parseTradeAnalysisContext(
+          "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121",
+        ),
+      ),
+    ).toBe("primary-opportunities");
+    expect(
+      workspaceRouteFamily(
+        parseTradeAnalysisContext(
+          "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=528",
+        ),
+      ),
+    ).toBe("primary-market-analysis");
+    expect(
+      workspaceRouteFamily(
+        parseTradeAnalysisContext(
+          "/?recipe=opportunity-discovery-v1&exporter=156",
+        ),
+      ),
+    ).toBe("primary-opportunities");
+  });
+
   it("records only the anonymous route family in runtime metrics", async () => {
     const response = await POST(
       new Request("http://localhost/api/telemetry/workspace-route", {

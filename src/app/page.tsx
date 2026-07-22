@@ -18,6 +18,7 @@ import {
   withLocale,
 } from "./trade-analysis-context";
 import { TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT } from "./trade-analysis-context-events";
+import { workspaceRouteFamily } from "./workspace-route-family";
 import { WorkspaceRouteTelemetry } from "./workspace-route-telemetry";
 
 const copy = {
@@ -128,6 +129,7 @@ export default function Home({
     "loading" | "ready"
   >("loading");
   const messages = copy[locale];
+  const showProductEntry = workspaceRouteFamily(context) === "primary-scope";
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -270,49 +272,53 @@ export default function Home({
       </header>
 
       <section className="product-experience">
-        <section className="hero product-entry">
-          <div className="hero-copy">
-            <p className="eyebrow">
-              <span aria-hidden="true" />
-              {messages.eyebrow}
-            </p>
-            <h1>{messages.heading}</h1>
-            <p className="lede">{messages.lede}</p>
-            <p className="access-note">
-              <span className="access-icon" aria-hidden="true">
-                ↗
-              </span>
-              <span>
-                <strong>{messages.noAccount}</strong>
-                <small>{messages.accessDetail}</small>
-              </span>
-            </p>
-          </div>
+        {showProductEntry ? (
+          <section className="hero product-entry">
+            <div className="hero-copy">
+              <p className="eyebrow">
+                <span aria-hidden="true" />
+                {messages.eyebrow}
+              </p>
+              <h1>{messages.heading}</h1>
+              <p className="lede">{messages.lede}</p>
+              <p className="access-note">
+                <span className="access-icon" aria-hidden="true">
+                  ↗
+                </span>
+                <span>
+                  <strong>{messages.noAccount}</strong>
+                  <small>{messages.accessDetail}</small>
+                </span>
+              </p>
+            </div>
 
-          <aside className="boundary-card" aria-labelledby="boundary-title">
-            <div className="card-index">
-              <span>01</span>
-              {messages.boundaryIndex}
-            </div>
-            <div className="boundary-symbol" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <h2 id="boundary-title">{messages.boundaryTitle}</h2>
-            <p>{messages.boundaryBody}</p>
-            <dl>
-              <div>
-                <dt>{messages.uses}</dt>
-                <dd>{messages.usesValue}</dd>
+            <aside className="boundary-card" aria-labelledby="boundary-title">
+              <div className="card-index">
+                <span>01</span>
+                {messages.boundaryIndex}
               </div>
-              <div>
-                <dt>{messages.supports}</dt>
-                <dd>{messages.supportsValue}</dd>
+              <div className="boundary-symbol" aria-hidden="true">
+                <span />
+                <span />
+                <span />
               </div>
-            </dl>
-          </aside>
-        </section>
+              <h2 id="boundary-title">{messages.boundaryTitle}</h2>
+              <p>{messages.boundaryBody}</p>
+              <dl>
+                <div>
+                  <dt>{messages.uses}</dt>
+                  <dd>{messages.usesValue}</dd>
+                </div>
+                <div>
+                  <dt>{messages.supports}</dt>
+                  <dd>{messages.supportsValue}</dd>
+                </div>
+              </dl>
+            </aside>
+          </section>
+        ) : (
+          <h1 className="visually-hidden">{messages.eyebrow}</h1>
+        )}
 
         <WorkspaceRouteTelemetry context={context} />
         <JourneyIndicator context={context} locale={locale} />
@@ -326,21 +332,23 @@ export default function Home({
         />
       </section>
 
-      <section className="reading-guide" aria-labelledby="guide-title">
-        <div className="guide-heading">
-          <p>{messages.guideEyebrow}</p>
-          <h2 id="guide-title">{messages.guideTitle}</h2>
-        </div>
-        <ol>
-          {messages.principles.map((principle, index) => (
-            <li key={principle.title}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <h3>{principle.title}</h3>
-              <p>{principle.body}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
+      {showProductEntry ? (
+        <section className="reading-guide" aria-labelledby="guide-title">
+          <div className="guide-heading">
+            <p>{messages.guideEyebrow}</p>
+            <h2 id="guide-title">{messages.guideTitle}</h2>
+          </div>
+          <ol>
+            {messages.principles.map((principle, index) => (
+              <li key={principle.title}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{principle.title}</h3>
+                <p>{principle.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       <footer className="footer">
         <p>HS Tracker</p>

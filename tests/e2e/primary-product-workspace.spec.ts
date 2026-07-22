@@ -126,6 +126,25 @@ test("an anonymous portfolio URL normalizes to the public workspace with a sign-
   await expect(page).not.toHaveURL(/portfolio=filter/u);
 });
 
+test("changing from a loaded all-product scope to exact product clears incompatible results", async ({
+  page,
+}) => {
+  await page.goto("/?recipe=opportunity-discovery-v1&exporter=156");
+  const candidates = page
+    .getByRole("list", { name: "Market Investigation Candidates" })
+    .getByRole("listitem");
+  await expect(candidates).toHaveCount(4);
+
+  await page
+    .getByRole("group", { name: "Product scope" })
+    .getByRole("button", { name: "One confirmed HS Product" })
+    .click();
+  await expect(candidates).toHaveCount(0);
+  await expect(
+    page.getByRole("combobox", { name: "HS 2012 product" }),
+  ).toBeFocused();
+});
+
 test("the compact journey and Advanced tools remain touch-ready on mobile", async ({
   page,
 }) => {
@@ -142,7 +161,7 @@ test("the compact journey and Advanced tools remain touch-ready on mobile", asyn
       name: "Discovery aid, not a recommendation.",
     })
     .boundingBox();
-  expect(journeyBox?.y).toBeLessThan(boundaryBox?.y ?? 0);
+  expect(boundaryBox?.y).toBeLessThan(journeyBox?.y ?? 0);
 
   const advancedTools = page.getByRole("group", { name: "Advanced tools" });
   const trigger = advancedTools.getByRole("button", {
@@ -171,6 +190,16 @@ test("header Advanced tools preserve the selected Market Analysis context and Ba
   await expect(
     page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Analyze export markets with public trade evidence.",
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", {
+      name: "Evidence first. Decisions remain yours.",
+    }),
+  ).toHaveCount(0);
 
   const advancedTools = page.getByRole("group", { name: "Advanced tools" });
   await advancedTools.getByRole("button", { name: "Advanced tools" }).click();
@@ -256,5 +285,30 @@ test("the primary journey advances from Scope through Opportunities to Market An
   await page.getByRole("link", { name: "Back to opportunities" }).click();
   await expect(
     journey.getByText("Opportunities", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
+});
+
+test("a fixed-product selection updates the shared shell to Market Analysis", async ({
+  page,
+}) => {
+  await page.goto(
+    "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121",
+  );
+  const journey = page.getByRole("navigation", {
+    name: "Export Market Workspace journey",
+  });
+  await expect(
+    journey.getByText("Opportunities", { exact: true }),
+  ).toHaveAttribute("aria-current", "step");
+
+  await page
+    .getByRole("list", { name: "Candidate Markets" })
+    .getByRole("link", { name: "Analyze this market: Netherlands" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toBeVisible();
+  await expect(
+    journey.getByText("Market Analysis", { exact: true }),
   ).toHaveAttribute("aria-current", "step");
 });
