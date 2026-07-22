@@ -204,11 +204,11 @@ test("a retired analysis build is replaced through current-manifest revalidation
   );
   expect(currentManifestRequests).toBe(2);
   expect(retiredBuildRequests).toBe(1);
-  // One more than before issue #68: the Market Analysis Module's own
+  // Two more than before issue #68: the Market Analysis Module's own
   // atomic candidate-market-v1/trade-trend-v1/supplier-competition-v1
-  // execution also replays against the replacement build, alongside the
-  // ranking's own candidate-markets request.
-  expect(replacementBuildRequests).toBe(3);
+  // execution and the adjacent monthly request both replay against the
+  // replacement build, alongside the ranking's own candidate-markets request.
+  expect(replacementBuildRequests).toBe(4);
   expect(replacementProductRequests).toBe(1);
 });
 

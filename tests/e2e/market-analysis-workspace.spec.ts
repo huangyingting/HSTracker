@@ -17,7 +17,7 @@ async function openNetherlandsMarketAnalysis(page: Page) {
   ).toBeVisible();
 }
 
-test("the seven Slice 4 product areas render in the exact specified order with no AQ ID or question navigation", async ({
+test("the eight product areas render in the exact specified order with no AQ ID or question navigation", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -30,15 +30,13 @@ test("the seven Slice 4 product areas render in the exact specified order with n
     }),
   ).toBeVisible();
   const headings = await view.getByRole("heading", { level: 3 }).allTextContents();
-  // Recent Momentum ships with Slice 6 (issue #68 boundary), so the seven
-  // remaining areas keep MARKET_ANALYSIS_PRODUCT_AREAS' exact relative
-  // order.
   expect(headings).toEqual([
     "Market Snapshot",
     "Demand",
     "Exporter Position",
     "Supplier Landscape",
     "Evidence Quality",
+    "Recent Momentum",
     "Explore Further",
     "Validation Plan",
   ]);
@@ -759,6 +757,7 @@ test("both locales expose identical values, evidence states, and actions for Mar
     "出口方位置",
     "供应方格局",
     "证据质量",
+    "近期动量",
     "深入探索",
     "商业验证计划",
   ]);
@@ -810,6 +809,7 @@ test("the complete Market Analysis journey works at 390px and 320px without hori
       "Exporter Position",
       "Supplier Landscape",
       "Evidence Quality",
+      "Recent Momentum",
       "Explore Further",
       "Validation Plan",
     ]);

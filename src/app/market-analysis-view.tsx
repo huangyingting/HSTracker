@@ -3,8 +3,8 @@
 // The Market Analysis orchestrator (spec:
 // docs/spec/export-market-analysis-workspace.md §4.3, §7;
 // docs/spec/export-market-analysis-workspace-ui-design.md §9, §11; issue
-// #68). It owns the Market Analysis header, product-area navigation, the
-// eight-area (seven in this slice; Recent Momentum ships with Slice 6)
+// #68, #70). It owns the Market Analysis header, product-area navigation, the
+// eight-area
 // reading order from `MARKET_ANALYSIS_PRODUCT_AREAS`, and every loading/
 // evidence/fatal-failure presentation state. It renders one already-loaded
 // `MarketAnalysisV1` or a typed failure -- it never fetches, and it never
@@ -22,6 +22,7 @@ import { MARKET_ANALYSIS_COPY, type MarketAnalysisLocale } from "../domain/marke
 import { MARKET_ANALYSIS_PRODUCT_AREAS } from "../domain/market-analysis/product-areas";
 import type { MarketAnalysisV1 } from "../domain/market-analysis/result";
 import type { EffectiveSourceFreshness } from "../domain/release/source-freshness";
+import type { DatasetPackageIdentity } from "../domain/trade-analytics/dataset-package";
 import { AnalysisShareLink } from "./analysis-share-link";
 import { MarketAnalysisClientError } from "./market-analysis-client";
 import {
@@ -33,6 +34,7 @@ import {
   SupplierLandscapePanel,
   ValidationPlanPanel,
 } from "./market-analysis-panels";
+import { RecentMomentumPanel } from "./recent-momentum-panel";
 
 // Maps a rejected `loadMarketAnalysis()` call onto the exact typed
 // recovery surface docs/spec/export-market-analysis-workspace-ui-design.md
@@ -159,14 +161,7 @@ const copy = {
   },
 } as const;
 
-// Recent Momentum ships with Slice 6 (issue #68 boundary: "Do not add
-// Recent Trade Momentum to MarketAnalysisV1"). It is skipped here so the
-// remaining seven areas keep the exact relative order
-// MARKET_ANALYSIS_PRODUCT_AREAS defines instead of reserving a
-// "Coming Soon" placeholder slot for it.
-const RENDERED_PRODUCT_AREAS = MARKET_ANALYSIS_PRODUCT_AREAS.filter(
-  (area) => area !== "recentMomentum",
-);
+const RENDERED_PRODUCT_AREAS = MARKET_ANALYSIS_PRODUCT_AREAS;
 
 export function MarketAnalysisView({
   status,
@@ -185,6 +180,7 @@ export function MarketAnalysisView({
   tradeTrendHref,
   supplierCompetitionHref,
   tradeExplorerHref,
+  recentMomentumDatasetPackageIdentity,
 }: {
   status: MarketAnalysisStatus;
   analysis: MarketAnalysisV1 | null;
@@ -202,6 +198,7 @@ export function MarketAnalysisView({
   tradeTrendHref: string;
   supplierCompetitionHref: string;
   tradeExplorerHref: string | null;
+  recentMomentumDatasetPackageIdentity: DatasetPackageIdentity | null;
 }) {
   const messages = copy[locale];
   const areaCopy = MARKET_ANALYSIS_COPY[locale];
@@ -440,6 +437,11 @@ export function MarketAnalysisView({
         analysis={analysis}
         locale={locale}
         freshness={freshness}
+      />
+      <RecentMomentumPanel
+        analysis={analysis}
+        locale={locale}
+        datasetPackageIdentity={recentMomentumDatasetPackageIdentity}
       />
       <ExploreFurtherPanel
         locale={locale}

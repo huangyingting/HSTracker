@@ -2398,6 +2398,67 @@ a.market-analysis-back:focus-visible {
   font-weight: 700;
 }
 
+.recent-momentum-area {
+  padding: 20px;
+  border: 1px solid var(--state-adjacent-border);
+  border-radius: 12px;
+  background: var(--state-adjacent-bg);
+}
+
+.recent-momentum-boundary {
+  margin: 0 0 16px;
+  color: var(--state-adjacent-fg);
+  line-height: 1.55;
+}
+
+.recent-momentum-status,
+.recent-momentum-local-failure,
+.recent-momentum-bounded {
+  padding: 16px;
+  border: 1px solid var(--state-adjacent-border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.recent-momentum-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recent-momentum-status > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--state-adjacent-fg);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.recent-momentum-local-failure {
+  border-color: var(--state-error-border);
+  color: var(--state-error-fg);
+}
+
+.recent-momentum-local-failure button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.recent-momentum-local-failure p,
+.recent-momentum-bounded p {
+  margin: 0 0 12px;
+}
+
+.recent-momentum-signal {
+  margin: 0 0 12px;
+  color: var(--state-adjacent-fg);
+  font-size: 1.1rem;
+}
+
+.recent-momentum-facts {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .market-area-interpretation {
   margin: 0 0 12px;
   font-size: 0.92rem;
