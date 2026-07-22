@@ -63,8 +63,7 @@ type ProductComboboxProps = {
     source: "restore" | "explicit",
   ) => void;
   onRetiredBuild: () => void;
-  focusOnMount?: boolean;
-  onMountFocusHandled?: () => void;
+  onMountFocus?: () => void;
   syncUrl?: boolean;
 };
 
@@ -75,8 +74,7 @@ export function ProductCombobox({
   locale,
   onSelectionChange,
   onRetiredBuild,
-  focusOnMount = false,
-  onMountFocusHandled,
+  onMountFocus,
   syncUrl = true,
 }: ProductComboboxProps) {
   const messages = copy[locale];
@@ -108,12 +106,12 @@ export function ProductCombobox({
   >("idle");
 
   useEffect(() => {
-    if (!focusOnMount) {
+    if (onMountFocus === undefined) {
       return;
     }
     inputRef.current?.focus();
-    onMountFocusHandled?.();
-  }, [focusOnMount, onMountFocusHandled]);
+    onMountFocus();
+  }, [onMountFocus]);
 
   useEffect(() => {
     const productCode = productCodeOf(

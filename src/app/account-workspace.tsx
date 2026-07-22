@@ -56,7 +56,7 @@ import {
   announceTradeAnalysisContextChange,
   announceTradeAnalysisNavigation,
 } from "./trade-analysis-context-events";
-import { WorkspaceScope } from "./workspace-scope";
+import type { WorkspaceScopeConfiguration } from "./workspace-scope";
 
 const PAGE_LIMIT = 100;
 
@@ -391,11 +391,15 @@ export function SignedInPortfolioWorkspace({
   session,
   onSessionChange,
   onCompletePublicRanking,
+  onWorkspaceScopeChange,
 }: {
   locale: AccountLocale;
   session: AccountSessionPayload;
   onSessionChange: (session: AccountSessionPayload) => void;
   onCompletePublicRanking: () => void;
+  onWorkspaceScopeChange: (
+    scope: WorkspaceScopeConfiguration | null,
+  ) => void;
 }) {
   const messages = copy[locale];
   const [manifest, setManifest] = useState<CurrentAnalysisManifest | null>(
@@ -704,6 +708,76 @@ export function SignedInPortfolioWorkspace({
           pin: candidateMarketPin,
           exporterCode: feed.exporter.code,
         };
+  const focusPortfolioScopeControls = useCallback(() => {
+    document
+      .querySelector<HTMLElement>(
+        ".portfolio-product-tools [role=\"combobox\"]",
+      )
+      ?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (
+      manifest === null ||
+      (status !== "stale" &&
+        (feed === null || feedDeploymentState === null))
+    ) {
+      onWorkspaceScopeChange(null);
+      return;
+    }
+    onWorkspaceScopeChange({
+      exporter:
+        feed?.exporter ?? {
+          code: session.primaryExporter,
+          name: session.primaryExporter,
+        },
+      product: {
+        mode: "portfolio",
+        codes: session.portfolio.map(({ product }) => product.code),
+      },
+      deploymentState:
+        status === "stale"
+          ? "retired"
+          : (feedDeploymentState ?? "current"),
+      deploymentActivation: manifest.freshness.deploymentActivation,
+      baciRelease:
+        status === "stale"
+          ? null
+          : (feed?.provenance.baciRelease ?? manifest.source.baciRelease),
+      finalizedWindow:
+        status === "stale"
+          ? null
+          : (feed?.provenance.scoreWindow ?? manifest.source.windows.score),
+      provisionalYear:
+        status === "stale"
+          ? null
+          : (feed?.provenance.provisionalYear ??
+            manifest.source.provisionalYear),
+      freshnessState:
+        status !== "stale" && feedDeploymentState === "current"
+          ? manifest.freshness.state
+          : null,
+      analysisIdentity:
+        status === "stale" ? undefined : feed?.analysisIdentity,
+      datasetPackageIdentity:
+        status === "stale" ? undefined : feed?.datasetPackageIdentity,
+      canCopyLink: feed !== null || status === "stale",
+      onChangeScope: focusPortfolioScopeControls,
+      onSourceDetails:
+        status !== "stale" && feedDeploymentState === "current"
+          ? () => setSourceDetailsOpen(true)
+          : undefined,
+    });
+  }, [
+    feed,
+    feedDeploymentState,
+    focusPortfolioScopeControls,
+    manifest,
+    onWorkspaceScopeChange,
+    session.portfolio,
+    session.primaryExporter,
+    status,
+  ]);
 
   return (
     <section
@@ -737,71 +811,6 @@ export function SignedInPortfolioWorkspace({
           </dd>
         </div>
       </dl>
-      {manifest === null ||
-      (status !== "stale" &&
-        (feed === null || feedDeploymentState === null)) ? null : (
-        <WorkspaceScope
-          locale={locale}
-          exporter={
-            feed?.exporter ?? {
-              code: session.primaryExporter,
-              name: session.primaryExporter,
-            }
-          }
-          product={{
-            mode: "portfolio",
-            codes: session.portfolio.map(({ product }) => product.code),
-          }}
-          deploymentState={
-            status === "stale"
-              ? "retired"
-              : (feedDeploymentState ?? "current")
-          }
-          deploymentActivation={manifest.freshness.deploymentActivation}
-          baciRelease={
-            status === "stale"
-              ? null
-              : (feed?.provenance.baciRelease ??
-                manifest.source.baciRelease)
-          }
-          finalizedWindow={
-            status === "stale"
-              ? null
-              : (feed?.provenance.scoreWindow ??
-                manifest.source.windows.score)
-          }
-          provisionalYear={
-            status === "stale"
-              ? null
-              : (feed?.provenance.provisionalYear ??
-                manifest.source.provisionalYear)
-          }
-          freshnessState={
-            status !== "stale" && feedDeploymentState === "current"
-              ? manifest.freshness.state
-              : null
-          }
-          analysisIdentity={
-            status === "stale" ? undefined : feed?.analysisIdentity
-          }
-          datasetPackageIdentity={
-            status === "stale" ? undefined : feed?.datasetPackageIdentity
-          }
-          canCopyLink={feed !== null || status === "stale"}
-          onChangeScope={() =>
-            document
-              .querySelector<HTMLElement>(
-                ".portfolio-product-tools [role=\"combobox\"]",
-              )
-              ?.focus()
-          }
-          onSourceDetails={
-            status !== "stale" && feedDeploymentState === "current"
-              ? () => setSourceDetailsOpen(true)
-              : undefined
-          }
-        />
-      )}
       {manifest !== null &&
       status !== "stale" &&
       feedDeploymentState === "current" ? (

@@ -98,6 +98,39 @@ test("Market Snapshot exposes deterministic interpretation, canonical score/rank
   await expect(snapshot.getByText("Candidate Market Score 85")).toBeVisible();
 });
 
+test("the global Scope Bar precedes the journey and Change scope restores the mounted controls", async ({
+  page,
+}) => {
+  await openNetherlandsMarketAnalysis(page);
+
+  expect(
+    await page.evaluate(() => {
+      const scope = document.querySelector(".workspace-scope");
+      const journey = document.querySelector(".journey-indicator");
+      return (
+        scope !== null &&
+        journey !== null &&
+        Boolean(
+          scope.compareDocumentPosition(journey) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        )
+      );
+    }),
+  ).toBe(true);
+
+  await page
+    .getByRole("region", { name: "Workspace scope" })
+    .getByRole("button", { name: "Change scope" })
+    .click();
+  await expect(page).not.toHaveURL(/market=/u);
+  await expect(
+    page.getByRole("combobox", { name: "Export economy" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "Netherlands · Market Analysis" }),
+  ).toHaveCount(0);
+});
+
 test("Demand shows the finalized trend, summary, equivalent table, and separately labelled Provisional evidence", async ({
   page,
 }) => {
@@ -357,8 +390,9 @@ test("Explore Further links preserve market and product context, and Validation 
     "http://localhost",
   ).searchParams;
   expect(tradeExplorerContext.get("recipe")).toBe("trade-explorer-v1");
-  expect(tradeExplorerContext.get("shape")).toBe("finalized-trend-v1");
+  expect(tradeExplorerContext.get("shape")).toBe("product-mix-v1");
   expect(tradeExplorerContext.get("measures")).toBe("TRADE_VALUE_USD");
+  expect(tradeExplorerContext.get("years")).toBe("2023");
   expect(tradeExplorerContext.get("exportEconomy")).toBe("156");
   expect(tradeExplorerContext.get("importEconomy")).toBe("528");
   expect(tradeExplorerContext.get("hsProduct")).toBe("010121");
@@ -840,6 +874,11 @@ test("the complete Market Analysis journey works at 390px and 320px without hori
         name: "Netherlands · Market Analysis",
       }),
     ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Workspace scope" })
+        .locator(".workspace-scope-summary"),
+    ).toContainText("528 · Netherlands");
     const headings = await view
       .getByRole("heading", { level: 3 })
       .allTextContents();

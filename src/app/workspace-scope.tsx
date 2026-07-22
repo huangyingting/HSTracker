@@ -81,6 +81,26 @@ export type WorkspaceProductScope =
     }>
   | Readonly<{ mode: "portfolio"; codes: readonly string[] }>;
 
+export type WorkspaceScopeProps = {
+  locale: WorkspaceScopeLocale;
+  exporter: Readonly<{ code: string; name: string }>;
+  product: WorkspaceProductScope;
+  market?: Readonly<{ code: string; name: string }> | null;
+  deploymentState: "current" | "retained" | "retired";
+  deploymentActivation: PublicDeploymentActivation;
+  baciRelease: string | null;
+  finalizedWindow: Readonly<{ start: number; end: number }> | null;
+  provisionalYear: number | null;
+  freshnessState: SourceFreshnessState | null;
+  analysisIdentity?: string;
+  datasetPackageIdentity?: string;
+  canCopyLink?: boolean;
+  onChangeScope: () => void;
+  onSourceDetails?: () => void;
+};
+
+export type WorkspaceScopeConfiguration = Omit<WorkspaceScopeProps, "locale">;
+
 export function WorkspaceScope({
   locale,
   exporter,
@@ -97,23 +117,7 @@ export function WorkspaceScope({
   canCopyLink = false,
   onChangeScope,
   onSourceDetails,
-}: {
-  locale: WorkspaceScopeLocale;
-  exporter: Readonly<{ code: string; name: string }>;
-  product: WorkspaceProductScope;
-  market?: Readonly<{ code: string; name: string }> | null;
-  deploymentState: "current" | "retained" | "retired";
-  deploymentActivation: PublicDeploymentActivation;
-  baciRelease: string | null;
-  finalizedWindow: Readonly<{ start: number; end: number }> | null;
-  provisionalYear: number | null;
-  freshnessState: SourceFreshnessState | null;
-  analysisIdentity?: string;
-  datasetPackageIdentity?: string;
-  canCopyLink?: boolean;
-  onChangeScope: () => void;
-  onSourceDetails?: () => void;
-}) {
+}: WorkspaceScopeProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
   const messages = copy[locale];
@@ -146,11 +150,16 @@ export function WorkspaceScope({
       data-freshness-state={freshnessState ?? undefined}
       data-details-open={detailsOpen || undefined}
     >
-      <h3>{messages.title}</h3>
+      <h2>{messages.title}</h2>
       <div className="workspace-scope-summary">
         <p>
           <strong>{exporter.code}</strong>
           <span>{productPresentation.summary}</span>
+          {market == null ? null : (
+            <span>
+              {market.code} · {market.name}
+            </span>
+          )}
           <span data-warning={deploymentState === "retired" || undefined}>
             {deploymentLabel}
           </span>

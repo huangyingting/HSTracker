@@ -158,7 +158,14 @@ export function restoreOpportunityPosition(
   }
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
-      document.getElementById(returnState.actionId)?.focus();
+      document
+        .getElementById(returnState.actionId)
+        ?.focus({ preventScroll: true });
+      window.scrollTo({ top: returnState.scrollY });
+      const restoredList = document.getElementById(listElementId);
+      if (restoredList !== null && returnState.listScrollTop !== null) {
+        restoredList.scrollTop = returnState.listScrollTop;
+      }
     });
   });
 }

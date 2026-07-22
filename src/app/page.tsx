@@ -10,7 +10,6 @@ import {
 } from "./account-client";
 import { AdvancedToolsMenu } from "./advanced-tools-menu";
 import { ExportMarketWorkspace } from "./export-market-workspace";
-import { JourneyIndicator } from "./journey-indicator";
 import { ThemeToggle } from "./theme-toggle";
 import {
   parseTradeAnalysisContext,
@@ -322,8 +321,6 @@ export default function Home({
         )}
 
         <WorkspaceRouteTelemetry context={context} />
-        <JourneyIndicator context={context} locale={locale} />
-
         <ExportMarketWorkspace
           initialContext={initialContext}
           locale={locale}

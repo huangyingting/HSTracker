@@ -59,7 +59,7 @@ import {
   type TradeAnalysisRecipe,
 } from "./trade-analysis-context";
 import { announceTradeAnalysisContextChange } from "./trade-analysis-context-events";
-import { WorkspaceScope } from "./workspace-scope";
+import type { WorkspaceScopeConfiguration } from "./workspace-scope";
 
 const copy = {
   en: {
@@ -199,7 +199,15 @@ type LoadedCandidateMarketResult = Readonly<{
   navigationPin: TradeAnalysisContextPin;
 }>;
 
-export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
+export function DiscoveryWorkspace({
+  locale,
+  onWorkspaceScopeChange,
+}: {
+  locale: WorkspaceLocale;
+  onWorkspaceScopeChange: (
+    scope: WorkspaceScopeConfiguration | null,
+  ) => void;
+}) {
   const messages = copy[locale];
   const requestSequence = useRef(0);
   const analysisController = useRef<AbortController | null>(null);
@@ -212,6 +220,7 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
   const marketAnalysisHeadingRef = useRef<HTMLHeadingElement>(null);
   const scopeControlsRef = useRef<HTMLDivElement>(null);
   const pendingMarketAnalysisFocusRef = useRef(false);
+  const pendingScopeFocusRef = useRef(false);
   const [controlRestorationKey, setControlRestorationKey] = useState(0);
   const [exporter, setExporter] = useState<EconomyRecord | null>(null);
   const [product, setProduct] = useState<ProductSearchProduct | null>(null);
@@ -441,6 +450,18 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       marketAnalysisHeadingRef.current?.focus();
     }
   }, [marketAnalysisStatus]);
+
+  useLayoutEffect(() => {
+    if (
+      selectedCandidateCode === null &&
+      pendingScopeFocusRef.current
+    ) {
+      pendingScopeFocusRef.current = false;
+      scopeControlsRef.current
+        ?.querySelector<HTMLInputElement>('[role="combobox"]')
+        ?.focus();
+    }
+  }, [selectedCandidateCode]);
 
   const analyzeCandidateMarkets = useCallback(async (
     refreshedManifest?: CurrentAnalysisManifest,
@@ -757,6 +778,26 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
     result?.candidates.find(
       ({ economy }) => economy.code === selectedCandidateCode,
     ) ?? null;
+  const changeScope = useCallback(() => {
+    if (selectedCandidateCode === null) {
+      scopeControlsRef.current
+        ?.querySelector<HTMLInputElement>('[role="combobox"]')
+        ?.focus();
+      return;
+    }
+    pendingScopeFocusRef.current = true;
+    setSelectedCandidateCode(null);
+    clearMarketAnalysisResult();
+    const context = parseTradeAnalysisContext(window.location.href);
+    if (context.recipe === "candidate-market") {
+      const url = serializeTradeAnalysisContext(window.location.href, {
+        ...context,
+        focusedMarketCode: null,
+      });
+      window.history.replaceState(window.history.state, "", url);
+      announceTradeAnalysisContextChange();
+    }
+  }, [clearMarketAnalysisResult, selectedCandidateCode]);
 
   // The evidence panel is an expensive subtree. Selecting a candidate updates
   // the ranking highlight urgently (so the click paints immediately) while the
@@ -792,12 +833,77 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
       ({ analysisBuildId }) => analysisBuildId === resolvedAnalysisBuildId,
     )?.recommendation.recentTradeMomentum?.datasetPackageIdentity ?? null;
 
+  useEffect(() => {
+    if (
+      currentManifest === null ||
+      exporter === null ||
+      product === null
+    ) {
+      onWorkspaceScopeChange(null);
+      return;
+    }
+    onWorkspaceScopeChange({
+      exporter,
+      product: {
+        mode: "exact",
+        revision: product.hsRevision,
+        code: product.code,
+        descriptionEn: product.sourceDescriptionEn,
+        descriptionZhHans: product.auxiliaryDescriptionZhHans,
+      },
+      market: selectedCandidate?.economy ?? null,
+      deploymentState:
+        status === "stale"
+          ? "retired"
+          : resolvedDeploymentState === "retained"
+            ? "retained"
+            : "current",
+      deploymentActivation: currentManifest.freshness.deploymentActivation,
+      baciRelease:
+        status === "stale"
+          ? null
+          : (result?.provenance.baciRelease ??
+            currentManifest.source.baciRelease),
+      finalizedWindow:
+        status === "stale"
+          ? null
+          : (result?.provenance.scoreWindow ??
+            currentManifest.source.windows.score),
+      provisionalYear:
+        status === "stale"
+          ? null
+          : (result?.provenance.provisionalYear ??
+            currentManifest.source.provisionalYear),
+      freshnessState:
+        status === "stale" || resolvedDeploymentState === "retained"
+          ? null
+          : currentManifest.freshness.state,
+      canCopyLink:
+        status === "success" || status === "empty" || status === "stale",
+      onChangeScope: changeScope,
+      onSourceDetails:
+        status === "stale" ? undefined : () => setSourceDetailsOpen(true),
+    });
+  }, [
+    changeScope,
+    currentManifest,
+    exporter,
+    onWorkspaceScopeChange,
+    product,
+    resolvedDeploymentState,
+    result,
+    selectedCandidate,
+    status,
+  ]);
+
   return (
     <section
       className="analysis-workspace"
       id="discovery"
       tabIndex={-1}
-      aria-labelledby="workspace-title"
+      aria-labelledby={
+        selectedCandidate === null ? "workspace-title" : undefined
+      }
     >
       {selectedCandidate === null ? (
         <div className="workspace-intro">
@@ -886,73 +992,6 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
               </div>
             </div>
           ) : null}
-          {exporter === null || product === null ? null : (
-            <WorkspaceScope
-              locale={locale}
-              exporter={exporter}
-              product={{
-                mode: "exact",
-                revision: product.hsRevision,
-                code: product.code,
-                descriptionEn: product.sourceDescriptionEn,
-                descriptionZhHans: product.auxiliaryDescriptionZhHans,
-              }}
-              market={
-                selectedCandidate === null
-                  ? null
-                  : selectedCandidate.economy
-              }
-              deploymentState={
-                status === "stale"
-                  ? "retired"
-                  : resolvedDeploymentState === "retained"
-                  ? "retained"
-                  : "current"
-              }
-              deploymentActivation={
-                currentManifest.freshness.deploymentActivation
-              }
-              baciRelease={
-                status === "stale"
-                  ? null
-                  : result?.provenance.baciRelease ??
-                    currentManifest.source.baciRelease
-              }
-              finalizedWindow={
-                status === "stale"
-                  ? null
-                  : result?.provenance.scoreWindow ??
-                    currentManifest.source.windows.score
-              }
-              provisionalYear={
-                status === "stale"
-                  ? null
-                  : result?.provenance.provisionalYear ??
-                    currentManifest.source.provisionalYear
-              }
-              freshnessState={
-                status === "stale" ||
-                resolvedDeploymentState === "retained"
-                  ? null
-                  : currentManifest.freshness.state
-              }
-              canCopyLink={
-                status === "success" ||
-                status === "empty" ||
-                status === "stale"
-              }
-              onChangeScope={() =>
-                scopeControlsRef.current
-                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
-                  ?.focus()
-              }
-              onSourceDetails={
-                status === "stale"
-                  ? undefined
-                  : () => setSourceDetailsOpen(true)
-              }
-            />
-          )}
           {status === "stale" ? null : (
             <SourceScope
               manifest={currentManifest}
@@ -1125,9 +1164,12 @@ export function DiscoveryWorkspace({ locale }: { locale: WorkspaceLocale }) {
                           recipe: "trade-explorer",
                           locale,
                           pin: tradeExplorerNavigationPin,
-                          shape: "finalized-trend-v1",
+                          shape: "product-mix-v1",
                           measures: ["TRADE_VALUE_USD"],
-                          years: [],
+                          years: [
+                            loadedCandidateResult.result.provenance.scoreWindow
+                              .end,
+                          ],
                           exportEconomy: [
                             loadedCandidateResult.result.query.exporter.code,
                           ],

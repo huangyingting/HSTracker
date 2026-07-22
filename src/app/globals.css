@@ -1208,7 +1208,7 @@ a {
   background: rgba(var(--ink-rgb), 0.03);
 }
 
-.workspace-scope h3 {
+.workspace-scope h2 {
   margin: 0 0 12px;
   font-size: 0.82rem;
 }

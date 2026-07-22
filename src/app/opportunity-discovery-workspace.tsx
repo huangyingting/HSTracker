@@ -51,7 +51,7 @@ import {
   announceTradeAnalysisContextChange,
   announceTradeAnalysisNavigation,
 } from "./trade-analysis-context-events";
-import { WorkspaceScope } from "./workspace-scope";
+import type { WorkspaceScopeConfiguration } from "./workspace-scope";
 
 const PAGE_LIMIT = 20;
 
@@ -65,20 +65,21 @@ const copy = {
       "The current analysis release is temporarily unavailable.",
     retryCurrent: "Retry current release",
     unsupported:
-      "Opportunity candidates are not available for this current analysis release. The supporting analytical tools remain available.",
+      "Market Investigation Candidates are not available for this current analysis release. The supporting analytical tools remain available.",
     loading: "Loading Market Investigation Candidates…",
     refreshing: "Refreshing the current analysis release…",
     stale: "This analysis build has retired. Refresh the current context.",
     malformed:
-      "These opportunity inputs are invalid. Check the export economy or product code.",
+      "These Analysis Request inputs are invalid. Check the export economy or product code.",
     capacity:
       "Analysis capacity is temporarily busy. The candidate feed was not loaded.",
     rateLimit:
-      "Opportunity requests are temporarily limited. Wait a moment before retrying.",
+      "Analysis Requests are temporarily limited. Wait a moment before retrying.",
     budget:
-      "This opportunity request exceeds the result size limit. Try a confirmed HS12 product projection.",
-    unavailable: "The compatible opportunity index is temporarily unavailable.",
-    fatal: "Opportunity candidates could not be loaded.",
+      "This Analysis Request exceeds the result size limit. Try a confirmed HS12 product projection.",
+    unavailable:
+      "The compatible Market Investigation Candidate index is temporarily unavailable.",
+    fatal: "Market Investigation Candidates could not be loaded.",
     refresh: "Refresh with current evidence",
     retry: "Retry candidate feed",
     allProducts: "All HS12 products",
@@ -112,16 +113,16 @@ const copy = {
     loadingCurrent: "正在加载当前分析发布版本…",
     currentUnavailable: "当前分析发布版本暂时不可用。",
     retryCurrent: "重试当前发布版本",
-    unsupported: "当前分析发布版本不提供机会候选项。辅助分析工具仍可使用。",
+    unsupported: "当前分析发布版本不提供市场调查候选项。辅助分析工具仍可使用。",
     loading: "正在加载市场调查候选项…",
     refreshing: "正在刷新当前分析发布版本…",
     stale: "该分析构建已停用。请刷新当前情境。",
-    malformed: "机会输入无效。请检查出口经济体或产品编码。",
+    malformed: "分析请求输入无效。请检查出口经济体或产品编码。",
     capacity: "分析容量暂时繁忙。尚未加载候选项列表。",
-    rateLimit: "机会请求暂时受限。请稍候再试。",
-    budget: "该机会请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
-    unavailable: "兼容的机会索引暂时不可用。",
-    fatal: "无法加载机会候选项。",
+    rateLimit: "分析请求暂时受限。请稍候再试。",
+    budget: "该分析请求超出结果大小限制。请尝试确认的 HS12 产品投影。",
+    unavailable: "兼容的市场调查候选项索引暂时不可用。",
+    fatal: "无法加载市场调查候选项。",
     refresh: "使用当前证据刷新",
     retry: "重试候选项列表",
     allProducts: "全部 HS12 产品",
@@ -169,17 +170,19 @@ type FeedStatus =
 export function OpportunityDiscoveryWorkspace({
   locale,
   scopeMode,
-  focusProductOnMount = false,
-  onProductMountFocusHandled,
+  onProductMountFocus,
   onScopeModeChange,
   onExactProductConfirmed,
+  onWorkspaceScopeChange,
 }: {
   locale: WorkspaceLocale;
   scopeMode: "all" | "exact";
-  focusProductOnMount?: boolean;
-  onProductMountFocusHandled?: () => void;
+  onProductMountFocus?: () => void;
   onScopeModeChange: (mode: "all" | "exact") => void;
   onExactProductConfirmed: () => void;
+  onWorkspaceScopeChange: (
+    scope: WorkspaceScopeConfiguration | null,
+  ) => void;
 }) {
   const messages = copy[locale];
   const requestSequence = useRef(0);
@@ -687,6 +690,80 @@ export function OpportunityDiscoveryWorkspace({
     currentManifest !== null &&
     feed !== null &&
     feed.analysisBuildId !== currentManifest.analysisBuildId;
+  const focusScopeControls = useCallback(() => {
+    scopeControlsRef.current
+      ?.querySelector<HTMLInputElement>('[role="combobox"]')
+      ?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (
+      currentManifest === null ||
+      exporter === null ||
+      (scopeMode === "exact" && product === null)
+    ) {
+      onWorkspaceScopeChange(null);
+      return;
+    }
+    onWorkspaceScopeChange({
+      exporter,
+      product:
+        scopeMode === "all" || product === null
+          ? { mode: "all" }
+          : {
+              mode: "exact",
+              revision: product.hsRevision,
+              code: product.code,
+              descriptionEn: product.sourceDescriptionEn,
+              descriptionZhHans: product.auxiliaryDescriptionZhHans,
+            },
+      deploymentState:
+        status === "stale"
+          ? "retired"
+          : showingRetainedFeed
+            ? "retained"
+            : "current",
+      deploymentActivation: currentManifest.freshness.deploymentActivation,
+      baciRelease:
+        status === "stale"
+          ? null
+          : (feed?.provenance.baciRelease ??
+            currentManifest.source.baciRelease),
+      finalizedWindow:
+        status === "stale"
+          ? null
+          : (feed?.provenance.scoreWindow ??
+            currentManifest.source.windows.score),
+      provisionalYear:
+        status === "stale"
+          ? null
+          : (feed?.provenance.provisionalYear ??
+            currentManifest.source.provisionalYear),
+      freshnessState:
+        status === "stale" || showingRetainedFeed
+          ? null
+          : currentManifest.freshness.state,
+      analysisIdentity: feed?.analysisIdentity,
+      datasetPackageIdentity: feed?.datasetPackageIdentity,
+      canCopyLink:
+        status === "success" || status === "empty" || status === "stale",
+      onChangeScope: focusScopeControls,
+      onSourceDetails:
+        status === "stale" || showingRetainedFeed
+          ? undefined
+          : () => setSourceDetailsOpen(true),
+    });
+  }, [
+    currentManifest,
+    exporter,
+    feed,
+    focusScopeControls,
+    onWorkspaceScopeChange,
+    product,
+    scopeMode,
+    showingRetainedFeed,
+    status,
+  ]);
 
   return (
     <section
@@ -751,8 +828,7 @@ export function OpportunityDiscoveryWorkspace({
               key={`opportunity-product-${controlRestorationKey}`}
               productSearchBuildId={currentManifest.productSearchBuildId}
               locale={locale}
-              focusOnMount={focusProductOnMount}
-              onMountFocusHandled={onProductMountFocusHandled}
+              onMountFocus={onProductMountFocus}
               onSelectionChange={handleProductSelection}
               onRetiredBuild={refreshCurrentAnalysis}
             />
@@ -803,75 +879,6 @@ export function OpportunityDiscoveryWorkspace({
               </small>
             </div>
           </div>
-          {exporter === null ||
-          (scopeMode === "exact" && product === null) ? null : (
-            <WorkspaceScope
-              locale={locale}
-              exporter={exporter}
-              product={
-                scopeMode === "all" || product === null
-                  ? { mode: "all" }
-                  : {
-                      mode: "exact",
-                      revision: product.hsRevision,
-                      code: product.code,
-                      descriptionEn: product.sourceDescriptionEn,
-                      descriptionZhHans:
-                        product.auxiliaryDescriptionZhHans,
-                    }
-              }
-              deploymentState={
-                status === "stale"
-                  ? "retired"
-                  : showingRetainedFeed
-                    ? "retained"
-                    : "current"
-              }
-              deploymentActivation={
-                currentManifest.freshness.deploymentActivation
-              }
-              baciRelease={
-                status === "stale"
-                  ? null
-                  : feed?.provenance.baciRelease ??
-                    currentManifest.source.baciRelease
-              }
-              finalizedWindow={
-                status === "stale"
-                  ? null
-                  : feed?.provenance.scoreWindow ??
-                    currentManifest.source.windows.score
-              }
-              provisionalYear={
-                status === "stale"
-                  ? null
-                  : feed?.provenance.provisionalYear ??
-                    currentManifest.source.provisionalYear
-              }
-              freshnessState={
-                status === "stale" || showingRetainedFeed
-                  ? null
-                  : currentManifest.freshness.state
-              }
-              analysisIdentity={feed?.analysisIdentity}
-              datasetPackageIdentity={feed?.datasetPackageIdentity}
-              canCopyLink={
-                status === "success" ||
-                status === "empty" ||
-                status === "stale"
-              }
-              onChangeScope={() =>
-                scopeControlsRef.current
-                  ?.querySelector<HTMLInputElement>('[role="combobox"]')
-                  ?.focus()
-              }
-              onSourceDetails={
-                status === "stale" || showingRetainedFeed
-                  ? undefined
-                  : () => setSourceDetailsOpen(true)
-              }
-            />
-          )}
           {showingRetainedFeed ? null : (
             <SourceScope
               manifest={currentManifest}

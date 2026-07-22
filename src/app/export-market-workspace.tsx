@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
 import type { AccountSessionPayload } from "./account-client";
+import { JourneyIndicator } from "./journey-indicator";
 import {
   parseTradeAnalysisContext,
   productCodeOf,
@@ -18,6 +19,10 @@ import {
   announceTradeAnalysisNavigation,
   TRADE_ANALYSIS_CONTEXT_CHANGED_EVENT,
 } from "./trade-analysis-context-events";
+import {
+  WorkspaceScope,
+  type WorkspaceScopeConfiguration,
+} from "./workspace-scope";
 
 const workspaceLoading = () => (
   <div className="workspace-loading" role="status" aria-live="polite" />
@@ -71,6 +76,10 @@ const TradeExplorerWorkspace = dynamic(
 
 type PublicScopeMode = "all" | "exact";
 type OpportunityScopeMode = "public" | "portfolio";
+type WorkspaceScopeOwner = "candidate-market" | "opportunity-discovery";
+type RegisteredWorkspaceScopes = Partial<
+  Record<WorkspaceScopeOwner, WorkspaceScopeConfiguration>
+>;
 
 const copy = {
   en: {
@@ -78,6 +87,7 @@ const copy = {
     allProducts: "Across published products",
     exactProduct: "One confirmed HS Product",
     portfolio: "My confirmed portfolio",
+    setupPortfolio: "Set up portfolio",
     checkingAccount: "Checking portfolio access…",
     signInForPortfolio: "Sign in to use a confirmed portfolio",
   },
@@ -86,6 +96,7 @@ const copy = {
     allProducts: "全部已发布产品",
     exactProduct: "一个已确认的 HS 产品",
     portfolio: "我的已确认产品组合",
+    setupPortfolio: "设置产品组合",
     checkingAccount: "正在检查产品组合访问状态…",
     signInForPortfolio: "登录以使用已确认产品组合",
   },
@@ -105,6 +116,8 @@ export function ExportMarketWorkspace({
   onAccountSessionChange: (session: AccountSessionPayload) => void;
 }) {
   const [context, setContext] = useState(initialContext);
+  const [registeredScopes, setRegisteredScopes] =
+    useState<RegisteredWorkspaceScopes>({});
   const [opportunityScopeMode, setOpportunityScopeMode] =
     useState<OpportunityScopeMode>(
       initialContext.recipe === "opportunity-discovery" &&
@@ -180,6 +193,14 @@ export function ExportMarketWorkspace({
       nextPublicMode: PublicScopeMode | null,
     ) => {
       setOpportunityScopeMode(nextScopeMode);
+      setRegisteredScopes((current) => {
+        if (current["opportunity-discovery"] === undefined) {
+          return current;
+        }
+        const next = { ...current };
+        delete next["opportunity-discovery"];
+        return next;
+      });
       if (nextPublicMode !== null) {
         setPublicScopeMode(nextPublicMode);
       }
@@ -226,6 +247,36 @@ export function ExportMarketWorkspace({
     setFocusExactProduct(false);
   }, []);
 
+  const updateRegisteredScope = useCallback(
+    (
+      owner: WorkspaceScopeOwner,
+      configuration: WorkspaceScopeConfiguration | null,
+    ) => {
+      setRegisteredScopes((current) => {
+        if (configuration !== null) {
+          return { ...current, [owner]: configuration };
+        }
+        if (current[owner] === undefined) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[owner];
+        return next;
+      });
+    },
+    [],
+  );
+  const updateOpportunityScope = useCallback(
+    (configuration: WorkspaceScopeConfiguration | null) =>
+      updateRegisteredScope("opportunity-discovery", configuration),
+    [updateRegisteredScope],
+  );
+  const updateCandidateMarketScope = useCallback(
+    (configuration: WorkspaceScopeConfiguration | null) =>
+      updateRegisteredScope("candidate-market", configuration),
+    [updateRegisteredScope],
+  );
+
   const showCompletePublicRanking = useCallback(() => {
     setOpportunityScopeMode("public");
     setPublicScopeMode("all");
@@ -259,11 +310,26 @@ export function ExportMarketWorkspace({
     setPublicScopeMode("exact");
   }, []);
 
+  const activeScope =
+    context.recipe === "candidate-market" ||
+    context.recipe === "opportunity-discovery"
+      ? registeredScopes[context.recipe] ?? null
+      : null;
+  const workspaceChrome = (
+    <>
+      {activeScope === null ? null : (
+        <WorkspaceScope locale={locale} {...activeScope} />
+      )}
+      <JourneyIndicator context={context} locale={locale} />
+    </>
+  );
+
   if (context.recipe === "opportunity-discovery") {
     const messages = copy[locale];
 
     return (
       <>
+        {workspaceChrome}
         <section className="scope-mode-selector" aria-labelledby="scope-mode-title">
           <p id="scope-mode-title">{messages.legend}</p>
           <div role="group" aria-label={messages.legend}>
@@ -291,7 +357,9 @@ export function ExportMarketWorkspace({
                 aria-pressed={opportunityScopeMode === "portfolio"}
                 onClick={() => selectPortfolioScope(accountSession)}
               >
-                {messages.portfolio}
+                {accountSession.portfolio.length === 0
+                  ? messages.setupPortfolio
+                  : messages.portfolio}
               </button>
             )}
           </div>
@@ -321,14 +389,7 @@ export function ExportMarketWorkspace({
             onAnonymousFallback={() => setAccountAuthOpen(false)}
           />
         ) : opportunityScopeMode === "portfolio" ? (
-          accountSessionStatus === "loading" ? (
-            <div
-              className="analysis-workspace workspace-loading"
-              id="discovery"
-              role="status"
-              aria-live="polite"
-            />
-          ) : accountSession === null ? (
+          accountSessionStatus === "loading" || accountSession === null ? (
             <div
               className="analysis-workspace workspace-loading"
               id="discovery"
@@ -341,6 +402,7 @@ export function ExportMarketWorkspace({
               session={accountSession}
               onSessionChange={onAccountSessionChange}
               onCompletePublicRanking={showCompletePublicRanking}
+              onWorkspaceScopeChange={updateOpportunityScope}
             />
           )
         ) : (
@@ -348,23 +410,33 @@ export function ExportMarketWorkspace({
             key={publicScopeMode}
             locale={locale}
             scopeMode={publicScopeMode}
-            focusProductOnMount={focusExactProduct}
-            onProductMountFocusHandled={handleProductMountFocus}
+            onProductMountFocus={
+              focusExactProduct ? handleProductMountFocus : undefined
+            }
             onScopeModeChange={selectPublicScope}
             onExactProductConfirmed={confirmExactProduct}
+            onWorkspaceScopeChange={updateOpportunityScope}
           />
         )}
       </>
     );
   }
 
-  return context.recipe === "candidate-market" ? (
-    <DiscoveryWorkspace locale={locale} />
-  ) : context.recipe === "trade-trend" ? (
-    <TradeTrendWorkspace locale={locale} />
-  ) : context.recipe === "supplier-competition" ? (
-    <SupplierCompetitionWorkspace locale={locale} />
-  ) : (
-    <TradeExplorerWorkspace locale={locale} />
+  return (
+    <>
+      {workspaceChrome}
+      {context.recipe === "candidate-market" ? (
+        <DiscoveryWorkspace
+          locale={locale}
+          onWorkspaceScopeChange={updateCandidateMarketScope}
+        />
+      ) : context.recipe === "trade-trend" ? (
+        <TradeTrendWorkspace locale={locale} />
+      ) : context.recipe === "supplier-competition" ? (
+        <SupplierCompetitionWorkspace locale={locale} />
+      ) : (
+        <TradeExplorerWorkspace locale={locale} />
+      )}
+    </>
   );
 }

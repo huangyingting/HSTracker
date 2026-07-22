@@ -23,6 +23,11 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
 
   await page.goto("/");
   await createPortfolioAccount(page, email, password);
+  await expect(
+    page
+      .getByRole("group", { name: "Product scope" })
+      .getByRole("button", { name: "Set up portfolio" }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   const candidates = page
     .getByRole("list", { name: "Portfolio Opportunity Candidates" })
@@ -102,7 +107,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     .getByRole("button", { name: "My confirmed portfolio" })
     .click();
   await expect(candidates).toHaveCount(2);
-  const scope = portfolio.getByRole("region", {
+  const scope = page.getByRole("region", {
     name: "Workspace scope",
   });
   await expect(
@@ -118,11 +123,11 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   await expect(page).toHaveURL(
     /recipe=opportunity-discovery-v1.*exporter=156.*portfolio=filter.*build=acceptance-fixtures-v1.*pkg=dataset-package-v1-/u,
   );
-  await portfolio
+  await scope
     .getByRole("button", { name: "Copy link" })
     .click();
   await expect(
-    portfolio.getByRole("button", { name: "Link copied" }),
+    scope.getByRole("button", { name: "Link copied" }),
   ).toBeVisible();
 
   await page.reload();
@@ -142,9 +147,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
     page.getByRole("list", { name: "组合机会候选项" }).getByRole("listitem"),
   ).toHaveCount(2);
   await expect(
-    page
-      .getByRole("region", { name: "您的组合机会工作区" })
-      .getByRole("region", { name: "工作区范围" }),
+    page.getByRole("region", { name: "工作区范围" }),
   ).toContainText("当前");
   expect(opportunityRequests).toBe(requestsBeforeLocale);
   await expect(
@@ -413,7 +416,7 @@ test("a retired portfolio context refreshes explicitly and preserves the origina
     "This retained link points at a retired analysis build.",
   );
   await expect(
-    portfolio
+    page
       .getByRole("region", { name: "Workspace scope" })
       .locator("dd")
       .filter({ hasText: /^Retired$/u }),
