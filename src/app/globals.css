@@ -3184,7 +3184,6 @@ tr[data-selected="true"] td {
   position: absolute;
   left: 0;
   right: 0;
-  height: 168px;
 }
 
 .analysis-output[data-analyzing="true"] {

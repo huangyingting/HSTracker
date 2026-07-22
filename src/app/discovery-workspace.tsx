@@ -1241,7 +1241,7 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   analyzeLabel,
   href,
   onSelect,
-  offsetTop,
+  virtualLayout,
 }: {
   candidate: CandidateMarket;
   selected: boolean;
@@ -1251,15 +1251,15 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
   analyzeLabel: string;
   href: string;
   onSelect: (candidate: CandidateMarket, href: string) => void;
-  offsetTop?: number;
+  virtualLayout?: Readonly<{ top: number; height: number }>;
 }) {
   const messages = copy[locale];
   const growth = candidate.components.marketGrowth;
   const diversity = candidate.components.supplierDiversity;
   return (
     <li
-      className={offsetTop === undefined ? undefined : "candidate-row-virtual"}
-      style={offsetTop === undefined ? undefined : { top: offsetTop }}
+      className={virtualLayout === undefined ? undefined : "candidate-row-virtual"}
+      style={virtualLayout}
     >
       <div
         className="candidate-row-content"
@@ -1328,9 +1328,22 @@ const CandidateRankingRow = memo(function CandidateRankingRow({
 });
 
 const VIRTUALIZED_LIST_THRESHOLD = 40;
-const CANDIDATE_ROW_HEIGHT = 168;
 const CANDIDATE_ROW_OVERSCAN = 6;
+const CANDIDATE_LIST_WIDTH_FALLBACK = 710;
 const CANDIDATE_LIST_VIEWPORT_FALLBACK = 760;
+
+function candidateRowHeight(viewportWidth: number): number {
+  if (viewportWidth <= 300) {
+    return 352;
+  }
+  if (viewportWidth <= 380) {
+    return 280;
+  }
+  if (viewportWidth <= 500) {
+    return 216;
+  }
+  return 192;
+}
 
 function VirtualizedCandidateList({
   result,
@@ -1354,15 +1367,35 @@ function VirtualizedCandidateList({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<number | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(
-    CANDIDATE_LIST_VIEWPORT_FALLBACK,
-  );
+  const [viewport, setViewport] = useState({
+    width: CANDIDATE_LIST_WIDTH_FALLBACK,
+    height: CANDIDATE_LIST_VIEWPORT_FALLBACK,
+  });
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
-    if (element !== null && element.clientHeight > 0) {
-      setViewportHeight(element.clientHeight);
+    if (element === null) {
+      return;
     }
+    const updateViewport = () => {
+      const width =
+        element.clientWidth > 0
+          ? element.clientWidth
+          : CANDIDATE_LIST_WIDTH_FALLBACK;
+      const height =
+        element.clientHeight > 0
+          ? element.clientHeight
+          : CANDIDATE_LIST_VIEWPORT_FALLBACK;
+      setViewport((current) =>
+        current.width === width && current.height === height
+          ? current
+          : { width, height },
+      );
+    };
+    updateViewport();
+    const observer = new ResizeObserver(updateViewport);
+    observer.observe(element);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -1388,13 +1421,14 @@ function VirtualizedCandidateList({
 
   const candidates = result.candidates;
   const total = candidates.length;
+  const rowHeight = candidateRowHeight(viewport.width);
   const start = Math.max(
     0,
-    Math.floor(scrollTop / CANDIDATE_ROW_HEIGHT) - CANDIDATE_ROW_OVERSCAN,
+    Math.floor(scrollTop / rowHeight) - CANDIDATE_ROW_OVERSCAN,
   );
   const end = Math.min(
     total,
-    Math.ceil((scrollTop + viewportHeight) / CANDIDATE_ROW_HEIGHT) +
+    Math.ceil((scrollTop + viewport.height) / rowHeight) +
       CANDIDATE_ROW_OVERSCAN,
   );
 
@@ -1422,7 +1456,7 @@ function VirtualizedCandidateList({
       <ol
         aria-label={listLabel}
         className="candidate-ranking-virtual"
-        style={{ height: total * CANDIDATE_ROW_HEIGHT }}
+        style={{ height: total * rowHeight }}
       >
         {rows.map((index) => {
           const candidate = candidates[index];
@@ -1442,7 +1476,10 @@ function VirtualizedCandidateList({
                 navigationPin,
               )}
               onSelect={onSelect}
-              offsetTop={index * CANDIDATE_ROW_HEIGHT}
+              virtualLayout={{
+                top: index * rowHeight,
+                height: rowHeight,
+              }}
             />
           );
         })}
