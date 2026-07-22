@@ -38,7 +38,7 @@ function originRunnerDependencies() {
 }
 
 describe("fetch HTTP executor", () => {
-  it("paces requests at the anonymous source refill rate", async () => {
+  it("paces requests below the anonymous source refill rate", async () => {
     vi.useFakeTimers();
     const minimumIntervalMs =
       1_000 /
@@ -65,9 +65,57 @@ describe("fetch HTTP executor", () => {
 
     const first = await executor.execute(request);
     const secondPromise = executor.execute(request);
-    await vi.advanceTimersByTimeAsync(minimumIntervalMs - 1);
+    await vi.advanceTimersByTimeAsync(minimumIntervalMs);
     expect(fetchStub).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.runAllTimersAsync();
+    const second = await secondPromise;
+
+    expect(first.timedOut ? null : first.status).toBe(200);
+    expect(second.timedOut ? null : second.status).toBe(200);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+
+  it("budgets all three anonymous tokens used by a Market Analysis request", async () => {
+    vi.useFakeTimers();
+    const refillTokensPerSecond =
+      RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond;
+    const compositeTokenCost = 3;
+    const minimumCompositeIntervalMs =
+      (compositeTokenCost * 1_000) / refillTokensPerSecond;
+    let availableTokens = compositeTokenCost;
+    let updatedAt = performance.now();
+    const fetchStub = vi.fn(() => {
+      const now = performance.now();
+      availableTokens = Math.min(
+        compositeTokenCost,
+        availableTokens +
+          ((now - updatedAt) / 1_000) * refillTokensPerSecond,
+      );
+      updatedAt = now;
+      const status = availableTokens >= compositeTokenCost ? 200 : 429;
+      if (status === 200) {
+        availableTokens -= compositeTokenCost;
+      }
+      return Promise.resolve(new Response(null, { status }));
+    });
+    vi.stubGlobal("fetch", fetchStub);
+    const executor = createAnonymousSourcePacedHttpExecutor(
+      createFetchHttpExecutor(),
+    );
+    const request = {
+      method: "GET",
+      url: new URL(
+        "https://candidate.example.com/api/v1/analyses/build/market-analysis",
+      ),
+      headers: {},
+      timeoutMs: 1_000,
+    } as const;
+
+    const first = await executor.execute(request);
+    const secondPromise = executor.execute(request);
+    await vi.advanceTimersByTimeAsync(minimumCompositeIntervalMs - 1);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    await vi.runAllTimersAsync();
     const second = await secondPromise;
 
     expect(first.timedOut ? null : first.status).toBe(200);

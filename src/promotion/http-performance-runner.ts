@@ -794,12 +794,16 @@ export function createFetchHttpExecutor(): HttpBenchmarkExecutor {
   };
 }
 
+const ANONYMOUS_SOURCE_PACING_UTILIZATION = 0.9;
+const MARKET_ANALYSIS_ANONYMOUS_TOKEN_COST = 3;
+
 export function createAnonymousSourcePacedHttpExecutor(
   executor: HttpBenchmarkExecutor,
 ): HttpBenchmarkExecutor {
-  const minimumStartIntervalMs =
+  const startIntervalPerTokenMs =
     1_000 /
-    RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond;
+    (RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond *
+      ANONYMOUS_SOURCE_PACING_UTILIZATION);
   let nextStartAt = Number.NEGATIVE_INFINITY;
   let precedingStart = Promise.resolve();
 
@@ -818,7 +822,13 @@ export function createAnonymousSourcePacedHttpExecutor(
             setTimeout(resolve, waitMs);
           });
         }
-        nextStartAt = performance.now() + minimumStartIntervalMs;
+        // Market Analysis fans out to Candidate Market, Trade Trend, and
+        // Supplier Competition. Each constituent spends one anonymous-source
+        // token, so pace that composite request at three times the base cost.
+        const tokenCost = request.url.pathname.endsWith("/market-analysis")
+          ? MARKET_ANALYSIS_ANONYMOUS_TOKEN_COST
+          : 1;
+        nextStartAt = performance.now() + startIntervalPerTokenMs * tokenCost;
       } finally {
         releaseStart();
       }
