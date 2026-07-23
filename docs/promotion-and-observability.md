@@ -111,6 +111,11 @@ The candidate load plan is exact:
 | Burst | 10 requests/second for 30 seconds, with the same route and analysis mixes |
 | Coordinated work | Four simultaneous uncached keys at least every 60 seconds |
 
+The deterministic session templates are phase-shifted so sustained traffic keeps
+the declared route, operation, and 80/20 cache mix instead of synchronizing all
+20 sessions on one route. The separate coordinated work remains intentionally
+synchronized.
+
 With a 60-second coordinated interval, the plan needs at least 337 distinct
 analysis keys: 264 for the sustained 20% uncached share, 40 for coordinated
 bursts, and 33 for the burst's 20% uncached analysis share. The 300-request

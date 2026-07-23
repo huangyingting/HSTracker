@@ -2024,6 +2024,35 @@ function weightedRoundRobinSequence<Kind extends string>(
   return sequence;
 }
 
+function rotateSequence<Value>(
+  sequence: readonly Value[],
+  offset: number,
+): Value[] {
+  return [...sequence.slice(offset), ...sequence.slice(0, offset)];
+}
+
+function dephaseSessionRoutes(
+  routeSequence: readonly RouteKind[],
+  sessionIndex: number,
+): RouteKind[] {
+  const safeOffsets = routeSequence.flatMap((_, offset) => {
+    const rotated = rotateSequence(routeSequence, offset);
+    const firstAnalysis = rotated.indexOf("analysis");
+    const firstCsv = rotated.indexOf("csv");
+    return firstAnalysis !== -1 &&
+      (firstCsv === -1 || firstAnalysis < firstCsv)
+      ? [offset]
+      : [];
+  });
+  const safeOffsetIndex = Math.floor(
+    (sessionIndex * safeOffsets.length) / SESSION_COUNT,
+  );
+  return rotateSequence(
+    routeSequence,
+    safeOffsets[safeOffsetIndex % safeOffsets.length] ?? 0,
+  );
+}
+
 type SessionSlot = {
   readonly routeKind: RouteKind;
   readonly analysisOperation: AnalysisOperation | null;
@@ -2077,24 +2106,30 @@ function buildSessionTemplate(
   perSessionCounts: Readonly<Record<RouteKind, number>>,
   analysisHotKeys: readonly string[],
   analysisDistinctKeys: readonly string[],
-  hotKeyCursorOffset: number,
+  sessionIndex: number,
   distinctAnalysisCount: number,
   distinctKeyCursor: { value: number },
 ): SessionSlot[] {
-  const routeSequence = weightedRoundRobinSequence(
-    new Map(ROUTE_KIND_ORDER.map((kind) => [kind, perSessionCounts[kind]])),
-    ROUTE_KIND_ORDER,
+  const routeSequence = dephaseSessionRoutes(
+    weightedRoundRobinSequence(
+      new Map(ROUTE_KIND_ORDER.map((kind) => [kind, perSessionCounts[kind]])),
+      ROUTE_KIND_ORDER,
+    ),
+    sessionIndex,
   );
 
   const analysisCount = perSessionCounts.analysis;
   const hotCount = analysisCount - distinctAnalysisCount;
   const classOrder: readonly AnalysisKeyClass[] = ["hot", "distinct"];
-  const analysisClassSequence = weightedRoundRobinSequence(
-    new Map<AnalysisKeyClass, number>([
-      ["hot", hotCount],
-      ["distinct", distinctAnalysisCount],
-    ]),
-    classOrder,
+  const analysisClassSequence = rotateSequence(
+    weightedRoundRobinSequence(
+      new Map<AnalysisKeyClass, number>([
+        ["hot", hotCount],
+        ["distinct", distinctAnalysisCount],
+      ]),
+      classOrder,
+    ),
+    Math.floor((sessionIndex * analysisCount) / SESSION_COUNT),
   );
   const csvSourceAnalysisSlots = new Set<number>();
   let latestAnalysisSlot: number | null = null;
@@ -2111,7 +2146,7 @@ function buildSessionTemplate(
     }
   }
 
-  let hotKeyCursor = hotKeyCursorOffset;
+  let hotKeyCursor = sessionIndex;
   let analysisCursor = 0;
   let lastAnalysisKey: string | null = null;
   let lastAnalysisKeyClass: AnalysisKeyClass | null = null;
@@ -2140,7 +2175,8 @@ function buildSessionTemplate(
       return {
         routeKind,
         analysisOperation:
-          csvSourceAnalysisSlots.has(slotIndex) || analysisIndex % 2 === 0
+          csvSourceAnalysisSlots.has(slotIndex) ||
+          (analysisIndex + sessionIndex) % 2 === 0
             ? "trade-explorer"
             : "market-analysis",
         analysisKey: key,

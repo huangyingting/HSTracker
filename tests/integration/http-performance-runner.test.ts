@@ -1657,6 +1657,37 @@ describe("mixed-load schedule", () => {
     expect(classCounts.distinct).toBe(220);
   });
 
+  it("dephases cold Market Analysis traffic across sustained sessions", () => {
+    const schedule = buildMixedLoadSchedule(
+      parseMixedLoadPlan(
+        acceptedMixedLoadPlanInput({
+          measurementClass: "candidate",
+          sustainedRequestsPerSecond: 4,
+          sustainedSeconds: 600,
+          burstRequestsPerSecond: 10,
+          burstSeconds: 30,
+          coordinatedBurstIntervalSeconds: 60,
+        }),
+      ),
+    );
+    const sessionRoundWindows = Array.from(
+      { length: schedule.sustained.length / 20 },
+      (_, index) => schedule.sustained.slice(index * 20, (index + 1) * 20),
+    );
+    const maximumColdMarketAnalyses = Math.max(
+      ...sessionRoundWindows.map(
+        (window) =>
+          window.filter(
+            (request) =>
+              request.analysisOperation === "market-analysis" &&
+              request.analysisKeyClass === "distinct",
+          ).length,
+      ),
+    );
+
+    expect(maximumColdMarketAnalyses).toBeLessThanOrEqual(3);
+  });
+
   it("has every csv request reuse the most recent analysis key from its own session", () => {
     const plan = parseMixedLoadPlan(acceptedMixedLoadPlanInput());
     const schedule = buildMixedLoadSchedule(plan);
