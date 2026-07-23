@@ -287,6 +287,7 @@ describe("browser-lab trial execution", () => {
         analyzeToCompleteListMs: 850,
         marketAnalysisToCompleteMs: 1_200,
         marketAnalysisOpenInteractionToNextPaintMs: 120,
+        scoreDetailPresentation: "interactive",
         scoreDetailOpenInteractionToNextPaintMs: 90,
         scoreDetailCloseInteractionToNextPaintMs: 60,
       },
@@ -316,6 +317,40 @@ describe("browser-lab trial execution", () => {
     if (outcome.status === "measured") {
       expect(outcome.metrics.interactionToNextPaintMs).toBe(310);
     }
+  });
+
+  it("measures desktop trials when score details use a responsive static presentation", async () => {
+    const plan = validateBrowserLabPlan(candidatePlanInput());
+    const responsiveStaticOutcome = {
+      measurementStatus: "not-applicable-responsive-static",
+      interactionToNextPaintMs: null,
+      networkRequestUrls: [],
+    } as const;
+    const session = fakeSession({
+      openMarketAnalysis: async () => marketAnalysisOutcome(1_200, 120),
+      openScoreDetail: async () => responsiveStaticOutcome,
+      closeScoreDetail: async () => responsiveStaticOutcome,
+    });
+
+    const outcome = await runBrowserLabTrial(
+      fakeDriver([session]),
+      plan.measurementClass,
+      plan.origin,
+      plan.journeys[0],
+      0,
+    );
+
+    expect(outcome).toMatchObject({
+      status: "measured",
+      metrics: {
+        interactionToNextPaintMs: 120,
+      },
+      diagnostics: {
+        scoreDetailPresentation: "responsive-static",
+        scoreDetailOpenInteractionToNextPaintMs: null,
+        scoreDetailCloseInteractionToNextPaintMs: null,
+      },
+    });
   });
 
   it("allows the Market Analysis navigation requests while retaining its timing", async () => {
@@ -602,7 +637,11 @@ function actionOutcome(
   interactionToNextPaintMs: number | null,
   networkRequestUrls: readonly string[] = [],
 ): BrowserLabActionOutcome {
-  return { interactionToNextPaintMs, networkRequestUrls };
+  return {
+    measurementStatus: "measured",
+    interactionToNextPaintMs,
+    networkRequestUrls,
+  };
 }
 
 function marketAnalysisOutcome(
@@ -612,6 +651,7 @@ function marketAnalysisOutcome(
 ): BrowserLabOpenMarketAnalysisOutcome {
   return {
     marketAnalysisToCompleteMs,
+    measurementStatus: "measured",
     interactionToNextPaintMs,
     networkRequestUrls,
   };

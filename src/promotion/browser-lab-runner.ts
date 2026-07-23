@@ -673,9 +673,20 @@ export class BrowserLabExecutionError extends Error {
 // ---------------------------------------------------------------------------
 
 export type BrowserLabActionOutcome = {
+  readonly measurementStatus:
+    | "measured"
+    | "not-applicable-responsive-static";
   readonly interactionToNextPaintMs: number | null;
   readonly networkRequestUrls: readonly string[];
 };
+
+function responsiveStaticActionOutcome(): BrowserLabActionOutcome {
+  return {
+    measurementStatus: "not-applicable-responsive-static",
+    interactionToNextPaintMs: null,
+    networkRequestUrls: [],
+  };
+}
 
 export function resolveInteractionToNextPaintMs(
   eventDurations: readonly number[],
@@ -758,8 +769,9 @@ export type BrowserLabTrialDiagnostics = {
   readonly analyzeToCompleteListMs: number;
   readonly marketAnalysisToCompleteMs: number;
   readonly marketAnalysisOpenInteractionToNextPaintMs: number;
-  readonly scoreDetailOpenInteractionToNextPaintMs: number;
-  readonly scoreDetailCloseInteractionToNextPaintMs: number;
+  readonly scoreDetailPresentation: "interactive" | "responsive-static";
+  readonly scoreDetailOpenInteractionToNextPaintMs: number | null;
+  readonly scoreDetailCloseInteractionToNextPaintMs: number | null;
 };
 
 export type BrowserLabTrialFailure = {
@@ -855,6 +867,10 @@ export async function runBrowserLabTrial(
       };
     }
 
+    const detailInteractionToNextPaintMs = [
+      openOutcome.interactionToNextPaintMs,
+      closeOutcome.interactionToNextPaintMs,
+    ].filter((value): value is number => value !== null);
     // Fail-closed guards above guarantee these are non-null at this point.
     const metrics: BrowserLabTrialInput = {
       analyzeToCompleteListMs: nonNull(
@@ -867,8 +883,7 @@ export async function runBrowserLabTrial(
       cls: nonNull(snapshot.cls),
       interactionToNextPaintMs: Math.max(
         nonNull(marketAnalysisOutcome.interactionToNextPaintMs),
-        nonNull(openOutcome.interactionToNextPaintMs),
-        nonNull(closeOutcome.interactionToNextPaintMs),
+        ...detailInteractionToNextPaintMs,
       ),
       longestTaskMs: nonNull(snapshot.longestTaskMs),
       criticalCompressedBytes: nonNull(bytes.firstPartyEncodedBytesBeforeLcp),
@@ -890,12 +905,14 @@ export async function runBrowserLabTrial(
       marketAnalysisOpenInteractionToNextPaintMs: nonNull(
         marketAnalysisOutcome.interactionToNextPaintMs,
       ),
-      scoreDetailOpenInteractionToNextPaintMs: nonNull(
+      scoreDetailPresentation:
+        openOutcome.measurementStatus === "measured"
+          ? "interactive"
+          : "responsive-static",
+      scoreDetailOpenInteractionToNextPaintMs:
         openOutcome.interactionToNextPaintMs,
-      ),
-      scoreDetailCloseInteractionToNextPaintMs: nonNull(
+      scoreDetailCloseInteractionToNextPaintMs:
         closeOutcome.interactionToNextPaintMs,
-      ),
     };
 
     return {
@@ -933,6 +950,32 @@ function firstUnsupportedMeasurement(measurements: {
   snapshot: BrowserLabPerformanceSnapshot;
   bytes: BrowserLabByteSummary;
 }): BrowserLabViolation | null {
+  if (
+    measurements.openOutcome.measurementStatus !==
+    measurements.closeOutcome.measurementStatus
+  ) {
+    return {
+      kind: "unsupported-measurement",
+      measurement: "score-detail responsive presentation",
+      reason:
+        "score-detail open and close actions reported inconsistent responsive presentations.",
+    };
+  }
+  for (const [measurement, outcome] of [
+    ["open-score-detail interaction-to-next-paint", measurements.openOutcome],
+    ["close-score-detail interaction-to-next-paint", measurements.closeOutcome],
+  ] as const) {
+    if (
+      (outcome.measurementStatus === "measured") !==
+      (outcome.interactionToNextPaintMs !== null)
+    ) {
+      return {
+        kind: "unsupported-measurement",
+        measurement,
+        reason: `${measurement} could not be measured accurately with the available CDP evidence.`,
+      };
+    }
+  }
   const checks: ReadonlyArray<readonly [string, unknown]> = [
     ["analyze-to-complete-list duration", measurements.analyzeOutcome.analyzeToCompleteListMs],
     ["Candidate Market response bytes", measurements.analyzeOutcome.candidateResponseBytes],
@@ -943,14 +986,6 @@ function firstUnsupportedMeasurement(measurements: {
     [
       "open-market-analysis interaction-to-next-paint",
       measurements.marketAnalysisOutcome.interactionToNextPaintMs,
-    ],
-    [
-      "open-score-detail interaction-to-next-paint",
-      measurements.openOutcome.interactionToNextPaintMs,
-    ],
-    [
-      "close-score-detail interaction-to-next-paint",
-      measurements.closeOutcome.interactionToNextPaintMs,
     ],
     ["largest contentful paint", measurements.snapshot.lcpMs],
     ["cumulative layout shift", measurements.snapshot.cls],
@@ -1405,6 +1440,10 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   private pendingInteractionRequestUrls: string[] | null = null;
   private pageOrigin = "";
   private scriptedInteractionStartMs: number | null = null;
+  private scoreDetailPresentation:
+    | "interactive"
+    | "responsive-static"
+    | null = null;
 
   constructor(
     private readonly context: import("@playwright/test").BrowserContext,
@@ -1544,6 +1583,13 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     action: BrowserLabOpenScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
     const openTrigger = this.locatorFor(action.openTriggerLocator);
+    await this.requireSingleScoreDetailTrigger(openTrigger);
+    if (!(await openTrigger.isVisible())) {
+      await this.requireVisibleControlledScoreDetail(openTrigger);
+      this.scoreDetailPresentation = "responsive-static";
+      return responsiveStaticActionOutcome();
+    }
+    this.scoreDetailPresentation = "interactive";
     await openTrigger.scrollIntoViewIfNeeded();
     return this.measureInteraction(async () => {
       await openTrigger.click();
@@ -1555,6 +1601,21 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     action: BrowserLabCloseScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
     const closeTrigger = this.locatorFor(action.closeTriggerLocator);
+    await this.requireSingleScoreDetailTrigger(closeTrigger);
+    if (this.scoreDetailPresentation === "responsive-static") {
+      if (await closeTrigger.isVisible()) {
+        throw new BrowserLabExecutionError(
+          "Responsive-static score details unexpectedly exposed a close trigger.",
+        );
+      }
+      await this.requireVisibleControlledScoreDetail(closeTrigger);
+      return responsiveStaticActionOutcome();
+    }
+    if (this.scoreDetailPresentation !== "interactive") {
+      throw new BrowserLabExecutionError(
+        "Score details must be opened before they can be closed.",
+      );
+    }
     await closeTrigger.scrollIntoViewIfNeeded();
     return this.measureInteraction(async () => {
       await closeTrigger.click();
@@ -1645,12 +1706,44 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     // The direct click-to-paint window is a conservative fallback when
     // Chromium omits a fast interaction from the Event Timing buffer.
     return {
+      measurementStatus: "measured",
       interactionToNextPaintMs: resolveInteractionToNextPaintMs(
         newDurations,
         nextPaintAtMs - startedAtMs,
       ),
       networkRequestUrls,
     };
+  }
+
+  private async requireSingleScoreDetailTrigger(
+    trigger: import("@playwright/test").Locator,
+  ): Promise<void> {
+    if ((await trigger.count()) !== 1) {
+      throw new BrowserLabExecutionError(
+        "Browser-lab score-detail locator must resolve to exactly one trigger.",
+      );
+    }
+  }
+
+  private async requireVisibleControlledScoreDetail(
+    trigger: import("@playwright/test").Locator,
+  ): Promise<void> {
+    const visible = await trigger.evaluate((element) => {
+      const controlledId = element.getAttribute("aria-controls");
+      const detail =
+        controlledId === null ? null : document.getElementById(controlledId);
+      return (
+        detail !== null &&
+        (detail.clientWidth > 0 ||
+          detail.clientHeight > 0 ||
+          detail.getClientRects().length > 0)
+      );
+    });
+    if (!visible) {
+      throw new BrowserLabExecutionError(
+        "Responsive-static score details must remain visibly linked to their hidden trigger.",
+      );
+    }
   }
 
   private async recordLoadingFinished(
