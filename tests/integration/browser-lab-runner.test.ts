@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
 import {
+  BROWSER_LAUNCH_MATRIX_LOCALES,
+  BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+} from "../../src/promotion/browser-launch-matrix";
+import {
   BrowserLabPlanError,
   createBrowserLabInstrumentationScript,
   resolveInteractionToNextPaintMs,
@@ -77,6 +81,11 @@ describe("browser-lab plan validation", () => {
     expect(plan.journeys[0].productRole).toBe("median");
     expect(plan.journeys[1].productRole).toBe("maximum-row");
     expect(plan.journeys[0].trialCount).toBe(5);
+    expect(plan.launchMatrix).toEqual({
+      productRole: "median",
+      locales: BROWSER_LAUNCH_MATRIX_LOCALES,
+      viewports: BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+    });
     expect(plan.journeys[0].actions.map((action) => action.kind)).toEqual([
       "select-context",
       "analyze",
@@ -151,6 +160,17 @@ describe("browser-lab plan validation", () => {
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
         "median journey requires at least 5 trials for candidate evidence.",
+      ),
+    );
+  });
+
+  it("rejects candidate evidence with an incomplete launch matrix", () => {
+    const input = candidatePlanInput();
+    input.launchMatrix.viewports = input.launchMatrix.viewports.slice(1);
+
+    expect(() => validateBrowserLabPlan(input)).toThrowError(
+      new BrowserLabPlanError(
+        "Candidate browser-lab evidence requires both locales at 1440x900, 1024x768, 768x1024, 390x844, and 320x568.",
       ),
     );
   });
@@ -422,7 +442,25 @@ describe("browser-lab full-plan report", () => {
     expect(report.products.median.measuredTrialCount).toBe(2);
     expect(report.products.median.failedTrialCount).toBe(1);
     expect(report.products["maximum-row"].trials).toHaveLength(1);
-    expect(driver.openTrialSession).toHaveBeenCalledTimes(4);
+    expect(report.launchMatrix).toMatchObject({
+      productRole: "median",
+      measuredTrialCount: 10,
+      failedTrialCount: 0,
+    });
+    expect(
+      report.launchMatrix.trials.map(({ locale, viewport }) => ({
+        locale,
+        viewport,
+      })),
+    ).toEqual(
+      BROWSER_LAUNCH_MATRIX_LOCALES.flatMap((locale) =>
+        BROWSER_LAUNCH_MATRIX_VIEWPORTS.map((viewport) => ({
+          locale,
+          viewport,
+        })),
+      ),
+    );
+    expect(driver.openTrialSession).toHaveBeenCalledTimes(14);
   });
 
   it("does not start a trial when candidate identity attestation fails", async () => {
@@ -596,6 +634,11 @@ type MutablePlan = {
   identity?: Record<string, unknown>;
   origin: string;
   journeys: MutableJourney[];
+  launchMatrix: {
+    productRole: "median" | "maximum-row";
+    locales: string[];
+    viewports: Array<{ width: number; height: number }>;
+  };
 };
 
 type MutableJourney = {
@@ -621,6 +664,13 @@ export function candidatePlanInput(): MutablePlan {
       region: "usw",
     },
     journeys: [journey("median"), journey("maximum-row")],
+    launchMatrix: {
+      productRole: "median",
+      locales: [...BROWSER_LAUNCH_MATRIX_LOCALES],
+      viewports: BROWSER_LAUNCH_MATRIX_VIEWPORTS.map((viewport) => ({
+        ...viewport,
+      })),
+    },
   };
 }
 

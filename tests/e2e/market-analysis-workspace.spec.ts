@@ -70,7 +70,7 @@ test("the Market Analysis scope header exposes identity, deployment, freshness, 
   await expect(page).toHaveURL(/recipe=candidate-market-v1/u);
 });
 
-test("Market Snapshot exposes deterministic interpretation, canonical score/rank, and the existing score audit view", async ({
+test("[launch-evidence:market-snapshot] Market Snapshot exposes deterministic interpretation, canonical score/rank, and the existing score audit view", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -98,7 +98,7 @@ test("Market Snapshot exposes deterministic interpretation, canonical score/rank
   await expect(snapshot.getByText("Candidate Market Score 85")).toBeVisible();
 });
 
-test("the global Scope Bar precedes the journey and Change scope restores the mounted controls", async ({
+test("[launch-evidence:scope-context] the global Scope Bar precedes the journey and Change scope restores the mounted controls", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -131,7 +131,7 @@ test("the global Scope Bar precedes the journey and Change scope restores the mo
   ).toHaveCount(0);
 });
 
-test("Demand shows the finalized trend, summary, equivalent table, and separately labelled Provisional evidence", async ({
+test("[launch-evidence:demand] Demand shows the finalized trend, summary, equivalent table, and separately labelled Provisional evidence", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -162,7 +162,7 @@ test("Demand shows the finalized trend, summary, equivalent table, and separatel
   );
 });
 
-test("Exporter Position distinguishes the score-window, pooled-supplier, and Provisional bilateral bases", async ({
+test("[launch-evidence:exporter-position] Exporter Position distinguishes the score-window, pooled-supplier, and Provisional bilateral bases", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -196,7 +196,7 @@ test("Exporter Position distinguishes the score-window, pooled-supplier, and Pro
   );
 });
 
-test("Supplier Landscape shows the complete bounded cohort, exact HHI scale, and selected-exporter position", async ({
+test("[launch-evidence:supplier-landscape] Supplier Landscape shows the complete bounded cohort, exact HHI scale, and selected-exporter position", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -232,7 +232,7 @@ test("Supplier Landscape shows the complete bounded cohort, exact HHI scale, and
   await expect(supplierLandscape).toContainText("on a 0-10,000 scale");
 });
 
-test("each analytical product area exposes its own complete constituent provenance", async ({
+test("[launch-evidence:constituent-provenance] each analytical product area exposes its own complete constituent provenance", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -284,7 +284,7 @@ test("each analytical product area exposes its own complete constituent provenan
   }
 });
 
-test("evidence gaps at a low-confidence market remain distinguishable from Validation Plan gaps", async ({
+test("[launch-evidence:evidence-quality-and-gaps] evidence gaps at a low-confidence market remain distinguishable from Validation Plan gaps", async ({
   page,
 }) => {
   await page.goto("/?exporter=156&revision=HS12&product=010121&market=710");
@@ -363,7 +363,7 @@ test("Provisional supplier evidence distinguishes no recorded flow from a missin
   );
 });
 
-test("Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder", async ({
+test("[launch-evidence:advanced-tools] [launch-evidence:advanced-evidence-and-validation] Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -808,7 +808,7 @@ test("a retained build never exposes unpinned links for recipes it did not decla
   );
 });
 
-test("both locales expose identical values, evidence states, and actions for Market Analysis", async ({
+test("[launch-evidence:locale-parity] both locales expose identical values, evidence states, and actions for Market Analysis", async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -855,7 +855,7 @@ test("both locales expose identical values, evidence states, and actions for Mar
   ]);
 });
 
-test("the complete Market Analysis journey works at 390px and 320px without horizontal-only comprehension", async ({
+test("[launch-evidence:mobile-journey] the complete Market Analysis journey works at 390px and 320px without horizontal-only comprehension", async ({
   page,
 }) => {
   for (const width of [390, 320]) {

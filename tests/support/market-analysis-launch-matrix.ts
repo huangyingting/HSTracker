@@ -1,3 +1,17 @@
+export type LaunchEvidenceCase = {
+  readonly id: string;
+  readonly title: string;
+};
+
+export function launchEvidenceTestTitle(
+  evidence:
+    | LaunchEvidenceCase
+    | readonly [LaunchEvidenceCase, ...LaunchEvidenceCase[]],
+): string {
+  const cases = Array.isArray(evidence) ? evidence : [evidence];
+  return `${cases.map(({ id }) => `[launch-evidence:${id}]`).join(" ")} ${cases[0]!.title}`;
+}
+
 export const MARKET_ANALYSIS_ACCESSIBILITY_CASES = [
   {
     id: "tablet-reflow-keyboard-navigation",
@@ -26,6 +40,11 @@ export const MARKET_ANALYSIS_ACCESSIBILITY_CASES = [
     id: "locale-theme-viewport-matrix",
     title:
       "Market Analysis remains complete across both locales, both themes, and every launch viewport",
+  },
+  {
+    id: "visual-state-launch-matrix",
+    title:
+      "every required Market Analysis visual state remains complete across both locales, both themes, and every launch viewport",
   },
 ] as const;
 
@@ -170,7 +189,7 @@ export const MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES = [
   {
     id: "rollback",
     title:
-      "atomically rolls a distinct accepted release back to the task-first Market Analysis deployment",
+      "restores the prior application image and accepted Market Analysis deployment atomically",
   },
 ] as const;
 

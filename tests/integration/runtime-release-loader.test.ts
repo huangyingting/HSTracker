@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 
 describe("verified release runtime", () => {
-  it("reaches readiness only after the composed Market Analysis startup smoke with exact release identities", async () => {
+  it("[launch-evidence:startup-smoke] reaches readiness only after the composed Market Analysis startup smoke with exact release identities", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
     const candidate = await writeRuntimeReleaseCandidate(

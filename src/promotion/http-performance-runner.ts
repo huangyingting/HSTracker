@@ -10,7 +10,18 @@ import {
   type BenchmarkSample,
 } from "./benchmark-statistics";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
-import { resolveTargetLoadCpuPressure } from "./performance-gates";
+import {
+  ALL_ORIGIN_BENCHMARK_CAPABILITIES,
+  ORIGIN_SINGLETON_BENCHMARK_OPERATIONS,
+  REQUIRED_PRODUCT_ROLES,
+  isOriginBenchmarkOperation,
+  isOriginSingletonBenchmarkOperation,
+  isPerformanceProductRole,
+  originBenchmarkRequiresUncachedSamples,
+  originBenchmarkRouteDeadlineMs,
+  requiredOriginProductOperations,
+  resolveTargetLoadCpuPressure,
+} from "./performance-gates";
 import type {
   OriginBenchmarkCapabilities,
   OriginBenchmarkInput,
@@ -300,66 +311,6 @@ function utcTimestamp(millisecondsSinceEpoch: number): string {
     .replace(/\.\d{3}Z$/u, "Z");
 }
 
-// ---------------------------------------------------------------------------
-// Origin benchmark: single-route GET/HEAD measurements against a running
-// origin. These lists and per-operation deadlines mirror the private
-// PRODUCT_BENCHMARK_OPERATIONS / SINGLETON_BENCHMARK_OPERATIONS /
-// REQUIRED_PRODUCT_ROLES / ORIGIN_THRESHOLDS.routeDeadlineMs constants in
-// src/promotion/performance-gates.ts, which are not exported. Keep the two
-// lists in sync by hand if performance-gates.ts's operation set changes.
-// ---------------------------------------------------------------------------
-
-const SINGLETON_OPERATIONS = [
-  "html-shell",
-  "current-manifest",
-  "health",
-] as const satisfies readonly OriginBenchmarkOperation[];
-
-const PRODUCT_OPERATIONS = [
-  "economy-search-uncached",
-  "economy-search-process-hit",
-  "product-search-uncached",
-  "product-search-process-hit",
-  "candidate-analysis-uncached",
-  "candidate-analysis-process-hit",
-  "market-analysis-uncached",
-  "market-analysis-process-hit",
-  "csv-uncached",
-  "csv-analysis-hit",
-  "trade-trend-analysis-uncached",
-  "trade-trend-analysis-process-hit",
-  "trade-trend-csv-uncached",
-  "trade-trend-csv-analysis-hit",
-  "supplier-competition-analysis-uncached",
-  "supplier-competition-analysis-process-hit",
-  "supplier-competition-csv-uncached",
-  "supplier-competition-csv-analysis-hit",
-  "recent-trade-momentum-uncached",
-  "opportunity-feed-uncached",
-  "trade-explorer-analysis-uncached",
-  "trade-explorer-analysis-process-hit",
-  "trade-explorer-csv-uncached",
-  "trade-explorer-csv-analysis-hit",
-] as const satisfies readonly OriginBenchmarkOperation[];
-const ALL_ORIGIN_BENCHMARK_CAPABILITIES: OriginBenchmarkCapabilities = {
-  recentTradeMomentum: true,
-  opportunityDiscovery: true,
-};
-const UNCACHED_OPERATIONS = [
-  "economy-search-uncached",
-  "product-search-uncached",
-  "candidate-analysis-uncached",
-  "market-analysis-uncached",
-  "csv-uncached",
-  "trade-trend-analysis-uncached",
-  "trade-trend-csv-uncached",
-  "supplier-competition-analysis-uncached",
-  "supplier-competition-csv-uncached",
-  "recent-trade-momentum-uncached",
-  "opportunity-feed-uncached",
-  "trade-explorer-analysis-uncached",
-  "trade-explorer-csv-uncached",
-] as const satisfies readonly OriginBenchmarkOperation[];
 const CACHE_STATE_HIT = "hit";
 const CACHE_STATE_MISS = "miss";
 
@@ -371,50 +322,11 @@ const TRADE_EXPLORER_EXPORT_ENVELOPE = [
   "schema",
 ] as const;
 
-const PRODUCT_ROLES = [
-  "sparse",
-  "median",
-  "upper-quartile",
-  "maximum-row",
-] as const satisfies readonly PerformanceProductRole[];
-
-const ROUTE_DEADLINE_MS: Record<OriginBenchmarkOperation, number> = {
-  "html-shell": 2_000,
-  "current-manifest": 2_000,
-  health: 2_000,
-  "economy-search-uncached": 2_000,
-  "economy-search-process-hit": 2_000,
-  "product-search-uncached": 2_000,
-  "product-search-process-hit": 2_000,
-  "candidate-analysis-uncached": 12_000,
-  "candidate-analysis-process-hit": 2_000,
-  "market-analysis-uncached": 12_000,
-  "market-analysis-process-hit": 2_000,
-  "csv-uncached": 15_000,
-  "csv-analysis-hit": 15_000,
-  "trade-trend-analysis-uncached": 12_000,
-  "trade-trend-analysis-process-hit": 2_000,
-  "trade-trend-csv-uncached": 15_000,
-  "trade-trend-csv-analysis-hit": 15_000,
-  "supplier-competition-analysis-uncached": 12_000,
-  "supplier-competition-analysis-process-hit": 2_000,
-  "supplier-competition-csv-uncached": 15_000,
-  "supplier-competition-csv-analysis-hit": 15_000,
-  "recent-trade-momentum-uncached": 2_000,
-  "opportunity-feed-uncached": 2_000,
-  "trade-explorer-analysis-uncached": 12_000,
-  "trade-explorer-analysis-process-hit": 2_000,
-  "trade-explorer-csv-uncached": 15_000,
-  "trade-explorer-csv-analysis-hit": 15_000,
-};
-
 function originBenchmarkKey(
   operation: OriginBenchmarkOperation,
   productRole: PerformanceProductRole | undefined,
 ): string {
-  const singleton = (SINGLETON_OPERATIONS as readonly string[]).includes(
-    operation,
-  );
+  const singleton = isOriginSingletonBenchmarkOperation(operation);
   if (singleton) {
     if (productRole !== undefined) {
       throw planError(`${operation} must not name a product role.`);
@@ -423,7 +335,7 @@ function originBenchmarkKey(
   }
   if (
     productRole === undefined ||
-    !(PRODUCT_ROLES as readonly string[]).includes(productRole)
+    !isPerformanceProductRole(productRole)
   ) {
     throw planError(`${operation} must name a supported product role.`);
   }
@@ -514,42 +426,30 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
     const label = `origin-benchmark plan request ${index + 1}`;
     const requestPlan = record(entry, label);
     const operation = requestPlan.operation;
-    if (
-      typeof operation !== "string" ||
-      !(
-        (SINGLETON_OPERATIONS as readonly string[]).includes(operation) ||
-        (PRODUCT_OPERATIONS as readonly string[]).includes(operation)
-      )
-    ) {
+    if (!isOriginBenchmarkOperation(operation)) {
       throw planError(`${label} operation is not a supported operation.`);
     }
     const productRole =
       requestPlan.productRole === undefined
         ? undefined
         : requiredProductRole(requestPlan.productRole, label);
-    const key = originBenchmarkKey(
-      operation as OriginBenchmarkOperation,
-      productRole,
-    );
+    const key = originBenchmarkKey(operation, productRole);
     if (seenKeys.has(key)) {
       throw planError(`Duplicate origin-benchmark request ${key}.`);
     }
     seenKeys.add(key);
+    const requiredTimeoutMs = originBenchmarkRouteDeadlineMs(operation);
     const timeoutMs =
       requestPlan.timeoutMs === undefined
-        ? ROUTE_DEADLINE_MS[operation as OriginBenchmarkOperation]
+        ? requiredTimeoutMs
         : positiveInteger(requestPlan.timeoutMs, `${label} timeoutMs`);
-    if (
-      timeoutMs !==
-      ROUTE_DEADLINE_MS[operation as OriginBenchmarkOperation]
-    ) {
+    if (timeoutMs !== requiredTimeoutMs) {
       throw planError(
-        `${label} timeoutMs must match the operation deadline of ${ROUTE_DEADLINE_MS[operation as OriginBenchmarkOperation]} ms.`,
+        `${label} timeoutMs must match the operation deadline of ${requiredTimeoutMs} ms.`,
       );
     }
-    const requiresUncachedSamples = (
-      UNCACHED_OPERATIONS as readonly string[]
-    ).includes(operation);
+    const requiresUncachedSamples =
+      originBenchmarkRequiresUncachedSamples(operation);
     let sampleRequests:
       | Array<{ semanticKey: string; request: HttpRequestCase }>
       | undefined;
@@ -610,20 +510,20 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
       );
     }
     return {
-      operation: operation as OriginBenchmarkOperation,
+      operation,
       productRole,
       request: validateRequestCase(requestPlan.request, `${label} request`),
       sampleRequests,
       timeoutMs,
     };
   });
-  for (const operation of SINGLETON_OPERATIONS) {
+  for (const operation of ORIGIN_SINGLETON_BENCHMARK_OPERATIONS) {
     if (!seenKeys.has(`${operation}:all`)) {
       throw planError(`Missing origin-benchmark request ${operation}:all.`);
     }
   }
   for (const operation of requiredProductOperations) {
-    for (const role of PRODUCT_ROLES) {
+    for (const role of REQUIRED_PRODUCT_ROLES) {
       if (!seenKeys.has(`${operation}:${role}`)) {
         throw planError(
           `Missing origin-benchmark request ${operation}:${role}.`,
@@ -632,8 +532,8 @@ export function parseOriginBenchmarkPlan(value: unknown): OriginBenchmarkPlan {
     }
   }
   const requiredBenchmarkCount =
-    SINGLETON_OPERATIONS.length +
-    requiredProductOperations.length * PRODUCT_ROLES.length;
+    ORIGIN_SINGLETON_BENCHMARK_OPERATIONS.length +
+    requiredProductOperations.length * REQUIRED_PRODUCT_ROLES.length;
   if (seenKeys.size !== requiredBenchmarkCount) {
     throw planError(
       "origin-benchmark plan requests must name exactly the required operation/product-role set.",
@@ -672,27 +572,12 @@ function validateOriginBenchmarkCapabilities(
   };
 }
 
-function requiredOriginProductOperations(
-  capabilities: OriginBenchmarkCapabilities,
-): readonly (typeof PRODUCT_OPERATIONS)[number][] {
-  return PRODUCT_OPERATIONS.filter(
-    (operation) =>
-      (operation !== "recent-trade-momentum-uncached" ||
-        capabilities.recentTradeMomentum) &&
-      (operation !== "opportunity-feed-uncached" ||
-        capabilities.opportunityDiscovery),
-  );
-}
-
 function requiredProductRole(
   value: unknown,
   label: string,
 ): PerformanceProductRole {
-  if (
-    typeof value === "string" &&
-    (PRODUCT_ROLES as readonly string[]).includes(value)
-  ) {
-    return value as PerformanceProductRole;
+  if (isPerformanceProductRole(value)) {
+    return value;
   }
   throw planError(`${label} productRole is not a supported product role.`);
 }
@@ -1355,10 +1240,10 @@ function expectedOriginCacheState(
     // every timed sample below must still report a process hit.
     return null;
   }
-  if ((SINGLETON_OPERATIONS as readonly string[]).includes(operation)) {
+  if (isOriginSingletonBenchmarkOperation(operation)) {
     return null;
   }
-  if ((UNCACHED_OPERATIONS as readonly string[]).includes(operation)) {
+  if (originBenchmarkRequiresUncachedSamples(operation)) {
     return CACHE_STATE_MISS;
   }
   return phase === "warmup" && sampleIndex === 0 ? null : CACHE_STATE_HIT;
@@ -1392,7 +1277,7 @@ async function assertIdentity(
     method: healthCheck.method,
     url,
     headers: healthCheck.headers ?? {},
-    timeoutMs: ROUTE_DEADLINE_MS.health,
+    timeoutMs: originBenchmarkRouteDeadlineMs("health"),
   });
   if (outcome.timedOut) {
     throw identityMismatchError(

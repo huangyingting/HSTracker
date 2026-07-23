@@ -12,13 +12,19 @@ import { join, relative } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
+import {
+  BROWSER_LAUNCH_MATRIX_LOCALES,
+  BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+} from "../../src/promotion/browser-launch-matrix";
 import type { PromotionIdentity } from "../../src/promotion/promotion-report";
+import { ANALYST_NEED_ACCEPTANCE_SCENARIOS } from "../support/market-analysis-analyst-needs";
 import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
   MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
   MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
   MARKET_ANALYSIS_DURABLE_JOURNEY_CASES,
   MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES,
+  launchEvidenceTestTitle,
 } from "../support/market-analysis-launch-matrix";
 
 const execute = promisify(execFile);
@@ -67,11 +73,13 @@ describe("Market Analysis launch evidence command", () => {
       productContractVersion: "market-analysis-v1",
       activeDeploymentPairingId: IDENTITY.deploymentPairingId,
       analystNeeds: { DIRECT: 10, BOUNDED: 5, OUTSIDE: 5 },
-      accessibilityCases: 6,
+      analystNeedScenarios: 12,
+      accessibilityCases: 7,
       durableJourneyCases: 15,
       recentMomentumStates: 11,
       originBenchmarkCases: 8,
       browserTrials: 10,
+      browserLaunchMatrixContexts: 10,
     });
 
     const evidence = JSON.parse(
@@ -82,6 +90,15 @@ describe("Market Analysis launch evidence command", () => {
       annualResultInvariance: {
         cases: unknown[];
         coveredMonthlyStates: unknown[];
+      };
+      rollback: {
+        drill: {
+          applicationImages: {
+            before: { digest: string; buildId: string };
+            successor: { digest: string; buildId: string };
+            restored: { digest: string; buildId: string };
+          };
+        };
       };
     };
     expect(evidence).toMatchObject({
@@ -112,6 +129,20 @@ describe("Market Analysis launch evidence command", () => {
       11,
     );
     expect(evidence.annualResultInvariance.cases).toHaveLength(4);
+    expect(evidence.rollback.drill.applicationImages).toEqual({
+      before: {
+        digest: `sha256:${"b".repeat(64)}`,
+        buildId: "prior-market-analysis-build",
+      },
+      successor: {
+        digest: `sha256:${"c".repeat(64)}`,
+        buildId: IDENTITY.buildId,
+      },
+      restored: {
+        digest: `sha256:${"b".repeat(64)}`,
+        buildId: "prior-market-analysis-build",
+      },
+    });
 
     const checks = JSON.parse(
       await readFile(fixture.checksPath, "utf8"),
@@ -181,12 +212,80 @@ describe("Market Analysis launch evidence command", () => {
       ),
     });
   }, 30_000);
+
+  it("fails closed when rollback evidence omits application-image proof", async () => {
+    const fixture = await writeFixtureReports({
+      rollbackProof: "missing-application-images",
+    });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "rollback application images must be an object",
+      ),
+    });
+  }, 30_000);
+
+  it("fails closed when rollback evidence does not restore the prior image digest", async () => {
+    const fixture = await writeFixtureReports({
+      rollbackProof: "mismatched-restored-image",
+    });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "must restore the exact prior digest and build",
+      ),
+    });
+  }, 30_000);
+
+  it("fails closed when browser evidence has prose titles without stable launch IDs", async () => {
+    const fixture = await writeFixtureReports({
+      omitBrowserEvidenceIds: true,
+    });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "Required browser test did not pass exactly once: scope-context.",
+      ),
+    });
+  }, 30_000);
 });
 
 async function writeFixtureReports(
   options: {
     includesMarketAnalysis?: boolean;
+    omitBrowserEvidenceIds?: boolean;
     originPayloadBytes?: number;
+    rollbackProof?:
+      | "accepted"
+      | "missing-application-images"
+      | "mismatched-restored-image";
   } = {},
 ) {
   const workspace = await mkdtemp(
@@ -231,21 +330,14 @@ async function writeFixtureReports(
     paths.targetLoad,
     targetLoadReport(options.includesMarketAnalysis ?? true),
   );
-  await writeJson(paths.lifecycle, {
-    schemaVersion: "lifecycle-drill-report-v1",
-    measurementClass: "candidate",
-    identity: IDENTITY,
-    measuredAt: "2026-07-19T00:40:00Z",
-    drills: {
-      rollback: {
-        measuredMs: 12_345,
-        limitMs: 900_000,
-        status: "accepted",
-        method: "Distinct accepted release rollback and restart.",
-      },
-    },
-  });
-  await writeJson(paths.accessibility, playwrightReport());
+  await writeJson(
+    paths.lifecycle,
+    lifecycleReport(options.rollbackProof ?? "accepted"),
+  );
+  await writeJson(
+    paths.accessibility,
+    playwrightReport(!(options.omitBrowserEvidenceIds ?? false)),
+  );
   await writeJson(paths.contracts, vitestReport());
 
   for (const gate of [
@@ -361,6 +453,27 @@ function browserReport() {
       median: product("median"),
       "maximum-row": product("maximum-row"),
     },
+    launchMatrix: {
+      productRole: "median",
+      trials: BROWSER_LAUNCH_MATRIX_LOCALES.flatMap((locale) =>
+        BROWSER_LAUNCH_MATRIX_VIEWPORTS.map((viewport, trialIndex) => ({
+          locale,
+          viewport,
+          outcome: {
+            trialIndex,
+            productRole: "median",
+            status: "measured",
+            metrics: {
+              lcpMs: 1_200,
+              interactionToNextPaintMs: 100,
+            },
+            violations: [],
+          },
+        })),
+      ),
+      measuredTrialCount: 10,
+      failedTrialCount: 0,
+    },
   };
 }
 
@@ -391,8 +504,89 @@ function targetLoadReport(includesMarketAnalysis: boolean) {
   };
 }
 
-function playwrightReport() {
+function lifecycleReport(
+  proof:
+    | "accepted"
+    | "missing-application-images"
+    | "mismatched-restored-image",
+) {
+  const priorDeployment = {
+    deploymentPairingId: "deployment-pairing-v1-5555555555555555",
+    analysisBuildId: "analysis-build-v1-6666666666666666",
+    productSearchBuildId: "product-search-v1-7777777777777777",
+    artifactSha256: "d".repeat(64),
+    sourceStatusSnapshotId: "source-status-v1-8888888888888888",
+  };
+  const applicationImages =
+    proof === "missing-application-images"
+      ? undefined
+      : {
+          before: {
+            digest: `sha256:${"b".repeat(64)}`,
+            buildId: "prior-market-analysis-build",
+          },
+          successor: {
+            digest: `sha256:${"c".repeat(64)}`,
+            buildId: IDENTITY.buildId,
+          },
+          restored: {
+            digest:
+              proof === "mismatched-restored-image"
+                ? `sha256:${"e".repeat(64)}`
+                : `sha256:${"b".repeat(64)}`,
+            buildId: "prior-market-analysis-build",
+          },
+        };
+  return {
+    schemaVersion: "lifecycle-drill-report-v1",
+    measurementClass: "candidate",
+    identity: IDENTITY,
+    measuredAt: "2026-07-19T00:40:00Z",
+    drills: {
+      rollback: {
+        measuredMs: 12_345,
+        limitMs: 900_000,
+        status: "accepted",
+        method:
+          "Restore the prior application image and accepted deployment, then run the Market Analysis product smoke.",
+        applicationImages,
+        deployments: {
+          before: priorDeployment,
+          successor: {
+            deploymentPairingId: IDENTITY.deploymentPairingId,
+            analysisBuildId: IDENTITY.analysisBuildId,
+            productSearchBuildId: IDENTITY.productSearchBuildId,
+            artifactSha256: IDENTITY.artifactSha256,
+            sourceStatusSnapshotId: IDENTITY.sourceStatusSnapshotId,
+          },
+          restored: priorDeployment,
+        },
+        restoredProductContract: {
+          status: "accepted",
+          schemaVersion: "market-analysis-v1",
+          candidateMarketStatus: 200,
+          marketAnalysisStatus: 200,
+          deploymentPairingId: priorDeployment.deploymentPairingId,
+          analysisBuildId: priorDeployment.analysisBuildId,
+          constituentRecipes: [
+            "candidate-market-v1",
+            "trade-trend-v1",
+            "supplier-competition-v1",
+          ],
+        },
+        rollbackState: {
+          deploymentActivationMode: "current",
+          rollbackActive: true,
+          sourceStatusSnapshotId: priorDeployment.sourceStatusSnapshotId,
+        },
+      },
+    },
+  };
+}
+
+function playwrightReport(includeEvidenceIds: boolean) {
   const cases = [
+    ...ANALYST_NEED_ACCEPTANCE_SCENARIOS,
     ...MARKET_ANALYSIS_ACCESSIBILITY_CASES,
     MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
     ...MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
@@ -401,8 +595,10 @@ function playwrightReport() {
   return {
     suites: [
       {
-        specs: cases.map(({ title }) => ({
-          title,
+        specs: cases.map((launchCase) => ({
+          title: includeEvidenceIds
+            ? launchEvidenceTestTitle(launchCase)
+            : launchCase.title,
           ok: true,
           tests: [
             {
@@ -421,8 +617,8 @@ function vitestReport() {
     testResults: [
       {
         assertionResults: MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES.map(
-          ({ title }) => ({
-            fullName: `launch contracts ${title}`,
+          (launchCase) => ({
+            fullName: `launch contracts ${launchEvidenceTestTitle(launchCase)}`,
             status: "passed",
           }),
         ),

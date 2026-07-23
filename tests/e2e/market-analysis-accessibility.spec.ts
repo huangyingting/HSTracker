@@ -4,6 +4,7 @@ import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
   MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
   RECENT_MOMENTUM_LAUNCH_STATES,
+  launchEvidenceTestTitle,
 } from "../support/market-analysis-launch-matrix";
 
 const CANONICAL_URL = "/?exporter=156&revision=HS12&product=010121&market=528";
@@ -17,7 +18,7 @@ async function openNetherlandsMarketAnalysis(page: Page) {
   ).toBeVisible();
 }
 
-test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[0].title, async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[0]), async ({
   page,
 }) => {
   await page.setViewportSize({ width: 768, height: 1_024 });
@@ -46,7 +47,7 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[0].title, async ({
   expect(target?.height).toBeGreaterThanOrEqual(44);
 });
 
-test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[1].title, async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[1]), async ({
   page,
 }) => {
   // A 640 CSS-pixel viewport represents a 1280px desktop viewport at 200%
@@ -69,7 +70,7 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[1].title, async ({
   ).toBeVisible();
 });
 
-test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[2].title, async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[2]), async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -101,7 +102,7 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[2].title, async ({
   await expect(page).toHaveURL(/#supplier-landscape$/u);
 });
 
-test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[3].title, async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[3]), async ({
   page,
 }) => {
   await page.emulateMedia({ forcedColors: "active", contrast: "more" });
@@ -133,7 +134,7 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[3].title, async ({
   ).toBe(true);
 });
 
-test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[4].title, async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[4]), async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -165,15 +166,16 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[4].title, async ({
   }
 });
 
-test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[5].title, async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[5]), async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(120_000);
   const viewports = [
     { width: 1_440, height: 900 },
+    { width: 1_024, height: 768 },
     { width: 768, height: 1_024 },
     { width: 390, height: 844 },
-    { width: 320, height: 844 },
+    { width: 320, height: 568 },
   ] as const;
   const locales = [
     {
@@ -224,9 +226,214 @@ test(MARKET_ANALYSIS_ACCESSIBILITY_CASES[5].title, async ({
   }
 });
 
-test(MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE.title, async ({
-  page,
-}) => {
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[6]), async ({
+  browser,
+}, testInfo) => {
+  testInfo.setTimeout(600_000);
+  const viewports = [
+    { width: 1_440, height: 900 },
+    { width: 1_024, height: 768 },
+    { width: 768, height: 1_024 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ] as const;
+  const locales = ["", "&locale=zh-Hans"] as const;
+  let matrixContextIndex = 100;
+
+  for (const viewport of viewports) {
+    for (const colorScheme of ["light", "dark"] as const) {
+      for (const localeQuery of locales) {
+        matrixContextIndex += 1;
+        const context = await browser.newContext({
+          colorScheme,
+          extraHTTPHeaders: {
+            "fly-client-ip": `198.51.100.${matrixContextIndex}`,
+          },
+          hasTouch: viewport.width <= 390,
+          isMobile: viewport.width <= 390,
+          viewport,
+        });
+        const page = await context.newPage();
+        const analysisResponses: number[] = [];
+        page.on("response", (response) => {
+          if (response.url().includes("/market-analysis?")) {
+            analysisResponses.push(response.status());
+          }
+        });
+        const sparseUrl = `/?exporter=156&revision=HS12&product=010121&market=710${localeQuery}`;
+        const completeUrl = `${CANONICAL_URL}${localeQuery}`;
+        try {
+          await page.goto(sparseUrl);
+          await expect(page.locator(".market-analysis-view")).toBeVisible();
+          await expect(page.locator("#demand")).toHaveCount(1);
+          for (const evidenceState of [
+            "recordedPositive",
+            "noRecordedPositiveFlow",
+            "missingObservation",
+            "summaryUnavailable",
+          ]) {
+            expect(
+              await page
+                .locator(`[data-evidence-state="${evidenceState}"]`)
+                .count(),
+              `${evidenceState} at ${viewport.width}x${viewport.height} ${colorScheme} ${localeQuery || "en"} (${analysisResponses.join(",")})`,
+            ).toBeGreaterThan(0);
+          }
+          await expect(
+            page.locator("#supplier-landscape tbody tr"),
+          ).toHaveCount(0);
+          await expect(
+            page.locator("#validation-plan .market-validation-plan-categories > li"),
+          ).toHaveCount(5);
+          await expect(page.locator("#recent-momentum")).toContainText(
+            "UNSUPPORTED_MARKET",
+          );
+          expect(
+            await page.locator(".market-analysis-identity").count(),
+          ).toBeGreaterThan(0);
+          await expectNoHorizontalOverflow(page);
+
+          await assertDeferredAnnualFailure(page, completeUrl);
+          await assertAnnualErrorState(
+            page,
+            completeUrl,
+            429,
+            "ANALYSIS_RATE_LIMITED",
+            { "Retry-After": "1" },
+          );
+          await assertAnnualErrorState(
+            page,
+            completeUrl,
+            503,
+            "ANALYSIS_CAPACITY_EXCEEDED",
+          );
+          await assertAnnualErrorState(
+            page,
+            completeUrl,
+            410,
+            "ANALYSIS_BUILD_RETIRED",
+          );
+          await assertDeferredMonthlyFailure(page, completeUrl);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
+});
+
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+}
+
+async function assertDeferredAnnualFailure(
+  page: Page,
+  url: string,
+): Promise<void> {
+  let releaseResponse = () => {};
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  const routePattern = "**/market-analysis?*";
+  await page.route(routePattern, async (route) => {
+    await responseGate;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "ANALYSIS_UNAVAILABLE",
+          message: "Compatible Market Analysis evidence is unavailable.",
+        },
+      }),
+    });
+  });
+  try {
+    await page.goto(url);
+    await expect(page.locator(".market-analysis-skeleton")).toBeVisible();
+    releaseResponse();
+    await expect(page.locator(".market-analysis-error")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  } finally {
+    releaseResponse();
+    await page.unroute(routePattern);
+  }
+}
+
+async function assertAnnualErrorState(
+  page: Page,
+  url: string,
+  status: number,
+  code: string,
+  headers: Record<string, string> = {},
+): Promise<void> {
+  const routePattern = "**/market-analysis?*";
+  await page.route(routePattern, async (route) => {
+    await route.fulfill({
+      status,
+      headers,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code, message: code } }),
+    });
+  });
+  try {
+    await page.goto(url);
+    await expect(page.locator(".market-analysis-error")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  } finally {
+    await page.unroute(routePattern);
+  }
+}
+
+async function assertDeferredMonthlyFailure(
+  page: Page,
+  url: string,
+): Promise<void> {
+  let releaseResponse = () => {};
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  const routePattern = "**/recent-trade-momentum?*";
+  await page.route(routePattern, async (route) => {
+    await responseGate;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "ANALYSIS_UNAVAILABLE",
+          message: "Monthly evidence is temporarily unavailable.",
+        },
+      }),
+    });
+  });
+  try {
+    await page.goto(url);
+    await expect(
+      page.locator("#recent-momentum").getByRole("status"),
+    ).toBeVisible();
+    releaseResponse();
+    await expect(page.locator("#recent-momentum button")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  } finally {
+    releaseResponse();
+    await page.unroute(routePattern);
+  }
+}
+
+test(
+  launchEvidenceTestTitle([
+    MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
+    {
+      id: "recent-trade-momentum-states",
+      title: MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE.title,
+    },
+  ]),
+  async ({ page }) => {
   const templateResponse = await page.request.get(
     "/api/v1/analyses/acceptance-fixtures-v1/recent-trade-momentum?reporter=NL&product=010121",
   );
@@ -234,7 +441,8 @@ test(MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE.title, async ({
   let monthlyState: Record<string, unknown> = template;
   await page.route("**/recent-trade-momentum?*", async (route) => {
     await route.fulfill({ json: monthlyState });
-  });
+    },
+  );
 
   const annualResponse = await page.request.get(ANNUAL_DATA_URL);
   const annualBytes = await annualResponse.text();

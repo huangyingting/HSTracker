@@ -213,7 +213,7 @@ test("preliminary monthly evidence localizes without changing values or identiti
   ).toEqual(englishIdentities);
 });
 
-test("source unavailability is a bounded monthly state and leaves annual presentation and focus unchanged", async ({
+test("[launch-evidence:annual-invariance-source-unavailable] source unavailability is a bounded monthly state and leaves annual presentation and focus unchanged", async ({
   page,
 }) => {
   let releaseMonthlyResponse = () => {};
@@ -353,7 +353,7 @@ for (const boundedRouteCase of [
   });
 }
 
-test("temporary monthly failure retries locally while annual data and DOM stay byte-for-byte invariant", async ({
+test("[launch-evidence:annual-invariance-temporary-failure] temporary monthly failure retries locally while annual data and DOM stay byte-for-byte invariant", async ({
   page,
 }) => {
   let annualRequests = 0;
@@ -437,7 +437,7 @@ test("temporary monthly failure retries locally while annual data and DOM stay b
   expect(monthlyRequests).toBe(monthlyRequestsBeforeRetry + 1);
 });
 
-test("rapid market changes cannot paint a stale monthly response under the new annual heading", async ({
+test("[launch-evidence:annual-invariance-cancellation] rapid market changes cannot paint a stale monthly response under the new annual heading", async ({
   page,
 }) => {
   const templateResponse = await page.request.get(

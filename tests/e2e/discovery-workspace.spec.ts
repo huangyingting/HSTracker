@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type { CandidateMarketResult } from "../../src/domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
 
-test("an Export Market Analyst loads and scans the complete fixture ranking", async ({
+test("[launch-evidence:candidate-market-cohort] an Export Market Analyst loads and scans the complete fixture ranking", async ({
   page,
 }) => {
   let analysisRequests = 0;

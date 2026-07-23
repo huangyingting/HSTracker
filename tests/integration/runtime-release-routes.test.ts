@@ -43,7 +43,7 @@ afterEach(async () => {
 });
 
 describe("verified release route integration", () => {
-  it("serves current Market Analysis reproducibly and rejects retired replay through the paired release", async () => {
+  it("[launch-evidence:current-and-retired-replay] serves current Market Analysis reproducibly and rejects retired replay through the paired release", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-routes-"));
     temporaryDirectories.push(root);
     const candidate = await writeRuntimeReleaseCandidate(
@@ -280,7 +280,7 @@ describe("verified release route integration", () => {
     expect(csvBytes).toEqual(platformCsv.bytes);
   }, 20_000);
 
-  it("replays retained Market Analysis from its own release while current remains independently reproducible", async () => {
+  it("[launch-evidence:retained-replay] replays retained Market Analysis from its own release while current remains independently reproducible", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-routes-"));
     temporaryDirectories.push(root);
     const firstCandidate = await writeRuntimeReleaseCandidate(

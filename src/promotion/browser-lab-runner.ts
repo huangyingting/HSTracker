@@ -4,6 +4,12 @@ import type {
 } from "./performance-gates";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 import {
+  browserLaunchMatrixContextKey,
+  REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS,
+  type BrowserLaunchMatrixLocale,
+  type BrowserLaunchMatrixViewport,
+} from "./browser-launch-matrix";
+import {
   attestRuntimeIdentity,
   type RuntimeIdentityAttestation,
   type RuntimeIdentityAttestor,
@@ -132,12 +138,19 @@ export type BrowserLabJourney = {
   readonly actions: BrowserLabJourneyActions;
 };
 
+export type BrowserLabLaunchMatrixPlan = {
+  readonly productRole: BrowserLabProductRole;
+  readonly locales: readonly BrowserLaunchMatrixLocale[];
+  readonly viewports: readonly BrowserLaunchMatrixViewport[];
+};
+
 export type BrowserLabPlan = {
   readonly schemaVersion: "browser-lab-plan-v1";
   readonly measurementClass: BrowserLabMeasurementClass;
   readonly identity: PerformanceMeasurementIdentity;
   readonly origin: string;
   readonly journeys: readonly [BrowserLabJourney, BrowserLabJourney];
+  readonly launchMatrix: BrowserLabLaunchMatrixPlan;
 };
 
 const MINIMUM_CANDIDATE_TRIALS = 5;
@@ -173,6 +186,10 @@ export function validateBrowserLabPlan(value: unknown): BrowserLabPlan {
     requiredJourney(journeysInput, "maximum-row"),
     measurementClass,
   );
+  const launchMatrix = validateLaunchMatrix(
+    plan.launchMatrix,
+    measurementClass,
+  );
 
   return {
     schemaVersion: "browser-lab-plan-v1",
@@ -180,7 +197,85 @@ export function validateBrowserLabPlan(value: unknown): BrowserLabPlan {
     identity,
     origin,
     journeys: [median, maximumRow],
+    launchMatrix,
   };
+}
+
+function validateLaunchMatrix(
+  value: unknown,
+  measurementClass: BrowserLabMeasurementClass,
+): BrowserLabLaunchMatrixPlan {
+  if (value === undefined && measurementClass === "local-smoke") {
+    return {
+      productRole: "median",
+      locales: ["en"],
+      viewports: [{ width: 390, height: 844 }],
+    };
+  }
+  if (value === undefined) {
+    throw new BrowserLabPlanError(
+      "Candidate browser-lab evidence requires the complete launch matrix.",
+    );
+  }
+  const matrix = record(value, "browser launch matrix");
+  const productRole = matrix.productRole;
+  if (productRole !== "median" && productRole !== "maximum-row") {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix productRole must be median or maximum-row.",
+    );
+  }
+  if (!Array.isArray(matrix.locales) || matrix.locales.length === 0) {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix locales must be a nonempty array.",
+    );
+  }
+  const locales = matrix.locales.map((locale) => {
+    if (locale !== "en" && locale !== "zh-Hans") {
+      throw new BrowserLabPlanError(
+        "Browser launch matrix locale must be en or zh-Hans.",
+      );
+    }
+    return locale;
+  });
+  if (!Array.isArray(matrix.viewports) || matrix.viewports.length === 0) {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix viewports must be a nonempty array.",
+    );
+  }
+  const viewports = matrix.viewports.map((value, index) => {
+    const viewport = record(value, `browser launch matrix viewport ${index + 1}`);
+    return {
+      width: positiveInteger(
+        viewport.width,
+        `browser launch matrix viewport ${index + 1} width`,
+      ),
+      height: positiveInteger(
+        viewport.height,
+        `browser launch matrix viewport ${index + 1} height`,
+      ),
+    };
+  });
+  if (measurementClass === "candidate") {
+    const actualContexts = locales
+      .flatMap((locale) =>
+        viewports.map((viewport) =>
+          browserLaunchMatrixContextKey(locale, viewport),
+        ),
+      )
+      .sort();
+    const requiredContexts = [...REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS].sort();
+    if (
+      actualContexts.length !== requiredContexts.length ||
+      actualContexts.some(
+        (context, index) => context !== requiredContexts[index],
+      )
+    ) {
+      throw new BrowserLabPlanError(
+        "Candidate browser-lab evidence requires both locales at 1440x900, 1024x768, 768x1024, 390x844, and 320x568.",
+      );
+    }
+  }
+  return { productRole, locales, viewports };
 }
 
 function requiredJourney(
@@ -670,6 +765,7 @@ export interface BrowserLabTrialSession {
 export interface BrowserLabDriver {
   openTrialSession(
     measurementClass: BrowserLabMeasurementClass,
+    profile?: MobileLabProfile,
   ): Promise<BrowserLabTrialSession>;
   dispose(): Promise<void>;
 }
@@ -726,6 +822,10 @@ export async function runBrowserLabTrial(
   origin: string,
   journey: BrowserLabJourney,
   trialIndex: number,
+  options: {
+    readonly locale?: BrowserLaunchMatrixLocale;
+    readonly profile?: MobileLabProfile;
+  } = {},
 ): Promise<BrowserLabTrialOutcome> {
   const [
     selectContextAction,
@@ -736,8 +836,8 @@ export async function runBrowserLabTrial(
   ] = journey.actions;
   let session: BrowserLabTrialSession | null = null;
   try {
-    session = await driver.openTrialSession(measurementClass);
-    await session.navigate(origin);
+    session = await driver.openTrialSession(measurementClass, options.profile);
+    await session.navigate(originForLocale(origin, options.locale));
     await session.selectContext(selectContextAction);
     const analyzeOutcome = await session.analyze(analyzeAction);
     const marketAnalysisOutcome = await session.openMarketAnalysis(
@@ -939,6 +1039,19 @@ export type BrowserLabProductReport = {
   readonly failedTrialCount: number;
 };
 
+export type BrowserLabLaunchMatrixTrial = {
+  readonly locale: BrowserLaunchMatrixLocale;
+  readonly viewport: BrowserLaunchMatrixViewport;
+  readonly outcome: BrowserLabTrialOutcome;
+};
+
+export type BrowserLabLaunchMatrixReport = {
+  readonly productRole: BrowserLabProductRole;
+  readonly trials: readonly BrowserLabLaunchMatrixTrial[];
+  readonly measuredTrialCount: number;
+  readonly failedTrialCount: number;
+};
+
 export type BrowserLabReport = {
   readonly schemaVersion: "browser-lab-report-v1";
   readonly measurementClass: BrowserLabMeasurementClass;
@@ -950,6 +1063,7 @@ export type BrowserLabReport = {
     readonly median: BrowserLabProductReport;
     readonly "maximum-row": BrowserLabProductReport;
   };
+  readonly launchMatrix: BrowserLabLaunchMatrixReport;
 };
 
 export async function runBrowserLab(
@@ -963,6 +1077,7 @@ export async function runBrowserLab(
   const [median, maximumRow] = plan.journeys;
   const medianReport = await runJourney(driver, plan, median);
   const maximumRowReport = await runJourney(driver, plan, maximumRow);
+  const launchMatrix = await runLaunchMatrix(driver, plan);
 
   return {
     schemaVersion: "browser-lab-report-v1",
@@ -975,6 +1090,7 @@ export async function runBrowserLab(
       median: medianReport,
       "maximum-row": maximumRowReport,
     },
+    launchMatrix,
   };
 }
 
@@ -1028,6 +1144,76 @@ async function runJourney(
       .length,
     failedTrialCount: trials.filter((trial) => trial.status === "failed")
       .length,
+  };
+}
+
+async function runLaunchMatrix(
+  driver: BrowserLabDriver,
+  plan: BrowserLabPlan,
+): Promise<BrowserLabLaunchMatrixReport> {
+  const journey = plan.journeys.find(
+    (candidate) => candidate.productRole === plan.launchMatrix.productRole,
+  );
+  if (journey === undefined) {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix does not reference a declared journey.",
+    );
+  }
+  const trials: BrowserLabLaunchMatrixTrial[] = [];
+  for (const locale of plan.launchMatrix.locales) {
+    for (const viewport of plan.launchMatrix.viewports) {
+      const outcome = await runBrowserLabTrial(
+        driver,
+        plan.measurementClass,
+        plan.origin,
+        journey,
+        trials.length,
+        {
+          locale,
+          profile: launchMatrixProfile(viewport),
+        },
+      );
+      trials.push({ locale, viewport, outcome });
+    }
+  }
+  return {
+    productRole: journey.productRole,
+    trials,
+    measuredTrialCount: trials.filter(
+      (trial) => trial.outcome.status === "measured",
+    ).length,
+    failedTrialCount: trials.filter(
+      (trial) => trial.outcome.status === "failed",
+    ).length,
+  };
+}
+
+function originForLocale(
+  origin: string,
+  locale: BrowserLaunchMatrixLocale | undefined,
+): string {
+  if (locale === undefined || locale === "en") {
+    return origin;
+  }
+  const url = new URL(origin);
+  url.searchParams.set("locale", locale);
+  return url.href;
+}
+
+function launchMatrixProfile(
+  viewport: BrowserLaunchMatrixViewport,
+): MobileLabProfile {
+  const isMobile = viewport.width <= 390;
+  return {
+    ...MOBILE_LAB_PROFILE,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+    deviceScaleFactor: isMobile ? 3 : 1,
+    isMobile,
+    hasTouch: isMobile,
+    userAgent: isMobile
+      ? MOBILE_LAB_PROFILE.userAgent
+      : "Mozilla/5.0 (X11; Linux x86_64; HSTracker Browser Lab) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   };
 }
 
@@ -1204,10 +1390,16 @@ export function createPlaywrightBrowserLabDriver(
   };
 
   return {
-    async openTrialSession(): Promise<BrowserLabTrialSession> {
+    async openTrialSession(
+      _measurementClass,
+      trialProfile = profile,
+    ): Promise<BrowserLabTrialSession> {
       const browser = await openBrowser();
       const context = await browser.newContext({
-        viewport: { width: profile.viewportWidth, height: profile.viewportHeight },
+        viewport: {
+          width: trialProfile.viewportWidth,
+          height: trialProfile.viewportHeight,
+        },
         extraHTTPHeaders: {
           "Cache-Control": "no-cache",
           "X-HS-Tracker-Probe": "external-v1",
@@ -1215,7 +1407,12 @@ export function createPlaywrightBrowserLabDriver(
       });
       const page = await context.newPage();
       const cdp = await context.newCDPSession(page);
-      return new PlaywrightBrowserLabSession(context, page, cdp, profile);
+      return new PlaywrightBrowserLabSession(
+        context,
+        page,
+        cdp,
+        trialProfile,
+      );
     },
     async dispose(): Promise<void> {
       if (browserPromise !== null) {

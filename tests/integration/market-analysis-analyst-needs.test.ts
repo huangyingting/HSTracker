@@ -3,7 +3,10 @@ import { extname, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ANALYST_NEEDS_TRACEABILITY } from "../support/market-analysis-analyst-needs";
+import {
+  ANALYST_NEED_ACCEPTANCE_SCENARIOS,
+  ANALYST_NEEDS_TRACEABILITY,
+} from "../support/market-analysis-analyst-needs";
 import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../support/market-analysis-production-boundary";
 import { MARKET_ANALYSIS_COPY } from "../../src/domain/market-analysis/copy";
 
@@ -25,7 +28,7 @@ async function sourceFiles(directory: string): Promise<string[]> {
 }
 
 describe("Analyst-needs traceability (AQ-01..AQ-20)", () => {
-  it("has exactly 20 rows with unique AQ-01..AQ-20 identifiers", () => {
+  it("[launch-evidence:analyst-needs-row-set] has exactly 20 rows with unique AQ-01..AQ-20 identifiers", () => {
     expect(ANALYST_NEEDS_TRACEABILITY).toHaveLength(20);
 
     const ids = ANALYST_NEEDS_TRACEABILITY.map((row) => row.id);
@@ -38,7 +41,7 @@ describe("Analyst-needs traceability (AQ-01..AQ-20)", () => {
     );
   });
 
-  it("is exactly 10 DIRECT, 5 BOUNDED, and 5 OUTSIDE", () => {
+  it("[launch-evidence:analyst-needs-coverage] is exactly 10 DIRECT, 5 BOUNDED, and 5 OUTSIDE", () => {
     const counts = { DIRECT: 0, BOUNDED: 0, OUTSIDE: 0 };
     for (const row of ANALYST_NEEDS_TRACEABILITY) {
       counts[row.coverage] += 1;
@@ -47,7 +50,7 @@ describe("Analyst-needs traceability (AQ-01..AQ-20)", () => {
     expect(counts).toEqual({ DIRECT: 10, BOUNDED: 5, OUTSIDE: 5 });
   });
 
-  it("names only capabilities that exist in the product's Scope/Opportunities stages or its eight Market Analysis product areas", () => {
+  it("[launch-evidence:analyst-needs-capabilities] names only capabilities that exist in the product's Scope/Opportunities stages or its eight Market Analysis product areas", () => {
     for (const row of ANALYST_NEEDS_TRACEABILITY) {
       expect(row.capabilities.length).toBeGreaterThan(0);
       for (const capability of row.capabilities) {
@@ -56,14 +59,31 @@ describe("Analyst-needs traceability (AQ-01..AQ-20)", () => {
     }
   });
 
-  it("gives every row a non-empty need statement and limitation/interpretation note", () => {
+  it("[launch-evidence:analyst-needs-content] gives every row a non-empty need statement and limitation/interpretation note", () => {
     for (const row of ANALYST_NEEDS_TRACEABILITY) {
       expect(row.need.trim().length).toBeGreaterThan(0);
       expect(row.limitation.trim().length).toBeGreaterThan(0);
     }
   });
 
-  it("never lets AQ identifiers or this fixture leak into production source", async () => {
+  it("binds every row to at least one archived browser acceptance scenario", () => {
+    const scenarioIds = new Set(
+      ANALYST_NEED_ACCEPTANCE_SCENARIOS.map((scenario) => scenario.id),
+    );
+    const referencedScenarioIds = new Set<string>();
+    for (const row of ANALYST_NEEDS_TRACEABILITY) {
+      expect(row.scenarioIds.length, row.id).toBeGreaterThan(0);
+      for (const scenarioId of row.scenarioIds) {
+        expect(scenarioIds.has(scenarioId), `${row.id}: ${scenarioId}`).toBe(
+          true,
+        );
+        referencedScenarioIds.add(scenarioId);
+      }
+    }
+    expect(referencedScenarioIds).toEqual(scenarioIds);
+  });
+
+  it("[launch-evidence:analyst-needs-module-seam] never lets AQ identifiers or this fixture leak into production source", async () => {
     const files = await sourceFiles(resolve("src"));
     const sources = await Promise.all(
       files.map(async (path) => readFile(path, "utf8")),

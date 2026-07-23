@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 // link: it must apply before first paint, survive reload, honour the OS
 // preference on a first visit, and never leak into the shareable URL.
 
-test("the workspace defaults to light and remembers a switch to dark across reload", async ({
+test("[launch-evidence:theme-persistence] the workspace defaults to light and remembers a switch to dark across reload", async ({
   page,
 }) => {
   await page.goto("/");

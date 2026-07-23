@@ -209,7 +209,7 @@ test("Trade Trend and Supplier Competition preserve the importing economy and HS
   await expect(page.getByText("5000.000000", { exact: true })).toBeVisible();
 });
 
-test("copying, reloading, and opening a pinned Candidate Market link in another browser reproduce the same task and pin", async ({
+test("[launch-evidence:copy-reload-open] copying, reloading, and opening a pinned Candidate Market link in another browser reproduce the same task and pin", async ({
   page,
   browser,
 }) => {
@@ -245,7 +245,7 @@ test("copying, reloading, and opening a pinned Candidate Market link in another 
   await anotherBrowserContext.close();
 });
 
-test("a pinned Candidate Market link that no longer matches the current recommendation shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin", async ({
+test("[launch-evidence:explicit-current-refresh] a pinned Candidate Market link that no longer matches the current recommendation shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin", async ({
   page,
 }) => {
   await analyzeCandidateMarket(page);
@@ -379,7 +379,7 @@ test("a pinned Candidate Market link that no longer matches the current recommen
   ).toContainText("Netherlands");
 });
 
-test("a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current", async ({
+test("[launch-evidence:retained-link] a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current", async ({
   page,
 }) => {
   await analyzeCandidateMarket(page);

@@ -50,7 +50,7 @@ test("selecting a non-default locale on the bare landing page persists it throug
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
 });
 
-test("browser back/forward reproduce the exact task and locale carried by each canonical URL, not client memory", async ({
+test("[launch-evidence:back-forward] browser back/forward reproduce the exact task and locale carried by each canonical URL, not client memory", async ({
   page,
 }) => {
   await page.goto("/");

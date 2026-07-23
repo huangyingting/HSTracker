@@ -8,6 +8,11 @@ import {
 import { dirname, extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
+import {
+  BROWSER_LAUNCH_MATRIX_LIMITS,
+  browserLaunchMatrixContextKey,
+  REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS,
+} from "../../src/promotion/browser-launch-matrix";
 import type { PromotionIdentity } from "../../src/promotion/promotion-report";
 import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
@@ -17,7 +22,10 @@ import {
   MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES,
   RECENT_MOMENTUM_LAUNCH_STATES,
 } from "../../tests/support/market-analysis-launch-matrix";
-import { ANALYST_NEEDS_TRACEABILITY } from "../../tests/support/market-analysis-analyst-needs";
+import {
+  ANALYST_NEED_ACCEPTANCE_SCENARIOS,
+  ANALYST_NEEDS_TRACEABILITY,
+} from "../../tests/support/market-analysis-analyst-needs";
 import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../../tests/support/market-analysis-production-boundary";
 
 const REPO_ROOT = process.cwd();
@@ -26,6 +34,21 @@ const DEFAULT_OUT_DIR = "reports/promotion/candidate/checks";
 const DEFAULT_EVIDENCE =
   "reports/promotion/candidate/evidence/market-analysis-launch-readiness.json";
 const PRODUCT_CONTRACT_VERSION = "market-analysis-v1";
+const LAUNCH_EVIDENCE_ID_PATTERN =
+  /\[launch-evidence:([a-z0-9]+(?:-[a-z0-9]+)*)\]/gu;
+const ROLLBACK_IMAGE_DIGEST = /^sha256:[0-9a-f]{64}$/u;
+const ROLLBACK_DEPLOYMENT_FIELDS = [
+  "deploymentPairingId",
+  "analysisBuildId",
+  "productSearchBuildId",
+  "artifactSha256",
+  "sourceStatusSnapshotId",
+] as const;
+const MARKET_ANALYSIS_CONSTITUENT_RECIPES = [
+  "candidate-market-v1",
+  "trade-trend-v1",
+  "supplier-competition-v1",
+] as const;
 
 const REQUIRED_GATE_IDS = [
   "origin-benchmarks",
@@ -129,7 +152,11 @@ async function main(): Promise<void> {
     verifyAcceptedGate(gateArtifacts[index]!, gate, identity);
   }
 
-  const analystNeeds = await measureAnalystNeeds();
+  const analystNeedScenarios = verifyPlaywrightReport(
+    accessibilityArtifact.value,
+    ANALYST_NEED_ACCEPTANCE_SCENARIOS,
+  );
+  const analystNeeds = await measureAnalystNeeds(analystNeedScenarios);
   const accessibility = verifyPlaywrightReport(
     accessibilityArtifact.value,
     MARKET_ANALYSIS_ACCESSIBILITY_CASES,
@@ -209,7 +236,8 @@ async function main(): Promise<void> {
     performance: {
       status: "accepted",
       originBenchmarks,
-      browserLab,
+      browserLab: browserLab.products,
+      browserLaunchMatrix: browserLab.launchMatrix,
       targetLoad,
       reports: {
         origin: artifactReference(originArtifact),
@@ -277,11 +305,16 @@ async function main(): Promise<void> {
     windowEndedAt,
     sampleCount:
       ANALYST_NEEDS_TRACEABILITY.length +
+      analystNeedScenarios.length +
       accessibility.length +
       annualResultInvariance.length +
       durableJourneys.length +
       originBenchmarks.length +
-      browserLab.reduce((total, product) => total + product.trials.length, 0) +
+      browserLab.products.reduce(
+        (total, product) => total + product.trials.length,
+        0,
+      ) +
+      browserLab.launchMatrix.trials.length +
       contracts.length,
     checks: [
       { name: "product-contract", status: "accepted" },
@@ -315,14 +348,16 @@ async function main(): Promise<void> {
         productContractVersion: PRODUCT_CONTRACT_VERSION,
         activeDeploymentPairingId: identity.deploymentPairingId,
         analystNeeds: analystNeeds.counts,
+        analystNeedScenarios: analystNeedScenarios.length,
         accessibilityCases: accessibility.length,
         durableJourneyCases: durableJourneys.length,
         recentMomentumStates: RECENT_MOMENTUM_LAUNCH_STATES.length,
         originBenchmarkCases: originBenchmarks.length,
-        browserTrials: browserLab.reduce(
+        browserTrials: browserLab.products.reduce(
           (total, product) => total + product.trials.length,
           0,
         ),
+        browserLaunchMatrixContexts: browserLab.launchMatrix.trials.length,
       },
       null,
       2,
@@ -330,13 +365,20 @@ async function main(): Promise<void> {
   );
 }
 
-async function measureAnalystNeeds() {
+async function measureAnalystNeeds(
+  acceptedScenarios: readonly { id: string; status: string }[],
+) {
   const counts = { DIRECT: 0, BOUNDED: 0, OUTSIDE: 0 };
   const expectedIds = Array.from(
     { length: 20 },
     (_, index) => `AQ-${String(index + 1).padStart(2, "0")}`,
   );
   const ids = ANALYST_NEEDS_TRACEABILITY.map((row) => row.id).sort();
+  const acceptedScenarioIds = new Set(
+    acceptedScenarios
+      .filter((scenario) => scenario.status === "accepted")
+      .map((scenario) => scenario.id),
+  );
   if (
     ANALYST_NEEDS_TRACEABILITY.length !== 20 ||
     new Set(ids).size !== 20 ||
@@ -349,7 +391,11 @@ async function measureAnalystNeeds() {
     if (
       row.need.trim().length === 0 ||
       row.limitation.trim().length === 0 ||
-      row.capabilities.length === 0
+      row.capabilities.length === 0 ||
+      row.scenarioIds.length === 0 ||
+      row.scenarioIds.some(
+        (scenarioId) => !acceptedScenarioIds.has(scenarioId),
+      )
     ) {
       throw invalid(`Analyst-needs row ${row.id} is incomplete.`);
     }
@@ -385,6 +431,7 @@ async function measureAnalystNeeds() {
     counts,
     productionSourceFilesScanned: sourcePaths.length,
     productionLeakageViolations: violations,
+    scenarios: acceptedScenarios,
     rows: ANALYST_NEEDS_TRACEABILITY,
   };
 }
@@ -498,7 +545,7 @@ function verifyBrowserReport(
   candidateMeasurement(value, "browser-lab report");
   verifyPerformanceIdentity(value.identity, identity, "browser-lab report");
   const products = object(value.products, "browser-lab products");
-  return (["median", "maximum-row"] as const).map((productRole) => {
+  const verifiedProducts = (["median", "maximum-row"] as const).map((productRole) => {
     const product = object(
       products[productRole],
       `browser-lab ${productRole} product`,
@@ -546,6 +593,91 @@ function verifyBrowserReport(
     }
     return { productRole, trials };
   });
+  const launchMatrix = object(
+    value.launchMatrix,
+    "browser launch matrix",
+  );
+  const observedContexts = new Set<string>();
+  const matrixTrials = array(
+    launchMatrix.trials,
+    "browser launch matrix trials",
+  ).map((entry, index) => {
+    const trial = object(entry, `browser launch matrix trial ${index + 1}`);
+    const locale = trial.locale;
+    if (locale !== "en" && locale !== "zh-Hans") {
+      throw invalid(`Browser launch matrix trial ${index + 1} has an invalid locale.`);
+    }
+    const viewport = object(
+      trial.viewport,
+      `browser launch matrix trial ${index + 1} viewport`,
+    );
+    const width = positiveNumber(
+      viewport.width,
+      `browser launch matrix trial ${index + 1} viewport width`,
+    );
+    const height = positiveNumber(
+      viewport.height,
+      `browser launch matrix trial ${index + 1} viewport height`,
+    );
+    const context = browserLaunchMatrixContextKey(locale, { width, height });
+    if (observedContexts.has(context)) {
+      throw invalid(`Browser launch matrix context ${context} is duplicated.`);
+    }
+    observedContexts.add(context);
+    const outcome = object(
+      trial.outcome,
+      `browser launch matrix trial ${index + 1} outcome`,
+    );
+    if (
+      outcome.status !== "measured" ||
+      array(
+        outcome.violations,
+        `browser launch matrix trial ${index + 1} violations`,
+      ).length !== 0
+    ) {
+      throw invalid(`Browser launch matrix trial ${context} failed.`);
+    }
+    const metrics = object(
+      outcome.metrics,
+      `browser launch matrix trial ${index + 1} metrics`,
+    );
+    const lcpMs = nonnegativeNumber(
+      metrics.lcpMs,
+      `browser launch matrix trial ${context} LCP`,
+    );
+    const interactionToNextPaintMs = nonnegativeNumber(
+      metrics.interactionToNextPaintMs,
+      `browser launch matrix trial ${context} interaction latency`,
+    );
+    if (
+      lcpMs > BROWSER_LAUNCH_MATRIX_LIMITS.lcpMs ||
+      interactionToNextPaintMs >
+        BROWSER_LAUNCH_MATRIX_LIMITS.interactionToNextPaintMs
+    ) {
+      throw invalid(`Browser launch matrix trial ${context} misses its LCP or INP target.`);
+    }
+    return { locale, viewport: { width, height }, lcpMs, interactionToNextPaintMs };
+  });
+  if (
+    launchMatrix.failedTrialCount !== 0 ||
+    launchMatrix.measuredTrialCount !==
+      REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS.length ||
+    matrixTrials.length !== REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS.length ||
+    REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS.some(
+      (context) => !observedContexts.has(context),
+    )
+  ) {
+    throw invalid(
+      "Browser launch matrix must contain successful evidence for both locales and all five target viewports.",
+    );
+  }
+  return {
+    products: verifiedProducts,
+    launchMatrix: {
+      productRole: launchMatrix.productRole,
+      trials: matrixTrials,
+    },
+  };
 }
 
 function verifyTargetLoadReport(
@@ -589,13 +721,185 @@ function verifyLifecycleReport(
     object(value.drills, "lifecycle drills").rollback,
     "rollback drill",
   );
-  if (
-    rollback.status !== "accepted" ||
-    positiveNumber(rollback.measuredMs, "rollback measured time") <= 0
-  ) {
+  const measuredMs = positiveNumber(
+    rollback.measuredMs,
+    "rollback measured time",
+  );
+  const limitMs = positiveNumber(rollback.limitMs, "rollback time limit");
+  if (rollback.status !== "accepted" || measuredMs > limitMs) {
     throw invalid("Lifecycle report does not contain an accepted rollback.");
   }
-  return rollback;
+
+  const images = object(rollback.applicationImages, "rollback application images");
+  const beforeImage = rollbackImage(images.before, "before rollback image");
+  const successorImage = rollbackImage(
+    images.successor,
+    "successor rollback image",
+  );
+  const restoredImage = rollbackImage(
+    images.restored,
+    "restored rollback image",
+  );
+  if (
+    restoredImage.digest !== beforeImage.digest ||
+    restoredImage.buildId !== beforeImage.buildId ||
+    successorImage.digest === beforeImage.digest ||
+    successorImage.buildId === beforeImage.buildId ||
+    successorImage.buildId !== identity.buildId
+  ) {
+    throw invalid(
+      "Rollback application-image proof must restore the exact prior digest and build after serving the distinct candidate image.",
+    );
+  }
+
+  const deployments = object(
+    rollback.deployments,
+    "rollback release deployments",
+  );
+  const beforeDeployment = rollbackDeployment(
+    deployments.before,
+    "before rollback deployment",
+  );
+  const successorDeployment = rollbackDeployment(
+    deployments.successor,
+    "successor rollback deployment",
+  );
+  const restoredDeployment = rollbackDeployment(
+    deployments.restored,
+    "restored rollback deployment",
+  );
+  for (const field of ROLLBACK_DEPLOYMENT_FIELDS) {
+    if (restoredDeployment[field] !== beforeDeployment[field]) {
+      throw invalid(
+        `Rollback restored deployment ${field} does not match the prior deployment.`,
+      );
+    }
+    if (successorDeployment[field] !== identity[field]) {
+      throw invalid(
+        `Rollback successor deployment ${field} does not match the candidate identity.`,
+      );
+    }
+  }
+  if (
+    successorDeployment.deploymentPairingId ===
+    beforeDeployment.deploymentPairingId
+  ) {
+    throw invalid(
+      "Rollback proof requires distinct prior and successor deployment pairings.",
+    );
+  }
+
+  const productContract = object(
+    rollback.restoredProductContract,
+    "restored Market Analysis product contract",
+  );
+  const constituentRecipes = array(
+    productContract.constituentRecipes,
+    "restored Market Analysis constituent recipes",
+  ).map((recipe, index) =>
+    nonemptyString(recipe, `restored constituent recipe ${index + 1}`),
+  );
+  if (
+    productContract.status !== "accepted" ||
+    productContract.schemaVersion !== PRODUCT_CONTRACT_VERSION ||
+    productContract.candidateMarketStatus !== 200 ||
+    productContract.marketAnalysisStatus !== 200 ||
+    productContract.deploymentPairingId !==
+      restoredDeployment.deploymentPairingId ||
+    productContract.analysisBuildId !== restoredDeployment.analysisBuildId ||
+    constituentRecipes.length !== MARKET_ANALYSIS_CONSTITUENT_RECIPES.length ||
+    MARKET_ANALYSIS_CONSTITUENT_RECIPES.some(
+      (recipe) => !constituentRecipes.includes(recipe),
+    )
+  ) {
+    throw invalid(
+      "Rollback proof does not restore the complete market-analysis-v1 product contract.",
+    );
+  }
+
+  const rollbackState = object(
+    rollback.rollbackState,
+    "restored rollback state",
+  );
+  if (
+    rollbackState.deploymentActivationMode !== "current" ||
+    rollbackState.rollbackActive !== true ||
+    rollbackState.sourceStatusSnapshotId !==
+      restoredDeployment.sourceStatusSnapshotId
+  ) {
+    throw invalid(
+      "Rollback proof does not preserve the restored deployment activation and Source Freshness Status.",
+    );
+  }
+
+  return {
+    status: "accepted",
+    measuredMs,
+    limitMs,
+    method: nonemptyString(rollback.method, "rollback method"),
+    applicationImages: {
+      before: beforeImage,
+      successor: successorImage,
+      restored: restoredImage,
+    },
+    deployments: {
+      before: beforeDeployment,
+      successor: successorDeployment,
+      restored: restoredDeployment,
+    },
+    restoredProductContract: {
+      status: "accepted",
+      schemaVersion: PRODUCT_CONTRACT_VERSION,
+      candidateMarketStatus: 200,
+      marketAnalysisStatus: 200,
+      deploymentPairingId: restoredDeployment.deploymentPairingId,
+      analysisBuildId: restoredDeployment.analysisBuildId,
+      constituentRecipes,
+    },
+    rollbackState: {
+      deploymentActivationMode: "current",
+      rollbackActive: true,
+      sourceStatusSnapshotId: restoredDeployment.sourceStatusSnapshotId,
+    },
+  };
+}
+
+function rollbackImage(value: unknown, label: string) {
+  const image = object(value, label);
+  const digest = nonemptyString(image.digest, `${label} digest`);
+  if (!ROLLBACK_IMAGE_DIGEST.test(digest)) {
+    throw invalid(`${label} digest must be an immutable SHA-256 image digest.`);
+  }
+  return {
+    digest,
+    buildId: nonemptyString(image.buildId, `${label} buildId`),
+  };
+}
+
+function rollbackDeployment(value: unknown, label: string) {
+  const deployment = object(value, label);
+  return {
+    deploymentPairingId: nonemptyString(
+      deployment.deploymentPairingId,
+      `${label} deploymentPairingId`,
+    ),
+    analysisBuildId: nonemptyString(
+      deployment.analysisBuildId,
+      `${label} analysisBuildId`,
+    ),
+    productSearchBuildId: nonemptyString(
+      deployment.productSearchBuildId,
+      `${label} productSearchBuildId`,
+    ),
+    artifactSha256: nonemptyString(
+      deployment.artifactSha256,
+      `${label} artifactSha256`,
+    ),
+    sourceStatusSnapshotId: nonemptyString(
+      deployment.sourceStatusSnapshotId,
+      `${label} sourceStatusSnapshotId`,
+    ),
+  };
 }
 
 function verifyAcceptedGate(
@@ -619,7 +923,7 @@ function verifyVitestReport(
   value: Record<string, unknown>,
   requiredTests: readonly { id: string; title: string }[],
 ) {
-  const observed = new Map<string, string>();
+  const observed = new Map<string, boolean>();
   for (const result of array(value.testResults, "Vitest test results")) {
     const testFile = object(result, "Vitest test file");
     for (const assertion of array(
@@ -633,21 +937,16 @@ function verifyVitestReport(
           : typeof test.title === "string"
             ? test.title
             : "";
-      if (title !== "") {
-        observed.set(title, String(test.status));
+      const passed = test.status === "passed" || test.status === "pass";
+      for (const id of launchEvidenceIds(title)) {
+        recordLaunchEvidenceOutcome(observed, id, passed);
       }
     }
   }
   return requiredTests.map((requiredTest) => {
-    const matches = [...observed.entries()].filter(([title]) =>
-      title.endsWith(requiredTest.title),
-    );
-    if (
-      matches.length !== 1 ||
-      (matches[0]![1] !== "passed" && matches[0]![1] !== "pass")
-    ) {
+    if (observed.get(requiredTest.id) !== true) {
       throw invalid(
-        `Required contract test did not pass exactly once: ${requiredTest.title}.`,
+        `Required contract test did not pass exactly once: ${requiredTest.id}.`,
       );
     }
     return {
@@ -665,9 +964,9 @@ function verifyPlaywrightReport(
   const observed = new Map<string, boolean>();
   collectPlaywrightSpecs(value, observed);
   return requiredTests.map((requiredTest) => {
-    if (observed.get(requiredTest.title) !== true) {
+    if (observed.get(requiredTest.id) !== true) {
       throw invalid(
-        `Required browser test did not pass: ${requiredTest.title}.`,
+        `Required browser test did not pass exactly once: ${requiredTest.id}.`,
       );
     }
     return {
@@ -712,12 +1011,29 @@ function collectPlaywrightSpecs(
             object(final, "Playwright final result").status === "passed"
           );
         });
-      observed.set(spec.title, passed);
+      for (const id of launchEvidenceIds(spec.title)) {
+        recordLaunchEvidenceOutcome(observed, id, passed);
+      }
     }
   }
+
   for (const nested of Object.values(record)) {
     collectPlaywrightSpecs(nested, observed);
   }
+}
+
+function launchEvidenceIds(title: string): string[] {
+  return [...title.matchAll(LAUNCH_EVIDENCE_ID_PATTERN)].map(
+    (match) => match[1]!,
+  );
+}
+
+function recordLaunchEvidenceOutcome(
+  observed: Map<string, boolean>,
+  id: string,
+  passed: boolean,
+): void {
+  observed.set(id, !observed.has(id) && passed);
 }
 
 function requiredContract(

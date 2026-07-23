@@ -72,7 +72,7 @@ test("an analyst can run the finalized-trend-v1 shape, share it, and change loca
   await expect(page.getByText("没有 SQL、表名、列名")).toBeVisible();
 });
 
-test("an analyst downloads the complete bounded Trade Explorer CSV", async ({
+test("[launch-evidence:trade-explorer-csv] an analyst downloads the complete bounded Trade Explorer CSV", async ({
   page,
 }) => {
   let exportUrl: URL | null = null;

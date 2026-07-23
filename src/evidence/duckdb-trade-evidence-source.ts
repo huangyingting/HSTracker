@@ -93,9 +93,24 @@ type ResolvedTradeExplorerProduct = {
   productId: number;
 };
 
+class EconomyYearCoverage {
+  private readonly yearsByEconomy = new Map<string, Set<number>>();
+
+  add(economyCode: string | number, year: number): void {
+    const key = String(economyCode);
+    const years = this.yearsByEconomy.get(key) ?? new Set<number>();
+    years.add(year);
+    this.yearsByEconomy.set(key, years);
+  }
+
+  has(economyCode: string | number, year: number): boolean {
+    return this.yearsByEconomy.get(String(economyCode))?.has(year) === true;
+  }
+}
+
 type SupplierObservationCoverage = {
-  exporterYears: ReadonlySet<string>;
-  importerYears: ReadonlySet<string>;
+  exporterYears: EconomyYearCoverage;
+  importerYears: EconomyYearCoverage;
 };
 
 export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
@@ -504,9 +519,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     const provisionalMarketState: SupplierCompetitionV1Inputs["provisionalMarketState"] =
       provisionalMarketRow !== undefined
         ? "RECORDED"
-        : observationCoverage.importerYears.has(
-              economyYearKey(importerCode, provisionalYear),
-            )
+        : observationCoverage.importerYears.has(importerCode, provisionalYear)
           ? "NO_RECORDED_POSITIVE_FLOW"
           : "MISSING_OBSERVATION";
     const provisionalSuppliers =
@@ -605,21 +618,22 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
         provisional_year: provisionalYear,
       }),
     ).then((rows): SupplierObservationCoverage => {
-      const exporterYears = new Set<string>();
-      const importerYears = new Set<string>();
+      const exporterYears = new EconomyYearCoverage();
+      const importerYears = new EconomyYearCoverage();
       for (const row of rows) {
-        const key = economyYearKey(
-          requireNumber(row.economy_code, "coverage economy code"),
-          requireNumber(row.year, "coverage year"),
+        const economyCode = requireNumber(
+          row.economy_code,
+          "coverage economy code",
         );
+        const year = requireNumber(row.year, "coverage year");
         const direction = requireString(
           row.direction,
           "coverage direction",
         );
         if (direction === "exporter") {
-          exporterYears.add(key);
+          exporterYears.add(economyCode, year);
         } else if (direction === "importer") {
-          importerYears.add(key);
+          importerYears.add(economyCode, year);
         } else {
           throw new Error(`Unknown supplier coverage direction ${direction}.`);
         }
@@ -1261,7 +1275,7 @@ function groupSupplierActivityRows(
   rows: readonly Record<string, unknown>[],
   windowStart: number,
   windowEnd: number,
-  observedExporterYears: ReadonlySet<string>,
+  observedExporterYears: EconomyYearCoverage,
 ): SupplierEconomyEvidence[] {
   const byExporter = new Map<
     string,
@@ -1324,10 +1338,10 @@ function supplierAnnualObservation(
   year: number,
   exporterCode: string,
   valueByYear: ReadonlyMap<number, string | null>,
-  observedExporterYears: ReadonlySet<string>,
+  observedExporterYears: EconomyYearCoverage,
 ): SupplierAnnualObservation {
   if (!valueByYear.has(year)) {
-    return observedExporterYears.has(economyYearKey(exporterCode, year))
+    return observedExporterYears.has(exporterCode, year)
       ? { year, state: "NO_RECORDED_POSITIVE_FLOW" }
       : { year, state: "MISSING_OBSERVATION" };
   }
@@ -1340,10 +1354,6 @@ function supplierAnnualObservation(
     state: "RECORDED_POSITIVE",
     valueCurrentUsd: kusdToCurrentUsd(valueKusd),
   };
-}
-
-function economyYearKey(economyCode: string | number, year: number): string {
-  return `${String(economyCode)}:${String(year)}`;
 }
 
 function awaitSharedCoverage<Result>(

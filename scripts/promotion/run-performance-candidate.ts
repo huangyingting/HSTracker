@@ -142,6 +142,20 @@ async function main(): Promise<void> {
       ),
       failedTrialCount: product.failedTrialCount,
     })),
+    browserLaunchMatrix: {
+      trials: browserReport.launchMatrix.trials.flatMap((trial) =>
+        trial.outcome.status === "measured"
+          ? [
+              {
+                locale: trial.locale,
+                viewport: trial.viewport,
+                metrics: trial.outcome.metrics,
+              },
+            ]
+          : [],
+      ),
+      failedTrialCount: browserReport.launchMatrix.failedTrialCount,
+    },
     originCapabilities: originReport.capabilities,
     originBenchmarks: [...originReport.originBenchmarks],
     tradeExplorer: {

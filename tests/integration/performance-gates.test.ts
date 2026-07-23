@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
 import {
+  BROWSER_LAUNCH_MATRIX_LOCALES,
+  BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+} from "../../src/promotion/browser-launch-matrix";
+import {
   evaluatePerformanceGates,
   PerformanceGateInputError,
   type OriginBenchmarkInput,
@@ -24,6 +28,11 @@ describe("production performance gates", () => {
           products: {
             median: { trials: 5, status: "accepted" },
             "maximum-row": { trials: 5, status: "accepted" },
+          },
+          launchMatrix: {
+            contexts: 10,
+            failedTrialCount: 0,
+            status: "accepted",
           },
         },
         origin: {
@@ -59,6 +68,35 @@ describe("production performance gates", () => {
     expect(result.gates.browserLab.products.median).toMatchObject({
       medianLcpMs: 2_501,
       lcpLimitMs: 2_500,
+      status: "blocked",
+    });
+  });
+
+  it("blocks a locale and viewport matrix interaction miss", () => {
+    const input = acceptedInput();
+    input.browserLaunchMatrix.trials[9]!.metrics.interactionToNextPaintMs = 201;
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.browserLab.launchMatrix).toMatchObject({
+      contexts: 10,
+      maximumInteractionToNextPaintMs: 201,
+      interactionToNextPaintLimitMs: 200,
+      status: "blocked",
+    });
+  });
+
+  it("blocks an incomplete locale and viewport matrix", () => {
+    const input = acceptedInput();
+    input.browserLaunchMatrix.trials.pop();
+
+    const result = evaluatePerformanceGates(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.gates.browserLab.launchMatrix).toMatchObject({
+      contexts: 9,
+      requiredContexts: 10,
       status: "blocked",
     });
   });
@@ -664,6 +702,16 @@ function acceptedInput(): PerformanceGateInput {
         failedTrialCount: 0,
       },
     ],
+    browserLaunchMatrix: {
+      trials: BROWSER_LAUNCH_MATRIX_LOCALES.flatMap((locale) =>
+        BROWSER_LAUNCH_MATRIX_VIEWPORTS.map((viewport) => ({
+          locale,
+          viewport,
+          metrics: browserTrial(),
+        })),
+      ),
+      failedTrialCount: 0,
+    },
     originCapabilities: {
       recentTradeMomentum: true,
       opportunityDiscovery: true,

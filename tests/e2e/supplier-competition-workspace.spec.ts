@@ -71,7 +71,7 @@ test("an analyst can select Supplier Competition by keyboard, share it, and chan
   await expect(page.getByText("仅为经济体级别证据")).toBeVisible();
 });
 
-test("an analyst downloads the complete contextual Supplier Competition CSV", async ({
+test("[launch-evidence:supplier-competition-csv] an analyst downloads the complete contextual Supplier Competition CSV", async ({
   page,
 }) => {
   let exportUrl: URL | null = null;

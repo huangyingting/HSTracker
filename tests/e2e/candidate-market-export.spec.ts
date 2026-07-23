@@ -13,7 +13,7 @@ async function expectCandidateExportReady(page: Page, market: string) {
   ).toBeVisible();
 }
 
-test("Candidate Markets downloads the complete bilingual 13-row CSV", async ({
+test("[launch-evidence:candidate-market-csv] Candidate Markets downloads the complete bilingual 13-row CSV", async ({
   page,
 }) => {
   let currentManifestRequests = 0;

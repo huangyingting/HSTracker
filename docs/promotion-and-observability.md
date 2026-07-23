@@ -234,12 +234,70 @@ startup smoke, and rollback proof. The launch verifier independently rejects a
 Market Analysis result at or above 1 MiB, even when an upstream check set claims
 acceptance.
 
-Rollback changes the immutable release pairing, not the application image. The
-drill therefore proves the prior analysis/search pairing after restart and
-re-runs the complete `market-analysis-v1` API against that pairing. The launch
-record binds that drill to the same build's complete durable-workspace browser
-suite and product-contract version. Application-image rollback remains a host
-deployment operation rather than a release-publication operation.
+Release rollback changes the immutable release pairing; application-image
+rollback remains a separate host deployment operation. The launch drill must
+exercise both operations together: serve the accepted candidate image and
+pairing, restore the exact prior image digest and build ID with the prior
+analysis/search pairing, and re-run the complete `market-analysis-v1` API. Its
+retained report records the before, successor, and restored image identities;
+deployment pairing, analysis build, product-search build, artifact, and Source
+Freshness Status identities; rollback activation state; and the restored
+product-contract smoke. The restored image and deployment must equal the
+before state, while the successor image and pairing must be distinct and match
+the candidate identity.
+
+The `lifecycle-drill-report-v1` rollback entry is fail-closed on this shape:
+
+```json
+{
+  "applicationImages": {
+    "before": { "digest": "sha256:<64 hex>", "buildId": "<prior build>" },
+    "successor": { "digest": "sha256:<64 hex>", "buildId": "<candidate build>" },
+    "restored": { "digest": "sha256:<64 hex>", "buildId": "<prior build>" }
+  },
+  "deployments": {
+    "before": {
+      "deploymentPairingId": "<prior pairing>",
+      "analysisBuildId": "<prior analysis>",
+      "productSearchBuildId": "<prior search>",
+      "artifactSha256": "<prior artifact>",
+      "sourceStatusSnapshotId": "<prior source status>"
+    },
+    "successor": {
+      "deploymentPairingId": "<candidate pairing>",
+      "analysisBuildId": "<candidate analysis>",
+      "productSearchBuildId": "<candidate search>",
+      "artifactSha256": "<candidate artifact>",
+      "sourceStatusSnapshotId": "<candidate source status>"
+    },
+    "restored": {
+      "deploymentPairingId": "<prior pairing>",
+      "analysisBuildId": "<prior analysis>",
+      "productSearchBuildId": "<prior search>",
+      "artifactSha256": "<prior artifact>",
+      "sourceStatusSnapshotId": "<prior source status>"
+    }
+  },
+  "restoredProductContract": {
+    "status": "accepted",
+    "schemaVersion": "market-analysis-v1",
+    "candidateMarketStatus": 200,
+    "marketAnalysisStatus": 200,
+    "deploymentPairingId": "<prior pairing>",
+    "analysisBuildId": "<prior analysis>",
+    "constituentRecipes": [
+      "candidate-market-v1",
+      "trade-trend-v1",
+      "supplier-competition-v1"
+    ]
+  },
+  "rollbackState": {
+    "deploymentActivationMode": "current",
+    "rollbackActive": true,
+    "sourceStatusSnapshotId": "<prior source status>"
+  }
+}
+```
 
 ```bash
 npm run --silent promotion:check -- \
