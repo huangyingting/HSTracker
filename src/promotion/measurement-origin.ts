@@ -30,11 +30,20 @@ export function validateMeasurementOrigin(
     );
   }
 
+  const hostname = parsed.hostname.toLowerCase();
+  const isLoopbackAlias =
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    /^127(?:\.\d{1,3}){3}$/u.test(hostname) ||
+    hostname === "::1" ||
+    hostname === "[::1]";
   const isAdr0004Loopback =
-    parsed.protocol === "http:" && parsed.hostname === "127.0.0.1";
+    parsed.protocol === "http:" && hostname === "127.0.0.1";
+  const isHostedHttps =
+    parsed.protocol === "https:" && !isLoopbackAlias;
   if (
     measurementClass === "candidate" &&
-    parsed.protocol !== "https:" &&
+    !isHostedHttps &&
     !isAdr0004Loopback
   ) {
     throw createError(

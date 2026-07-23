@@ -137,6 +137,15 @@ describe("browser-lab plan validation", () => {
     );
   });
 
+  it("rejects HTTPS loopback because ADR-0004 has no TLS termination", () => {
+    const input = candidatePlanInput();
+    input.origin = "https://127.0.0.1:3300";
+
+    expect(() => validateBrowserLabPlan(input)).toThrowError(
+      /ADR-0004 loopback HTTP/u,
+    );
+  });
+
   it("rejects a local-smoke origin that is not loopback", () => {
     const input = candidatePlanInput();
     input.measurementClass = "local-smoke";

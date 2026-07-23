@@ -19,7 +19,7 @@ byte, and every artifact must match its manifest. The analysis and product
 catalog must name the same BACI Release, source archive SHA-256, and HS12
 revision.
 
-Activation also requires a canonical `production-promotion-input-v1` whose ten
+Activation also requires a canonical `production-promotion-input-v1` whose eleven
 gate-specific retained reports evaluate to `accepted`. The accepted promotion
 identity must name the same BACI Release, analysis artifact SHA-256, and
 product-search build ID as these candidate directories. This check runs before
