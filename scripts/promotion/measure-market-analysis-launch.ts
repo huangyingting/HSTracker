@@ -817,14 +817,14 @@ function verifyLifecycleReport(
     );
   }
 
-  const rollbackState = object(
-    rollback.rollbackState,
-    "restored rollback state",
+  const restoredDeploymentActivation = object(
+    rollback.restoredDeploymentActivation,
+    "restored deployment activation",
   );
   if (
-    rollbackState.deploymentActivationMode !== "current" ||
-    rollbackState.rollbackActive !== true ||
-    rollbackState.sourceStatusSnapshotId !==
+    restoredDeploymentActivation.deploymentActivationMode !== "current" ||
+    restoredDeploymentActivation.rollbackActive !== true ||
+    restoredDeploymentActivation.sourceStatusSnapshotId !==
       restoredDeployment.sourceStatusSnapshotId
   ) {
     throw invalid(
@@ -856,7 +856,7 @@ function verifyLifecycleReport(
       analysisBuildId: restoredDeployment.analysisBuildId,
       constituentRecipes,
     },
-    rollbackState: {
+    restoredDeploymentActivation: {
       deploymentActivationMode: "current",
       rollbackActive: true,
       sourceStatusSnapshotId: restoredDeployment.sourceStatusSnapshotId,

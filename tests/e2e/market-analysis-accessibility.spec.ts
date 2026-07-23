@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  BROWSER_LAUNCH_MATRIX_LOCALES,
+  BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+} from "../../src/promotion/browser-launch-matrix";
+import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
   MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE,
   RECENT_MOMENTUM_LAUNCH_STATES,
@@ -169,57 +173,77 @@ test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[4]), async ({
 test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[5]), async ({
   browser,
 }, testInfo) => {
-  testInfo.setTimeout(120_000);
-  const viewports = [
-    { width: 1_440, height: 900 },
-    { width: 1_024, height: 768 },
-    { width: 768, height: 1_024 },
-    { width: 390, height: 844 },
-    { width: 320, height: 568 },
-  ] as const;
-  const locales = [
+  testInfo.setTimeout(300_000);
+  const visualPreferences = [
     {
-      query: "",
-      heading: "Netherlands · Market Analysis",
-      language: "en",
+      contrast: "no-preference",
+      forcedColors: "none",
+      reducedMotion: "no-preference",
     },
     {
-      query: "&locale=zh-Hans",
-      heading: "Netherlands · 市场分析",
-      language: "zh-Hans",
+      contrast: "no-preference",
+      forcedColors: "none",
+      reducedMotion: "reduce",
+    },
+    {
+      contrast: "more",
+      forcedColors: "active",
+      reducedMotion: "no-preference",
     },
   ] as const;
+  let matrixContextIndex = 1;
 
-  for (const viewport of viewports) {
+  for (const viewport of BROWSER_LAUNCH_MATRIX_VIEWPORTS) {
     for (const colorScheme of ["light", "dark"] as const) {
-      for (const locale of locales) {
-        const context = await browser.newContext({
-          colorScheme,
-          hasTouch: viewport.width <= 390,
-          isMobile: viewport.width <= 390,
-          viewport,
-        });
-        const page = await context.newPage();
-        try {
-          await page.goto(`${CANONICAL_URL}${locale.query}`);
-          const view = page.getByRole("region", { name: locale.heading });
-          await expect(view).toBeVisible();
-          await expect(view.getByRole("heading", { level: 3 })).toHaveCount(8);
-          await expect(page.locator("html")).toHaveAttribute(
-            "data-theme",
+      for (const locale of BROWSER_LAUNCH_MATRIX_LOCALES) {
+        for (const visualPreference of visualPreferences) {
+          matrixContextIndex += 1;
+          const context = await browser.newContext({
             colorScheme,
-          );
-          await expect(page.locator("html")).toHaveAttribute(
-            "lang",
-            locale.language,
-          );
-          expect(
-            await page.evaluate(
-              () => document.documentElement.scrollWidth <= window.innerWidth,
-            ),
-          ).toBe(true);
-        } finally {
-          await context.close();
+            contrast: visualPreference.contrast,
+            extraHTTPHeaders: {
+              "fly-client-ip": `198.51.100.${matrixContextIndex}`,
+            },
+            forcedColors: visualPreference.forcedColors,
+            hasTouch: viewport.width <= 390,
+            isMobile: viewport.width <= 390,
+            reducedMotion: visualPreference.reducedMotion,
+            viewport,
+          });
+          const page = await context.newPage();
+          try {
+            const localeQuery = locale === "en" ? "" : "&locale=zh-Hans";
+            const heading =
+              locale === "en"
+                ? "Netherlands · Market Analysis"
+                : "Netherlands · 市场分析";
+            await page.goto(`${CANONICAL_URL}${localeQuery}`);
+            const view = page.getByRole("region", { name: heading });
+            await expect(view).toBeVisible();
+            await expect(view.getByRole("heading", { level: 3 })).toHaveCount(8);
+            await expect(page.locator("html")).toHaveAttribute(
+              "data-theme",
+              colorScheme,
+            );
+            await expect(page.locator("html")).toHaveAttribute("lang", locale);
+            expect(
+              await page.evaluate(
+                () => document.documentElement.scrollWidth <= window.innerWidth,
+              ),
+            ).toBe(true);
+            expect(
+              await page.evaluate(
+                () => matchMedia("(prefers-reduced-motion: reduce)").matches,
+              ),
+            ).toBe(visualPreference.reducedMotion === "reduce");
+            expect(
+              await page.evaluate(
+                () => matchMedia("(forced-colors: active)").matches,
+              ),
+            ).toBe(visualPreference.forcedColors === "active");
+          } finally {
+            await context.close();
+          }
         }
       }
     }
@@ -230,20 +254,13 @@ test(launchEvidenceTestTitle(MARKET_ANALYSIS_ACCESSIBILITY_CASES[6]), async ({
   browser,
 }, testInfo) => {
   testInfo.setTimeout(600_000);
-  const viewports = [
-    { width: 1_440, height: 900 },
-    { width: 1_024, height: 768 },
-    { width: 768, height: 1_024 },
-    { width: 390, height: 844 },
-    { width: 320, height: 568 },
-  ] as const;
-  const locales = ["", "&locale=zh-Hans"] as const;
   let matrixContextIndex = 100;
 
-  for (const viewport of viewports) {
+  for (const viewport of BROWSER_LAUNCH_MATRIX_VIEWPORTS) {
     for (const colorScheme of ["light", "dark"] as const) {
-      for (const localeQuery of locales) {
+      for (const locale of BROWSER_LAUNCH_MATRIX_LOCALES) {
         matrixContextIndex += 1;
+        const localeQuery = locale === "en" ? "" : "&locale=zh-Hans";
         const context = await browser.newContext({
           colorScheme,
           extraHTTPHeaders: {

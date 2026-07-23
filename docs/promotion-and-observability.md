@@ -291,7 +291,7 @@ The `lifecycle-drill-report-v1` rollback entry is fail-closed on this shape:
       "supplier-competition-v1"
     ]
   },
-  "rollbackState": {
+  "restoredDeploymentActivation": {
     "deploymentActivationMode": "current",
     "rollbackActive": true,
     "sourceStatusSnapshotId": "<prior source status>"

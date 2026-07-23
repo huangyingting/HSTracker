@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 import type { MarketInvestigationPage } from "../../src/domain/opportunity-discovery/result";
+import {
+  MARKET_ANALYSIS_PORTFOLIO_JOURNEY_CASE,
+  launchEvidenceTestTitle,
+} from "../support/market-analysis-launch-matrix";
 
 test("a signed-in analyst restores a portfolio workspace, filters the live public ranking, and signs out to the anonymous workspace", async ({
   page,
@@ -208,7 +212,7 @@ test("a signed-in analyst restores a portfolio workspace, filters the live publi
   ).toHaveCount(4);
 });
 
-test("portfolio controls coexist with public analysis and open byte-identical Market Analysis", async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_PORTFOLIO_JOURNEY_CASE), async ({
   page,
 }) => {
   const email = `portfolio-analysis-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;

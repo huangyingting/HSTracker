@@ -75,7 +75,7 @@ describe("Market Analysis launch evidence command", () => {
       analystNeeds: { DIRECT: 10, BOUNDED: 5, OUTSIDE: 5 },
       analystNeedScenarios: 12,
       accessibilityCases: 7,
-      durableJourneyCases: 15,
+      durableJourneyCases: MARKET_ANALYSIS_DURABLE_JOURNEY_CASES.length,
       recentMomentumStates: 11,
       originBenchmarkCases: 8,
       browserTrials: 10,
@@ -574,7 +574,7 @@ function lifecycleReport(
             "supplier-competition-v1",
           ],
         },
-        rollbackState: {
+        restoredDeploymentActivation: {
           deploymentActivationMode: "current",
           rollbackActive: true,
           sourceStatusSnapshotId: priorDeployment.sourceStatusSnapshotId,

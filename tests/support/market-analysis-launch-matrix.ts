@@ -39,7 +39,7 @@ export const MARKET_ANALYSIS_ACCESSIBILITY_CASES = [
   {
     id: "locale-theme-viewport-matrix",
     title:
-      "Market Analysis remains complete across both locales, both themes, and every launch viewport",
+      "Market Analysis remains complete across both locales, both themes, reduced-motion and forced-colors preferences, and every launch viewport",
   },
   {
     id: "visual-state-launch-matrix",
@@ -71,6 +71,12 @@ export const MARKET_ANALYSIS_ANNUAL_FAILURE_CASES = [
       "rapid market changes cannot paint a stale monthly response under the new annual heading",
   },
 ] as const;
+
+export const MARKET_ANALYSIS_PORTFOLIO_JOURNEY_CASE = {
+  id: "portfolio-market-analysis",
+  title:
+    "a confirmed portfolio opens byte-identical Market Analysis without changing the analytical context",
+} as const;
 
 export const MARKET_ANALYSIS_DURABLE_JOURNEY_CASES = [
   {
@@ -145,6 +151,7 @@ export const MARKET_ANALYSIS_DURABLE_JOURNEY_CASES = [
     id: "trade-explorer-csv",
     title: "an analyst downloads the complete bounded Trade Explorer CSV",
   },
+  MARKET_ANALYSIS_PORTFOLIO_JOURNEY_CASE,
 ] as const;
 
 export const MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES = [
