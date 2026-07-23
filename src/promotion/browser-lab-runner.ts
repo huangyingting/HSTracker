@@ -805,7 +805,7 @@ export async function runBrowserLabTrial(
   let session: BrowserLabTrialSession | null = null;
   try {
     session = await driver.openTrialSession(measurementClass, options.profile);
-    await session.navigate(originForLocale(origin, options.locale));
+    await session.navigate(candidateMarketEntryUrl(origin, options.locale));
     await session.selectContext(selectContextAction);
     const analyzeOutcome = await session.analyze(analyzeAction);
     const marketAnalysisOutcome = await session.openMarketAnalysis(
@@ -1156,15 +1156,15 @@ async function runLaunchMatrix(
   };
 }
 
-function originForLocale(
+function candidateMarketEntryUrl(
   origin: string,
   locale: BrowserLaunchMatrixLocale | undefined,
 ): string {
-  if (locale === undefined || locale === "en") {
-    return origin;
-  }
   const url = new URL(origin);
-  url.searchParams.set("locale", locale);
+  url.searchParams.set("recipe", "candidate-market-v1");
+  if (locale !== undefined && locale !== "en") {
+    url.searchParams.set("locale", locale);
+  }
   return url.href;
 }
 

@@ -235,6 +235,25 @@ describe("browser-lab plan validation", () => {
 });
 
 describe("browser-lab trial execution", () => {
+  it("opens the canonical Candidate Market route and preserves the launch locale", async () => {
+    const plan = validateBrowserLabPlan(candidatePlanInput());
+    const navigate = vi.fn(async () => {});
+    const session = fakeSession({ navigate });
+
+    await runBrowserLabTrial(
+      fakeDriver([session]),
+      plan.measurementClass,
+      plan.origin,
+      plan.journeys[0],
+      0,
+      { locale: "zh-Hans" },
+    );
+
+    expect(navigate).toHaveBeenCalledWith(
+      "https://candidate.example.com/?recipe=candidate-market-v1&locale=zh-Hans",
+    );
+  });
+
   it("maps a successful trial into BrowserLabTrialInput-compatible metrics and diagnostics", async () => {
     const plan = validateBrowserLabPlan(candidatePlanInput());
     const session = fakeSession();
