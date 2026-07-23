@@ -1,0 +1,45 @@
+{
+  "status": "ok",
+  "readiness": "ready",
+  "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+  "activation": {
+    "mode": "CURRENT",
+    "fallbackReason": null
+  },
+  "deployment": {
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "analysisReleaseCatalogSha256": "fc8322c4e04efd6935d5b6ee9833df4b1504d515eee5ff9c805bba3445274d42",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "activatedAt": "2026-07-16T10:00:00Z"
+  },
+  "analysisArtifact": {
+    "buildId": "candidate-market-artifact-v1-ca688ed1ac89b3f2",
+    "schemaVersion": "candidate-market-artifact-v1",
+    "sha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76"
+  },
+  "previousAnalysisArtifact": null,
+  "freshness": {
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "freshnessStatusId": "freshness:source-status-v1-b5ea309f2eef076f:LATEST_KNOWN:2026-07-18T17%3A27%3A37Z:6ab6ea844f2a076ef8f97f3b3649033c7209a8d5bc214e817ed921c6461a2fd1",
+    "state": "LATEST_KNOWN",
+    "deploymentActivation": {
+      "mode": "CURRENT",
+      "fallbackReason": null
+    },
+    "degraded": false,
+    "polling": {
+      "currentSourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+      "consecutiveFailures": 0,
+      "totalFailures": 0,
+      "lastAttemptAt": "2026-07-23T21:21:36Z",
+      "lastSuccessfulPollAt": "2026-07-23T21:21:36Z",
+      "warningActive": false,
+      "alert": {
+        "level": "none",
+        "reason": null
+      }
+    }
+  }
+}

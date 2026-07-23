@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "production-deployment-check-v1",
+  "evaluatedAt": "2026-07-23T20:44:34Z",
+  "status": "accepted",
+  "evidence": {
+    "image": {
+      "reference": "hs-tracker:issue72-d12b822",
+      "imageId": "sha256:9e14577c3c36c0164f832cb0e82941b24c29c9d9e4cf9ebc48b55f0f231e598f",
+      "compressedBytes": 149536911,
+      "compressedSizeMeasurement": "docker-image-save-gzip-v1",
+      "nodeVersion": "24.17.0",
+      "nativeDuckDb": "loaded",
+      "nativeBindingPath": "/app/node_modules/@duckdb/node-bindings-linux-x64/duckdb.node",
+      "codeOnly": true
+    },
+    "artifact": {
+      "reportSha256": "8aad55931017d95aedb674b0aa241dafcf3762cbff40eec9a34598523e3bb474",
+      "bytes": 1002975232
+    },
+    "catalog": {
+      "reportSha256": "9bce817d4a26ab34635982df5222884f894c5296991b6a0e23eb1a3adfadb263",
+      "residentBytes": 5153712
+    },
+    "volume": {
+      "observationClass": "observed",
+      "capacityBytes": 53687091200,
+      "freeBytesAtPeak": 48813092864,
+      "freeBytesAfterActivation": 48813092864
+    },
+    "cost": {
+      "forecastSha256": "2e64be80b8c2867b558379aacc43b865724034a17703fe6e368fc3364c33293a",
+      "checkedAt": "2026-07-12T00:00:00Z",
+      "forecastMonthlyUsd": 0
+    }
+  },
+  "gates": {
+    "image": {
+      "measuredBytes": 149536911,
+      "limitBytes": 524288000,
+      "status": "accepted"
+    },
+    "artifact": {
+      "measuredBytes": 1002975232,
+      "targetBytes": 8589934592,
+      "limitBytes": 10737418240,
+      "status": "accepted"
+    },
+    "catalog": {
+      "measuredResidentBytes": 5153712,
+      "limitBytes": 33554432,
+      "status": "accepted"
+    },
+    "volume": {
+      "capacityBytes": 53687091200,
+      "minimumCapacityBytes": 53687091200,
+      "requiredCapacityBytes": 9738523990,
+      "freeBytesAtPeak": 48813092864,
+      "freeFractionAtPeak": 0.9092147064208984,
+      "freeBytesAfterActivation": 48813092864,
+      "freeFractionAfterActivation": 0.9092147064208984,
+      "warningFreeFraction": 0.3,
+      "minimumFreeFraction": 0.25,
+      "status": "accepted"
+    },
+    "cost": {
+      "forecastUsd": 0,
+      "targetUsd": 40,
+      "reviewThresholdUsd": 50,
+      "architectureDecision": null,
+      "status": "accepted"
+    }
+  }
+}

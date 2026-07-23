@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "promotion-input-build-report-v1",
+  "out": "reports/promotion/candidate/promotion-input.json",
+  "evaluatedAt": "2026-07-23T21:29:21Z",
+  "status": "accepted",
+  "gateCount": 11,
+  "measuredGates": [
+    "browser-lab",
+    "coalescing-and-capacity",
+    "deployment-resources",
+    "external-smoke-and-observability",
+    "http-cache-and-deadlines",
+    "lifecycle-and-recovery",
+    "market-analysis-launch",
+    "origin-benchmarks",
+    "recurring-cost",
+    "source-and-domain",
+    "target-load"
+  ],
+  "blockedGates": []
+}

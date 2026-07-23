@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "coalescing-and-capacity",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T19:39:32Z",
+  "windowStartedAt": "2026-07-23T19:39:32Z",
+  "windowEndedAt": "2026-07-23T19:39:32Z",
+  "sampleCount": 32,
+  "checks": [
+    {
+      "name": "coalescing",
+      "status": "accepted",
+      "detail": "10 identical requests collapsed to 1 computation(s); results identical=true, all succeeded=true."
+    },
+    {
+      "name": "capacity",
+      "status": "accepted",
+      "detail": "Queue-full rejection observed=true (20 admitted at policy limit); queue-timeout rejection observed=true; admitted requests recovered=true; post-timeout replacement succeeded=true."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/coalescing-and-capacity-measurement.json",
+      "sha256": "3feaa044549988bbc7d0daa9dc813bb59afcfbed92bf28aacaa08ca986ca6206"
+    }
+  ]
+}

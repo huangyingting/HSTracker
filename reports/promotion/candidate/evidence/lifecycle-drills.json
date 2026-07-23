@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "lifecycle-drill-report-v1",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T21:00:22Z",
+  "origin": "http://127.0.0.1:32952",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "readinessProbe": "GET /healthz => readiness==ready with exact application image, deployment pairing, analysis build, product-search build, artifact, and Source Freshness Status; GET market-analysis => market-analysis-v1 with all three constituents.",
+  "drills": {
+    "restart": {
+      "measuredMs": 67587,
+      "limitMs": 90000,
+      "status": "accepted",
+      "method": "docker restart of the exact candidate image with the warm serving volume, measured to identity-bound readiness."
+    },
+    "coldHydration": {
+      "measuredMs": 154032,
+      "limitMs": 900000,
+      "status": "accepted",
+      "method": "removed and recreated the isolated serving volume, then hydrated the candidate and retained predecessor from the read-only filesystem release store to identity-bound readiness."
+    },
+    "deployInterruption": {
+      "measuredMs": 65348,
+      "limitMs": 120000,
+      "status": "accepted",
+      "method": "replaced the exact prior image with the exact candidate image after activating the immutable candidate pairing, measured from cutover start to readiness."
+    },
+    "recovery": {
+      "measuredMs": 62842,
+      "limitMs": 1800000,
+      "status": "accepted",
+      "method": "stopped the candidate container with zero grace, restarted it, and measured recovery to identity-bound readiness."
+    },
+    "rollback": {
+      "measuredMs": 221951,
+      "limitMs": 900000,
+      "status": "accepted",
+      "method": "operator rollback restored the retained prior analytical deployment under a new rollback pairing and Source Freshness Status, replaced the candidate image with the exact prior digest, and re-ran the complete Market Analysis contract.",
+      "applicationImages": {
+        "before": {
+          "digest": "sha256:be118b5a054d0acf184f4cb8dee8a7838bb565affe3d17cacb4aeebe417fbc76",
+          "buildId": "1ba3c99d38618a093cda1881eee24b4dbe8132f0"
+        },
+        "successor": {
+          "digest": "sha256:9e14577c3c36c0164f832cb0e82941b24c29c9d9e4cf9ebc48b55f0f231e598f",
+          "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52"
+        },
+        "restored": {
+          "digest": "sha256:be118b5a054d0acf184f4cb8dee8a7838bb565affe3d17cacb4aeebe417fbc76",
+          "buildId": "1ba3c99d38618a093cda1881eee24b4dbe8132f0"
+        }
+      },
+      "deployments": {
+        "before": {
+          "deploymentPairingId": "deployment-pairing-v1-4a74b7ca0bedf8e5",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+          "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+          "sourceStatusSnapshotId": "source-status-bootstrap-v1-2524ca466fb7ebb4"
+        },
+        "successor": {
+          "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+          "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+          "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f"
+        },
+        "restored": {
+          "deploymentPairingId": "deployment-pairing-v1-42a7333642adbf05",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+          "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+          "sourceStatusSnapshotId": "source-status-v1-8370df89c71282b4"
+        }
+      },
+      "restoredProductContract": {
+        "status": "accepted",
+        "candidateMarketStatus": 200,
+        "marketAnalysisStatus": 200,
+        "schemaVersion": "market-analysis-v1",
+        "constituentRecipes": [
+          "candidate-market-v1",
+          "trade-trend-v1",
+          "supplier-competition-v1"
+        ],
+        "deploymentPairingId": "deployment-pairing-v1-42a7333642adbf05",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4"
+      },
+      "restoredDeploymentActivation": {
+        "deploymentActivationMode": "current",
+        "rollbackActive": true,
+        "sourceStatusSnapshotId": "source-status-v1-8370df89c71282b4"
+      }
+    }
+  },
+  "recoveryPoint": {
+    "acceptedArtifactLossCount": 0,
+    "limit": 0,
+    "status": "accepted",
+    "detail": "The prior artifact identity was exact after rollback and the candidate artifact identity was exact after reversal; no accepted artifact was lost."
+  },
+  "reversal": {
+    "status": "accepted",
+    "measuredMs": 79130,
+    "applicationImage": {
+      "digest": "sha256:9e14577c3c36c0164f832cb0e82941b24c29c9d9e4cf9ebc48b55f0f231e598f",
+      "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52"
+    },
+    "deployment": {
+      "deploymentPairingId": "deployment-pairing-v1-d0401fa266a229ca",
+      "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+      "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+      "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+      "sourceStatusSnapshotId": "source-status-v1-6b4bb634c28e931f"
+    },
+    "deploymentActivation": {
+      "mode": "current",
+      "rollbackActive": true,
+      "sourceStatusSnapshotId": "source-status-v1-6b4bb634c28e931f"
+    },
+    "productContract": {
+      "status": "accepted",
+      "candidateMarketStatus": 200,
+      "marketAnalysisStatus": 200,
+      "schemaVersion": "market-analysis-v1",
+      "constituentRecipes": [
+        "candidate-market-v1",
+        "trade-trend-v1",
+        "supplier-competition-v1"
+      ]
+    }
+  },
+  "observations": {
+    "beforeProductContract": {
+      "candidateMarketStatus": 200,
+      "marketAnalysisStatus": 200,
+      "schemaVersion": "market-analysis-v1",
+      "constituentRecipes": [
+        "candidate-market-v1",
+        "trade-trend-v1",
+        "supplier-competition-v1"
+      ]
+    },
+    "successorProductContract": {
+      "status": "accepted",
+      "schemaVersion": "market-analysis-v1"
+    }
+  }
+}

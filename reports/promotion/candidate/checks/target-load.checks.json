@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "target-load",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T19:37:52Z",
+  "windowStartedAt": "2026-07-23T19:27:22Z",
+  "windowEndedAt": "2026-07-23T19:37:52Z",
+  "sampleCount": 631,
+  "checks": [
+    {
+      "name": "route-mix",
+      "status": "accepted",
+      "detail": "Sustained 4 rps for 600s across 20 sessions at exact 10/25/55/10 route mix, 80/20 hot/distinct analysis mix, plus 10 rps coordinated bursts; Market Analysis, Trade Explorer, and the maximum-row product all participated."
+    },
+    {
+      "name": "load-thresholds",
+      "status": "accepted",
+      "detail": "Route p95 current 6.6ms, search 10.2ms, analysis 1260.7ms, CSV 11.2ms; cgroup memory 20.0%, RSS 21.7%, spill 0 bytes, with zero queue rejections, unretryable errors, and timeouts."
+    },
+    {
+      "name": "cache-states",
+      "status": "accepted",
+      "detail": "Scheduled hot, distinct, and CSV cache states were verified with zero cache violations under the dephased sustained schedule."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/load-report.json",
+      "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+    }
+  ]
+}

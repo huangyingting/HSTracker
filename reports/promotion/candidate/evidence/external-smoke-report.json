@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "external-smoke-report-v1",
+  "measurementClass": "candidate",
+  "origin": "http://127.0.0.1:3300",
+  "identity": {
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "baciRelease": "V202601",
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0"
+  },
+  "window": {
+    "startedAt": "2026-07-23T21:06:00Z",
+    "endedAt": "2026-07-23T21:09:00Z"
+  },
+  "measuredAt": "2026-07-23T21:08:00Z",
+  "externalSmoke": {
+    "ok": true,
+    "routes": [
+      {
+        "name": "health",
+        "path": "/healthz",
+        "timedOut": false,
+        "status": 200,
+        "ok": true
+      },
+      {
+        "name": "ui",
+        "path": "/",
+        "timedOut": false,
+        "status": 200,
+        "ok": true
+      },
+      {
+        "name": "current-analysis",
+        "path": "/api/v1/analyses/current",
+        "timedOut": false,
+        "status": 200,
+        "ok": true
+      },
+      {
+        "name": "product-search",
+        "path": "/api/v1/product-catalogs/product-search-v1-aa1f4027019c194b/products?q=coffee&locale=en&limit=10",
+        "timedOut": false,
+        "status": 200,
+        "ok": true
+      },
+      {
+        "name": "candidate-market",
+        "path": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/candidate-markets?exporter=156&product=392690",
+        "timedOut": false,
+        "status": 200,
+        "ok": true
+      },
+      {
+        "name": "trade-explorer",
+        "path": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/trade-explorer?shape=finalized-trend-v1&measures=TRADE_VALUE_USD,RECORDED_FLOW_COUNT&exportEconomy=894&importEconomy=858&hsProduct=240120",
+        "timedOut": false,
+        "status": 200,
+        "ok": true
+      }
+    ]
+  },
+  "requestSli": {
+    "target": 0.995,
+    "requestsPerIdentity": 24,
+    "groups": [
+      {
+        "kind": "request-sli",
+        "identity": {
+          "routeFamily": "current-analysis",
+          "cacheState": "bypass",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "baciRelease": "V202601"
+        },
+        "sampleCount": 24,
+        "eligibleCount": 24,
+        "successfulCount": 24,
+        "failedCount": 0,
+        "excludedCount": 0,
+        "measurable": true,
+        "successFraction": 1
+      },
+      {
+        "kind": "request-sli",
+        "identity": {
+          "routeFamily": "candidate-market",
+          "cacheState": "hit",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "baciRelease": "V202601"
+        },
+        "sampleCount": 24,
+        "eligibleCount": 24,
+        "successfulCount": 24,
+        "failedCount": 0,
+        "excludedCount": 0,
+        "measurable": true,
+        "successFraction": 1
+      }
+    ]
+  },
+  "probeSli": {
+    "target": 0.995,
+    "window": {
+      "startedAt": "2026-07-23T21:06:00Z",
+      "endedAt": "2026-07-23T21:09:00Z"
+    },
+    "intervals": [
+      {
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "baciRelease": "V202601",
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "smokeAnalysisKey": "candidate-market:analysis-build-v1-949d1ac27ade40d4:exporter=156;product=392690",
+        "intervalStartedAt": "2026-07-23T21:06:00Z",
+        "manifestOutcome": "success",
+        "smokeAnalysisOutcome": "success"
+      },
+      {
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "baciRelease": "V202601",
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "smokeAnalysisKey": "candidate-market:analysis-build-v1-949d1ac27ade40d4:exporter=156;product=392690",
+        "intervalStartedAt": "2026-07-23T21:07:00Z",
+        "manifestOutcome": "success",
+        "smokeAnalysisOutcome": "success"
+      },
+      {
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "baciRelease": "V202601",
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "smokeAnalysisKey": "candidate-market:analysis-build-v1-949d1ac27ade40d4:exporter=156;product=392690",
+        "intervalStartedAt": "2026-07-23T21:08:00Z",
+        "manifestOutcome": "success",
+        "smokeAnalysisOutcome": "success"
+      }
+    ],
+    "result": {
+      "kind": "probe-sli",
+      "identity": {
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "baciRelease": "V202601",
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "smokeAnalysisKey": "candidate-market:analysis-build-v1-949d1ac27ade40d4:exporter=156;product=392690"
+      },
+      "sampleCount": 3,
+      "successfulCount": 3,
+      "failedCount": 0,
+      "measurable": true,
+      "successFraction": 1
+    }
+  },
+  "failures": []
+}

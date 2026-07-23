@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "source-and-domain-measurement-v1",
+  "analysisBuildId": "acceptance-fixtures-v1",
+  "measuredAt": "2026-07-23T19:39:32Z",
+  "asOf": "2026-03-01T00:00:00Z",
+  "source": {
+    "assertions": [
+      "manifest-schema-version",
+      "freshness-serves-deployed-release",
+      "freshness-status-round-trips",
+      "freshness-state-recognized",
+      "freshness-check-not-overdue",
+      "ingest-window-coherent",
+      "provisional-year-after-finalized",
+      "score-windows-within-ingest-range",
+      "artifact-digest-well-formed"
+    ],
+    "failures": []
+  },
+  "domain": {
+    "assertions": [
+      "release-catalog-digest-well-formed",
+      "recommendation-recipe-is-candidate-market",
+      "recommendation-dataset-package-present",
+      "declared-recipes-well-formed",
+      "deployment-window-current-first",
+      "executed-analysis-binds-to-manifest"
+    ],
+    "failures": []
+  }
+}

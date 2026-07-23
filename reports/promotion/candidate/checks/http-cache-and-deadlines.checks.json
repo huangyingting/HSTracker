@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "http-cache-and-deadlines",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T19:39:52Z",
+  "windowStartedAt": "2026-07-23T19:39:50Z",
+  "windowEndedAt": "2026-07-23T19:39:52Z",
+  "sampleCount": 7,
+  "checks": [
+    {
+      "name": "http-cache",
+      "status": "accepted",
+      "detail": "current-analysis: ok; candidate-markets (immutable): ok; market-analysis (immutable): ok"
+    },
+    {
+      "name": "deadlines",
+      "status": "accepted",
+      "detail": "deadline-timer-abort: ok; request-abort-propagation: ok; synchronous-deadline: ok; route-deadline-table: ok"
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/http-cache-and-deadlines-evidence.json",
+      "sha256": "c6250184745eccddaee950cb5874ec34cd3708e69c8bda47caae2332df5f4cb2"
+    },
+    {
+      "path": "reports/promotion/candidate/plans/origin-plan.json",
+      "sha256": "441da9d7e100ba835bdf32694a7e564926e6b979eec01d4038a355a72f9fe5e8"
+    }
+  ]
+}

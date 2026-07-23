@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "lifecycle-and-recovery",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T21:00:22Z",
+  "windowStartedAt": "2026-07-23T20:49:31Z",
+  "windowEndedAt": "2026-07-23T21:00:22Z",
+  "sampleCount": 5,
+  "checks": [
+    {
+      "name": "restart",
+      "status": "accepted",
+      "detail": "Exact candidate warm-volume restart reached identity-bound readiness in 67587ms <= 90000ms."
+    },
+    {
+      "name": "hydration",
+      "status": "accepted",
+      "detail": "Fresh serving-volume hydration reached identity-bound readiness in 154032ms <= 900000ms."
+    },
+    {
+      "name": "rollback",
+      "status": "accepted",
+      "detail": "Application image and analytical deployment rollback restored the retained prior product contract in 221951ms <= 900000ms; reversal restored the exact d12b822 image and candidate release in 79130ms with RPO 0."
+    },
+    {
+      "name": "deployment",
+      "status": "accepted",
+      "detail": "Prior-to-candidate image and pairing cutover reached identity-bound readiness in 65348ms <= 120000ms."
+    },
+    {
+      "name": "recovery",
+      "status": "accepted",
+      "detail": "Zero-grace candidate recovery reached identity-bound readiness in 62842ms <= 1800000ms with no accepted artifact loss."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/lifecycle-drills.json",
+      "sha256": "1d13e03b1ad93e389e08b574f2237b2f1deba01a10dd716ac6960b2835d44ad7"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "market-analysis-launch-measurement-report-v1",
+  "status": "accepted",
+  "out": "reports/promotion/candidate/checks/market-analysis-launch.checks.json",
+  "evidence": "reports/promotion/candidate/evidence/market-analysis-launch-readiness.json",
+  "productContractVersion": "market-analysis-v1",
+  "activeDeploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+  "analystNeeds": {
+    "DIRECT": 10,
+    "BOUNDED": 5,
+    "OUTSIDE": 5
+  },
+  "analystNeedScenarios": 12,
+  "accessibilityCases": 8,
+  "durableJourneyCases": 17,
+  "recentMomentumStates": 11,
+  "originBenchmarkCases": 8,
+  "browserTrials": 10,
+  "browserLaunchMatrixContexts": 10
+}

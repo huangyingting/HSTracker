@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "external-smoke-and-observability-report-v1",
+  "gate": "external-smoke-and-observability",
+  "measurementClass": "candidate",
+  "status": "accepted",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "checks": [
+    {
+      "name": "external-smoke",
+      "status": "accepted"
+    },
+    {
+      "name": "request-sli",
+      "status": "accepted"
+    },
+    {
+      "name": "probe-sli",
+      "status": "accepted"
+    },
+    {
+      "name": "alerts-and-dashboard",
+      "status": "accepted"
+    }
+  ],
+  "retainedLogDigests": [
+    {
+      "path": "reports/promotion/candidate/evidence/external-smoke-report.json",
+      "sha256": "cf7664194df4e5e27c8c255f568a6b1be5d197525b359407e8da723f8a640c82"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/observability-alert-tests.json",
+      "sha256": "db27797062add67491a1c6b0e715883977529b4acad255e3ba97a6083ea3ad27"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/external-smoke-health.json",
+      "sha256": "62d11425d27347fec39e34fe2ca63f770c6ec236a850cec5b984db6dfb4810b2"
+    }
+  ]
+}
