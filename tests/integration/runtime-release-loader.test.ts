@@ -131,7 +131,7 @@ describe("verified release runtime", () => {
         connections: 4,
         activeConnections: 0,
         queued: 0,
-        threads: 2,
+        threads: 1,
         memoryLimit: "1GiB",
         tempDirectory: join(root, "volume", "spill"),
         maxTempDirectorySize: "4GiB",

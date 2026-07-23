@@ -74,6 +74,7 @@ type EconomySearchResult = Awaited<EconomySearchPromise>;
 
 export type BoundedApplicationRuntimeOptions = Readonly<{
   maxConcurrentAnalyses?: number;
+  maxConcurrentAnalysisMembers?: number;
   maxQueuedAnalyses?: number;
   queueWaitTimeoutMs?: number;
   analysisTimeoutMs?: number;
@@ -1145,7 +1146,13 @@ type QueuedAnalysis = {
 type QueuedAnalysisGroup = {
   readonly members: QueuedAnalysis[];
   state: "collecting" | "queued" | "running" | "settled";
+  remainingMembers: number;
   waitTimer?: ReturnType<typeof setTimeout>;
+};
+
+type PendingAnalysisMember = {
+  readonly group: QueuedAnalysisGroup;
+  readonly member: QueuedAnalysis;
 };
 
 type AnalysisExecutionGroup = {
@@ -1159,10 +1166,13 @@ type AnalysisExecutionGroup = {
 
 class AnalysisExecutionCoordinator {
   private readonly maxConcurrent: number;
+  private readonly maxConcurrentMembers: number;
   private readonly maxQueued: number;
   private readonly queueWaitTimeoutMs: number;
   private readonly analysisTimeoutMs: number;
   private readonly queue: QueuedAnalysisGroup[] = [];
+  // Admitted batch members wait here without spending execution timeout.
+  private readonly memberQueue: PendingAnalysisMember[] = [];
   private active = 0;
   private activeMembers = 0;
 
@@ -1170,6 +1180,9 @@ class AnalysisExecutionCoordinator {
     this.maxConcurrent =
       options.maxConcurrentAnalyses ??
       RUNTIME_RESOURCE_POLICY.maxConcurrentAnalyses;
+    this.maxConcurrentMembers =
+      options.maxConcurrentAnalysisMembers ??
+      RUNTIME_RESOURCE_POLICY.maxConcurrentAnalysisMembers;
     this.maxQueued =
       options.maxQueuedAnalyses ??
       RUNTIME_RESOURCE_POLICY.maxQueuedAnalyses;
@@ -1193,10 +1206,12 @@ class AnalysisExecutionCoordinator {
       active: this.active,
       queued: this.queue.length,
       activeMembers: this.activeMembers,
-      queuedMembers: this.queue.reduce(
-        (total, group) => total + group.members.length,
-        0,
-      ),
+      queuedMembers:
+        this.memberQueue.length +
+        this.queue.reduce(
+          (total, group) => total + group.members.length,
+          0,
+        ),
       maxConcurrent: this.maxConcurrent,
       maxQueued: this.maxQueued,
     };
@@ -1217,6 +1232,7 @@ class AnalysisExecutionCoordinator {
     const group: QueuedAnalysisGroup = {
       members: [],
       state: "collecting",
+      remainingMembers: 0,
     };
     return {
       run: (controller, execute, timing) =>
@@ -1315,21 +1331,68 @@ class AnalysisExecutionCoordinator {
     }
     group.state = "running";
     this.active += 1;
-    this.activeMembers += group.members.length;
-    let remaining = group.members.length;
-    const memberSettled = () => {
-      this.activeMembers -= 1;
-      remaining -= 1;
-      if (remaining !== 0) {
-        return;
-      }
-      group.state = "settled";
-      this.active -= 1;
-      this.drain();
-    };
+    group.remainingMembers = group.members.length;
     for (const member of group.members) {
-      this.startMember(member, memberSettled);
+      const pending = { group, member };
+      member.onAbort = () => this.removePendingMember(pending);
+      member.controller.signal.addEventListener("abort", member.onAbort, {
+        once: true,
+      });
+      this.memberQueue.push(pending);
     }
+    this.drainMembers();
+  }
+
+  private drainMembers(): void {
+    while (
+      this.activeMembers < this.maxConcurrentMembers &&
+      this.memberQueue.length > 0
+    ) {
+      const { group, member } = this.memberQueue.shift()!;
+      this.clearMemberAbort(member);
+      if (member.controller.signal.aborted) {
+        member.timing.queueWaitMs =
+          performance.now() - member.queuedAt;
+        member.reject(member.controller.signal.reason ?? abortError());
+        this.settleGroupMember(group);
+        continue;
+      }
+      this.activeMembers += 1;
+      this.startMember(member, () => {
+        this.activeMembers -= 1;
+        this.settleGroupMember(group);
+        this.drainMembers();
+      });
+    }
+  }
+
+  private settleGroupMember(group: QueuedAnalysisGroup): void {
+    if (group.state !== "running") {
+      return;
+    }
+    group.remainingMembers -= 1;
+    if (group.remainingMembers !== 0) {
+      return;
+    }
+    group.state = "settled";
+    this.active -= 1;
+    this.drain();
+  }
+
+  private removePendingMember(pending: PendingAnalysisMember): void {
+    const index = this.memberQueue.indexOf(pending);
+    if (index === -1) {
+      return;
+    }
+    this.memberQueue.splice(index, 1);
+    this.clearMemberAbort(pending.member);
+    pending.member.timing.queueWaitMs =
+      performance.now() - pending.member.queuedAt;
+    pending.member.reject(
+      pending.member.controller.signal.reason ?? abortError(),
+    );
+    this.settleGroupMember(pending.group);
+    this.drainMembers();
   }
 
   private startMember(

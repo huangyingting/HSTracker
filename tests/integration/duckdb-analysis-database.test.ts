@@ -81,7 +81,7 @@ describe("DuckDB analysis database", () => {
         connections: 4,
         activeConnections: 4,
         queued: 1,
-        threads: 2,
+        threads: 1,
         memoryLimit: "1GiB",
         tempDirectory: resolve(volumePath, "spill"),
         maxTempDirectorySize: "4GiB",
@@ -91,7 +91,7 @@ describe("DuckDB analysis database", () => {
         Array.from({ length: 4 }, () => ({
           current_value: 1,
           previous_value: 2,
-          threads: "2",
+          threads: "1",
           memory_limit: "1.0 GiB",
           temp_directory: resolve(volumePath, "spill"),
           max_temp_directory_size: "4.0 GiB",

@@ -490,7 +490,7 @@ describe("versioned Candidate Market route", () => {
               queued: 0,
               activeMembers: 0,
               queuedMembers: 0,
-              maxConcurrent: 3,
+              maxConcurrent: 4,
               maxQueued: 16,
             },
             caches: expect.objectContaining({
@@ -534,7 +534,7 @@ describe("versioned Candidate Market route", () => {
               queued: 0,
               activeMembers: 0,
               queuedMembers: 0,
-              maxConcurrent: 3,
+              maxConcurrent: 4,
               maxQueued: 16,
             },
             caches: expect.objectContaining({
