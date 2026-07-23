@@ -10,6 +10,7 @@ import type {
   AnalysisRequest,
   CandidateMarketV1AnalysisRequest,
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import { createMarketAnalysis } from "../../src/domain/market-analysis/market-analysis";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { RUNTIME_RESOURCE_POLICY } from "../../src/runtime-resource-policy";
 import { createAnonymousSourceHttpAdapter } from "../../src/http/anonymous-source-adapter";
@@ -347,6 +348,60 @@ describe("bounded application runtime", () => {
     computation.resolve();
     await Promise.all(admitted);
     expect(starts).toEqual(productCodes.slice(0, 18));
+  });
+
+  it("admits each composite Market Analysis request as one bounded operation", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let starts = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          request: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          starts += 1;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return fixture.tradeAnalytics.execute(request, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner, {
+      maxConcurrentAnalyses: 2,
+      maxQueuedAnalyses: 16,
+      queueWaitTimeoutMs: 1_000,
+      analysisTimeoutMs: 1_000,
+    });
+    const marketAnalysis = createMarketAnalysis(runtime.tradeAnalytics);
+
+    const pending = Array.from({ length: 7 }, (_, index) =>
+        marketAnalysis.load(
+          {
+            analysisBuildId: "acceptance-fixtures-v1",
+            exportEconomyCode: "156",
+            productCode: "010121",
+            marketCode: "528",
+          },
+          { cachePartitionKey: `market-analysis-capacity-${index}` },
+        ),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(starts).toBe(6);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 2,
+      queued: 5,
+      activeMembers: 6,
+      queuedMembers: 15,
+    });
+
+    const results = await Promise.all(pending);
+
+    expect(results).toHaveLength(7);
+    expect(
+      results.every((result) => result.schemaVersion === "market-analysis-v1"),
+    ).toBe(true);
   });
 
   it("rejects a computation that exceeds the queue-wait deadline", async () => {

@@ -311,10 +311,10 @@ export class RuntimeMetricRegistry {
     return [
       "# HELP hs_tracker_analysis_active Current analytical computations.",
       "# TYPE hs_tracker_analysis_active gauge",
-      `hs_tracker_analysis_active${labels(identityLabels)} ${metric.resources.analysisExecution.active}`,
+      `hs_tracker_analysis_active${labels(identityLabels)} ${metric.resources.analysisExecution.activeMembers ?? metric.resources.analysisExecution.active}`,
       "# HELP hs_tracker_analysis_queue_depth Current analytical queue depth.",
       "# TYPE hs_tracker_analysis_queue_depth gauge",
-      `hs_tracker_analysis_queue_depth${labels(identityLabels)} ${metric.resources.analysisExecution.queued}`,
+      `hs_tracker_analysis_queue_depth${labels(identityLabels)} ${metric.resources.analysisExecution.queuedMembers ?? metric.resources.analysisExecution.queued}`,
       "# HELP hs_tracker_process_rss_bytes Resident process memory.",
       "# TYPE hs_tracker_process_rss_bytes gauge",
       `hs_tracker_process_rss_bytes${labels(identityLabels)} ${metric.process.rssBytes}`,

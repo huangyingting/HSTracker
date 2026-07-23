@@ -46,6 +46,8 @@ export type ApplicationRuntimeResources = Readonly<{
   analysisExecution: {
     active: number;
     queued: number;
+    activeMembers?: number;
+    queuedMembers?: number;
     maxConcurrent: number;
     maxQueued: number;
   };
