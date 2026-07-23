@@ -21,6 +21,7 @@ import type {
   OpportunityProvenance,
   ProductIdentity,
 } from "../domain/opportunity-discovery/result";
+import { readNullableIso3Crosswalk } from "../economy/iso3-crosswalk";
 import { DuckDbAnalysisDatabase } from "./duckdb-analysis-database";
 import {
   decodeIndexRowCells,
@@ -109,12 +110,11 @@ async function loadDimensions(
   );
   for (const row of economyReader.getRows()) {
     const code = Number(row[0]);
-    const iso3 = row[2];
     const identityNote = row[3];
     economyByCode.set(code, {
       code: String(code),
       name: String(row[1]),
-      iso3: iso3 === null ? null : String(iso3),
+      iso3: readNullableIso3Crosswalk(row[2], "economy iso3"),
       identityNote: identityNote === null ? null : String(identityNote),
     });
     if (row[4] === "ECONOMY" && row[5] === true) {

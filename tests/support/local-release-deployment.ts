@@ -164,3 +164,29 @@ export async function promoteAcceptedReleaseCandidateToLocalStore(options: {
     deployment: JSON.parse(result.stdout) as PublishedDeployment,
   };
 }
+
+export async function rollbackLocalReleaseStore(options: {
+  root: string;
+  objectStoreDirectory: string;
+  activatedAt: string;
+}): Promise<PublishedDeployment> {
+  const repositoryRoot = process.cwd();
+  const result = await execFileAsync(
+    join(repositoryRoot, "node_modules", ".bin", "tsx"),
+    [
+      join(repositoryRoot, "scripts/release/rollback-release.ts"),
+      "--activated-at",
+      options.activatedAt,
+    ],
+    {
+      cwd: options.root,
+      env: {
+        ...process.env,
+        HS_TRACKER_RELEASE_OBJECT_STORE: "filesystem",
+        HS_TRACKER_RELEASE_FILESYSTEM_PATH: options.objectStoreDirectory,
+      },
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+  return JSON.parse(result.stdout) as PublishedDeployment;
+}

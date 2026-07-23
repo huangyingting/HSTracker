@@ -21,7 +21,7 @@ stay outside the domain modules exactly as before:
 |---|---|
 | Fly.io Machine (`shared-cpu-2x`) | The operator's host; its class is recorded in deployment evidence as the "local" Machine class. |
 | Public URL behind Fly Proxy TLS | Loopback origin `http://127.0.0.1:<port>`; no proxy, no TLS termination. |
-| Fly Volume mounted at `/data` | A host directory bind-mounted at `/data` as the release volume. |
+| Fly Volume mounted at `/data` | A persistent local Docker volume mounted at `/data` as the reconstructible release cache. |
 | Private object storage (Tigris/S3) | A local **filesystem release object store**: a host directory that holds the immutable release objects and the active-deployment pointer. |
 | Bucket-scoped read-only S3 credentials | The runtime reads the local store through a read-only reader adapter with no write methods; write access is a separate promotion process. No S3 credentials exist. |
 | Hosted, independently managed PostgreSQL | Locally managed PostgreSQL for the operational data plane; SQLite lightweight mode is unchanged. |

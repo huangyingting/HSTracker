@@ -5,23 +5,10 @@ import {
   evaluatePromotionReport,
   parsePromotionReportInput,
   PromotionReportInputError,
+  REQUIRED_GATES,
   type PromotionEvidence,
-  type PromotionGateId,
   type PromotionReportInput,
 } from "../../src/promotion/promotion-report";
-
-const REQUIRED_GATES: readonly PromotionGateId[] = [
-  "source-and-domain",
-  "origin-benchmarks",
-  "browser-lab",
-  "target-load",
-  "coalescing-and-capacity",
-  "http-cache-and-deadlines",
-  "lifecycle-and-recovery",
-  "deployment-resources",
-  "external-smoke-and-observability",
-  "recurring-cost",
-];
 
 describe("production promotion report", () => {
   it("parses an independently loaded promotion input document", () => {
@@ -54,7 +41,7 @@ describe("production promotion report", () => {
       schemaVersion: "production-promotion-report-v1",
       evaluatedAt: "2026-07-12T16:00:00Z",
       status: "accepted",
-      gateCount: 10,
+      gateCount: 11,
       priorFailureCount: 0,
       unresolvedFailureCount: 0,
       identity: {

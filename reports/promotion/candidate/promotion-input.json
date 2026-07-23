@@ -1,0 +1,422 @@
+{
+  "schemaVersion": "production-promotion-input-v1",
+  "evaluatedAt": "2026-07-23T21:29:21Z",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "toolVersions": {
+    "node": "24.17.0",
+    "npm": "11.13.0",
+    "next": "16.2.10",
+    "duckdb": "1.5.4-r.1",
+    "playwright": "1.61.1"
+  },
+  "evidence": [
+    {
+      "gate": "source-and-domain",
+      "schemaVersion": "source-and-domain-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f",
+      "measuredAt": "2026-07-23T19:39:32Z",
+      "windowStartedAt": "2026-07-23T19:39:32Z",
+      "windowEndedAt": "2026-07-23T19:39:32Z",
+      "sampleCount": 15,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/source-and-domain.json",
+        "reports/promotion/candidate/evidence/source-and-domain-measurement.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:32Z",
+          "status": "accepted",
+          "logSha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f"
+        }
+      ]
+    },
+    {
+      "gate": "origin-benchmarks",
+      "schemaVersion": "origin-benchmarks-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a",
+      "measuredAt": "2026-07-23T20:43:36Z",
+      "windowStartedAt": "2026-07-23T20:43:36Z",
+      "windowEndedAt": "2026-07-23T20:43:36Z",
+      "sampleCount": 91,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/origin-benchmarks.json",
+        "reports/promotion/candidate/evidence/origin-report.json",
+        "reports/promotion/candidate/evidence/trade-explorer-measurement.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T20:43:36Z",
+          "status": "accepted",
+          "logSha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a"
+        }
+      ]
+    },
+    {
+      "gate": "browser-lab",
+      "schemaVersion": "browser-lab-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47",
+      "measuredAt": "2026-07-23T19:49:05Z",
+      "windowStartedAt": "2026-07-23T19:49:05Z",
+      "windowEndedAt": "2026-07-23T19:49:05Z",
+      "sampleCount": 20,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/browser-lab.json",
+        "reports/promotion/candidate/evidence/browser-report.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:49:05Z",
+          "status": "accepted",
+          "logSha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47"
+        }
+      ]
+    },
+    {
+      "gate": "target-load",
+      "schemaVersion": "target-load-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d",
+      "measuredAt": "2026-07-23T19:37:52Z",
+      "windowStartedAt": "2026-07-23T19:27:22Z",
+      "windowEndedAt": "2026-07-23T19:37:52Z",
+      "sampleCount": 631,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/target-load.json",
+        "reports/promotion/candidate/evidence/load-report.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:37:52Z",
+          "status": "accepted",
+          "logSha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d"
+        }
+      ]
+    },
+    {
+      "gate": "coalescing-and-capacity",
+      "schemaVersion": "coalescing-and-capacity-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96",
+      "measuredAt": "2026-07-23T19:39:32Z",
+      "windowStartedAt": "2026-07-23T19:39:32Z",
+      "windowEndedAt": "2026-07-23T19:39:32Z",
+      "sampleCount": 32,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+        "reports/promotion/candidate/evidence/coalescing-and-capacity-measurement.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:32Z",
+          "status": "accepted",
+          "logSha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96"
+        }
+      ]
+    },
+    {
+      "gate": "http-cache-and-deadlines",
+      "schemaVersion": "http-cache-and-deadlines-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee",
+      "measuredAt": "2026-07-23T19:39:52Z",
+      "windowStartedAt": "2026-07-23T19:39:50Z",
+      "windowEndedAt": "2026-07-23T19:39:52Z",
+      "sampleCount": 7,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+        "reports/promotion/candidate/evidence/http-cache-and-deadlines-evidence.json",
+        "reports/promotion/candidate/plans/origin-plan.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:52Z",
+          "status": "accepted",
+          "logSha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee"
+        }
+      ]
+    },
+    {
+      "gate": "lifecycle-and-recovery",
+      "schemaVersion": "lifecycle-and-recovery-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98",
+      "measuredAt": "2026-07-23T21:00:22Z",
+      "windowStartedAt": "2026-07-23T20:49:31Z",
+      "windowEndedAt": "2026-07-23T21:00:22Z",
+      "sampleCount": 5,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+        "reports/promotion/candidate/evidence/lifecycle-drills.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T21:00:22Z",
+          "status": "accepted",
+          "logSha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98"
+        }
+      ]
+    },
+    {
+      "gate": "deployment-resources",
+      "schemaVersion": "deployment-resources-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80",
+      "measuredAt": "2026-07-23T20:44:34Z",
+      "windowStartedAt": "2026-07-23T19:27:22Z",
+      "windowEndedAt": "2026-07-23T20:44:34Z",
+      "sampleCount": 632,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/deployment-resources.json",
+        "reports/promotion/candidate/evidence/deployment-report.json",
+        "reports/promotion/candidate/evidence/load-report.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T20:44:34Z",
+          "status": "accepted",
+          "logSha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80"
+        }
+      ]
+    },
+    {
+      "gate": "external-smoke-and-observability",
+      "schemaVersion": "external-smoke-and-observability-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31",
+      "measuredAt": "2026-07-23T21:09:00Z",
+      "windowStartedAt": "2026-07-23T21:06:00Z",
+      "windowEndedAt": "2026-07-23T21:09:00Z",
+      "sampleCount": 57,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+        "reports/promotion/candidate/evidence/external-smoke-report.json",
+        "reports/promotion/candidate/evidence/observability-alert-tests.json",
+        "reports/promotion/candidate/evidence/external-smoke-health.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T21:09:00Z",
+          "status": "accepted",
+          "logSha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+        }
+      ]
+    },
+    {
+      "gate": "recurring-cost",
+      "schemaVersion": "recurring-cost-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6",
+      "measuredAt": "2026-07-23T19:39:31Z",
+      "windowStartedAt": "2026-07-12T00:00:00Z",
+      "windowEndedAt": "2026-07-12T00:00:00Z",
+      "sampleCount": 5,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/recurring-cost.json",
+        "reports/promotion/candidate/checks/recurring-cost.cost-forecast.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:31Z",
+          "status": "accepted",
+          "logSha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6"
+        }
+      ]
+    },
+    {
+      "gate": "market-analysis-launch",
+      "schemaVersion": "market-analysis-launch-report-v1",
+      "status": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "c58e4054c6ee7a818bda2b4e99f6aa43a463cf1acc4c6be3f8d110e067c03829",
+      "measuredAt": "2026-07-23T21:29:04Z",
+      "windowStartedAt": "2026-07-23T21:29:04Z",
+      "windowEndedAt": "2026-07-23T21:29:04Z",
+      "sampleCount": 98,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/market-analysis-launch.json",
+        "reports/promotion/candidate/candidate-config.json",
+        "reports/promotion/candidate/evidence/origin-report.json",
+        "reports/promotion/candidate/evidence/browser-report.json",
+        "reports/promotion/candidate/evidence/load-report.json",
+        "reports/promotion/candidate/evidence/lifecycle-drills.json",
+        "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+        "reports/promotion/candidate/evidence/market-analysis-launch-contracts.json",
+        "reports/promotion/candidate/gates/source-and-domain.json",
+        "reports/promotion/candidate/gates/origin-benchmarks.json",
+        "reports/promotion/candidate/gates/browser-lab.json",
+        "reports/promotion/candidate/gates/target-load.json",
+        "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+        "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+        "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+        "reports/promotion/candidate/gates/deployment-resources.json",
+        "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+        "reports/promotion/candidate/gates/recurring-cost.json",
+        "reports/promotion/candidate/evidence/market-analysis-launch-readiness.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T21:29:04Z",
+          "status": "accepted",
+          "logSha256": "c58e4054c6ee7a818bda2b4e99f6aa43a463cf1acc4c6be3f8d110e067c03829"
+        }
+      ]
+    }
+  ]
+}

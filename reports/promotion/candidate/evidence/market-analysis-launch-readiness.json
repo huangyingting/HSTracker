@@ -1,0 +1,1201 @@
+{
+  "schemaVersion": "market-analysis-launch-readiness-evidence-v1",
+  "measurementClass": "candidate",
+  "status": "accepted",
+  "measuredAt": "2026-07-23T21:29:04Z",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "productContract": {
+    "schemaVersion": "market-analysis-v1",
+    "route": "GET|HEAD /api/v1/analyses/{analysisBuildId}/market-analysis?exporter={code}&product={hs12}&market={code}",
+    "activeDeploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "activeAnalysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "activeArtifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76"
+  },
+  "analystNeeds": {
+    "status": "accepted",
+    "counts": {
+      "DIRECT": 10,
+      "BOUNDED": 5,
+      "OUTSIDE": 5
+    },
+    "productionSourceFilesScanned": 274,
+    "productionLeakageViolations": [],
+    "scenarios": [
+      {
+        "id": "scope-context",
+        "title": "the global Scope Bar precedes the journey and Change scope restores the mounted controls",
+        "status": "accepted"
+      },
+      {
+        "id": "candidate-market-cohort",
+        "title": "an Export Market Analyst loads and scans the complete fixture ranking",
+        "status": "accepted"
+      },
+      {
+        "id": "cross-product-opportunities",
+        "title": "all-product browse, product discovery, and known-product links reach the same canonical row values",
+        "status": "accepted"
+      },
+      {
+        "id": "unvalidated-market-gap",
+        "title": "opportunity copy is honest and context survives filter, history, copied links, locale, and mobile",
+        "status": "accepted"
+      },
+      {
+        "id": "market-snapshot",
+        "title": "Market Snapshot exposes deterministic interpretation, canonical score/rank, and the existing score audit view",
+        "status": "accepted"
+      },
+      {
+        "id": "demand",
+        "title": "Demand shows the finalized trend, summary, equivalent table, and separately labelled Provisional evidence",
+        "status": "accepted"
+      },
+      {
+        "id": "exporter-position",
+        "title": "Exporter Position distinguishes the score-window, pooled-supplier, and Provisional bilateral bases",
+        "status": "accepted"
+      },
+      {
+        "id": "supplier-landscape",
+        "title": "Supplier Landscape shows the complete bounded cohort, exact HHI scale, and selected-exporter position",
+        "status": "accepted"
+      },
+      {
+        "id": "evidence-quality-and-gaps",
+        "title": "evidence gaps at a low-confidence market remain distinguishable from Validation Plan gaps",
+        "status": "accepted"
+      },
+      {
+        "id": "constituent-provenance",
+        "title": "each analytical product area exposes its own complete constituent provenance",
+        "status": "accepted"
+      },
+      {
+        "id": "recent-trade-momentum-states",
+        "title": "annual result bytes and presentation remain invariant across every Recent Momentum state",
+        "status": "accepted"
+      },
+      {
+        "id": "advanced-evidence-and-validation",
+        "title": "Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder",
+        "status": "accepted"
+      }
+    ],
+    "rows": [
+      {
+        "id": "AQ-01",
+        "need": "Which HS code and revision correctly represent my product?",
+        "coverage": "BOUNDED",
+        "capabilities": [
+          "Scope"
+        ],
+        "scenarioIds": [
+          "scope-context"
+        ],
+        "limitation": "Deterministic HS12 search and explicit confirmation are supported; SKU classification and HS17/HS22 conversion are not."
+      },
+      {
+        "id": "AQ-02",
+        "need": "Which economies import this HS Product, and how large is each market?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Opportunities",
+          "Demand"
+        ],
+        "scenarioIds": [
+          "candidate-market-cohort",
+          "demand"
+        ],
+        "limitation": "Present the complete eligible Candidate Market cohort and mean recorded world imports over the score window."
+      },
+      {
+        "id": "AQ-03",
+        "need": "Which markets are growing or declining, and what are the five-year rate and CAGR?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Opportunities",
+          "Demand"
+        ],
+        "scenarioIds": [
+          "demand"
+        ],
+        "limitation": "Clearly label nominal current-USD evidence; do not describe it as real demand growth."
+      },
+      {
+        "id": "AQ-04",
+        "need": "For one export economy and HS Product, which Candidate Markets warrant investigation first?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Opportunities",
+          "Market Snapshot"
+        ],
+        "scenarioIds": [
+          "candidate-market-cohort",
+          "market-snapshot"
+        ],
+        "limitation": "Present canonical rank, Candidate Market Score, components, and Data Confidence; do not call it a recommendation."
+      },
+      {
+        "id": "AQ-05",
+        "need": "Across products, which product-market combinations warrant investigation first?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Opportunities"
+        ],
+        "scenarioIds": [
+          "cross-product-opportunities"
+        ],
+        "limitation": "Present Investigation Priority and its Market Attractiveness and Exporter Fit axes."
+      },
+      {
+        "id": "AQ-06",
+        "need": "Which attractive markets have weak or no recorded exporter foothold?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Opportunities",
+          "Exporter Position"
+        ],
+        "scenarioIds": [
+          "unvalidated-market-gap",
+          "exporter-position"
+        ],
+        "limitation": "Present Unvalidated Market Gap as a hypothesis requiring commercial validation."
+      },
+      {
+        "id": "AQ-07",
+        "need": "What recorded bilateral value and share does the selected export economy have in this market?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Exporter Position"
+        ],
+        "scenarioIds": [
+          "exporter-position"
+        ],
+        "limitation": "Distinguish score-window share, pooled supplier value/share, and Provisional Year bilateral evidence."
+      },
+      {
+        "id": "AQ-08",
+        "need": "Are recent imports accelerating, stable, or weakening?",
+        "coverage": "BOUNDED",
+        "capabilities": [
+          "Recent Momentum"
+        ],
+        "scenarioIds": [
+          "recent-trade-momentum-states"
+        ],
+        "limitation": "EU-27 reporting markets and exact reviewed product mappings only; signal is market import momentum, not exporter-specific demand."
+      },
+      {
+        "id": "AQ-09",
+        "need": "Is apparent growth exposed to sparse years, small base, instability, exceptional shocks, or HS discontinuity?",
+        "coverage": "BOUNDED",
+        "capabilities": [
+          "Evidence Quality"
+        ],
+        "scenarioIds": [
+          "evidence-quality-and-gaps"
+        ],
+        "limitation": "Present deductions and flags; do not claim causal attribution or separate price, exchange-rate, and volume effects."
+      },
+      {
+        "id": "AQ-10",
+        "need": "How current, complete, reproducible, and revision-sensitive is the evidence?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Evidence Quality"
+        ],
+        "scenarioIds": [
+          "constituent-provenance"
+        ],
+        "limitation": "Present periods, missingness, freshness, Release Revision, identities, and quantity coverage."
+      },
+      {
+        "id": "AQ-11",
+        "need": "Which supplying economies serve this market, and what are their shares?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Supplier Landscape"
+        ],
+        "scenarioIds": [
+          "supplier-landscape"
+        ],
+        "limitation": "Present the complete bounded supplying-economy cohort and five-year pooled values/shares."
+      },
+      {
+        "id": "AQ-12",
+        "need": "Is supply concentrated or diversified, and how dependent is the market on leading origins?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Supplier Landscape"
+        ],
+        "scenarioIds": [
+          "supplier-landscape"
+        ],
+        "limitation": "Present HHI on the documented 0-10,000 scale together with supplier shares and warnings."
+      },
+      {
+        "id": "AQ-13",
+        "need": "What is the selected export economy's position relative to other supplying economies?",
+        "coverage": "DIRECT",
+        "capabilities": [
+          "Exporter Position",
+          "Supplier Landscape"
+        ],
+        "scenarioIds": [
+          "exporter-position",
+          "supplier-landscape"
+        ],
+        "limitation": "Compare economy-level pooled value and share; never imply company or brand position."
+      },
+      {
+        "id": "AQ-14",
+        "need": "Which competing economies are gaining or losing share over time?",
+        "coverage": "BOUNDED",
+        "capabilities": [
+          "Explore Further"
+        ],
+        "scenarioIds": [
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Current product has no year-by-supplier share-change result. Repeated single-year queries are evidence gathering, not a product answer."
+      },
+      {
+        "id": "AQ-15",
+        "need": "What are import quantity, customs unit value, price band, and the exporter's price position?",
+        "coverage": "OUTSIDE",
+        "capabilities": [
+          "Validation Plan"
+        ],
+        "scenarioIds": [
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Quantity coverage exists, but quantity and unit value are not public measures. Customs unit value must never be labelled transaction price."
+      },
+      {
+        "id": "AQ-16",
+        "need": "Which adjacent HS Products or product-mix shifts offer expansion evidence?",
+        "coverage": "BOUNDED",
+        "capabilities": [
+          "Explore Further"
+        ],
+        "scenarioIds": [
+          "cross-product-opportunities",
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Current evidence is a fixed exporter-importer-year bilateral product mix; no HS hierarchy, whole-market growth view, or adjacency method exists."
+      },
+      {
+        "id": "AQ-17",
+        "need": "What tariffs, preferences, trade remedies, non-tariff measures, certifications, and regulatory requirements apply?",
+        "coverage": "OUTSIDE",
+        "capabilities": [
+          "Validation Plan"
+        ],
+        "scenarioIds": [
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Requires reviewed policy and regulatory sources plus explicit HS-revision mapping decisions."
+      },
+      {
+        "id": "AQ-18",
+        "need": "What route, freight, insurance, transit-time, tax, and landed-cost economics apply?",
+        "coverage": "OUTSIDE",
+        "capabilities": [
+          "Validation Plan"
+        ],
+        "scenarioIds": [
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Requires logistics sources and company-specific cost assumptions; public trade value is not a landed-cost model."
+      },
+      {
+        "id": "AQ-19",
+        "need": "Which buyers, importers, distributors, or commercial relationships should be investigated?",
+        "coverage": "OUTSIDE",
+        "capabilities": [
+          "Validation Plan"
+        ],
+        "scenarioIds": [
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Requires separately sourced and access-controlled Company Trade Context; BACI contains no company or shipment parties."
+      },
+      {
+        "id": "AQ-20",
+        "need": "What sales, profit, success probability, or risk-adjusted entry recommendation should the business expect?",
+        "coverage": "OUTSIDE",
+        "capabilities": [
+          "Validation Plan"
+        ],
+        "scenarioIds": [
+          "evidence-quality-and-gaps",
+          "advanced-evidence-and-validation"
+        ],
+        "limitation": "Intentionally excluded without company capability, cost, channel, risk, calibration, and forecasting inputs."
+      }
+    ]
+  },
+  "accessibility": {
+    "status": "accepted",
+    "cases": [
+      {
+        "id": "tablet-reflow-keyboard-navigation",
+        "title": "Market Analysis reflows at the 768px tablet breakpoint and supports keyboard area navigation",
+        "status": "accepted"
+      },
+      {
+        "id": "zoom-200-reflow",
+        "title": "Market Analysis preserves complete reflow at a 200 percent zoom-equivalent viewport",
+        "status": "accepted"
+      },
+      {
+        "id": "reduced-motion",
+        "title": "Market Analysis honors reduced-motion preferences throughout navigation",
+        "status": "accepted"
+      },
+      {
+        "id": "forced-colors-high-contrast",
+        "title": "Market Analysis remains legible and focus-visible in forced colors and high contrast",
+        "status": "accepted"
+      },
+      {
+        "id": "touch-targets",
+        "title": "the collapsed area navigator remains touch-sized and operable",
+        "status": "accepted"
+      },
+      {
+        "id": "locale-theme-viewport-matrix",
+        "title": "Market Analysis remains complete across both locales, both themes, reduced-motion and forced-colors preferences, and every launch viewport",
+        "status": "accepted"
+      },
+      {
+        "id": "visual-state-launch-matrix",
+        "title": "every required Market Analysis visual state remains complete across both locales, both themes, and every launch viewport",
+        "status": "accepted"
+      },
+      {
+        "id": "polite-live-region",
+        "title": "Recent Momentum updates through one scoped polite live region without repeating annual Market Analysis",
+        "status": "accepted"
+      }
+    ],
+    "report": {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+      "bytes": 194303,
+      "sha256": "06b29ac65cbe957f430f7a27f45f7498dee021eb746584abdec7622c9b6fa291"
+    }
+  },
+  "durableJourneys": {
+    "status": "accepted",
+    "cases": [
+      {
+        "id": "locale-parity",
+        "title": "both locales expose identical values, evidence states, and actions for Market Analysis",
+        "status": "accepted"
+      },
+      {
+        "id": "mobile-journey",
+        "title": "the complete Market Analysis journey works at 390px and 320px without horizontal-only comprehension",
+        "status": "accepted"
+      },
+      {
+        "id": "theme-persistence",
+        "title": "the workspace defaults to light and remembers a switch to dark across reload",
+        "status": "accepted"
+      },
+      {
+        "id": "copy-reload-open",
+        "title": "copying, reloading, and opening a pinned Candidate Market link in another browser reproduce the same task and pin",
+        "status": "accepted"
+      },
+      {
+        "id": "explicit-current-refresh",
+        "title": "a pinned Candidate Market link that no longer matches the current Recommended Dataset Mapping shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin",
+        "status": "accepted"
+      },
+      {
+        "id": "retained-link",
+        "title": "a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current",
+        "status": "accepted"
+      },
+      {
+        "id": "back-forward",
+        "title": "browser back/forward reproduce the exact task and locale carried by each canonical URL, not client memory",
+        "status": "accepted"
+      },
+      {
+        "id": "opportunity-back",
+        "title": "a fixed-product opportunity opens Market Analysis explicitly and Back restores its action",
+        "status": "accepted"
+      },
+      {
+        "id": "direct-link-fallback",
+        "title": "a direct Market Analysis link falls back to its fixed-product opportunities",
+        "status": "accepted"
+      },
+      {
+        "id": "advanced-tools",
+        "title": "Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder",
+        "status": "accepted"
+      },
+      {
+        "id": "canonical-link-compatibility",
+        "title": "the canonical-link compatibility fixture set preserves recipe, inputs, locale, and Current identity",
+        "status": "accepted"
+      },
+      {
+        "id": "candidate-market-csv",
+        "title": "Candidate Markets downloads the complete bilingual 13-row CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "trade-trend-csv",
+        "title": "an analyst downloads the complete contextual Trade Trend CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "supplier-competition-csv",
+        "title": "an analyst downloads the complete contextual Supplier Competition CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "trade-explorer-csv",
+        "title": "an analyst downloads the complete bounded Trade Explorer CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "portfolio-market-analysis",
+        "title": "a confirmed portfolio opens byte-identical Market Analysis without changing the analytical context",
+        "status": "accepted"
+      },
+      {
+        "id": "production-aq-boundary",
+        "title": "production Market Analysis JSON and DOM contain no AQ identifiers or question-oriented runtime machinery",
+        "status": "accepted"
+      }
+    ],
+    "report": {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+      "bytes": 194303,
+      "sha256": "06b29ac65cbe957f430f7a27f45f7498dee021eb746584abdec7622c9b6fa291"
+    }
+  },
+  "annualResultInvariance": {
+    "status": "accepted",
+    "cases": [
+      {
+        "id": "annual-result-invariance",
+        "title": "annual result bytes and presentation remain invariant across every Recent Momentum state",
+        "status": "accepted"
+      },
+      {
+        "id": "annual-invariance-source-unavailable",
+        "title": "source unavailability is a bounded monthly state and leaves annual presentation and focus unchanged",
+        "status": "accepted"
+      },
+      {
+        "id": "annual-invariance-temporary-failure",
+        "title": "temporary monthly failure retries locally while annual data and DOM stay byte-for-byte invariant",
+        "status": "accepted"
+      },
+      {
+        "id": "annual-invariance-cancellation",
+        "title": "rapid market changes cannot paint a stale monthly response under the new annual heading",
+        "status": "accepted"
+      }
+    ],
+    "coveredMonthlyStates": [
+      {
+        "coverageState": "SUPPORTED",
+        "signalState": "RISING_FAST",
+        "reasonCodes": []
+      },
+      {
+        "coverageState": "SUPPORTED",
+        "signalState": "RISING",
+        "reasonCodes": []
+      },
+      {
+        "coverageState": "SUPPORTED",
+        "signalState": "BROADLY_STABLE",
+        "reasonCodes": []
+      },
+      {
+        "coverageState": "SUPPORTED",
+        "signalState": "FALLING",
+        "reasonCodes": []
+      },
+      {
+        "coverageState": "SUPPORTED",
+        "signalState": "FALLING_FAST",
+        "reasonCodes": []
+      },
+      {
+        "coverageState": "SUPPORTED_NO_SIGNAL",
+        "signalState": null,
+        "reasonCodes": [
+          "SMALL_BASE"
+        ]
+      },
+      {
+        "coverageState": "NOT_OBSERVED",
+        "signalState": null,
+        "reasonCodes": [
+          "MISSING_COMPARISON_MONTH"
+        ]
+      },
+      {
+        "coverageState": "SUPPRESSED_OR_REALLOCATED",
+        "signalState": null,
+        "reasonCodes": [
+          "SUPPRESSED_OR_REALLOCATED"
+        ]
+      },
+      {
+        "coverageState": "UNSUPPORTED_MARKET",
+        "signalState": null,
+        "reasonCodes": [
+          "UNSUPPORTED_MARKET"
+        ]
+      },
+      {
+        "coverageState": "UNSUPPORTED_PRODUCT_MAPPING",
+        "signalState": null,
+        "reasonCodes": [
+          "UNSUPPORTED_PRODUCT_MAPPING"
+        ]
+      },
+      {
+        "coverageState": "SOURCE_UNAVAILABLE",
+        "signalState": null,
+        "reasonCodes": [
+          "SOURCE_UNAVAILABLE"
+        ]
+      }
+    ],
+    "report": {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+      "bytes": 194303,
+      "sha256": "06b29ac65cbe957f430f7a27f45f7498dee021eb746584abdec7622c9b6fa291"
+    }
+  },
+  "performance": {
+    "status": "accepted",
+    "originBenchmarks": [
+      {
+        "operation": "market-analysis-uncached",
+        "productRole": "sparse",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 1204.1689710000064,
+        "p75Ms": 1267.455088000017,
+        "p95Ms": 1313.3534350000264,
+        "p99Ms": 1330.8006279999972,
+        "maximumRouteMs": 1359.0099159999809,
+        "resultBytes": 6573,
+        "compressedResultBytes": 2136
+      },
+      {
+        "operation": "market-analysis-uncached",
+        "productRole": "median",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 1214.0409399999771,
+        "p75Ms": 1283.8191210000077,
+        "p95Ms": 1323.8870500000194,
+        "p99Ms": 1337.9419089999283,
+        "maximumRouteMs": 1389.049483000068,
+        "resultBytes": 20586,
+        "compressedResultBytes": 3597
+      },
+      {
+        "operation": "market-analysis-uncached",
+        "productRole": "upper-quartile",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 1211.30203300016,
+        "p75Ms": 1279.362335999962,
+        "p95Ms": 1327.128803000087,
+        "p99Ms": 1356.089175999863,
+        "maximumRouteMs": 1359.0048199999146,
+        "resultBytes": 20918,
+        "compressedResultBytes": 3583
+      },
+      {
+        "operation": "market-analysis-uncached",
+        "productRole": "maximum-row",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 1219.6946490001865,
+        "p75Ms": 1283.3056429997087,
+        "p95Ms": 1326.5833870000206,
+        "p99Ms": 1369.5157349999063,
+        "maximumRouteMs": 1395.984743999783,
+        "resultBytes": 53018,
+        "compressedResultBytes": 6540
+      },
+      {
+        "operation": "market-analysis-process-hit",
+        "productRole": "sparse",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 4.948094999999739,
+        "p75Ms": 5.341777000023285,
+        "p95Ms": 8.008113999996567,
+        "p99Ms": 12.399036000017077,
+        "maximumRouteMs": 14.04560599999968,
+        "resultBytes": 6573,
+        "compressedResultBytes": 2136
+      },
+      {
+        "operation": "market-analysis-process-hit",
+        "productRole": "median",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 5.149536000099033,
+        "p75Ms": 5.330794000066817,
+        "p95Ms": 9.185663999989629,
+        "p99Ms": 10.331910999957472,
+        "maximumRouteMs": 11.684842000016943,
+        "resultBytes": 20586,
+        "compressedResultBytes": 3597
+      },
+      {
+        "operation": "market-analysis-process-hit",
+        "productRole": "upper-quartile",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 5.031304999953136,
+        "p75Ms": 5.244003999978304,
+        "p95Ms": 7.645933999912813,
+        "p99Ms": 12.899185999995098,
+        "maximumRouteMs": 14.195836999919266,
+        "resultBytes": 20918,
+        "compressedResultBytes": 3583
+      },
+      {
+        "operation": "market-analysis-process-hit",
+        "productRole": "maximum-row",
+        "warmupSamples": 5,
+        "timedSamples": 100,
+        "p50Ms": 5.568320000078529,
+        "p75Ms": 5.778655000030994,
+        "p95Ms": 7.86713399970904,
+        "p99Ms": 17.39545900002122,
+        "maximumRouteMs": 18.25264700036496,
+        "resultBytes": 53018,
+        "compressedResultBytes": 6540
+      }
+    ],
+    "browserLab": [
+      {
+        "productRole": "median",
+        "trials": [
+          {
+            "trialIndex": 0,
+            "marketAnalysisToCompleteMs": 758.7000000476837,
+            "marketAnalysisOpenInteractionToNextPaintMs": 136
+          },
+          {
+            "trialIndex": 1,
+            "marketAnalysisToCompleteMs": 634.5,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64
+          },
+          {
+            "trialIndex": 2,
+            "marketAnalysisToCompleteMs": 782.7999999523163,
+            "marketAnalysisOpenInteractionToNextPaintMs": 112
+          },
+          {
+            "trialIndex": 3,
+            "marketAnalysisToCompleteMs": 647.0999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 80
+          },
+          {
+            "trialIndex": 4,
+            "marketAnalysisToCompleteMs": 682.5999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 96
+          }
+        ]
+      },
+      {
+        "productRole": "maximum-row",
+        "trials": [
+          {
+            "trialIndex": 0,
+            "marketAnalysisToCompleteMs": 620,
+            "marketAnalysisOpenInteractionToNextPaintMs": 80
+          },
+          {
+            "trialIndex": 1,
+            "marketAnalysisToCompleteMs": 623.8000001907349,
+            "marketAnalysisOpenInteractionToNextPaintMs": 72
+          },
+          {
+            "trialIndex": 2,
+            "marketAnalysisToCompleteMs": 607.2000000476837,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64
+          },
+          {
+            "trialIndex": 3,
+            "marketAnalysisToCompleteMs": 717.3999998569489,
+            "marketAnalysisOpenInteractionToNextPaintMs": 104
+          },
+          {
+            "trialIndex": 4,
+            "marketAnalysisToCompleteMs": 620.5999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64
+          }
+        ]
+      }
+    ],
+    "browserLaunchMatrix": {
+      "productRole": "median",
+      "trials": [
+        {
+          "locale": "en",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "lcpMs": 564,
+          "interactionToNextPaintMs": 88
+        },
+        {
+          "locale": "en",
+          "viewport": {
+            "width": 1024,
+            "height": 768
+          },
+          "lcpMs": 552,
+          "interactionToNextPaintMs": 144
+        },
+        {
+          "locale": "en",
+          "viewport": {
+            "width": 768,
+            "height": 1024
+          },
+          "lcpMs": 540,
+          "interactionToNextPaintMs": 72
+        },
+        {
+          "locale": "en",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "lcpMs": 528,
+          "interactionToNextPaintMs": 114.59999990463257
+        },
+        {
+          "locale": "en",
+          "viewport": {
+            "width": 320,
+            "height": 568
+          },
+          "lcpMs": 520,
+          "interactionToNextPaintMs": 99
+        },
+        {
+          "locale": "zh-Hans",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "lcpMs": 624,
+          "interactionToNextPaintMs": 88
+        },
+        {
+          "locale": "zh-Hans",
+          "viewport": {
+            "width": 1024,
+            "height": 768
+          },
+          "lcpMs": 616,
+          "interactionToNextPaintMs": 168
+        },
+        {
+          "locale": "zh-Hans",
+          "viewport": {
+            "width": 768,
+            "height": 1024
+          },
+          "lcpMs": 612,
+          "interactionToNextPaintMs": 80
+        },
+        {
+          "locale": "zh-Hans",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "lcpMs": 568,
+          "interactionToNextPaintMs": 176
+        },
+        {
+          "locale": "zh-Hans",
+          "viewport": {
+            "width": 320,
+            "height": 568
+          },
+          "lcpMs": 568,
+          "interactionToNextPaintMs": 97.79999995231628
+        }
+      ]
+    },
+    "targetLoad": {
+      "sessions": 20,
+      "sustainedRequestsPerSecond": 4,
+      "sustainedSeconds": 600,
+      "routeMix": {
+        "currentManifest": 0.1,
+        "search": 0.25,
+        "analysis": 0.55,
+        "csv": 0.1
+      },
+      "analysisHotKeyFraction": 0.8,
+      "analysisUncachedKeyFraction": 0.2,
+      "burstRequestsPerSecond": 10,
+      "burstSeconds": 30,
+      "coordinatedDistinctKeys": 4,
+      "coordinatedBurstIntervalSeconds": 60,
+      "includesMaximumRowProduct": true,
+      "includesTradeExplorer": true,
+      "includesMarketAnalysis": true,
+      "cacheStatesVerified": true,
+      "queueRejections": 0,
+      "unretryableErrors": 0,
+      "timeouts": 0,
+      "routeP95Ms": {
+        "currentManifest": 6.609952000027988,
+        "search": 10.165394999989076,
+        "analysis": 1260.7155029999994,
+        "csv": 11.158607000019401
+      },
+      "peakCgroupMemoryFraction": 0.20007705688476562,
+      "peakProcessRssFraction": 0.21677684783935547,
+      "peakSpillBytes": 0,
+      "sparseOrMedianSpillCount": 0,
+      "minimumVolumeFreeFraction": 0.9293914174357746,
+      "cpuPressure": {
+        "kind": "dedicated-cpu"
+      }
+    },
+    "reports": {
+      "origin": {
+        "path": "reports/promotion/candidate/evidence/origin-report.json",
+        "bytes": 46883,
+        "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+      },
+      "browser": {
+        "path": "reports/promotion/candidate/evidence/browser-report.json",
+        "bytes": 27207,
+        "sha256": "9314d95bd3dc03e9acedbc74ce6009a8cd9a09c468023fa67de54e58a0d717f6"
+      },
+      "targetLoad": {
+        "path": "reports/promotion/candidate/evidence/load-report.json",
+        "bytes": 5316,
+        "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+      }
+    }
+  },
+  "replay": {
+    "status": "accepted",
+    "current": {
+      "id": "current-and-retired-replay",
+      "title": "serves current Market Analysis reproducibly and rejects retired replay through the paired release",
+      "status": "accepted"
+    },
+    "retained": {
+      "id": "retained-replay",
+      "title": "replays retained Market Analysis from its own release while current remains independently reproducible",
+      "status": "accepted"
+    },
+    "retired": {
+      "id": "current-and-retired-replay",
+      "title": "serves current Market Analysis reproducibly and rejects retired replay through the paired release",
+      "status": "accepted"
+    },
+    "report": {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-contracts.json",
+      "bytes": 20521,
+      "sha256": "1c2caf3491962e9e15c26f19d2d95e975ee31887563be9bcaf368d612d4cfb1e"
+    }
+  },
+  "startupSmoke": {
+    "status": "accepted",
+    "contract": {
+      "id": "startup-smoke",
+      "title": "reaches readiness only after the composed Market Analysis startup smoke with exact release identities",
+      "status": "accepted"
+    },
+    "gate": {
+      "path": "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+      "bytes": 1677,
+      "sha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+    }
+  },
+  "rollback": {
+    "status": "accepted",
+    "productContractVersion": "market-analysis-v1",
+    "contract": {
+      "id": "rollback",
+      "title": "restores the prior application image and accepted Market Analysis deployment atomically",
+      "status": "accepted"
+    },
+    "drill": {
+      "status": "accepted",
+      "measuredMs": 221951,
+      "limitMs": 900000,
+      "method": "operator rollback restored the retained prior analytical deployment under a new rollback pairing and Source Freshness Status, replaced the candidate image with the exact prior digest, and re-ran the complete Market Analysis contract.",
+      "applicationImages": {
+        "before": {
+          "digest": "sha256:be118b5a054d0acf184f4cb8dee8a7838bb565affe3d17cacb4aeebe417fbc76",
+          "buildId": "1ba3c99d38618a093cda1881eee24b4dbe8132f0"
+        },
+        "successor": {
+          "digest": "sha256:9e14577c3c36c0164f832cb0e82941b24c29c9d9e4cf9ebc48b55f0f231e598f",
+          "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52"
+        },
+        "restored": {
+          "digest": "sha256:be118b5a054d0acf184f4cb8dee8a7838bb565affe3d17cacb4aeebe417fbc76",
+          "buildId": "1ba3c99d38618a093cda1881eee24b4dbe8132f0"
+        }
+      },
+      "deployments": {
+        "before": {
+          "deploymentPairingId": "deployment-pairing-v1-4a74b7ca0bedf8e5",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+          "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+          "sourceStatusSnapshotId": "source-status-bootstrap-v1-2524ca466fb7ebb4"
+        },
+        "successor": {
+          "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+          "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+          "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f"
+        },
+        "restored": {
+          "deploymentPairingId": "deployment-pairing-v1-42a7333642adbf05",
+          "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+          "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+          "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+          "sourceStatusSnapshotId": "source-status-v1-8370df89c71282b4"
+        }
+      },
+      "restoredProductContract": {
+        "status": "accepted",
+        "schemaVersion": "market-analysis-v1",
+        "candidateMarketStatus": 200,
+        "marketAnalysisStatus": 200,
+        "deploymentPairingId": "deployment-pairing-v1-42a7333642adbf05",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "constituentRecipes": [
+          "candidate-market-v1",
+          "trade-trend-v1",
+          "supplier-competition-v1"
+        ]
+      },
+      "restoredDeploymentActivation": {
+        "deploymentActivationMode": "current",
+        "rollbackActive": true,
+        "sourceStatusSnapshotId": "source-status-v1-8370df89c71282b4"
+      }
+    },
+    "workspaceCases": [
+      {
+        "id": "locale-parity",
+        "title": "both locales expose identical values, evidence states, and actions for Market Analysis",
+        "status": "accepted"
+      },
+      {
+        "id": "mobile-journey",
+        "title": "the complete Market Analysis journey works at 390px and 320px without horizontal-only comprehension",
+        "status": "accepted"
+      },
+      {
+        "id": "theme-persistence",
+        "title": "the workspace defaults to light and remembers a switch to dark across reload",
+        "status": "accepted"
+      },
+      {
+        "id": "copy-reload-open",
+        "title": "copying, reloading, and opening a pinned Candidate Market link in another browser reproduce the same task and pin",
+        "status": "accepted"
+      },
+      {
+        "id": "explicit-current-refresh",
+        "title": "a pinned Candidate Market link that no longer matches the current Recommended Dataset Mapping shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin",
+        "status": "accepted"
+      },
+      {
+        "id": "retained-link",
+        "title": "a pinned Candidate Market link that still names a retained predecessor executes its exact build rather than retiring or substituting current",
+        "status": "accepted"
+      },
+      {
+        "id": "back-forward",
+        "title": "browser back/forward reproduce the exact task and locale carried by each canonical URL, not client memory",
+        "status": "accepted"
+      },
+      {
+        "id": "opportunity-back",
+        "title": "a fixed-product opportunity opens Market Analysis explicitly and Back restores its action",
+        "status": "accepted"
+      },
+      {
+        "id": "direct-link-fallback",
+        "title": "a direct Market Analysis link falls back to its fixed-product opportunities",
+        "status": "accepted"
+      },
+      {
+        "id": "advanced-tools",
+        "title": "Explore Further links preserve market and product context, and Validation Plan shows all five categories with no placeholder",
+        "status": "accepted"
+      },
+      {
+        "id": "canonical-link-compatibility",
+        "title": "the canonical-link compatibility fixture set preserves recipe, inputs, locale, and Current identity",
+        "status": "accepted"
+      },
+      {
+        "id": "candidate-market-csv",
+        "title": "Candidate Markets downloads the complete bilingual 13-row CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "trade-trend-csv",
+        "title": "an analyst downloads the complete contextual Trade Trend CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "supplier-competition-csv",
+        "title": "an analyst downloads the complete contextual Supplier Competition CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "trade-explorer-csv",
+        "title": "an analyst downloads the complete bounded Trade Explorer CSV",
+        "status": "accepted"
+      },
+      {
+        "id": "portfolio-market-analysis",
+        "title": "a confirmed portfolio opens byte-identical Market Analysis without changing the analytical context",
+        "status": "accepted"
+      },
+      {
+        "id": "production-aq-boundary",
+        "title": "production Market Analysis JSON and DOM contain no AQ identifiers or question-oriented runtime machinery",
+        "status": "accepted"
+      }
+    ],
+    "report": {
+      "path": "reports/promotion/candidate/evidence/lifecycle-drills.json",
+      "bytes": 6856,
+      "sha256": "1d13e03b1ad93e389e08b574f2237b2f1deba01a10dd716ac6960b2835d44ad7"
+    }
+  },
+  "sourceArtifacts": [
+    {
+      "path": "reports/promotion/candidate/candidate-config.json",
+      "bytes": 837,
+      "sha256": "574b5f3460e469e859a63c7a0e4413903aa98610099a21b3785651d807873a7c"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/origin-report.json",
+      "bytes": 46883,
+      "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/browser-report.json",
+      "bytes": 27207,
+      "sha256": "9314d95bd3dc03e9acedbc74ce6009a8cd9a09c468023fa67de54e58a0d717f6"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/load-report.json",
+      "bytes": 5316,
+      "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/lifecycle-drills.json",
+      "bytes": 6856,
+      "sha256": "1d13e03b1ad93e389e08b574f2237b2f1deba01a10dd716ac6960b2835d44ad7"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+      "bytes": 194303,
+      "sha256": "06b29ac65cbe957f430f7a27f45f7498dee021eb746584abdec7622c9b6fa291"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-contracts.json",
+      "bytes": 20521,
+      "sha256": "1c2caf3491962e9e15c26f19d2d95e975ee31887563be9bcaf368d612d4cfb1e"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/source-and-domain.json",
+      "bytes": 1157,
+      "sha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/origin-benchmarks.json",
+      "bytes": 1413,
+      "sha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/browser-lab.json",
+      "bytes": 1132,
+      "sha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/target-load.json",
+      "bytes": 1191,
+      "sha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+      "bytes": 1163,
+      "sha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+      "bytes": 1328,
+      "sha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+      "bytes": 1340,
+      "sha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/deployment-resources.json",
+      "bytes": 1362,
+      "sha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+      "bytes": 1677,
+      "sha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/recurring-cost.json",
+      "bytes": 1072,
+      "sha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6"
+    }
+  ]
+}

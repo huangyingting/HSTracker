@@ -15,6 +15,7 @@ import {
   searchEconomies,
   validateEconomySearchQuery,
 } from "./economy-search";
+import { readNullableIso3Crosswalk } from "./iso3-crosswalk";
 
 type DuckDbEconomyDirectoryOptions = {
   artifactPath: string;
@@ -108,7 +109,7 @@ function toEconomyRecord(
   return {
     code: String(nonnegativeInteger(row.code, "economy code")),
     iso2: nullableString(row.iso2, "economy iso2"),
-    iso3: nullableString(row.iso3, "economy iso3"),
+    iso3: readNullableIso3Crosswalk(row.iso3, "economy iso3"),
     name: string(row.display_name, "economy display name"),
     identityNote: nullableString(
       row.identity_note,

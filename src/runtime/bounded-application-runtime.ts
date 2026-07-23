@@ -16,6 +16,8 @@ import { isOpportunityDiscoveryAnalysisError } from "../domain/opportunity-disco
 import { isTradeTrendAnalysisError } from "../domain/trade-trend/errors";
 import { isRecentTradeMomentumAnalysisError } from "../domain/recent-trade-momentum/errors";
 import type {
+  AnalysisBatch,
+  AnalysisBatchOutcomes,
   AnalysisExecutionOptions,
   AnalysisOperationObservation,
   AnalysisOutcome,
@@ -72,6 +74,7 @@ type EconomySearchResult = Awaited<EconomySearchPromise>;
 
 export type BoundedApplicationRuntimeOptions = Readonly<{
   maxConcurrentAnalyses?: number;
+  maxConcurrentAnalysisMembers?: number;
   maxQueuedAnalyses?: number;
   queueWaitTimeoutMs?: number;
   analysisTimeoutMs?: number;
@@ -240,6 +243,7 @@ export function createBoundedApplicationRuntime(
   function executeAnalysis(
     query: AnalysisQuery,
     requestOptions?: AnalysisExecutionOptions,
+    executionGroup?: AnalysisExecutionGroup,
   ): AnalysisPromise {
     if (requestOptions?.signal?.aborted) {
       return Promise.reject(abortError());
@@ -348,25 +352,25 @@ export function createBoundedApplicationRuntime(
       const generation = cacheGeneration;
       const timing = operationTiming();
       shared = startSharedOperation(
-        (controller) =>
-          execution
-            .run(
-              controller,
-              () =>
-                inner.tradeAnalytics
-                  .execute(query, {
-                    signal: controller.signal,
-                  })
-                  .then((result) =>
-                    resultBudgetOutcome(query, result, analysisBudget),
-                  ),
-              timing,
-            )
-            .catch((error: unknown) =>
-              isAnalysisCapacityExceededError(error)
-                ? capacityOutcome(query, error)
-                : Promise.reject(error),
-            ),
+        (controller) => {
+          const execute = () =>
+            inner.tradeAnalytics
+              .execute(query, {
+                signal: controller.signal,
+              })
+              .then((result) =>
+                resultBudgetOutcome(query, result, analysisBudget),
+              );
+          const operation =
+            executionGroup === undefined
+              ? execution.run(controller, execute, timing)
+              : executionGroup.run(controller, execute, timing);
+          return operation.catch((error: unknown) =>
+            isAnalysisCapacityExceededError(error)
+              ? capacityOutcome(query, error)
+              : Promise.reject(error),
+          );
+        },
         (result, resultBytes) => {
           if (
             cacheGeneration === generation &&
@@ -404,6 +408,22 @@ export function createBoundedApplicationRuntime(
       return executeAnalysis(query, requestOptions) as Promise<
         AnalysisOutcome<Request["recipe"]>
       >;
+    },
+    executeBatch<Requests extends AnalysisBatch>(
+      requests: Requests,
+      requestOptions?: AnalysisExecutionOptions,
+    ): Promise<AnalysisBatchOutcomes<Requests>> {
+      const group = execution.createGroup();
+      try {
+        const outcomes = requests.map((request) =>
+          executeAnalysis(request, requestOptions, group),
+        );
+        group.seal();
+        return Promise.all(outcomes) as Promise<AnalysisBatchOutcomes<Requests>>;
+      } catch (error) {
+        group.seal();
+        return Promise.reject(error);
+      }
     },
   };
 
@@ -794,10 +814,12 @@ function analysisResultRows(
     return outcome.payload.candidates.length;
   }
   if (outcome.recipe === "supplier-competition-v1") {
-    return (
-      outcome.payload.supplierShares.length +
-      outcome.payload.provisionalSupplierShares.length
-    );
+    return new Set([
+      ...outcome.payload.supplierShares.map((share) => share.economy.code),
+      ...outcome.payload.provisionalSupplierShares.map(
+        (share) => share.economy.code,
+      ),
+    ]).size;
   }
   if (outcome.recipe === "trade-explorer-v1") {
     return (
@@ -1118,22 +1140,49 @@ type QueuedAnalysis = {
   readonly reject: (error: unknown) => void;
   readonly queuedAt: number;
   readonly timing: OperationTiming;
-  waitTimer?: ReturnType<typeof setTimeout>;
   onAbort?: () => void;
+};
+
+type QueuedAnalysisGroup = {
+  readonly members: QueuedAnalysis[];
+  state: "collecting" | "queued" | "running" | "settled";
+  remainingMembers: number;
+  waitTimer?: ReturnType<typeof setTimeout>;
+};
+
+type PendingAnalysisMember = {
+  readonly group: QueuedAnalysisGroup;
+  readonly member: QueuedAnalysis;
+};
+
+type AnalysisExecutionGroup = {
+  run(
+    controller: AbortController,
+    execute: () => AnalysisPromise,
+    timing: OperationTiming,
+  ): AnalysisPromise;
+  seal(): void;
 };
 
 class AnalysisExecutionCoordinator {
   private readonly maxConcurrent: number;
+  private readonly maxConcurrentMembers: number;
   private readonly maxQueued: number;
   private readonly queueWaitTimeoutMs: number;
   private readonly analysisTimeoutMs: number;
-  private readonly queue: QueuedAnalysis[] = [];
+  private readonly queue: QueuedAnalysisGroup[] = [];
+  // Admitted batch members wait here without spending execution timeout.
+  private readonly memberQueue: PendingAnalysisMember[] = [];
   private active = 0;
+  private activeMembers = 0;
 
   constructor(options: BoundedApplicationRuntimeOptions) {
     this.maxConcurrent =
       options.maxConcurrentAnalyses ??
       RUNTIME_RESOURCE_POLICY.maxConcurrentAnalyses;
+    this.maxConcurrentMembers =
+      options.maxConcurrentAnalysisMembers ??
+      RUNTIME_RESOURCE_POLICY.maxConcurrentAnalysisMembers;
     this.maxQueued =
       options.maxQueuedAnalyses ??
       RUNTIME_RESOURCE_POLICY.maxQueuedAnalyses;
@@ -1148,12 +1197,21 @@ class AnalysisExecutionCoordinator {
   resources(): {
     active: number;
     queued: number;
+    activeMembers: number;
+    queuedMembers: number;
     maxConcurrent: number;
     maxQueued: number;
   } {
     return {
       active: this.active,
       queued: this.queue.length,
+      activeMembers: this.activeMembers,
+      queuedMembers:
+        this.memberQueue.length +
+        this.queue.reduce(
+          (total, group) => total + group.members.length,
+          0,
+        ),
       maxConcurrent: this.maxConcurrent,
       maxQueued: this.maxQueued,
     };
@@ -1164,65 +1222,185 @@ class AnalysisExecutionCoordinator {
     execute: () => AnalysisPromise,
     timing: OperationTiming,
   ): AnalysisPromise {
+    const group = this.createGroup();
+    const operation = group.run(controller, execute, timing);
+    group.seal();
+    return operation;
+  }
+
+  createGroup(): AnalysisExecutionGroup {
+    const group: QueuedAnalysisGroup = {
+      members: [],
+      state: "collecting",
+      remainingMembers: 0,
+    };
+    return {
+      run: (controller, execute, timing) =>
+        this.addToGroup(group, controller, execute, timing),
+      seal: () => this.sealGroup(group),
+    };
+  }
+
+  private addToGroup(
+    group: QueuedAnalysisGroup,
+    controller: AbortController,
+    execute: () => AnalysisPromise,
+    timing: OperationTiming,
+  ): AnalysisPromise {
+    if (group.state !== "collecting") {
+      return Promise.reject(
+        new TypeError("Cannot add analysis work to a sealed execution group."),
+      );
+    }
     if (controller.signal.aborted) {
       return Promise.reject(abortError());
     }
 
     return new Promise((resolve, reject) => {
-      const queued: QueuedAnalysis = {
+      group.members.push({
         controller,
         execute,
         resolve,
         reject,
         queuedAt: performance.now(),
         timing,
-      };
-
-      if (this.active < this.maxConcurrent) {
-        this.start(queued);
-        return;
-      }
-      if (this.queue.length >= this.maxQueued) {
-        timing.queueWaitMs = performance.now() - queued.queuedAt;
-        reject(new AnalysisCapacityExceededError("queue-full"));
-        return;
-      }
-
-      const onAbort = () => {
-        const index = this.queue.indexOf(queued);
-        if (index === -1) {
-          return;
-        }
-        this.queue.splice(index, 1);
-        this.clearQueueWait(queued);
-        reject(controller.signal.reason ?? abortError());
-      };
-      queued.onAbort = onAbort;
-      controller.signal.addEventListener("abort", onAbort, {
-        once: true,
       });
-      queued.waitTimer = setTimeout(() => {
-        const index = this.queue.indexOf(queued);
-        if (index === -1) {
-          return;
-        }
-        this.queue.splice(index, 1);
-        this.clearQueueWait(queued);
-        queued.timing.queueWaitMs =
-          performance.now() - queued.queuedAt;
-        const error = new AnalysisCapacityExceededError("queue-timeout");
-        controller.abort(error);
-        reject(error);
-      }, this.queueWaitTimeoutMs);
-      this.queue.push(queued);
     });
   }
 
-  private start(queued: QueuedAnalysis): void {
-    this.clearQueueWait(queued);
+  private sealGroup(group: QueuedAnalysisGroup): void {
+    if (group.state !== "collecting") {
+      return;
+    }
+    this.removeAbortedMembers(group);
+    if (group.members.length === 0) {
+      group.state = "settled";
+      return;
+    }
+    if (this.active < this.maxConcurrent) {
+      this.startGroup(group);
+      return;
+    }
+    if (this.queue.length >= this.maxQueued) {
+      group.state = "settled";
+      const now = performance.now();
+      for (const member of group.members) {
+        member.timing.queueWaitMs = now - member.queuedAt;
+        member.reject(new AnalysisCapacityExceededError("queue-full"));
+      }
+      return;
+    }
+
+    group.state = "queued";
+    this.queue.push(group);
+    for (const member of group.members) {
+      const onAbort = () => {
+        this.removeQueuedMember(group, member);
+      };
+      member.onAbort = onAbort;
+      member.controller.signal.addEventListener("abort", onAbort, {
+        once: true,
+      });
+    }
+    group.waitTimer = setTimeout(() => {
+      if (group.state !== "queued") {
+        return;
+      }
+      const index = this.queue.indexOf(group);
+      if (index !== -1) {
+        this.queue.splice(index, 1);
+      }
+      this.clearQueueWait(group);
+      group.state = "settled";
+      const now = performance.now();
+      for (const member of group.members) {
+        member.timing.queueWaitMs = now - member.queuedAt;
+        const error = new AnalysisCapacityExceededError("queue-timeout");
+        member.controller.abort(error);
+        member.reject(error);
+      }
+    }, this.queueWaitTimeoutMs);
+  }
+
+  private startGroup(group: QueuedAnalysisGroup): void {
+    this.clearQueueWait(group);
+    this.removeAbortedMembers(group);
+    if (group.members.length === 0) {
+      group.state = "settled";
+      return;
+    }
+    group.state = "running";
+    this.active += 1;
+    group.remainingMembers = group.members.length;
+    for (const member of group.members) {
+      const pending = { group, member };
+      member.onAbort = () => this.removePendingMember(pending);
+      member.controller.signal.addEventListener("abort", member.onAbort, {
+        once: true,
+      });
+      this.memberQueue.push(pending);
+    }
+    this.drainMembers();
+  }
+
+  private drainMembers(): void {
+    while (
+      this.activeMembers < this.maxConcurrentMembers &&
+      this.memberQueue.length > 0
+    ) {
+      const { group, member } = this.memberQueue.shift()!;
+      this.clearMemberAbort(member);
+      if (member.controller.signal.aborted) {
+        member.timing.queueWaitMs =
+          performance.now() - member.queuedAt;
+        member.reject(member.controller.signal.reason ?? abortError());
+        this.settleGroupMember(group);
+        continue;
+      }
+      this.activeMembers += 1;
+      this.startMember(member, () => {
+        this.activeMembers -= 1;
+        this.settleGroupMember(group);
+        this.drainMembers();
+      });
+    }
+  }
+
+  private settleGroupMember(group: QueuedAnalysisGroup): void {
+    if (group.state !== "running") {
+      return;
+    }
+    group.remainingMembers -= 1;
+    if (group.remainingMembers !== 0) {
+      return;
+    }
+    group.state = "settled";
+    this.active -= 1;
+    this.drain();
+  }
+
+  private removePendingMember(pending: PendingAnalysisMember): void {
+    const index = this.memberQueue.indexOf(pending);
+    if (index === -1) {
+      return;
+    }
+    this.memberQueue.splice(index, 1);
+    this.clearMemberAbort(pending.member);
+    pending.member.timing.queueWaitMs =
+      performance.now() - pending.member.queuedAt;
+    pending.member.reject(
+      pending.member.controller.signal.reason ?? abortError(),
+    );
+    this.settleGroupMember(pending.group);
+    this.drainMembers();
+  }
+
+  private startMember(
+    queued: QueuedAnalysis,
+    settled: () => void,
+  ): void {
     queued.timing.queueWaitMs =
       performance.now() - queued.queuedAt;
-    this.active += 1;
     const queryStartedAt = performance.now();
     let timedOut = false;
     const executionTimer = setTimeout(() => {
@@ -1256,8 +1434,7 @@ class AnalysisExecutionCoordinator {
         queued.timing.queryMs =
           performance.now() - queryStartedAt;
         clearTimeout(executionTimer);
-        this.active -= 1;
-        this.drain();
+        settled();
       });
   }
 
@@ -1266,27 +1443,68 @@ class AnalysisExecutionCoordinator {
       this.active < this.maxConcurrent &&
       this.queue.length > 0
     ) {
-      const queued = this.queue.shift()!;
-      if (queued.controller.signal.aborted) {
-        this.clearQueueWait(queued);
-        queued.reject(queued.controller.signal.reason ?? abortError());
+      const group = this.queue.shift()!;
+      if (group.state !== "queued") {
         continue;
       }
-      this.start(queued);
+      this.startGroup(group);
     }
   }
 
-  private clearQueueWait(queued: QueuedAnalysis): void {
-    if (queued.waitTimer !== undefined) {
-      clearTimeout(queued.waitTimer);
-      queued.waitTimer = undefined;
+  private removeQueuedMember(
+    group: QueuedAnalysisGroup,
+    member: QueuedAnalysis,
+  ): void {
+    if (group.state !== "queued") {
+      return;
     }
-    if (queued.onAbort !== undefined) {
-      queued.controller.signal.removeEventListener(
+    const memberIndex = group.members.indexOf(member);
+    if (memberIndex === -1) {
+      return;
+    }
+    group.members.splice(memberIndex, 1);
+    this.clearMemberAbort(member);
+    member.reject(member.controller.signal.reason ?? abortError());
+    if (group.members.length > 0) {
+      return;
+    }
+    const groupIndex = this.queue.indexOf(group);
+    if (groupIndex !== -1) {
+      this.queue.splice(groupIndex, 1);
+    }
+    this.clearQueueWait(group);
+    group.state = "settled";
+  }
+
+  private removeAbortedMembers(group: QueuedAnalysisGroup): void {
+    for (let index = group.members.length - 1; index >= 0; index -= 1) {
+      const member = group.members[index]!;
+      if (!member.controller.signal.aborted) {
+        continue;
+      }
+      group.members.splice(index, 1);
+      this.clearMemberAbort(member);
+      member.reject(member.controller.signal.reason ?? abortError());
+    }
+  }
+
+  private clearQueueWait(group: QueuedAnalysisGroup): void {
+    if (group.waitTimer !== undefined) {
+      clearTimeout(group.waitTimer);
+      group.waitTimer = undefined;
+    }
+    for (const member of group.members) {
+      this.clearMemberAbort(member);
+    }
+  }
+
+  private clearMemberAbort(member: QueuedAnalysis): void {
+    if (member.onAbort !== undefined) {
+      member.controller.signal.removeEventListener(
         "abort",
-        queued.onAbort,
+        member.onAbort,
       );
-      queued.onAbort = undefined;
+      member.onAbort = undefined;
     }
   }
 }

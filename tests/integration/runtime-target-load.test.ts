@@ -180,7 +180,7 @@ describe("accepted public target load", () => {
       expect(regularHotAnalyses).toBe(1_184);
       expect(regularDistinctAnalyses).toBe(296);
       expect(coordinatedOrdinal).toBe(40);
-      expect(maximumActiveComputations).toBe(2);
+      expect(maximumActiveComputations).toBe(3);
       expect(runtime.resources().analysisExecution).toMatchObject({
         active: 0,
         queued: 0,
@@ -224,7 +224,8 @@ describe("accepted public target load", () => {
       expect(
         metrics.every(
           (metric) =>
-            metric.resources.analysisExecution.active <= 2 &&
+            metric.resources.analysisExecution.active <= 4 &&
+            (metric.resources.analysisExecution.activeMembers ?? 0) <= 3 &&
             metric.resources.analysisExecution.queued <= 16,
         ),
       ).toBe(true);

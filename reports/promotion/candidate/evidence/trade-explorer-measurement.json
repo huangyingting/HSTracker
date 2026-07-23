@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "trade-explorer-measurement-v1",
+  "analysisBuildId": "acceptance-fixtures-v1",
+  "measuredAt": "2026-07-23T19:39:32Z",
+  "status": "accepted",
+  "reasons": [],
+  "cancellation": {
+    "cancellationReleaseMs": 4.624295999999958,
+    "cancellationReleased": true,
+    "cacheUnpoisoned": true,
+    "queueUnpoisoned": true,
+    "subsequentRequestSucceeded": true
+  },
+  "queries": [
+    {
+      "productRole": "sparse",
+      "scanRows": 5,
+      "resultRows": 5,
+      "resultBytes": 722,
+      "exportBytes": 10673,
+      "peakMemoryBytes": 0,
+      "peakSpillBytes": 0,
+      "queueWaitMs": 0.04648100000008526,
+      "executionMs": 5.236054999999965
+    },
+    {
+      "productRole": "median",
+      "scanRows": 5,
+      "resultRows": 5,
+      "resultBytes": 722,
+      "exportBytes": 10673,
+      "peakMemoryBytes": 0,
+      "peakSpillBytes": 0,
+      "queueWaitMs": 0.05429900000001453,
+      "executionMs": 0.38137400000005073
+    },
+    {
+      "productRole": "upper-quartile",
+      "scanRows": 5,
+      "resultRows": 5,
+      "resultBytes": 722,
+      "exportBytes": 10673,
+      "peakMemoryBytes": 131072,
+      "peakSpillBytes": 0,
+      "queueWaitMs": 0.05558700000005956,
+      "executionMs": 0.46294699999998556
+    },
+    {
+      "productRole": "maximum-row",
+      "scanRows": 5,
+      "resultRows": 5,
+      "resultBytes": 722,
+      "exportBytes": 10673,
+      "peakMemoryBytes": 131072,
+      "peakSpillBytes": 0,
+      "queueWaitMs": 0.06572699999992437,
+      "executionMs": 2.111797000000024
+    }
+  ]
+}

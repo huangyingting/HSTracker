@@ -470,11 +470,28 @@ type AnalysisOutcomeFor<Recipe extends AnalysisRecipe> =
 export type AnalysisOutcome<Recipe extends AnalysisRecipe> =
   Recipe extends AnalysisRecipe ? AnalysisOutcomeFor<Recipe> : never;
 
+export type AnalysisBatch =
+  | readonly [AnalysisRequest]
+  | readonly [AnalysisRequest, AnalysisRequest]
+  | readonly [AnalysisRequest, AnalysisRequest, AnalysisRequest];
+
+export type AnalysisBatchOutcomes<
+  Requests extends AnalysisBatch,
+> = {
+  readonly [Index in keyof Requests]: Requests[Index] extends AnalysisRequest
+    ? AnalysisOutcome<Requests[Index]["recipe"]>
+    : never;
+};
+
 export interface TradeAnalyticsPlatform {
   execute<Request extends AnalysisRequest>(
     request: Request,
     options?: AnalysisExecutionOptions,
   ): Promise<AnalysisOutcome<Request["recipe"]>>;
+  executeBatch?<Requests extends AnalysisBatch>(
+    requests: Requests,
+    options?: AnalysisExecutionOptions,
+  ): Promise<AnalysisBatchOutcomes<Requests>>;
 }
 
 export type CandidateMarketV1EvidenceBinding =

@@ -3184,7 +3184,6 @@ tr[data-selected="true"] td {
   position: absolute;
   left: 0;
   right: 0;
-  height: 168px;
 }
 
 .analysis-output[data-analyzing="true"] {
@@ -4644,6 +4643,11 @@ tr[data-selected="true"] td {
 
   .score-inputs-wrap {
     overflow: visible;
+  }
+
+  .market-analysis-area {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 50rem;
   }
 
   .score-inputs-wrap table,

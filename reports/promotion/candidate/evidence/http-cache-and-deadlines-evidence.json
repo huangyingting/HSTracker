@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "http-cache-and-deadlines-evidence-v1",
+  "measurementClass": "candidate",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "baseUrl": "http://127.0.0.1:3300",
+  "originPlan": {
+    "path": "reports/promotion/candidate/plans/origin-plan.json",
+    "sha256": "441da9d7e100ba835bdf32694a7e564926e6b979eec01d4038a355a72f9fe5e8"
+  },
+  "windowStartedAt": "2026-07-23T19:39:50Z",
+  "windowEndedAt": "2026-07-23T19:39:52Z",
+  "cacheObservations": [
+    {
+      "label": "current-analysis",
+      "path": "/api/v1/analyses/current",
+      "status": 200,
+      "etag": "W/\"106ecce9176fef621187ee44113234166571e76693fb0a5fcf18a64d70f8ef6c\"",
+      "cacheControl": "public, max-age=60, s-maxage=300, must-revalidate",
+      "expectedCacheControl": "public, max-age=60, s-maxage=300, must-revalidate",
+      "revalidationStatus": 304,
+      "headStatus": 200,
+      "headEtag": "W/\"106ecce9176fef621187ee44113234166571e76693fb0a5fcf18a64d70f8ef6c\"",
+      "headCacheControl": "public, max-age=60, s-maxage=300, must-revalidate",
+      "headBodyBytes": 0,
+      "passed": true,
+      "reason": null
+    },
+    {
+      "label": "candidate-markets (immutable)",
+      "path": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/candidate-markets?exporter=156&product=392690",
+      "status": 200,
+      "etag": "W/\"365f3cd69e3558da0b005c80ae41862225095f51e198cc8454607fdbeb0c2070\"",
+      "cacheControl": "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+      "expectedCacheControl": "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+      "revalidationStatus": 304,
+      "headStatus": 200,
+      "headEtag": "W/\"365f3cd69e3558da0b005c80ae41862225095f51e198cc8454607fdbeb0c2070\"",
+      "headCacheControl": "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+      "headBodyBytes": 0,
+      "passed": true,
+      "reason": null
+    },
+    {
+      "label": "market-analysis (immutable)",
+      "path": "/api/v1/analyses/analysis-build-v1-949d1ac27ade40d4/market-analysis?exporter=156&product=392690&market=566",
+      "status": 200,
+      "etag": "W/\"435f55c2e691dd0444f834ce0d209ac0285768805c51297334a94654bb12ff9e\"",
+      "cacheControl": "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+      "expectedCacheControl": "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+      "revalidationStatus": 304,
+      "headStatus": 200,
+      "headEtag": "W/\"435f55c2e691dd0444f834ce0d209ac0285768805c51297334a94654bb12ff9e\"",
+      "headCacheControl": "public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800, immutable",
+      "headBodyBytes": 0,
+      "passed": true,
+      "reason": null
+    }
+  ],
+  "deadlineObservations": [
+    {
+      "label": "deadline-timer-abort",
+      "passed": true,
+      "detail": "branded=true status=503 code=REQUEST_DEADLINE_EXCEEDED elapsedMs=61.4"
+    },
+    {
+      "label": "request-abort-propagation",
+      "passed": true,
+      "detail": "propagatedClientReason=true"
+    },
+    {
+      "label": "synchronous-deadline",
+      "passed": true,
+      "detail": "immediate=false afterTimeout=true"
+    },
+    {
+      "label": "route-deadline-table",
+      "passed": true,
+      "detail": "15 route deadlines are positive integers"
+    }
+  ]
+}

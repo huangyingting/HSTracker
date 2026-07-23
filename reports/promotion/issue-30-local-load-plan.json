@@ -36,6 +36,13 @@
       "method": "GET",
       "pathTemplate": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product={analysisKey}"
     },
+    "marketAnalysis": {
+      "method": "GET",
+      "pathTemplate": "/api/v1/analyses/acceptance-fixtures-v1/market-analysis?exporter=156&product=010121&market=528",
+      "headers": {
+        "X-HS-Tracker-Cache-Partition": "market-analysis-{analysisKey}"
+      }
+    },
     "csv": {
       "method": "GET",
       "pathTemplate": "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets.csv?exporter=156&product={analysisKey}&productSearchBuildId=acceptance-product-search-v3&freshnessStatusId=freshness%3Asource-status%3Aacceptance-fixtures-v1%3ALATEST_KNOWN%3A2026-03-01T00%253A00%253A00Z%3A675521e5974a24440fe9e87ba9af36f3cd41d5631d3e391692435c23dfc44e07&schema=candidate-markets-csv-v1"

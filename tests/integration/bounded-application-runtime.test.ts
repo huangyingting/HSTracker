@@ -10,6 +10,7 @@ import type {
   AnalysisRequest,
   CandidateMarketV1AnalysisRequest,
 } from "../../src/domain/trade-analytics/trade-analytics-platform";
+import { createMarketAnalysis } from "../../src/domain/market-analysis/market-analysis";
 import { createBoundedApplicationRuntime } from "../../src/runtime/bounded-application-runtime";
 import { RUNTIME_RESOURCE_POLICY } from "../../src/runtime-resource-policy";
 import { createAnonymousSourceHttpAdapter } from "../../src/http/anonymous-source-adapter";
@@ -158,6 +159,37 @@ describe("bounded application runtime", () => {
     expect(runtime.resources().caches.analysis.entries).toBe(0);
   });
 
+  it("counts overlapping finalized and provisional suppliers as one logical result row", async () => {
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+      {
+        analysisBudget: { maxResultRows: 4 },
+      },
+    );
+
+    const outcome = await runtime.tradeAnalytics.execute(
+      supplierCompetitionQuery,
+    );
+
+    expect(outcome).toMatchObject({
+      state: "success",
+      payload: { cohortSize: 4 },
+    });
+    if (outcome.state !== "success") {
+      throw new TypeError("Expected Supplier Competition to succeed.");
+    }
+    expect(outcome.payload.supplierShares).toHaveLength(4);
+    expect(outcome.payload.provisionalSupplierShares).toHaveLength(4);
+    expect(
+      outcome.payload.supplierShares.map(({ economy }) => economy.code),
+    ).toContain("156");
+    expect(
+      outcome.payload.provisionalSupplierShares.map(
+        ({ economy }) => economy.code,
+      ),
+    ).toContain("156");
+  });
+
   it("reserves the accepted 128-MiB process-cache allocation", () => {
     expect({
       analysis: RUNTIME_RESOURCE_POLICY.analysisCacheMaxBytes,
@@ -272,7 +304,7 @@ describe("bounded application runtime", () => {
     });
   });
 
-  it("runs two distinct analyses and admits sixteen more in FIFO order", async () => {
+  it("runs three workers across four groups and queues sixteen more in FIFO order", async () => {
     const fixture = createFixtureApplicationRuntime();
     const expected = await fixture.tradeAnalytics.execute(query);
     const computation = deferred<void>();
@@ -286,11 +318,11 @@ describe("bounded application runtime", () => {
       },
     );
     const runtime = createBoundedApplicationRuntime(inner);
-    const productCodes = Array.from({ length: 19 }, (_, index) =>
+    const productCodes = Array.from({ length: 21 }, (_, index) =>
       String(index).padStart(6, "0"),
     );
 
-    const admitted = productCodes.slice(0, 18).map((productCode) =>
+    const admitted = productCodes.slice(0, 20).map((productCode) =>
       runtime.tradeAnalytics.execute({
         ...query,
         productCode,
@@ -298,12 +330,12 @@ describe("bounded application runtime", () => {
     );
     const rejected = runtime.tradeAnalytics.execute({
       ...query,
-      productCode: productCodes[18]!,
+      productCode: productCodes[20]!,
     });
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(starts).toEqual(productCodes.slice(0, 2));
+    expect(starts).toEqual(productCodes.slice(0, 3));
     await expect(rejected).resolves.toMatchObject({
       state: "capacity",
       error: {
@@ -315,7 +347,160 @@ describe("bounded application runtime", () => {
 
     computation.resolve();
     await Promise.all(admitted);
-    expect(starts).toEqual(productCodes.slice(0, 18));
+    expect(starts).toEqual(productCodes.slice(0, 20));
+  });
+
+  it("admits each composite Market Analysis request as one bounded operation", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    let starts = 0;
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          request: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          starts += 1;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return fixture.tradeAnalytics.execute(request, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner, {
+      maxConcurrentAnalyses: 2,
+      maxQueuedAnalyses: 16,
+      queueWaitTimeoutMs: 1_000,
+      analysisTimeoutMs: 1_000,
+    });
+    const marketAnalysis = createMarketAnalysis(runtime.tradeAnalytics);
+
+    const pending = Array.from({ length: 7 }, (_, index) =>
+        marketAnalysis.load(
+          {
+            analysisBuildId: "acceptance-fixtures-v1",
+            exportEconomyCode: "156",
+            productCode: "010121",
+            marketCode: "528",
+          },
+          { cachePartitionKey: `market-analysis-capacity-${index}` },
+        ),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(starts).toBe(3);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 2,
+      queued: 5,
+      activeMembers: 3,
+      queuedMembers: 18,
+    });
+
+    const results = await Promise.all(pending);
+
+    expect(results).toHaveLength(7);
+    expect(
+      results.every((result) => result.schemaVersion === "market-analysis-v1"),
+    ).toBe(true);
+  });
+
+  it("does not oversubscribe physical executors with composite members", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const workers = deferred<void>();
+    const starts: AnalysisRequest["recipe"][] = [];
+    const inner: ApplicationRuntime = {
+      ...fixture,
+      tradeAnalytics: {
+        async execute<Request extends AnalysisRequest>(
+          request: Request,
+          options?: AnalysisExecutionOptions,
+        ): Promise<AnalysisOutcome<Request["recipe"]>> {
+          starts.push(request.recipe);
+          await workers.promise;
+          return fixture.tradeAnalytics.execute(request, options);
+        },
+      },
+    };
+    const runtime = createBoundedApplicationRuntime(inner, {
+      maxConcurrentAnalyses: 4,
+      maxQueuedAnalyses: 16,
+      queueWaitTimeoutMs: 1_000,
+      analysisTimeoutMs: 1_000,
+    });
+    const marketAnalysis = createMarketAnalysis(runtime.tradeAnalytics);
+
+    const pending = Promise.all(
+      Array.from({ length: 4 }, (_, index) =>
+        marketAnalysis.load(
+          {
+            analysisBuildId: "acceptance-fixtures-v1",
+            exportEconomyCode: "156",
+            productCode: "010121",
+            marketCode: "528",
+          },
+          { cachePartitionKey: `market-analysis-workers-${index}` },
+        ),
+      ),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(starts).toHaveLength(3);
+    expect(runtime.resources().analysisExecution).toMatchObject({
+      active: 4,
+      activeMembers: 3,
+      queuedMembers: 9,
+    });
+
+    workers.resolve();
+    await pending;
+  });
+
+  it("starts the execution deadline only after a member gets a worker", async () => {
+    const fixture = createFixtureApplicationRuntime();
+    const expected = await fixture.tradeAnalytics.execute(query);
+    const firstComputation = deferred<void>();
+    const starts: string[] = [];
+    const inner = runtimeWithExecution(
+      fixture,
+      async (request) => {
+        starts.push(request.productCode);
+        if (request.productCode === "000001") {
+          await firstComputation.promise;
+        }
+        return expected;
+      },
+    );
+    const runtime = createBoundedApplicationRuntime(inner, {
+      maxConcurrentAnalyses: 2,
+      maxConcurrentAnalysisMembers: 1,
+      queueWaitTimeoutMs: 100,
+      analysisTimeoutMs: 10,
+    });
+    const first = runtime.tradeAnalytics.execute({
+      ...query,
+      productCode: "000001",
+    });
+    const second = runtime.tradeAnalytics.execute({
+      ...query,
+      productCode: "000002",
+    });
+    let secondSettled = false;
+    void second.then(() => {
+      secondSettled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(starts).toEqual(["000001"]);
+    expect(secondSettled).toBe(false);
+
+    firstComputation.resolve();
+    await expect(first).resolves.toMatchObject({
+      state: "capacity",
+      error: { reason: "execution-timeout" },
+    });
+    await expect(second).resolves.toMatchObject({ state: "success" });
+    expect(starts).toEqual(["000001", "000002"]);
   });
 
   it("rejects a computation that exceeds the queue-wait deadline", async () => {
@@ -1302,7 +1487,7 @@ describe("bounded application runtime", () => {
     );
     await Promise.resolve();
 
-    expect(maximumActive).toBe(2);
+    expect(maximumActive).toBe(3);
     release.resolve();
     const outcomes = await Promise.allSettled([...hot, ...uncached]);
 

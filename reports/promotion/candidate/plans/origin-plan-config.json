@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "candidate-origin-plan-config-v1",
+  "origin": "http://127.0.0.1:3300",
+  "deployment": {
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "marketByRole": {
+    "sparse": "710",
+    "median": "616",
+    "upper-quartile": "566",
+    "maximum-row": "566"
+  },
+  "recentTradeMomentumReporter": null
+}

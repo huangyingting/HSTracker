@@ -7,18 +7,25 @@ import { promisify } from "node:util";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { promoteAcceptedReleaseCandidateToLocalStore } from "../support/local-release-deployment";
+import type { PublishedDeployment } from "../../src/release/release-publication";
+import {
+  promoteAcceptedReleaseCandidateToLocalStore,
+  rollbackLocalReleaseStore,
+} from "../support/local-release-deployment";
 
 const execFileAsync = promisify(execFile);
-const IMAGE = `hs-tracker-local-release-test:${randomUUID()}`;
+const BASELINE_IMAGE = `hs-tracker-local-release-baseline:${randomUUID()}`;
+const SUCCESSOR_IMAGE = `hs-tracker-local-release-successor:${randomUUID()}`;
 const VOLUME = `hs-tracker-local-release-volume-${randomUUID()}`;
-const BUILD_ID = "local-release-integration-v1";
+const BASELINE_BUILD_ID = "local-release-baseline-v1";
+const SUCCESSOR_BUILD_ID = "local-release-successor-v1";
 
 describe("local single-host release deployment", () => {
   let containerId: string | undefined;
   let origin: string;
   let objectStoreDirectory: string;
   let candidateRoot: string;
+  let baselineDeployment: PublishedDeployment;
 
   beforeAll(async () => {
     objectStoreDirectory = await mkdtemp(
@@ -26,26 +33,39 @@ describe("local single-host release deployment", () => {
     );
     candidateRoot = await mkdtemp(join(tmpdir(), "hs-tracker-local-candidate-"));
 
-    await promoteAcceptedReleaseCandidateToLocalStore({
+    ({ deployment: baselineDeployment } =
+      await promoteAcceptedReleaseCandidateToLocalStore({
       root: candidateRoot,
-      label: "local",
+      label: "baseline",
       objectStoreDirectory,
       activatedAt: "2026-07-12T02:00:00Z",
       candidateOptions: { baciRelease: "V202601" },
-    });
+      }));
     // Hosted runners and the image's non-root process use different UIDs.
     await chmod(objectStoreDirectory, 0o755);
     await execFileAsync("docker", ["volume", "create", VOLUME]);
 
-    await execFileAsync(
-      "docker",
-      ["build", "--build-arg", `APP_BUILD_ID=${BUILD_ID}`, "--tag", IMAGE, "."],
-      { maxBuffer: 10 * 1024 * 1024 },
-    );
-    containerId = await runContainer();
+    for (const [image, buildId] of [
+      [BASELINE_IMAGE, BASELINE_BUILD_ID],
+      [SUCCESSOR_IMAGE, SUCCESSOR_BUILD_ID],
+    ] as const) {
+      await execFileAsync(
+        "docker",
+        [
+          "build",
+          "--build-arg",
+          `APP_BUILD_ID=${buildId}`,
+          "--tag",
+          image,
+          ".",
+        ],
+        { maxBuffer: 10 * 1024 * 1024 },
+      );
+    }
+    containerId = await runContainer(BASELINE_IMAGE);
     origin = await publishedOrigin(containerId);
     await waitForHealth(origin);
-  }, 240_000);
+  }, 360_000);
 
   afterAll(async () => {
     if (containerId !== undefined) {
@@ -53,8 +73,12 @@ describe("local single-host release deployment", () => {
         () => undefined,
       );
     }
-    await execFileAsync("docker", ["image", "rm", "--force", IMAGE]).catch(
-      () => undefined,
+    await Promise.all(
+      [BASELINE_IMAGE, SUCCESSOR_IMAGE].map((image) =>
+        execFileAsync("docker", ["image", "rm", "--force", image]).catch(
+          () => undefined,
+        ),
+      ),
     );
     await execFileAsync("docker", ["volume", "rm", "--force", VOLUME]).catch(
       () => undefined,
@@ -83,7 +107,7 @@ describe("local single-host release deployment", () => {
     expect(health.status).toBe(200);
     await expect(health.json()).resolves.toMatchObject({
       status: "ok",
-      buildId: BUILD_ID,
+      buildId: BASELINE_BUILD_ID,
     });
     expect(health.headers.get("X-HS-Tracker-Machine-Class")).toBe("local");
 
@@ -110,7 +134,129 @@ describe("local single-host release deployment", () => {
     });
   }, 120_000);
 
-  async function runContainer(): Promise<string> {
+  it("[launch-evidence:rollback] restores the prior application image and accepted Market Analysis deployment atomically", async () => {
+    const baselineImageDigest = await imageDigest(BASELINE_IMAGE);
+    const successorImageDigest = await imageDigest(SUCCESSOR_IMAGE);
+    expect(successorImageDigest).not.toBe(baselineImageDigest);
+    const baselineRuntime = await expectRuntimeDeployment(
+      origin,
+      BASELINE_BUILD_ID,
+      baselineDeployment,
+    );
+
+    const { deployment: successor } =
+      await promoteAcceptedReleaseCandidateToLocalStore({
+        root: candidateRoot,
+        label: "successor",
+        objectStoreDirectory,
+        activatedAt: "2026-07-12T03:00:00Z",
+        candidateOptions: {
+          baciRelease: "V202601",
+          analysisArtifactBuildId:
+            "candidate-market-artifact-v1-7272727272727272",
+        },
+      });
+    expect(successor.analysisBuildId).not.toBe(
+      baselineDeployment.analysisBuildId,
+    );
+    expect(successor.previousDeploymentPairingId).toBe(
+      baselineDeployment.deploymentPairingId,
+    );
+
+    await replaceContainer(SUCCESSOR_IMAGE);
+    const successorRuntime = await expectRuntimeDeployment(
+      origin,
+      SUCCESSOR_BUILD_ID,
+      successor,
+    );
+    expect(runtimeAnalyticalReleaseIdentity(successorRuntime)).not.toEqual(
+      runtimeAnalyticalReleaseIdentity(baselineRuntime),
+    );
+    await expectCurrentMarketAnalysis(origin, successor.analysisBuildId);
+
+    const rolledBack = await rollbackLocalReleaseStore({
+      root: candidateRoot,
+      objectStoreDirectory,
+      activatedAt: "2026-07-12T04:00:00Z",
+    });
+    expect(rolledBack).toMatchObject({
+      analysisBuildId: baselineDeployment.analysisBuildId,
+      productSearchBuildId: baselineDeployment.productSearchBuildId,
+      previousDeploymentPairingId: successor.deploymentPairingId,
+      sourceStatusFallback: {
+        rollbackActive: true,
+      },
+    });
+    expect(rolledBack.deploymentPairingId).not.toBe(
+      baselineDeployment.deploymentPairingId,
+    );
+    expect(rolledBack.deploymentPairingId).not.toBe(
+      successor.deploymentPairingId,
+    );
+
+    await replaceContainer(BASELINE_IMAGE);
+    expect(await imageDigest(BASELINE_IMAGE)).toBe(baselineImageDigest);
+    const restoredBaseline = await expectRuntimeDeployment(
+      origin,
+      BASELINE_BUILD_ID,
+      rolledBack,
+    );
+    expect(runtimeAnalyticalReleaseIdentity(restoredBaseline)).toEqual(
+      runtimeAnalyticalReleaseIdentity(baselineRuntime),
+    );
+    expect(restoredBaseline.deploymentPairingId).not.toBe(
+      baselineRuntime.deploymentPairingId,
+    );
+    expect(restoredBaseline.sourceStatusSnapshotId).toBe(
+      rolledBack.sourceStatusFallback.sourceStatusSnapshotId,
+    );
+    expect(rolledBack.sourceStatusFallback.rollbackActive).toBe(true);
+    await expectCurrentMarketAnalysis(origin, baselineDeployment.analysisBuildId);
+    const shell = await fetch(origin);
+    expect(shell.status).toBe(200);
+    expect(await shell.text()).toContain("Export Market Workspace");
+
+    const restoredSuccessor = await rollbackLocalReleaseStore({
+      root: candidateRoot,
+      objectStoreDirectory,
+      activatedAt: "2026-07-12T05:00:00Z",
+    });
+    expect(restoredSuccessor).toMatchObject({
+      analysisBuildId: successor.analysisBuildId,
+      productSearchBuildId: successor.productSearchBuildId,
+      previousDeploymentPairingId: rolledBack.deploymentPairingId,
+      sourceStatusFallback: { rollbackActive: true },
+    });
+    expect(restoredSuccessor.deploymentPairingId).not.toBe(
+      successor.deploymentPairingId,
+    );
+
+    await replaceContainer(SUCCESSOR_IMAGE);
+    expect(await imageDigest(SUCCESSOR_IMAGE)).toBe(successorImageDigest);
+    const candidateRuntime = await expectRuntimeDeployment(
+      origin,
+      SUCCESSOR_BUILD_ID,
+      restoredSuccessor,
+    );
+    expect(runtimeAnalyticalReleaseIdentity(candidateRuntime)).toEqual(
+      runtimeAnalyticalReleaseIdentity(successorRuntime),
+    );
+    expect(candidateRuntime.sourceStatusSnapshotId).toBe(
+      restoredSuccessor.sourceStatusFallback.sourceStatusSnapshotId,
+    );
+    await expectCurrentMarketAnalysis(origin, successor.analysisBuildId);
+  }, 240_000);
+
+  async function replaceContainer(image: string): Promise<void> {
+    if (containerId !== undefined) {
+      await execFileAsync("docker", ["rm", "--force", containerId]);
+    }
+    containerId = await runContainer(image);
+    origin = await publishedOrigin(containerId);
+    await waitForHealth(origin);
+  }
+
+  async function runContainer(image: string): Promise<string> {
     const started = await execFileAsync("docker", [
       "run",
       "--detach",
@@ -128,11 +274,133 @@ describe("local single-host release deployment", () => {
       `${VOLUME}:/data`,
       "--publish",
       "127.0.0.1::3000",
-      IMAGE,
+      image,
     ]);
     return started.stdout.trim();
   }
 });
+
+async function imageDigest(image: string): Promise<string> {
+  const inspected = await execFileAsync("docker", [
+    "image",
+    "inspect",
+    "--format",
+    "{{.Id}}",
+    image,
+  ]);
+  return inspected.stdout.trim();
+}
+
+type RuntimeDeploymentIdentity = {
+  buildId: string;
+  deploymentPairingId: string;
+  analysisBuildId: string;
+  productSearchBuildId: string;
+  artifactSha256: string;
+  sourceStatusSnapshotId: string;
+  deploymentActivationMode: string;
+};
+
+async function expectRuntimeDeployment(
+  origin: string,
+  buildId: string,
+  deployment: PublishedDeployment,
+): Promise<RuntimeDeploymentIdentity> {
+  const health = await fetch(`${origin}/healthz`);
+  expect(health.status).toBe(200);
+  const value = (await health.json()) as {
+    status: string;
+    buildId: string;
+    activation: { mode: string };
+    deployment: {
+      deploymentPairingId: string;
+      analysisBuildId: string;
+      productSearchBuildId: string;
+    };
+    analysisArtifact: { sha256: string };
+    freshness: { sourceStatusSnapshotId: string };
+  };
+  expect(value).toMatchObject({
+    status: "ok",
+    buildId,
+    activation: { mode: "CURRENT" },
+    deployment: {
+      deploymentPairingId: deployment.deploymentPairingId,
+      analysisBuildId: deployment.analysisBuildId,
+      productSearchBuildId: deployment.productSearchBuildId,
+    },
+    freshness: {
+      sourceStatusSnapshotId:
+        deployment.sourceStatusFallback.sourceStatusSnapshotId,
+    },
+  });
+  return {
+    buildId: value.buildId,
+    deploymentPairingId: value.deployment.deploymentPairingId,
+    analysisBuildId: value.deployment.analysisBuildId,
+    productSearchBuildId: value.deployment.productSearchBuildId,
+    artifactSha256: value.analysisArtifact.sha256,
+    sourceStatusSnapshotId: value.freshness.sourceStatusSnapshotId,
+    deploymentActivationMode: value.activation.mode,
+  };
+}
+
+function runtimeAnalyticalReleaseIdentity(
+  identity: RuntimeDeploymentIdentity,
+) {
+  return {
+    buildId: identity.buildId,
+    analysisBuildId: identity.analysisBuildId,
+    productSearchBuildId: identity.productSearchBuildId,
+    artifactSha256: identity.artifactSha256,
+    deploymentActivationMode: identity.deploymentActivationMode,
+  };
+}
+
+async function expectCurrentMarketAnalysis(
+  origin: string,
+  expectedAnalysisBuildId: string,
+): Promise<void> {
+  const current = await fetch(`${origin}/api/v1/analyses/current`);
+  expect(current.status).toBe(200);
+  const manifest = (await current.json()) as {
+    analysisBuildId: string;
+    benchmarkQueries: readonly {
+      role: string;
+      exporterCode: string;
+      productCode: string;
+    }[];
+  };
+  expect(manifest.analysisBuildId).toBe(expectedAnalysisBuildId);
+  const benchmark = manifest.benchmarkQueries.find(
+    ({ role }) => role === "maximum-row",
+  );
+  expect(benchmark).toBeDefined();
+
+  const candidates = await fetch(
+    `${origin}/api/v1/analyses/${expectedAnalysisBuildId}/candidate-markets?exporter=${benchmark!.exporterCode}&product=${benchmark!.productCode}`,
+  );
+  expect(candidates.status).toBe(200);
+  const candidateResult = (await candidates.json()) as {
+    candidates: readonly { economy: { code: string } }[];
+  };
+  const marketCode = candidateResult.candidates[0]?.economy.code;
+  expect(marketCode).toBeDefined();
+
+  const marketAnalysis = await fetch(
+    `${origin}/api/v1/analyses/${expectedAnalysisBuildId}/market-analysis?exporter=${benchmark!.exporterCode}&product=${benchmark!.productCode}&market=${marketCode}`,
+  );
+  expect(marketAnalysis.status).toBe(200);
+  await expect(marketAnalysis.json()).resolves.toMatchObject({
+    schemaVersion: "market-analysis-v1",
+    context: { analysisBuildId: expectedAnalysisBuildId },
+    constituentAnalyses: [
+      { recipe: "candidate-market-v1" },
+      { recipe: "trade-trend-v1" },
+      { recipe: "supplier-competition-v1" },
+    ],
+  });
+}
 
 async function publishedOrigin(containerId: string): Promise<string> {
   const publishedPort = await execFileAsync("docker", [

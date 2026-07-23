@@ -62,6 +62,7 @@ Use the pinned Node 24.17.0 glibc image and an immutable application build ID:
 ```bash
 export BUILD_ID="$(git rev-parse HEAD)"
 export IMAGE="hs-tracker:${BUILD_ID}"
+export HS_TRACKER_IMAGE="${IMAGE}"
 
 docker build --build-arg "APP_BUILD_ID=${BUILD_ID}" --tag "${IMAGE}" .
 
@@ -104,8 +105,8 @@ V202601 artifact and are recomputed if the artifact changes.
 
 Promotion is a control-plane operation: point it at the **writable** object
 store directory (not the read-only runtime mount) and give it an accepted
-promotion input. Producing a genuinely accepted 10-gate promotion input on the
-local machine class is the subject of issue #30; the release publication
+promotion input. The eleven gates include the Market Analysis launch evidence
+bound to the exact build and active deployment. The release publication
 mechanics are in [`release-publication.md`](release-publication.md).
 
 ```bash
@@ -128,6 +129,7 @@ truth** (RPO 0); the serving volume is only a cache.
 
 ```bash
 export APP_BUILD_ID="$(git rev-parse HEAD)"
+export HS_TRACKER_IMAGE="hs-tracker:${APP_BUILD_ID}"
 docker compose -f docker-compose.local.yml up --build --detach
 ```
 
@@ -214,23 +216,39 @@ operational store; the serving volume never needs backing up.
 
 ## Rollback rehearsal
 
-Rollback is a control-plane operation with write access to the local object
-store directory:
+Rollback restores both immutable release truth and the exact prior application
+image. Record and retain the current and prior image digests/build IDs before
+the drill, and ensure both images are available locally before stopping the
+application. The service remains stopped between pointer rollback and image
+replacement so no mixed image/release state is served:
 
 ```bash
 export HS_TRACKER_RELEASE_OBJECT_STORE=filesystem
 export HS_TRACKER_RELEASE_FILESYSTEM_PATH="$(pwd)/data/local-deploy/objectstore"
+export PRIOR_IMAGE="sha256:<prior immutable image digest>"
+export PRIOR_BUILD_ID="<prior APP_BUILD_ID>"
+export CANDIDATE_IMAGE="sha256:<candidate immutable image digest>"
+export CANDIDATE_BUILD_ID="<candidate APP_BUILD_ID>"
 
+docker image inspect "${PRIOR_IMAGE}" "${CANDIDATE_IMAGE}" >/dev/null
+docker compose -f docker-compose.local.yml stop hs-tracker
 npm run release:rollback -- --activated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-docker compose -f docker-compose.local.yml restart hs-tracker
+HS_TRACKER_IMAGE="${PRIOR_IMAGE}" \
+  docker compose -f docker-compose.local.yml up --detach --no-build --force-recreate hs-tracker
 curl --fail --silent --show-error "${ORIGIN}/healthz" | jq .
 ```
 
 The new immutable rollback deployment names the previous accepted pairing, keeps
 the displaced pairing as the new immediate predecessor within the Deployment
-Retention Window (reversible), and publishes `REFRESH_DELAYED`. Repeat the
-command to rehearse reversal. Retain both deployment identities, timings, health
-responses, and logs.
+Retention Window (reversible), and publishes `REFRESH_DELAYED`. Verify health
+reports `PRIOR_BUILD_ID`, the new rollback pairing serving the prior
+analysis/search builds and artifact, the newly published Source Freshness Status with
+`rollbackActive: true`, and `activation.mode: CURRENT`, then run the accepted
+`market-analysis-v1` product smoke. Rehearse reversal by stopping the
+application again, repeating `release:rollback`, recreating it with
+`HS_TRACKER_IMAGE="${CANDIDATE_IMAGE}"`, and verifying `CANDIDATE_BUILD_ID` plus
+the candidate identities and product smoke. Retain both image/deployment
+identities, timings, health responses, and logs.
 
 ## Backup
 

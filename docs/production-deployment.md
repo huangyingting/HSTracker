@@ -246,7 +246,7 @@ Machine with write-scoped credentials:
 ```bash
 npm run release:rollback -- \
   --activated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-fly machine restart --app "${APP}"
+fly deploy --app "${APP}" --image "${PRIOR_IMAGE_DIGEST}" --strategy immediate
 curl --fail --silent --show-error "${ORIGIN}/healthz" | jq .
 ```
 
@@ -254,10 +254,14 @@ The new immutable rollback deployment must name the previous accepted pairing,
 keep the displaced pairing as the new immediate predecessor within the
 Deployment Retention Window (reversible: rolling back again swaps current and
 that predecessor once more), and publish
-`REFRESH_DELAYED`. The restarted Machine must hydrate or reuse only verified
-bytes and become ready within 15 minutes. Run the pinned analysis smoke, then
-repeat the rollback command to rehearse reversal. Retain both deployment
-identities, status snapshots, timings, health responses, and logs.
+`REFRESH_DELAYED`. Deploy the exact prior application image digest rather than
+restarting the displaced image. The restored Machine must report the prior
+build ID, hydrate or reuse only verified bytes, and become ready within 15
+minutes. Run the pinned `market-analysis-v1` smoke, then reverse both the
+release rollback and image deployment to restore the accepted candidate.
+Retain before/successor/restored image digests and build IDs, deployment and
+artifact identities, Source Freshness Status snapshots, timings, health
+responses, and logs.
 
 ## Capacity observations
 

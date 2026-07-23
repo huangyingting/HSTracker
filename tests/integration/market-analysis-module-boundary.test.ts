@@ -3,6 +3,8 @@ import { extname, relative, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../support/market-analysis-production-boundary";
+
 const sourceRoot = resolve("src");
 const marketAnalysisModule = resolve("src/domain/market-analysis");
 
@@ -17,16 +19,6 @@ async function sourceFiles(directory: string): Promise<string[]> {
 
   return files.flat().filter((path) => [".ts", ".tsx"].includes(extname(path)));
 }
-
-// Question runtime machinery Slice 1 must never introduce anywhere in
-// production code (spec §2.3, §11.5; issue #65 acceptance criteria).
-const QUESTION_RUNTIME_PATTERNS = [
-  /\bAnalystQuestionId\b/u,
-  /\bquestionAnswers\b/u,
-  /analyst-question-catalog/u,
-  /\bAQ-\d{2}\b/u,
-  /\banswer\s*\(\s*questionId/u,
-];
 
 // The exact top-level MarketAnalysisV1 keys the contract owns (spec §5.3).
 // A product-level score, aggregate confidence, probability, recommendation,
@@ -53,7 +45,7 @@ describe("Market Analysis module boundary", () => {
     );
 
     for (const { path, source } of sources) {
-      for (const pattern of QUESTION_RUNTIME_PATTERNS) {
+      for (const pattern of MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS) {
         expect(source, relative(sourceRoot, path)).not.toMatch(pattern);
       }
     }

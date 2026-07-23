@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "coalescing-and-capacity-report-v1",
+  "gate": "coalescing-and-capacity",
+  "measurementClass": "candidate",
+  "status": "accepted",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "checks": [
+    {
+      "name": "coalescing",
+      "status": "accepted"
+    },
+    {
+      "name": "capacity",
+      "status": "accepted"
+    }
+  ],
+  "retainedLogDigests": [
+    {
+      "path": "reports/promotion/candidate/evidence/coalescing-and-capacity-measurement.json",
+      "sha256": "3feaa044549988bbc7d0daa9dc813bb59afcfbed92bf28aacaa08ca986ca6206"
+    }
+  ]
+}

@@ -650,7 +650,7 @@ describe("Trade Analysis Context: pinFromManifest", () => {
     });
   });
 
-  it("returns null when the current recommendation does not declare the recipe", () => {
+  it("returns null when the current Recommended Dataset Mapping does not declare the recipe", () => {
     const unsupported = {
       ...manifest,
       recommendation: { ...manifest.recommendation, tradeTrend: null },

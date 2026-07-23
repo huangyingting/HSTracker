@@ -4,10 +4,17 @@ import type {
 } from "./performance-gates";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 import {
+  browserLaunchMatrixContextKey,
+  REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS,
+  type BrowserLaunchMatrixLocale,
+  type BrowserLaunchMatrixViewport,
+} from "./browser-launch-matrix";
+import {
   attestRuntimeIdentity,
   type RuntimeIdentityAttestation,
   type RuntimeIdentityAttestor,
 } from "./runtime-identity-attestation";
+import { validateMeasurementOrigin } from "./measurement-origin";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -62,6 +69,7 @@ export type BrowserLabProductRole = "median" | "maximum-row";
 export type BrowserLabRole =
   | "button"
   | "combobox"
+  | "link"
   | "list"
   | "option"
   | "region";
@@ -90,10 +98,11 @@ export type BrowserLabAnalyzeAction = {
   readonly completeListLocator: BrowserLabLocator;
 };
 
-export type BrowserLabChangeCandidateMarketAction = {
-  readonly kind: "change-candidate-market";
+export type BrowserLabOpenMarketAnalysisAction = {
+  readonly kind: "open-market-analysis";
   readonly label: string;
-  readonly candidateLocator: BrowserLabLocator;
+  readonly marketLinkLocator: BrowserLabLocator;
+  readonly completeAnalysisLocator: BrowserLabLocator;
 };
 
 export type BrowserLabOpenScoreDetailAction = {
@@ -112,14 +121,14 @@ export type BrowserLabCloseScoreDetailAction = {
 export type BrowserLabJourneyAction =
   | BrowserLabSelectContextAction
   | BrowserLabAnalyzeAction
-  | BrowserLabChangeCandidateMarketAction
+  | BrowserLabOpenMarketAnalysisAction
   | BrowserLabOpenScoreDetailAction
   | BrowserLabCloseScoreDetailAction;
 
 export type BrowserLabJourneyActions = readonly [
   BrowserLabSelectContextAction,
   BrowserLabAnalyzeAction,
-  BrowserLabChangeCandidateMarketAction,
+  BrowserLabOpenMarketAnalysisAction,
   BrowserLabOpenScoreDetailAction,
   BrowserLabCloseScoreDetailAction,
 ];
@@ -130,19 +139,26 @@ export type BrowserLabJourney = {
   readonly actions: BrowserLabJourneyActions;
 };
 
+export type BrowserLabLaunchMatrixPlan = {
+  readonly productRole: BrowserLabProductRole;
+  readonly locales: readonly BrowserLaunchMatrixLocale[];
+  readonly viewports: readonly BrowserLaunchMatrixViewport[];
+};
+
 export type BrowserLabPlan = {
   readonly schemaVersion: "browser-lab-plan-v1";
   readonly measurementClass: BrowserLabMeasurementClass;
   readonly identity: PerformanceMeasurementIdentity;
   readonly origin: string;
   readonly journeys: readonly [BrowserLabJourney, BrowserLabJourney];
+  readonly launchMatrix: BrowserLabLaunchMatrixPlan;
 };
 
 const MINIMUM_CANDIDATE_TRIALS = 5;
 const REQUIRED_ACTION_KINDS = [
   "select-context",
   "analyze",
-  "change-candidate-market",
+  "open-market-analysis",
   "open-score-detail",
   "close-score-detail",
 ] as const;
@@ -171,6 +187,10 @@ export function validateBrowserLabPlan(value: unknown): BrowserLabPlan {
     requiredJourney(journeysInput, "maximum-row"),
     measurementClass,
   );
+  const launchMatrix = validateLaunchMatrix(
+    plan.launchMatrix,
+    measurementClass,
+  );
 
   return {
     schemaVersion: "browser-lab-plan-v1",
@@ -178,7 +198,85 @@ export function validateBrowserLabPlan(value: unknown): BrowserLabPlan {
     identity,
     origin,
     journeys: [median, maximumRow],
+    launchMatrix,
   };
+}
+
+function validateLaunchMatrix(
+  value: unknown,
+  measurementClass: BrowserLabMeasurementClass,
+): BrowserLabLaunchMatrixPlan {
+  if (value === undefined && measurementClass === "local-smoke") {
+    return {
+      productRole: "median",
+      locales: ["en"],
+      viewports: [{ width: 390, height: 844 }],
+    };
+  }
+  if (value === undefined) {
+    throw new BrowserLabPlanError(
+      "Candidate browser-lab evidence requires the complete launch matrix.",
+    );
+  }
+  const matrix = record(value, "browser launch matrix");
+  const productRole = matrix.productRole;
+  if (productRole !== "median" && productRole !== "maximum-row") {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix productRole must be median or maximum-row.",
+    );
+  }
+  if (!Array.isArray(matrix.locales) || matrix.locales.length === 0) {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix locales must be a nonempty array.",
+    );
+  }
+  const locales = matrix.locales.map((locale) => {
+    if (locale !== "en" && locale !== "zh-Hans") {
+      throw new BrowserLabPlanError(
+        "Browser launch matrix locale must be en or zh-Hans.",
+      );
+    }
+    return locale;
+  });
+  if (!Array.isArray(matrix.viewports) || matrix.viewports.length === 0) {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix viewports must be a nonempty array.",
+    );
+  }
+  const viewports = matrix.viewports.map((value, index) => {
+    const viewport = record(value, `browser launch matrix viewport ${index + 1}`);
+    return {
+      width: positiveInteger(
+        viewport.width,
+        `browser launch matrix viewport ${index + 1} width`,
+      ),
+      height: positiveInteger(
+        viewport.height,
+        `browser launch matrix viewport ${index + 1} height`,
+      ),
+    };
+  });
+  if (measurementClass === "candidate") {
+    const actualContexts = locales
+      .flatMap((locale) =>
+        viewports.map((viewport) =>
+          browserLaunchMatrixContextKey(locale, viewport),
+        ),
+      )
+      .sort();
+    const requiredContexts = [...REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS].sort();
+    if (
+      actualContexts.length !== requiredContexts.length ||
+      actualContexts.some(
+        (context, index) => context !== requiredContexts[index],
+      )
+    ) {
+      throw new BrowserLabPlanError(
+        "Candidate browser-lab evidence requires both locales at 1440x900, 1024x768, 768x1024, 390x844, and 320x568.",
+      );
+    }
+  }
+  return { productRole, locales, viewports };
 }
 
 function requiredJourney(
@@ -220,7 +318,7 @@ function validateJourney(
   const actionsInput = journey.actions;
   if (!Array.isArray(actionsInput) || actionsInput.length !== REQUIRED_ACTION_KINDS.length) {
     throw new BrowserLabPlanError(
-      `${productRole} journey must declare exactly the select-context, analyze, change-candidate-market, open-score-detail, and close-score-detail actions in order.`,
+      `${productRole} journey must declare exactly the select-context, analyze, open-market-analysis, open-score-detail, and close-score-detail actions in order.`,
     );
   }
   return {
@@ -239,7 +337,7 @@ function validateJourney(
       ),
       validateAction(
         record(actionsInput[2], `${productRole} journey action 3`),
-        "change-candidate-market",
+        "open-market-analysis",
         productRole,
       ),
       validateAction(
@@ -268,9 +366,9 @@ function validateAction(
 ): BrowserLabAnalyzeAction;
 function validateAction(
   action: Record<string, unknown>,
-  expectedKind: "change-candidate-market",
+  expectedKind: "open-market-analysis",
   productRole: BrowserLabProductRole,
-): BrowserLabChangeCandidateMarketAction;
+): BrowserLabOpenMarketAnalysisAction;
 function validateAction(
   action: Record<string, unknown>,
   expectedKind: "open-score-detail",
@@ -338,13 +436,17 @@ function validateAction(
           `${productRole} analyze complete-list locator`,
         ),
       };
-    case "change-candidate-market":
+    case "open-market-analysis":
       return {
-        kind: "change-candidate-market",
+        kind: "open-market-analysis",
         label,
-        candidateLocator: validateLocator(
-          action.candidateLocator,
-          `${productRole} change-candidate-market candidate locator`,
+        marketLinkLocator: validateLocator(
+          action.marketLinkLocator,
+          `${productRole} open-market-analysis link locator`,
+        ),
+        completeAnalysisLocator: validateLocator(
+          action.completeAnalysisLocator,
+          `${productRole} open-market-analysis complete locator`,
         ),
       };
     case "open-score-detail":
@@ -436,45 +538,12 @@ function validateOrigin(
   value: unknown,
   measurementClass: BrowserLabMeasurementClass,
 ): string {
-  const raw = nonemptyString(value, "browser-lab plan origin");
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new BrowserLabPlanError(
-      "Browser-lab plan origin must be an absolute URL.",
-    );
-  }
-  if (parsed.username !== "" || parsed.password !== "") {
-    throw new BrowserLabPlanError(
-      "Browser-lab plan origin must not embed credentials.",
-    );
-  }
-  if (
-    (parsed.pathname !== "" && parsed.pathname !== "/") ||
-    parsed.search !== "" ||
-    parsed.hash !== ""
-  ) {
-    throw new BrowserLabPlanError(
-      "Browser-lab plan origin must not encode a cross-origin path, query, or fragment.",
-    );
-  }
-  const isLoopback =
-    parsed.hostname === "localhost" ||
-    parsed.hostname === "127.0.0.1" ||
-    parsed.hostname === "::1";
-  if (measurementClass === "candidate") {
-    if (parsed.protocol !== "https:") {
-      throw new BrowserLabPlanError(
-        "Candidate browser-lab evidence requires an HTTPS origin.",
-      );
-    }
-  } else if (parsed.protocol !== "http:" || !isLoopback) {
-    throw new BrowserLabPlanError(
-      "Local-smoke browser-lab evidence requires a loopback HTTP origin.",
-    );
-  }
-  return `${parsed.protocol}//${parsed.host}`;
+  return validateMeasurementOrigin(
+    value,
+    measurementClass,
+    "Browser-lab plan origin",
+    (message) => new BrowserLabPlanError(message),
+  );
 }
 
 function validateIdentity(value: unknown): PerformanceMeasurementIdentity {
@@ -604,9 +673,29 @@ export class BrowserLabExecutionError extends Error {
 // ---------------------------------------------------------------------------
 
 export type BrowserLabActionOutcome = {
+  readonly measurementStatus:
+    | "measured"
+    | "not-applicable-responsive-static";
   readonly interactionToNextPaintMs: number | null;
   readonly networkRequestUrls: readonly string[];
 };
+
+function responsiveStaticActionOutcome(): BrowserLabActionOutcome {
+  return {
+    measurementStatus: "not-applicable-responsive-static",
+    interactionToNextPaintMs: null,
+    networkRequestUrls: [],
+  };
+}
+
+export function resolveInteractionToNextPaintMs(
+  eventDurations: readonly number[],
+  fallbackMs: number,
+): number {
+  return eventDurations.length === 0
+    ? fallbackMs
+    : Math.max(...eventDurations);
+}
 
 export type BrowserLabCandidateResponseBytes = {
   readonly encodedBytes: number;
@@ -616,6 +705,10 @@ export type BrowserLabCandidateResponseBytes = {
 export type BrowserLabAnalyzeOutcome = {
   readonly analyzeToCompleteListMs: number | null;
   readonly candidateResponseBytes: BrowserLabCandidateResponseBytes | null;
+};
+
+export type BrowserLabOpenMarketAnalysisOutcome = BrowserLabActionOutcome & {
+  readonly marketAnalysisToCompleteMs: number | null;
 };
 
 export type BrowserLabPerformanceSnapshot = {
@@ -634,9 +727,9 @@ export interface BrowserLabTrialSession {
   navigate(origin: string): Promise<void>;
   selectContext(action: BrowserLabSelectContextAction): Promise<void>;
   analyze(action: BrowserLabAnalyzeAction): Promise<BrowserLabAnalyzeOutcome>;
-  changeCandidateMarket(
-    action: BrowserLabChangeCandidateMarketAction,
-  ): Promise<BrowserLabActionOutcome>;
+  openMarketAnalysis(
+    action: BrowserLabOpenMarketAnalysisAction,
+  ): Promise<BrowserLabOpenMarketAnalysisOutcome>;
   openScoreDetail(
     action: BrowserLabOpenScoreDetailAction,
   ): Promise<BrowserLabActionOutcome>;
@@ -651,6 +744,7 @@ export interface BrowserLabTrialSession {
 export interface BrowserLabDriver {
   openTrialSession(
     measurementClass: BrowserLabMeasurementClass,
+    profile?: MobileLabProfile,
   ): Promise<BrowserLabTrialSession>;
   dispose(): Promise<void>;
 }
@@ -662,10 +756,7 @@ export interface BrowserLabDriver {
 export type BrowserLabViolation =
   | {
       readonly kind: "client-local-network-request";
-      readonly interaction:
-        | "change-candidate-market"
-        | "open-score-detail"
-        | "close-score-detail";
+      readonly interaction: "open-score-detail" | "close-score-detail";
       readonly requestUrl: string;
     }
   | {
@@ -676,9 +767,11 @@ export type BrowserLabViolation =
 
 export type BrowserLabTrialDiagnostics = {
   readonly analyzeToCompleteListMs: number;
-  readonly candidateMarketChangeInteractionToNextPaintMs: number;
-  readonly scoreDetailOpenInteractionToNextPaintMs: number;
-  readonly scoreDetailCloseInteractionToNextPaintMs: number;
+  readonly marketAnalysisToCompleteMs: number;
+  readonly marketAnalysisOpenInteractionToNextPaintMs: number;
+  readonly scoreDetailPresentation: "interactive" | "responsive-static";
+  readonly scoreDetailOpenInteractionToNextPaintMs: number | null;
+  readonly scoreDetailCloseInteractionToNextPaintMs: number | null;
 };
 
 export type BrowserLabTrialFailure = {
@@ -709,16 +802,27 @@ export async function runBrowserLabTrial(
   origin: string,
   journey: BrowserLabJourney,
   trialIndex: number,
+  options: {
+    readonly locale?: BrowserLaunchMatrixLocale;
+    readonly profile?: MobileLabProfile;
+  } = {},
 ): Promise<BrowserLabTrialOutcome> {
-  const [selectContextAction, analyzeAction, changeAction, openAction, closeAction] =
-    journey.actions;
+  const [
+    selectContextAction,
+    analyzeAction,
+    openMarketAnalysisAction,
+    openAction,
+    closeAction,
+  ] = journey.actions;
   let session: BrowserLabTrialSession | null = null;
   try {
-    session = await driver.openTrialSession(measurementClass);
-    await session.navigate(origin);
+    session = await driver.openTrialSession(measurementClass, options.profile);
+    await session.navigate(candidateMarketEntryUrl(origin, options.locale));
     await session.selectContext(selectContextAction);
     const analyzeOutcome = await session.analyze(analyzeAction);
-    const changeOutcome = await session.changeCandidateMarket(changeAction);
+    const marketAnalysisOutcome = await session.openMarketAnalysis(
+      openMarketAnalysisAction,
+    );
     const openOutcome = await session.openScoreDetail(openAction);
     const closeOutcome = await session.closeScoreDetail(closeAction);
     const snapshot = await session.performanceSnapshot();
@@ -726,7 +830,6 @@ export async function runBrowserLabTrial(
 
     const violations: BrowserLabViolation[] = [];
     for (const [interaction, outcome] of [
-      ["change-candidate-market", changeOutcome],
       ["open-score-detail", openOutcome],
       ["close-score-detail", closeOutcome],
     ] as const) {
@@ -741,7 +844,7 @@ export async function runBrowserLabTrial(
 
     const unsupported = firstUnsupportedMeasurement({
       analyzeOutcome,
-      changeOutcome,
+      marketAnalysisOutcome,
       openOutcome,
       closeOutcome,
       snapshot,
@@ -764,17 +867,23 @@ export async function runBrowserLabTrial(
       };
     }
 
+    const detailInteractionToNextPaintMs = [
+      openOutcome.interactionToNextPaintMs,
+      closeOutcome.interactionToNextPaintMs,
+    ].filter((value): value is number => value !== null);
     // Fail-closed guards above guarantee these are non-null at this point.
     const metrics: BrowserLabTrialInput = {
       analyzeToCompleteListMs: nonNull(
         analyzeOutcome.analyzeToCompleteListMs,
       ),
+      marketAnalysisToCompleteMs: nonNull(
+        marketAnalysisOutcome.marketAnalysisToCompleteMs,
+      ),
       lcpMs: nonNull(snapshot.lcpMs),
       cls: nonNull(snapshot.cls),
       interactionToNextPaintMs: Math.max(
-        nonNull(changeOutcome.interactionToNextPaintMs),
-        nonNull(openOutcome.interactionToNextPaintMs),
-        nonNull(closeOutcome.interactionToNextPaintMs),
+        nonNull(marketAnalysisOutcome.interactionToNextPaintMs),
+        ...detailInteractionToNextPaintMs,
       ),
       longestTaskMs: nonNull(snapshot.longestTaskMs),
       criticalCompressedBytes: nonNull(bytes.firstPartyEncodedBytesBeforeLcp),
@@ -790,15 +899,20 @@ export async function runBrowserLabTrial(
     };
     const diagnostics: BrowserLabTrialDiagnostics = {
       analyzeToCompleteListMs: nonNull(analyzeOutcome.analyzeToCompleteListMs),
-      candidateMarketChangeInteractionToNextPaintMs: nonNull(
-        changeOutcome.interactionToNextPaintMs,
+      marketAnalysisToCompleteMs: nonNull(
+        marketAnalysisOutcome.marketAnalysisToCompleteMs,
       ),
-      scoreDetailOpenInteractionToNextPaintMs: nonNull(
+      marketAnalysisOpenInteractionToNextPaintMs: nonNull(
+        marketAnalysisOutcome.interactionToNextPaintMs,
+      ),
+      scoreDetailPresentation:
+        openOutcome.measurementStatus === "measured"
+          ? "interactive"
+          : "responsive-static",
+      scoreDetailOpenInteractionToNextPaintMs:
         openOutcome.interactionToNextPaintMs,
-      ),
-      scoreDetailCloseInteractionToNextPaintMs: nonNull(
+      scoreDetailCloseInteractionToNextPaintMs:
         closeOutcome.interactionToNextPaintMs,
-      ),
     };
 
     return {
@@ -830,26 +944,48 @@ export async function runBrowserLabTrial(
 
 function firstUnsupportedMeasurement(measurements: {
   analyzeOutcome: BrowserLabAnalyzeOutcome;
-  changeOutcome: BrowserLabActionOutcome;
+  marketAnalysisOutcome: BrowserLabOpenMarketAnalysisOutcome;
   openOutcome: BrowserLabActionOutcome;
   closeOutcome: BrowserLabActionOutcome;
   snapshot: BrowserLabPerformanceSnapshot;
   bytes: BrowserLabByteSummary;
 }): BrowserLabViolation | null {
+  if (
+    measurements.openOutcome.measurementStatus !==
+    measurements.closeOutcome.measurementStatus
+  ) {
+    return {
+      kind: "unsupported-measurement",
+      measurement: "score-detail responsive presentation",
+      reason:
+        "score-detail open and close actions reported inconsistent responsive presentations.",
+    };
+  }
+  for (const [measurement, outcome] of [
+    ["open-score-detail interaction-to-next-paint", measurements.openOutcome],
+    ["close-score-detail interaction-to-next-paint", measurements.closeOutcome],
+  ] as const) {
+    if (
+      (outcome.measurementStatus === "measured") !==
+      (outcome.interactionToNextPaintMs !== null)
+    ) {
+      return {
+        kind: "unsupported-measurement",
+        measurement,
+        reason: `${measurement} could not be measured accurately with the available CDP evidence.`,
+      };
+    }
+  }
   const checks: ReadonlyArray<readonly [string, unknown]> = [
     ["analyze-to-complete-list duration", measurements.analyzeOutcome.analyzeToCompleteListMs],
     ["Candidate Market response bytes", measurements.analyzeOutcome.candidateResponseBytes],
     [
-      "change-candidate-market interaction-to-next-paint",
-      measurements.changeOutcome.interactionToNextPaintMs,
+      "Market Analysis-to-complete duration",
+      measurements.marketAnalysisOutcome.marketAnalysisToCompleteMs,
     ],
     [
-      "open-score-detail interaction-to-next-paint",
-      measurements.openOutcome.interactionToNextPaintMs,
-    ],
-    [
-      "close-score-detail interaction-to-next-paint",
-      measurements.closeOutcome.interactionToNextPaintMs,
+      "open-market-analysis interaction-to-next-paint",
+      measurements.marketAnalysisOutcome.interactionToNextPaintMs,
     ],
     ["largest contentful paint", measurements.snapshot.lcpMs],
     ["cumulative layout shift", measurements.snapshot.cls],
@@ -906,6 +1042,19 @@ export type BrowserLabProductReport = {
   readonly failedTrialCount: number;
 };
 
+export type BrowserLabLaunchMatrixTrial = {
+  readonly locale: BrowserLaunchMatrixLocale;
+  readonly viewport: BrowserLaunchMatrixViewport;
+  readonly outcome: BrowserLabTrialOutcome;
+};
+
+export type BrowserLabLaunchMatrixReport = {
+  readonly productRole: BrowserLabProductRole;
+  readonly trials: readonly BrowserLabLaunchMatrixTrial[];
+  readonly measuredTrialCount: number;
+  readonly failedTrialCount: number;
+};
+
 export type BrowserLabReport = {
   readonly schemaVersion: "browser-lab-report-v1";
   readonly measurementClass: BrowserLabMeasurementClass;
@@ -917,6 +1066,7 @@ export type BrowserLabReport = {
     readonly median: BrowserLabProductReport;
     readonly "maximum-row": BrowserLabProductReport;
   };
+  readonly launchMatrix: BrowserLabLaunchMatrixReport;
 };
 
 export async function runBrowserLab(
@@ -930,6 +1080,7 @@ export async function runBrowserLab(
   const [median, maximumRow] = plan.journeys;
   const medianReport = await runJourney(driver, plan, median);
   const maximumRowReport = await runJourney(driver, plan, maximumRow);
+  const launchMatrix = await runLaunchMatrix(driver, plan);
 
   return {
     schemaVersion: "browser-lab-report-v1",
@@ -942,6 +1093,7 @@ export async function runBrowserLab(
       median: medianReport,
       "maximum-row": maximumRowReport,
     },
+    launchMatrix,
   };
 }
 
@@ -998,6 +1150,76 @@ async function runJourney(
   };
 }
 
+async function runLaunchMatrix(
+  driver: BrowserLabDriver,
+  plan: BrowserLabPlan,
+): Promise<BrowserLabLaunchMatrixReport> {
+  const journey = plan.journeys.find(
+    (candidate) => candidate.productRole === plan.launchMatrix.productRole,
+  );
+  if (journey === undefined) {
+    throw new BrowserLabPlanError(
+      "Browser launch matrix does not reference a declared journey.",
+    );
+  }
+  const trials: BrowserLabLaunchMatrixTrial[] = [];
+  for (const locale of plan.launchMatrix.locales) {
+    for (const viewport of plan.launchMatrix.viewports) {
+      const outcome = await runBrowserLabTrial(
+        driver,
+        plan.measurementClass,
+        plan.origin,
+        journey,
+        trials.length,
+        {
+          locale,
+          profile: launchMatrixProfile(viewport),
+        },
+      );
+      trials.push({ locale, viewport, outcome });
+    }
+  }
+  return {
+    productRole: journey.productRole,
+    trials,
+    measuredTrialCount: trials.filter(
+      (trial) => trial.outcome.status === "measured",
+    ).length,
+    failedTrialCount: trials.filter(
+      (trial) => trial.outcome.status === "failed",
+    ).length,
+  };
+}
+
+function candidateMarketEntryUrl(
+  origin: string,
+  locale: BrowserLaunchMatrixLocale | undefined,
+): string {
+  const url = new URL(origin);
+  url.searchParams.set("recipe", "candidate-market-v1");
+  if (locale !== undefined && locale !== "en") {
+    url.searchParams.set("locale", locale);
+  }
+  return url.href;
+}
+
+function launchMatrixProfile(
+  viewport: BrowserLaunchMatrixViewport,
+): MobileLabProfile {
+  const isMobile = viewport.width <= 390;
+  return {
+    ...MOBILE_LAB_PROFILE,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+    deviceScaleFactor: isMobile ? 3 : 1,
+    isMobile,
+    hasTouch: isMobile,
+    userAgent: isMobile
+      ? MOBILE_LAB_PROFILE.userAgent
+      : "Mozilla/5.0 (X11; Linux x86_64; HSTracker Browser Lab) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Real Chromium/CDP driver. Not exercised by unit tests; the orchestration
 // above is what is covered by injected fake drivers.
@@ -1023,7 +1245,10 @@ type LabInstrumentationBuffer = {
   lcpMs: number | null;
   lcpWallClockMs: number | null;
   layoutShiftScore: number;
-  longestTaskMs: number;
+  longTaskEntries: Array<{
+    readonly startTime: number;
+    readonly duration: number;
+  }>;
   eventTimingEntries: Array<{
     readonly startTime: number;
     readonly duration: number;
@@ -1049,7 +1274,7 @@ function installLabInstrumentation(): void {
     lcpMs: null,
     lcpWallClockMs: null,
     layoutShiftScore: 0,
-    longestTaskMs: 0,
+    longTaskEntries: [],
     eventTimingEntries: [],
     observers: [],
     observerErrors: [],
@@ -1090,10 +1315,10 @@ function installLabInstrumentation(): void {
       "longtask",
       (entries) => {
         for (const entry of entries) {
-          buffer.longestTaskMs = Math.max(
-            buffer.longestTaskMs,
-            entry.duration,
-          );
+          buffer.longTaskEntries.push({
+            startTime: entry.startTime,
+            duration: entry.duration,
+          });
         }
       },
     ],
@@ -1138,6 +1363,21 @@ export function createBrowserLabInstrumentationScript(): string {
   return `((__name) => { (${installLabInstrumentation.toString()})(); })((target) => target);`;
 }
 
+export function resolveLongestScriptedTaskMs(
+  entries: ReadonlyArray<{
+    readonly startTime: number;
+    readonly duration: number;
+  }>,
+  scriptedInteractionStartMs: number,
+): number {
+  return entries
+    .filter((entry) => entry.startTime >= scriptedInteractionStartMs)
+    .reduce(
+      (longestTaskMs, entry) => Math.max(longestTaskMs, entry.duration),
+      0,
+    );
+}
+
 export function createPlaywrightBrowserLabDriver(
   profile: MobileLabProfile = MOBILE_LAB_PROFILE,
 ): BrowserLabDriver {
@@ -1153,10 +1393,16 @@ export function createPlaywrightBrowserLabDriver(
   };
 
   return {
-    async openTrialSession(): Promise<BrowserLabTrialSession> {
+    async openTrialSession(
+      _measurementClass,
+      trialProfile = profile,
+    ): Promise<BrowserLabTrialSession> {
       const browser = await openBrowser();
       const context = await browser.newContext({
-        viewport: { width: profile.viewportWidth, height: profile.viewportHeight },
+        viewport: {
+          width: trialProfile.viewportWidth,
+          height: trialProfile.viewportHeight,
+        },
         extraHTTPHeaders: {
           "Cache-Control": "no-cache",
           "X-HS-Tracker-Probe": "external-v1",
@@ -1164,7 +1410,12 @@ export function createPlaywrightBrowserLabDriver(
       });
       const page = await context.newPage();
       const cdp = await context.newCDPSession(page);
-      return new PlaywrightBrowserLabSession(context, page, cdp, profile);
+      return new PlaywrightBrowserLabSession(
+        context,
+        page,
+        cdp,
+        trialProfile,
+      );
     },
     async dispose(): Promise<void> {
       if (browserPromise !== null) {
@@ -1188,6 +1439,11 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     null;
   private pendingInteractionRequestUrls: string[] | null = null;
   private pageOrigin = "";
+  private scriptedInteractionStartMs: number | null = null;
+  private scoreDetailPresentation:
+    | "interactive"
+    | "responsive-static"
+    | null = null;
 
   constructor(
     private readonly context: import("@playwright/test").BrowserContext,
@@ -1264,6 +1520,16 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
       content: createBrowserLabInstrumentationScript(),
     });
     await this.page.goto(origin, { waitUntil: "load" });
+    // Lighthouse owns page-load responsiveness. Start the separately scripted
+    // interaction window only after the loaded page has painted and settled.
+    this.scriptedInteractionStartMs = await this.page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => resolve(performance.now())),
+          );
+        }),
+    );
   }
 
   async selectContext(action: BrowserLabSelectContextAction): Promise<void> {
@@ -1296,19 +1562,37 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     };
   }
 
-  async changeCandidateMarket(
-    action: BrowserLabChangeCandidateMarketAction,
-  ): Promise<BrowserLabActionOutcome> {
-    return this.measureClientLocalInteraction(async () => {
-      await this.locatorFor(action.candidateLocator).click();
+  async openMarketAnalysis(
+    action: BrowserLabOpenMarketAnalysisAction,
+  ): Promise<BrowserLabOpenMarketAnalysisOutcome> {
+    const startedAtMs = await this.page.evaluate(() => performance.now());
+    const outcome = await this.measureInteraction(async () => {
+      await this.locatorFor(action.marketLinkLocator).click();
+      await this.locatorFor(action.completeAnalysisLocator).waitFor({
+        state: "visible",
+      });
     });
+    const finishedAtMs = await this.page.evaluate(() => performance.now());
+    return {
+      ...outcome,
+      marketAnalysisToCompleteMs: finishedAtMs - startedAtMs,
+    };
   }
 
   async openScoreDetail(
     action: BrowserLabOpenScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
-    return this.measureClientLocalInteraction(async () => {
-      await this.locatorFor(action.openTriggerLocator).click();
+    const openTrigger = this.locatorFor(action.openTriggerLocator);
+    await this.requireSingleScoreDetailTrigger(openTrigger);
+    if (!(await openTrigger.isVisible())) {
+      await this.requireVisibleControlledScoreDetail(openTrigger);
+      this.scoreDetailPresentation = "responsive-static";
+      return responsiveStaticActionOutcome();
+    }
+    this.scoreDetailPresentation = "interactive";
+    await openTrigger.scrollIntoViewIfNeeded();
+    return this.measureInteraction(async () => {
+      await openTrigger.click();
       await this.locatorFor(action.detailLocator).waitFor({ state: "visible" });
     });
   }
@@ -1316,8 +1600,25 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   async closeScoreDetail(
     action: BrowserLabCloseScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
-    return this.measureClientLocalInteraction(async () => {
-      await this.locatorFor(action.closeTriggerLocator).click();
+    const closeTrigger = this.locatorFor(action.closeTriggerLocator);
+    await this.requireSingleScoreDetailTrigger(closeTrigger);
+    if (this.scoreDetailPresentation === "responsive-static") {
+      if (await closeTrigger.isVisible()) {
+        throw new BrowserLabExecutionError(
+          "Responsive-static score details unexpectedly exposed a close trigger.",
+        );
+      }
+      await this.requireVisibleControlledScoreDetail(closeTrigger);
+      return responsiveStaticActionOutcome();
+    }
+    if (this.scoreDetailPresentation !== "interactive") {
+      throw new BrowserLabExecutionError(
+        "Score details must be opened before they can be closed.",
+      );
+    }
+    await closeTrigger.scrollIntoViewIfNeeded();
+    return this.measureInteraction(async () => {
+      await closeTrigger.click();
     });
   }
 
@@ -1327,10 +1628,21 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
       return {
         lcpMs: buffer?.lcpMs ?? null,
         cls: buffer?.layoutShiftScore ?? null,
-        longestTaskMs: buffer === undefined ? null : buffer.longestTaskMs,
+        longTaskEntries: buffer?.longTaskEntries ?? null,
       };
     });
-    return snapshot;
+    return {
+      lcpMs: snapshot.lcpMs,
+      cls: snapshot.cls,
+      longestTaskMs:
+        snapshot.longTaskEntries === null ||
+        this.scriptedInteractionStartMs === null
+          ? null
+          : resolveLongestScriptedTaskMs(
+              snapshot.longTaskEntries,
+              this.scriptedInteractionStartMs,
+            ),
+    };
   }
 
   async byteSummary(): Promise<BrowserLabByteSummary> {
@@ -1364,7 +1676,7 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     await this.context.close();
   }
 
-  private async measureClientLocalInteraction(
+  private async measureInteraction(
     perform: () => Promise<void>,
   ): Promise<BrowserLabActionOutcome> {
     this.pendingInteractionRequestUrls = [];
@@ -1394,12 +1706,45 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     // The direct click-to-paint window is a conservative fallback when
     // Chromium omits a fast interaction from the Event Timing buffer.
     return {
-      interactionToNextPaintMs:
-        newDurations.length === 0
-          ? nextPaintAtMs - startedAtMs
-          : Math.max(nextPaintAtMs - startedAtMs, ...newDurations),
+      measurementStatus: "measured",
+      interactionToNextPaintMs: resolveInteractionToNextPaintMs(
+        newDurations,
+        nextPaintAtMs - startedAtMs,
+      ),
       networkRequestUrls,
     };
+  }
+
+  private async requireSingleScoreDetailTrigger(
+    trigger: import("@playwright/test").Locator,
+  ): Promise<void> {
+    await trigger.waitFor({ state: "attached" });
+    if ((await trigger.count()) !== 1) {
+      throw new BrowserLabExecutionError(
+        "Browser-lab score-detail locator must resolve to exactly one trigger.",
+      );
+    }
+  }
+
+  private async requireVisibleControlledScoreDetail(
+    trigger: import("@playwright/test").Locator,
+  ): Promise<void> {
+    const visible = await trigger.evaluate((element) => {
+      const controlledId = element.getAttribute("aria-controls");
+      const detail =
+        controlledId === null ? null : document.getElementById(controlledId);
+      return (
+        detail !== null &&
+        (detail.clientWidth > 0 ||
+          detail.clientHeight > 0 ||
+          detail.getClientRects().length > 0)
+      );
+    });
+    if (!visible) {
+      throw new BrowserLabExecutionError(
+        "Responsive-static score details must remain visibly linked to their hidden trigger.",
+      );
+    }
   }
 
   private async recordLoadingFinished(

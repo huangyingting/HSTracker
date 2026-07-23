@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "external-smoke-and-observability",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T21:09:00Z",
+  "windowStartedAt": "2026-07-23T21:06:00Z",
+  "windowEndedAt": "2026-07-23T21:09:00Z",
+  "sampleCount": 57,
+  "checks": [
+    {
+      "name": "external-smoke",
+      "status": "accepted",
+      "detail": "6/6 public route families served 2xx from the exact d12b822 image, candidate deployment pairing, artifact, and Source Freshness Status."
+    },
+    {
+      "name": "request-sli",
+      "status": "accepted",
+      "detail": "48/48 real non-synthetic requests succeeded; every request SLI group was measurable at success fraction 1.0 >= 0.995."
+    },
+    {
+      "name": "probe-sli",
+      "status": "accepted",
+      "detail": "3/3 aligned current-manifest and pinned-analysis probe intervals succeeded at success fraction 1."
+    },
+    {
+      "name": "alerts-and-dashboard",
+      "status": "accepted",
+      "detail": "95/95 observability dashboard, service-level, alert, and resolution contract tests passed."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/external-smoke-report.json",
+      "sha256": "cf7664194df4e5e27c8c255f568a6b1be5d197525b359407e8da723f8a640c82"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/observability-alert-tests.json",
+      "sha256": "db27797062add67491a1c6b0e715883977529b4acad255e3ba97a6083ea3ad27"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/external-smoke-health.json",
+      "sha256": "62d11425d27347fec39e34fe2ca63f770c6ec236a850cec5b984db6dfb4810b2"
+    }
+  ]
+}

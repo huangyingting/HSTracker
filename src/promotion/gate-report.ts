@@ -161,6 +161,10 @@ export function buildGate(input: BuildGateInput): BuiltGate {
       name: check.name,
       status: check.status,
     })),
+    retainedLogDigests: (input.additionalRetainedLogs ?? []).map((log) => ({
+      path: log.path,
+      sha256: log.sha256,
+    })),
   };
   const reportJson = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
   const reportSha256 = sha256(reportJson);

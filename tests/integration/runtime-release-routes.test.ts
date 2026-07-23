@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GET as getCurrent } from "../../src/app/api/v1/analyses/current/route";
 import { GET as getCandidateMarkets } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets/route";
 import { GET as getCandidateMarketsCsv } from "../../src/app/api/v1/analyses/[analysisBuildId]/candidate-markets.csv/route";
+import { GET as getMarketAnalysis } from "../../src/app/api/v1/analyses/[analysisBuildId]/market-analysis/route";
 import { GET as getEconomies } from "../../src/app/api/v1/analyses/[analysisBuildId]/economies/route";
 import { GET as getProducts } from "../../src/app/api/v1/product-catalogs/[productSearchBuildId]/products/route";
 import { GET as getHealth } from "../../src/app/healthz/route";
@@ -42,7 +43,7 @@ afterEach(async () => {
 });
 
 describe("verified release route integration", () => {
-  it("serves one paired real release through all versioned read interfaces", async () => {
+  it("[launch-evidence:current-and-retired-replay] serves current Market Analysis reproducibly and rejects retired replay through the paired release", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-routes-"));
     temporaryDirectories.push(root);
     const candidate = await writeRuntimeReleaseCandidate(
@@ -86,6 +87,13 @@ describe("verified release route integration", () => {
       routeContext("analysisBuildId", published.analysisBuildId),
     );
     const analysisBody = await analysis.text();
+    const marketAnalysis = await getRuntimeMarketAnalysis(
+      published.analysisBuildId,
+    );
+    const repeatedMarketAnalysis = await getRuntimeMarketAnalysis(
+      published.analysisBuildId,
+    );
+    const marketAnalysisBody = await marketAnalysis.text();
     const products = await getProducts(
       new Request(
         `http://localhost/api/v1/product-catalogs/${published.productSearchBuildId}/products` +
@@ -164,6 +172,9 @@ describe("verified release route integration", () => {
       ),
       routeContext("analysisBuildId", retiredAnalysisBuildId),
     );
+    const retiredMarketAnalysis = await getRuntimeMarketAnalysis(
+      retiredAnalysisBuildId,
+    );
     const retiredProducts = await getProducts(
       new Request(
         `http://localhost/api/v1/product-catalogs/${retiredProductSearchBuildId}/products` +
@@ -179,6 +190,7 @@ describe("verified release route integration", () => {
       current: currentBody,
       health: await health.json(),
       analysis: JSON.parse(analysisBody),
+      marketAnalysis: JSON.parse(marketAnalysisBody),
       products: await products.json(),
       economies: await economies.json(),
       csv: {
@@ -193,6 +205,8 @@ describe("verified release route integration", () => {
       retired: {
         analysisStatus: retiredAnalysis.status,
         analysisError: await retiredAnalysis.json(),
+        marketAnalysisStatus: retiredMarketAnalysis.status,
+        marketAnalysisError: await retiredMarketAnalysis.json(),
         productStatus: retiredProducts.status,
         productError: await retiredProducts.json(),
       },
@@ -219,6 +233,15 @@ describe("verified release route integration", () => {
           published.analysisReleaseCatalogSha256,
         provenance: { baciRelease: published.baciRelease },
       },
+      marketAnalysis: {
+        schemaVersion: "market-analysis-v1",
+        context: {
+          analysisBuildId: published.analysisBuildId,
+          exporter: { code: RUNTIME_RELEASE_FIXTURE.exporterCode },
+          product: { code: RUNTIME_RELEASE_FIXTURE.productCode },
+          market: { code: "276" },
+        },
+      },
       products: {
         productSearchBuildId: published.productSearchBuildId,
         matches: [
@@ -241,6 +264,10 @@ describe("verified release route integration", () => {
         analysisError: {
           error: { code: "ANALYSIS_BUILD_RETIRED" },
         },
+        marketAnalysisStatus: 410,
+        marketAnalysisError: {
+          error: { code: "ANALYSIS_BUILD_RETIRED" },
+        },
         productStatus: 410,
         productError: {
           error: { code: "PRODUCT_SEARCH_BUILD_RETIRED" },
@@ -249,10 +276,11 @@ describe("verified release route integration", () => {
       requestTimeObjectReads: 0,
     });
     expect(analysisBody).toBe(JSON.stringify(platformOutcome.payload));
+    expect(await repeatedMarketAnalysis.text()).toBe(marketAnalysisBody);
     expect(csvBytes).toEqual(platformCsv.bytes);
   }, 20_000);
 
-  it("binds a retained build's own manifests, catalog, and freshness -- never current's -- for JSON and CSV routes", async () => {
+  it("[launch-evidence:retained-replay] replays retained Market Analysis from its own release while current remains independently reproducible", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-routes-"));
     temporaryDirectories.push(root);
     const firstCandidate = await writeRuntimeReleaseCandidate(
@@ -311,6 +339,14 @@ describe("verified release route integration", () => {
       routeContext("analysisBuildId", first.analysisBuildId),
     );
     const retainedAnalysisBody = await retainedAnalysis.json();
+    const retainedMarketAnalysis = await getRuntimeMarketAnalysis(
+      first.analysisBuildId,
+    );
+    const retainedMarketAnalysisBody = await retainedMarketAnalysis.json();
+    const currentMarketAnalysis = await getRuntimeMarketAnalysis(
+      second.analysisBuildId,
+    );
+    const currentMarketAnalysisBody = await currentMarketAnalysis.json();
 
     const retainedCsvUrl = new URL(
       `http://localhost/api/v1/analyses/${first.analysisBuildId}/candidate-markets.csv`,
@@ -361,6 +397,12 @@ describe("verified release route integration", () => {
       retainedAnalysisBuildId: retainedAnalysisBody.analysisBuildId,
       retainedAnalysisReleaseCatalogSha256:
         retainedAnalysisBody.analysisReleaseCatalogSha256,
+      retainedMarketAnalysisStatus: retainedMarketAnalysis.status,
+      retainedMarketAnalysisBuildId:
+        retainedMarketAnalysisBody.context.analysisBuildId,
+      currentMarketAnalysisStatus: currentMarketAnalysis.status,
+      currentMarketAnalysisBuildId:
+        currentMarketAnalysisBody.context.analysisBuildId,
       retainedCsvStatus: retainedCsv.status,
       retainedCsvHasOwnProductSearchBuild: retainedCsvBody.includes(
         first.productSearchBuildId,
@@ -374,6 +416,10 @@ describe("verified release route integration", () => {
       retainedAnalysisBuildId: first.analysisBuildId,
       retainedAnalysisReleaseCatalogSha256:
         first.analysisReleaseCatalogSha256,
+      retainedMarketAnalysisStatus: 200,
+      retainedMarketAnalysisBuildId: first.analysisBuildId,
+      currentMarketAnalysisStatus: 200,
+      currentMarketAnalysisBuildId: second.analysisBuildId,
       retainedCsvStatus: 200,
       retainedCsvHasOwnProductSearchBuild: true,
       retainedCsvHasCurrentProductSearchBuild: false,
@@ -490,4 +536,15 @@ async function getOpportunityFeed(analysisBuildId: string) {
       ...unknown[],
     ];
   };
+}
+
+function getRuntimeMarketAnalysis(analysisBuildId: string) {
+  return getMarketAnalysis(
+    new Request(
+      `http://localhost/api/v1/analyses/${analysisBuildId}/market-analysis` +
+        `?exporter=${RUNTIME_RELEASE_FIXTURE.exporterCode}` +
+        `&product=${RUNTIME_RELEASE_FIXTURE.productCode}&market=276`,
+    ),
+    routeContext("analysisBuildId", analysisBuildId),
+  );
 }

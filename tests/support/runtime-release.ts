@@ -44,6 +44,7 @@ export type TradeTrendEquivalenceEconomy = {
   displayName: string;
   iso2: string | null;
   iso3: string | null;
+  kind?: "ECONOMY" | "AGGREGATE";
 };
 
 export type TradeTrendEquivalenceRow = {
@@ -506,13 +507,14 @@ async function writeRuntimeDuckDb(
       await connection.run(
         `
           INSERT INTO economy VALUES
-            ($code, $display_name, $iso2, $iso3, 'ECONOMY', FALSE, NULL, FALSE)
+            ($code, $display_name, $iso2, $iso3, $kind, FALSE, NULL, FALSE)
         `,
         {
           code: economy.code,
           display_name: economy.displayName,
           iso2: economy.iso2,
           iso3: economy.iso3,
+          kind: economy.kind ?? "ECONOMY",
         },
       );
     }

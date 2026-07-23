@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 
 describe("verified release runtime", () => {
-  it("reaches readiness from an empty volume with exact release identities", async () => {
+  it("[launch-evidence:startup-smoke] reaches readiness only after the composed Market Analysis startup smoke with exact release identities", async () => {
     const root = await mkdtemp(join(tmpdir(), "hs-tracker-runtime-"));
     temporaryDirectories.push(root);
     const candidate = await writeRuntimeReleaseCandidate(
@@ -117,7 +117,7 @@ describe("verified release runtime", () => {
       analysisExecution: {
         active: 0,
         queued: 0,
-        maxConcurrent: 2,
+        maxConcurrent: 4,
         maxQueued: 16,
       },
       caches: {
@@ -128,10 +128,10 @@ describe("verified release runtime", () => {
         safetyReserveBytes: 15 * 1024 * 1024,
       },
       duckDb: {
-        connections: 2,
+        connections: 4,
         activeConnections: 0,
         queued: 0,
-        threads: 2,
+        threads: 1,
         memoryLimit: "1GiB",
         tempDirectory: join(root, "volume", "spill"),
         maxTempDirectorySize: "4GiB",

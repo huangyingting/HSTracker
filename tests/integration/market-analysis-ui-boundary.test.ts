@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../support/market-analysis-production-boundary";
+
 // Static architecture assertions for the Market Analysis presentation
 // layer (spec: docs/spec/export-market-analysis-workspace.md §11.5;
 // docs/spec/export-market-analysis-workspace-ui-design.md §19.5; issue
@@ -18,15 +20,6 @@ const MARKET_ANALYSIS_UI_FILES = [
   "src/app/market-analysis-client.ts",
   "src/app/market-analysis-view.tsx",
   "src/app/market-analysis-panels.tsx",
-];
-
-const QUESTION_RUNTIME_PATTERNS = [
-  /\bAnalystQuestionId\b/u,
-  /\bquestionAnswers\b/u,
-  /analyst-question-catalog/u,
-  /\bAQ-\d{2}\b/u,
-  /\banswer\s*\(\s*questionId/u,
-  /\bAnswerCard\b/u,
 ];
 
 // Formula shapes that would prove React recomputed an already-owned
@@ -72,7 +65,7 @@ describe("Market Analysis presentation boundary", () => {
   it("keeps AQ identifiers, a question catalog, and question dispatch out of the presentation Modules", async () => {
     const sources = await readSources();
     for (const { path, source } of sources) {
-      for (const pattern of QUESTION_RUNTIME_PATTERNS) {
+      for (const pattern of MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS) {
         expect(source, path).not.toMatch(pattern);
       }
     }

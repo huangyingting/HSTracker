@@ -7,6 +7,7 @@ import type {
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 import {
   REQUIRED_PRODUCT_ROLES,
+  type OriginBenchmarkCapabilities,
   type PerformanceMeasurementIdentity,
   type PerformanceProductRole,
 } from "./performance-gates";
@@ -21,6 +22,7 @@ export type RuntimeIdentityAttestation = {
   readonly schemaVersion: "runtime-identity-attestation-v1";
   readonly origin: string;
   readonly identity: PerformanceMeasurementIdentity;
+  readonly capabilities: OriginBenchmarkCapabilities;
   readonly benchmarkQueries: readonly AnalysisArtifactBenchmarkQuery[];
   readonly tradeExplorerBenchmarkQueries: readonly TradeExplorerArtifactBenchmarkQuery[];
   readonly health: {
@@ -85,6 +87,20 @@ export async function attestRuntimeIdentity(
     );
   }
   const source = object(manifestBody.source, "current manifest source");
+  const recommendation = object(
+    manifestBody.recommendation,
+    "current manifest recommendation",
+  );
+  const capabilities = {
+    recentTradeMomentum: optionalRecommendationAvailable(
+      recommendation.recentTradeMomentum,
+      "Recent Trade Momentum",
+    ),
+    opportunityDiscovery: optionalRecommendationAvailable(
+      recommendation.opportunityDiscovery,
+      "Opportunity Discovery",
+    ),
+  };
   const benchmarkQueries = parseBenchmarkQueries(
     manifestBody.benchmarkQueries,
   );
@@ -148,6 +164,7 @@ export async function attestRuntimeIdentity(
     schemaVersion: "runtime-identity-attestation-v1",
     origin,
     identity: observed,
+    capabilities,
     benchmarkQueries,
     tradeExplorerBenchmarkQueries,
     health: {
@@ -161,6 +178,17 @@ export async function attestRuntimeIdentity(
       schemaVersion: "current-analysis-manifest-v1",
     },
   };
+}
+
+function optionalRecommendationAvailable(
+  value: unknown,
+  label: string,
+): boolean {
+  if (value === null) {
+    return false;
+  }
+  object(value, `current manifest ${label} recommendation`);
+  return true;
 }
 
 function parseBenchmarkQueries(

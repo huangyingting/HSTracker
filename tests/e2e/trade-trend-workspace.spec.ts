@@ -74,7 +74,7 @@ test("an analyst can select Trade Trend by keyboard, share it, and change locale
   ).toBeVisible();
 });
 
-test("an analyst downloads the complete contextual Trade Trend CSV", async ({
+test("[launch-evidence:trade-trend-csv] an analyst downloads the complete contextual Trade Trend CSV", async ({
   page,
 }) => {
   let exportUrl: URL | null = null;

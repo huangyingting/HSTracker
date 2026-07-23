@@ -72,7 +72,7 @@ async function expectMexicoHorseCandidate(page: Page) {
   expect((await mexico.innerText()).match(/010121/gu) ?? []).toHaveLength(1);
 }
 
-test("all-product browse, product discovery, and known-product links reach the same canonical row values", async ({
+test("[launch-evidence:cross-product-opportunities] all-product browse, product discovery, and known-product links reach the same canonical row values", async ({
   page,
 }) => {
   await page.goto("/");
@@ -129,7 +129,7 @@ test("all-product browse, product discovery, and known-product links reach the s
   await expectMexicoHorseCandidate(page);
 });
 
-test("opportunity copy is honest and context survives filter, history, copied links, locale, and mobile", async ({
+test("[launch-evidence:unvalidated-market-gap] opportunity copy is honest and context survives filter, history, copied links, locale, and mobile", async ({
   page,
   browser,
 }) => {

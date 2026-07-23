@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "coalescing-and-capacity-measurement-v1",
+  "analysisBuildId": "acceptance-fixtures-v1",
+  "measuredAt": "2026-07-23T19:39:32Z",
+  "policy": {
+    "maxConcurrentAnalyses": 4,
+    "maxQueuedAnalyses": 16,
+    "queueWaitTimeoutMs": 5000
+  },
+  "coalescing": {
+    "requestCount": 10,
+    "computations": 1,
+    "singleComputation": true,
+    "allResultsIdentical": true,
+    "allSucceeded": true
+  },
+  "capacity": {
+    "admittedCount": 20,
+    "queueFullRejected": true,
+    "queueFullReason": "queue-full",
+    "queueTimeoutRejected": true,
+    "queueTimeoutReason": "queue-timeout",
+    "admittedRecovered": true,
+    "recoveredAfterTimeout": true
+  }
+}

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
@@ -11,9 +11,16 @@ import {
   isRequestDeadlineExceededError,
 } from "../../src/runtime/request-deadline";
 import type { PromotionEvidenceStatus } from "../../src/promotion/promotion-report";
+import {
+  parseOriginBenchmarkPlan,
+  type OriginBenchmarkPlan,
+} from "../../src/promotion/http-performance-runner";
+import type {
+  OriginBenchmarkOperation,
+  PerformanceProductRole,
+} from "../../src/promotion/performance-gates";
 
 const REPO_ROOT = process.cwd();
-const DEFAULT_BASE_URL = "http://127.0.0.1:3200";
 const DEFAULT_OUT_DIR = "reports/promotion/candidate/checks";
 const DEFAULT_EVIDENCE =
   "reports/promotion/candidate/evidence/http-cache-and-deadlines-evidence.json";
@@ -31,6 +38,10 @@ interface CacheObservation {
   cacheControl: string | null;
   expectedCacheControl: string;
   revalidationStatus: number;
+  headStatus: number;
+  headEtag: string | null;
+  headCacheControl: string | null;
+  headBodyBytes: number;
   passed: boolean;
   reason: string | null;
 }
@@ -53,19 +64,28 @@ void main().catch((error: unknown) => {
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
-      "base-url": { type: "string" },
+      "origin-plan": { type: "string" },
       "out-dir": { type: "string" },
       evidence: { type: "string" },
     },
     strict: true,
     allowPositionals: false,
   });
-  const baseUrl = (values["base-url"] ?? DEFAULT_BASE_URL).replace(/\/$/u, "");
+  const originPlanPath = required(
+    values["origin-plan"],
+    "--origin-plan is required.",
+  );
+  const originPlanBytes = await readFile(join(REPO_ROOT, originPlanPath));
+  const originPlan = parseOriginBenchmarkPlan(
+    parseJson(originPlanBytes, `origin plan ${originPlanPath}`),
+  );
+  const cachePlan = resolveCachePlan(originPlan);
+  const baseUrl = originPlan.origin;
   const outDir = values["out-dir"] ?? DEFAULT_OUT_DIR;
   const evidencePath = values.evidence ?? DEFAULT_EVIDENCE;
 
   const windowStartedAt = utcNow();
-  const cacheObservations = await measureCache(baseUrl);
+  const cacheObservations = await measureCache(baseUrl, cachePlan);
   const deadlineObservations = await measureDeadlines();
   const windowEndedAt = utcNow();
 
@@ -82,7 +102,13 @@ async function main(): Promise<void> {
 
   const evidence = {
     schemaVersion: "http-cache-and-deadlines-evidence-v1",
+    measurementClass: originPlan.measurementClass,
+    identity: originPlan.identity,
     baseUrl,
+    originPlan: {
+      path: originPlanPath,
+      sha256: sha256(originPlanBytes),
+    },
     windowStartedAt,
     windowEndedAt,
     cacheObservations,
@@ -96,7 +122,7 @@ async function main(): Promise<void> {
   const checkSet = {
     schemaVersion: "gate-checks-v1",
     gate: "http-cache-and-deadlines",
-    measurementClass: "candidate",
+    measurementClass: originPlan.measurementClass,
     measuredAt: windowEndedAt,
     windowStartedAt,
     windowEndedAt,
@@ -128,6 +154,10 @@ async function main(): Promise<void> {
         path: evidencePath,
         sha256: sha256(evidenceBytes),
       },
+      {
+        path: originPlanPath,
+        sha256: sha256(originPlanBytes),
+      },
     ],
   };
 
@@ -150,18 +180,70 @@ async function main(): Promise<void> {
   );
 }
 
-async function measureCache(baseUrl: string): Promise<CacheObservation[]> {
+type CachePlan = {
+  currentManifest: string;
+  candidateMarkets: string;
+  marketAnalysis: string;
+};
+
+function resolveCachePlan(plan: OriginBenchmarkPlan): CachePlan {
+  return {
+    currentManifest: requiredBenchmarkPath(
+      plan,
+      "current-manifest",
+      undefined,
+    ),
+    candidateMarkets: requiredBenchmarkPath(
+      plan,
+      "candidate-analysis-process-hit",
+      "maximum-row",
+    ),
+    marketAnalysis: requiredBenchmarkPath(
+      plan,
+      "market-analysis-process-hit",
+      "maximum-row",
+    ),
+  };
+}
+
+function requiredBenchmarkPath(
+  plan: OriginBenchmarkPlan,
+  operation: OriginBenchmarkOperation,
+  productRole: PerformanceProductRole | undefined,
+): string {
+  const matches = plan.requests.filter(
+    (request) =>
+      request.operation === operation && request.productRole === productRole,
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      `Origin plan must contain exactly one ${operation}:${productRole ?? "all"} request.`,
+    );
+  }
+  return matches[0]!.request.path;
+}
+
+async function measureCache(
+  baseUrl: string,
+  plan: CachePlan,
+): Promise<CacheObservation[]> {
   return [
     await measureCacheRoute(
       baseUrl,
       "current-analysis",
-      "/api/v1/analyses/current",
+      plan.currentManifest,
       CURRENT_MANIFEST_CACHE_CONTROL,
     ),
     await measureCacheRoute(
       baseUrl,
       "candidate-markets (immutable)",
-      "/api/v1/analyses/acceptance-fixtures-v1/candidate-markets?exporter=156&product=010121",
+      plan.candidateMarkets,
+      IMMUTABLE_CACHE_CONTROL,
+    ),
+    await measureCacheRoute(
+      baseUrl,
+      "market-analysis (immutable)",
+      plan.marketAnalysis,
       IMMUTABLE_CACHE_CONTROL,
     ),
   ];
@@ -187,6 +269,13 @@ async function measureCacheRoute(
     await revalidated.arrayBuffer();
     revalidationStatus = revalidated.status;
   }
+  const head = await fetch(`${baseUrl}${path}`, {
+    method: "HEAD",
+    redirect: "error",
+  });
+  const headBodyBytes = (await head.arrayBuffer()).byteLength;
+  const headEtag = head.headers.get("etag");
+  const headCacheControl = head.headers.get("cache-control");
 
   let reason: string | null = null;
   if (first.status !== 200) {
@@ -197,6 +286,14 @@ async function measureCacheRoute(
     reason = `Cache-Control mismatch: ${cacheControl ?? "none"}`;
   } else if (revalidationStatus !== 304) {
     reason = `expected 304 on If-None-Match, received ${revalidationStatus}`;
+  } else if (head.status !== 200) {
+    reason = `expected 200 for HEAD, received ${head.status}`;
+  } else if (headEtag !== etag) {
+    reason = `HEAD ETag mismatch: ${headEtag ?? "none"}`;
+  } else if (headCacheControl !== expectedCacheControl) {
+    reason = `HEAD Cache-Control mismatch: ${headCacheControl ?? "none"}`;
+  } else if (headBodyBytes !== 0) {
+    reason = `HEAD returned ${headBodyBytes} body bytes`;
   }
 
   return {
@@ -207,9 +304,28 @@ async function measureCacheRoute(
     cacheControl,
     expectedCacheControl,
     revalidationStatus,
+    headStatus: head.status,
+    headEtag,
+    headCacheControl,
+    headBodyBytes,
     passed: reason === null,
     reason,
   };
+}
+
+function required(value: string | undefined, message: string): string {
+  if (value === undefined || value.length === 0) {
+    throw new Error(message);
+  }
+  return value;
+}
+
+function parseJson(bytes: Buffer, label: string): unknown {
+  try {
+    return JSON.parse(bytes.toString("utf8")) as unknown;
+  } catch {
+    throw new Error(`${label} is not valid JSON.`);
+  }
 }
 
 async function measureDeadlines(): Promise<DeadlineObservation[]> {

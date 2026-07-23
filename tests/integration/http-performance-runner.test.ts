@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
+import { RUNTIME_RESOURCE_POLICY } from "../../src/runtime-resource-policy";
 import {
   RUNTIME_PROBE_CACHE_PARTITION_HEADER,
   RUNTIME_PROBE_CACHE_STATE_HEADER,
 } from "../../src/runtime/runtime-metrics";
 import {
   HttpPerformanceRunnerError,
+  createAnonymousSourcePacedHttpExecutor,
+  createFetchHttpExecutor,
   createPrometheusMixedLoadObservationAdapter,
   parseOriginBenchmarkPlan,
   resolveRequestUrl,
@@ -22,6 +25,11 @@ import {
 } from "../../src/promotion/http-performance-runner";
 import type { RuntimeIdentityAttestor } from "../../src/promotion/runtime-identity-attestation";
 
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
 function originRunnerDependencies() {
   return {
     now: () => 0,
@@ -29,23 +37,137 @@ function originRunnerDependencies() {
   } as const;
 }
 
+describe("fetch HTTP executor", () => {
+  it("paces requests below the anonymous source refill rate", async () => {
+    vi.useFakeTimers();
+    const minimumIntervalMs =
+      1_000 /
+      RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond;
+    let lastAcceptedAt = Number.NEGATIVE_INFINITY;
+    const fetchStub = vi.fn(() => {
+      const now = performance.now();
+      const status = now - lastAcceptedAt >= minimumIntervalMs ? 200 : 429;
+      if (status === 200) {
+        lastAcceptedAt = now;
+      }
+      return Promise.resolve(new Response(null, { status }));
+    });
+    vi.stubGlobal("fetch", fetchStub);
+    const executor = createAnonymousSourcePacedHttpExecutor(
+      createFetchHttpExecutor(),
+    );
+    const request = {
+      method: "GET",
+      url: new URL("https://candidate.example.com/healthz"),
+      headers: {},
+      timeoutMs: 1_000,
+    } as const;
+
+    const first = await executor.execute(request);
+    const secondPromise = executor.execute(request);
+    await vi.advanceTimersByTimeAsync(minimumIntervalMs);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    await vi.runAllTimersAsync();
+    const second = await secondPromise;
+
+    expect(first.timedOut ? null : first.status).toBe(200);
+    expect(second.timedOut ? null : second.status).toBe(200);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+
+  it("budgets all three anonymous tokens used by a Market Analysis request", async () => {
+    vi.useFakeTimers();
+    const refillTokensPerSecond =
+      RUNTIME_RESOURCE_POLICY.anonymousSourceRateLimit.refillTokensPerSecond;
+    const compositeTokenCost = 3;
+    const minimumCompositeIntervalMs =
+      (compositeTokenCost * 1_000) / refillTokensPerSecond;
+    let availableTokens = compositeTokenCost;
+    let updatedAt = performance.now();
+    const fetchStub = vi.fn(() => {
+      const now = performance.now();
+      availableTokens = Math.min(
+        compositeTokenCost,
+        availableTokens +
+          ((now - updatedAt) / 1_000) * refillTokensPerSecond,
+      );
+      updatedAt = now;
+      const status = availableTokens >= compositeTokenCost ? 200 : 429;
+      if (status === 200) {
+        availableTokens -= compositeTokenCost;
+      }
+      return Promise.resolve(new Response(null, { status }));
+    });
+    vi.stubGlobal("fetch", fetchStub);
+    const executor = createAnonymousSourcePacedHttpExecutor(
+      createFetchHttpExecutor(),
+    );
+    const request = {
+      method: "GET",
+      url: new URL(
+        "https://candidate.example.com/api/v1/analyses/build/market-analysis",
+      ),
+      headers: {},
+      timeoutMs: 1_000,
+    } as const;
+
+    const first = await executor.execute(request);
+    const secondPromise = executor.execute(request);
+    await vi.advanceTimersByTimeAsync(minimumCompositeIntervalMs - 1);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    await vi.runAllTimersAsync();
+    const second = await secondPromise;
+
+    expect(first.timedOut ? null : first.status).toBe(200);
+    expect(second.timedOut ? null : second.status).toBe(200);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("origin-benchmark plan parsing", () => {
   it("accepts a complete candidate plan naming every required operation", () => {
     const plan = parseOriginBenchmarkPlan(acceptedPlanInput());
 
     expect(plan.measurementClass).toBe("candidate");
     expect(plan.origin).toBe("https://staging.example.com");
-    expect(plan.requests).toHaveLength(91);
+    expect(plan.requests).toHaveLength(99);
     expect(plan.warmupSamples).toBe(5);
   });
 
-  it("rejects an http origin for candidate evidence", () => {
+  it("requires only the core 91 cases when optional capabilities are unavailable", () => {
+    const input = acceptedPlanInput();
+    input.capabilities = {
+      recentTradeMomentum: false,
+      opportunityDiscovery: false,
+    };
+    input.requests = input.requests.filter(
+      (request) =>
+        request.operation !== "recent-trade-momentum-uncached" &&
+        request.operation !== "opportunity-feed-uncached",
+    );
+
+    const plan = parseOriginBenchmarkPlan(input);
+
+    expect(plan.requests).toHaveLength(91);
+    expect(plan.capabilities).toEqual(input.capabilities);
+  });
+
+  it("rejects a non-loopback http origin for candidate evidence", () => {
     const input = acceptedPlanInput();
     input.origin = "http://staging.example.com";
 
     expect(() => parseOriginBenchmarkPlan(input)).toThrowError(
       HttpPerformanceRunnerError,
     );
+  });
+
+  it("permits the ADR-0004 loopback http origin for candidate evidence", () => {
+    const input = acceptedPlanInput();
+    input.origin = "http://127.0.0.1:4000";
+
+    const plan = parseOriginBenchmarkPlan(input);
+
+    expect(plan.origin).toBe("http://127.0.0.1:4000");
   });
 
   it("rejects credentials embedded in the origin", () => {
@@ -193,10 +315,10 @@ describe("runOriginBenchmark", () => {
 
     return runOriginBenchmark(plan, executor, originRunnerDependencies()).then(
       (report) => {
-        // 1 health check + 91 routes * (5 warmups + timedSamples).
+        // 1 health check + 99 routes * (5 warmups + timedSamples).
         const perRoute = 5 + plan.timedSamples;
-        expect(calls.length).toBe(1 + 91 * perRoute);
-        expect(report.originBenchmarks).toHaveLength(91);
+        expect(calls.length).toBe(1 + 99 * perRoute);
+        expect(report.originBenchmarks).toHaveLength(99);
         expect(report.status).toBe("measurement-complete");
         expect(report.meetsAcceptanceEvidenceSampleSize).toBe(true);
         expect(report.firstFailure).toBeNull();
@@ -426,6 +548,62 @@ describe("runOriginBenchmark", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("binds Market Analysis paths and query parameters to the artifact-attested role", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const requestCase = input.requests.find(
+      (request) =>
+        request.operation === "market-analysis-uncached" &&
+        request.productRole === "maximum-row",
+    );
+    if (requestCase?.sampleRequests === undefined) {
+      throw new Error("Expected maximum-row Market Analysis samples.");
+    }
+    requestCase.sampleRequests[0].request.path += "&unexpected=1";
+    const plan = parseOriginBenchmarkPlan(input);
+    const calls: HttpBenchmarkRequest[] = [];
+
+    await expect(
+      runOriginBenchmark(
+        plan,
+        fakeExecutor(calls, () => {
+          throw new Error("must not execute");
+        }),
+        originRunnerDependencies(),
+      ),
+    ).rejects.toThrow(
+      "market-analysis-uncached:maximum-row sample",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("requires every uncached Market Analysis sample to use its semantic cache partition", async () => {
+    const input = acceptedPlanInput({ timedSamples: 1 });
+    const requestCase = input.requests.find(
+      (request) =>
+        request.operation === "market-analysis-uncached" &&
+        request.productRole === "maximum-row",
+    );
+    if (requestCase?.sampleRequests === undefined) {
+      throw new Error("Expected maximum-row Market Analysis samples.");
+    }
+    requestCase.sampleRequests[0].request.headers![
+      RUNTIME_PROBE_CACHE_PARTITION_HEADER
+    ] = "different-partition";
+    const plan = parseOriginBenchmarkPlan(input);
+    const calls: HttpBenchmarkRequest[] = [];
+
+    await expect(
+      runOriginBenchmark(
+        plan,
+        fakeExecutor(calls, () => {
+          throw new Error("must not execute");
+        }),
+        originRunnerDependencies(),
+      ),
+    ).rejects.toThrow(/must use its semantic key as the probe cache partition/u);
+    expect(calls).toHaveLength(0);
+  });
+
   it("accepts Trade Explorer CSV requests that carry the export envelope the CSV route requires", async () => {
     const input = acceptedPlanInput({ timedSamples: 1 });
     const envelope = "&freshnessStatusId=fresh-1&schema=trade-explorers-csv-v1";
@@ -604,6 +782,116 @@ describe("runOriginBenchmark", () => {
       actual: "hit",
     });
   });
+
+  it("uses Market Analysis process warmups only to stabilize its composite caches", async () => {
+    const plan = parseOriginBenchmarkPlan(
+      acceptedPlanInput({ timedSamples: 1 }),
+    );
+    const calls: HttpBenchmarkRequest[] = [];
+    const report = await runOriginBenchmark(
+      plan,
+      fakeExecutor(
+        calls,
+        () => ({
+          timedOut: false,
+          status: 200,
+          ttfbMs: 1,
+          totalMs: 1,
+          body: Buffer.from("ok"),
+          header: () => "release-42",
+        }),
+        {
+          cacheState(request) {
+            if (
+              request.url.pathname.endsWith("/market-analysis") &&
+              request.headers[RUNTIME_PROBE_CACHE_PARTITION_HEADER] ===
+                undefined
+            ) {
+              const callsForRequest = calls.filter(
+                (call) =>
+                  call.url.href === request.url.href &&
+                  call.headers[
+                    RUNTIME_PROBE_CACHE_PARTITION_HEADER
+                  ] === undefined,
+              ).length;
+              return callsForRequest <= 3 ? "coalesced" : "hit";
+            }
+            return fakeOriginCacheState(request);
+          },
+        },
+      ),
+      originRunnerDependencies(),
+    );
+
+    expect(
+      report.cacheViolations.filter(
+        (violation) =>
+          violation.operation === "market-analysis-process-hit",
+      ),
+    ).toEqual([]);
+    for (const productRole of [
+      "sparse",
+      "median",
+      "upper-quartile",
+      "maximum-row",
+    ]) {
+      expect(
+        requireBenchmark(
+          report,
+          "market-analysis-process-hit",
+          productRole,
+        ).cacheStatesVerified,
+      ).toBe(true);
+    }
+  });
+
+  it("still requires timed Market Analysis process samples to be cache hits", async () => {
+    const plan = parseOriginBenchmarkPlan(
+      acceptedPlanInput({ timedSamples: 1 }),
+    );
+    const report = await runOriginBenchmark(
+      plan,
+      fakeExecutor(
+        [],
+        () => ({
+          timedOut: false,
+          status: 200,
+          ttfbMs: 1,
+          totalMs: 1,
+          body: Buffer.from("ok"),
+          header: () => "release-42",
+        }),
+        {
+          cacheState(request) {
+            if (
+              request.url.pathname.endsWith("/market-analysis") &&
+              request.headers[RUNTIME_PROBE_CACHE_PARTITION_HEADER] ===
+                undefined
+            ) {
+              return "coalesced";
+            }
+            return fakeOriginCacheState(request);
+          },
+        },
+      ),
+      originRunnerDependencies(),
+    );
+
+    const violations = report.cacheViolations.filter(
+      (violation) =>
+        violation.operation === "market-analysis-process-hit",
+    );
+    expect(violations).toHaveLength(4);
+    expect(
+      violations.every(
+        (violation) =>
+          violation.phase === "timed" &&
+          violation.sampleIndex === 0 &&
+          violation.expected === "hit" &&
+          violation.actual === "coalesced",
+      ),
+    ).toBe(true);
+  });
 });
 
 function fakeExecutor(
@@ -650,7 +938,8 @@ function fakeOriginCacheState(request: HttpBenchmarkRequest): string | null {
   }
   if (
     request.url.pathname.includes("-process-hit/") ||
-    request.url.pathname.includes("-analysis-hit/")
+    request.url.pathname.includes("-analysis-hit/") ||
+    request.url.pathname.endsWith("/market-analysis")
   ) {
     return "hit";
   }
@@ -708,6 +997,10 @@ type TestPlanInput = {
   schemaVersion: string;
   measurementClass: string;
   identity: Record<string, unknown>;
+  capabilities: {
+    recentTradeMomentum: boolean;
+    opportunityDiscovery: boolean;
+  };
   origin: string;
   healthCheck: { method: string; path: string };
   identityAssertion?: { headerName: string; expectedValue: string };
@@ -738,6 +1031,8 @@ function acceptedPlanInput(
     "product-search-process-hit",
     "candidate-analysis-uncached",
     "candidate-analysis-process-hit",
+    "market-analysis-uncached",
+    "market-analysis-process-hit",
     "csv-uncached",
     "csv-analysis-hit",
     "trade-trend-analysis-uncached",
@@ -759,6 +1054,7 @@ function acceptedPlanInput(
     "economy-search-uncached",
     "product-search-uncached",
     "candidate-analysis-uncached",
+    "market-analysis-uncached",
     "csv-uncached",
     "trade-trend-analysis-uncached",
     "trade-trend-csv-uncached",
@@ -795,6 +1091,8 @@ function acceptedPlanInput(
               ? `/api/v1/analyses/analysis-build-v1-620a5047a1a306ca/recent-trade-momentum?reporter=NL&product=${roleProductCodes[role]}`
               : operation.startsWith("trade-explorer")
               ? `/api/v1/${operation}/${role}?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct=${roleProductCodes[role]}`
+              : operation.startsWith("market-analysis")
+              ? `/api/v1/analyses/analysis-build-v1-620a5047a1a306ca/market-analysis?exporter=156&product=${roleProductCodes[role]}&market=528`
               : operation.startsWith("candidate-analysis") ||
                   operation.startsWith("csv-")
               ? `/api/v1/${operation}/${role}?exporter=156&product=${roleProductCodes[role]}`
@@ -802,6 +1100,7 @@ function acceptedPlanInput(
         };
         const attestedUncachedOperation =
           operation === "candidate-analysis-uncached" ||
+          operation === "market-analysis-uncached" ||
           operation === "csv-uncached" ||
           operation === "recent-trade-momentum-uncached" ||
           operation === "opportunity-feed-uncached" ||
@@ -844,7 +1143,7 @@ function acceptedPlanInput(
   ];
 
   return {
-    schemaVersion: "origin-benchmark-plan-v1",
+    schemaVersion: "origin-benchmark-plan-v2",
     measurementClass: "candidate",
     identity: {
       fixtureManifestSha256: ACCEPTANCE_FIXTURE_CONTENT_SHA256,
@@ -856,6 +1155,10 @@ function acceptedPlanInput(
       machineId: "machine-01J00000000000000000000000",
       machineClass: "shared-cpu-2x",
       region: "sin",
+    },
+    capabilities: {
+      recentTradeMomentum: true,
+      opportunityDiscovery: true,
     },
     origin: "https://staging.example.com",
     healthCheck: { method: "GET", path: "/healthz" },
@@ -939,6 +1242,15 @@ function acceptedMixedLoadPlanInput(overrides: MixedLoadPlanOverrides = {}) {
           ? `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/trade-explorer?shape=finalized-trend-v1&measures=TRADE_VALUE_USD%2CRECORDED_FLOW_COUNT&exportEconomy=156&importEconomy=276&hsProduct={analysisKey}`
           : "/api/v1/analyses/{analysisKey}",
       },
+      marketAnalysis: {
+        method: "GET",
+        pathTemplate: candidate
+          ? `/api/v1/analyses/${MIXED_LOAD_IDENTITY.analysisBuildId}/market-analysis?exporter=156&product=851712&market=276`
+          : "/api/v1/market-analysis",
+        headers: {
+          "X-HS-Tracker-Cache-Partition": "market-analysis-{analysisKey}",
+        },
+      },
       csv: {
         method: "GET",
         pathTemplate: candidate
@@ -982,6 +1294,11 @@ describe("mixed-load plan parsing", () => {
     expect(plan.sustainedRequestsPerSecond).toBe(100);
     expect(plan.sustainedSeconds).toBe(20);
     expect(plan.analysisDistinctKeys).toContain("max-row-key");
+    expect(
+      plan.routeTemplates.marketAnalysis.headers?.[
+        "X-HS-Tracker-Cache-Partition"
+      ],
+    ).toBe("market-analysis-{analysisKey}");
   });
 
   it("rejects plan-controlled cache verification", () => {
@@ -1091,11 +1408,31 @@ describe("mixed-load plan parsing", () => {
       burstSeconds: 30,
       coordinatedBurstIntervalSeconds: 60,
     });
+
     input.routeTemplates.analysis.pathTemplate =
       "/api/v1/analyses/{analysisKey}/candidate-markets";
 
     expect(() => parseMixedLoadPlan(input)).toThrow(
       "Candidate mixed-load analysis template must execute",
+    );
+  });
+
+  it("rejects candidate mixed load without an immutable Market Analysis cache-partition template", () => {
+    const input = acceptedMixedLoadPlanInput({
+      measurementClass: "candidate",
+      origin: "https://staging.example.com",
+      sustainedRequestsPerSecond: 4,
+      sustainedSeconds: 600,
+      burstRequestsPerSecond: 10,
+      burstSeconds: 30,
+      coordinatedBurstIntervalSeconds: 60,
+    });
+    input.routeTemplates.marketAnalysis.headers = {
+      "X-HS-Tracker-Cache-Partition": "{analysisKey}",
+    };
+
+    expect(() => parseMixedLoadPlan(input)).toThrow(
+      "Candidate mixed-load Market Analysis template",
     );
   });
 
@@ -1320,6 +1657,37 @@ describe("mixed-load schedule", () => {
     expect(classCounts.distinct).toBe(220);
   });
 
+  it("dephases cold Market Analysis traffic across sustained sessions", () => {
+    const schedule = buildMixedLoadSchedule(
+      parseMixedLoadPlan(
+        acceptedMixedLoadPlanInput({
+          measurementClass: "candidate",
+          sustainedRequestsPerSecond: 4,
+          sustainedSeconds: 600,
+          burstRequestsPerSecond: 10,
+          burstSeconds: 30,
+          coordinatedBurstIntervalSeconds: 60,
+        }),
+      ),
+    );
+    const sessionRoundWindows = Array.from(
+      { length: schedule.sustained.length / 20 },
+      (_, index) => schedule.sustained.slice(index * 20, (index + 1) * 20),
+    );
+    const maximumColdMarketAnalyses = Math.max(
+      ...sessionRoundWindows.map(
+        (window) =>
+          window.filter(
+            (request) =>
+              request.analysisOperation === "market-analysis" &&
+              request.analysisKeyClass === "distinct",
+          ).length,
+      ),
+    );
+
+    expect(maximumColdMarketAnalyses).toBeLessThanOrEqual(3);
+  });
+
   it("has every csv request reuse the most recent analysis key from its own session", () => {
     const plan = parseMixedLoadPlan(acceptedMixedLoadPlanInput());
     const schedule = buildMixedLoadSchedule(plan);
@@ -1332,8 +1700,39 @@ describe("mixed-load schedule", () => {
         expect(request.analysisKey).toBe(
           lastAnalysisKeyBySession.get(request.sessionId),
         );
+        const precedingAnalysis = [...schedule.sustained]
+          .slice(0, request.sequence)
+          .filter(
+            (candidate) =>
+              candidate.sessionId === request.sessionId &&
+              candidate.routeKind === "analysis",
+          )
+          .at(-1);
+        expect(precedingAnalysis?.analysisOperation).toBe("trade-explorer");
       }
     }
+  });
+
+  it("runs Market Analysis throughout sustained load and every coordinated capacity burst", () => {
+    const schedule = buildMixedLoadSchedule(
+      parseMixedLoadPlan(acceptedMixedLoadPlanInput()),
+    );
+
+    expect(
+      schedule.sustained.some(
+        (request) => request.analysisOperation === "market-analysis",
+      ),
+    ).toBe(true);
+    expect(
+      schedule.sustained.some(
+        (request) => request.analysisOperation === "trade-explorer",
+      ),
+    ).toBe(true);
+    expect(
+      schedule.coordinated.every(
+        (request) => request.analysisOperation === "market-analysis",
+      ),
+    ).toBe(true);
   });
 
   it("includes the maximum-row analysis key at least once", () => {
@@ -1425,13 +1824,31 @@ function fakeMixedLoadExecutor(options: {
         return injected;
       }
       let cacheValue = "MISS";
+      const cachePartition = Object.entries(request.headers).find(
+        ([name]) =>
+          name.toLowerCase() === "x-hs-tracker-cache-partition",
+      )?.[1];
       const analysisMatch =
         /^\/api\/v1\/analyses\/([^/]+)(\/export\.csv)?$/u.exec(
           request.url.pathname,
         );
-      if (analysisMatch) {
-        const key = decodeURIComponent(analysisMatch[1]);
-        const isCsv = analysisMatch[2] !== undefined;
+      const isMarketAnalysis = request.url.pathname.endsWith(
+        "/market-analysis",
+      );
+      const isTradeExplorer =
+        request.url.pathname.endsWith("/trade-explorer") ||
+        request.url.pathname.endsWith("/trade-explorer.csv");
+      if (analysisMatch || isMarketAnalysis || isTradeExplorer) {
+        const key = isMarketAnalysis
+          ? `market:${cachePartition}`
+          : `trade:${
+              isTradeExplorer
+                ? request.url.searchParams.get("hsProduct")
+                : decodeURIComponent(analysisMatch![1])
+            }`;
+        const isCsv =
+          analysisMatch?.[2] !== undefined ||
+          request.url.pathname.endsWith("/trade-explorer.csv");
         cacheValue = cachedAnalysisKeys.has(key) ? "HIT" : "MISS";
         if (!isCsv) {
           cachedAnalysisKeys.add(key);
@@ -1468,6 +1885,10 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
   schemaVersion: "runtime-identity-attestation-v1",
   origin,
   identity,
+  capabilities: {
+    recentTradeMomentum: true,
+    opportunityDiscovery: true,
+  },
   benchmarkQueries: [
     {
       role: "sparse",
@@ -1623,6 +2044,10 @@ describe("mixed-load runner", () => {
       expect(report.targetLoad.cacheStatesVerified).toBe(true);
       expect(report.targetLoad.includesMaximumRowProduct).toBe(true);
       expect(report.targetLoad.includesTradeExplorer).toBe(false);
+      expect(report.targetLoad.includesMarketAnalysis).toBe(true);
+      expect(
+        calls.some((call) => call.url.pathname.endsWith("/market-analysis")),
+      ).toBe(true);
     });
   });
 
@@ -1650,6 +2075,57 @@ describe("mixed-load runner", () => {
     expect(maximumActive).toBeGreaterThan(20);
   });
 
+  it("attests and executes both Market Analysis and Trade Explorer in the candidate workload", async () => {
+    const plan = parseMixedLoadPlan(
+      acceptedMixedLoadPlanInput({
+        measurementClass: "candidate",
+        origin: "https://staging.example.com",
+        sustainedRequestsPerSecond: 4,
+        sustainedSeconds: 600,
+        burstRequestsPerSecond: 10,
+        burstSeconds: 30,
+        coordinatedBurstIntervalSeconds: 60,
+      }),
+    );
+    const calls: HttpBenchmarkRequest[] = [];
+    const report = await runMixedLoad(
+      plan,
+      fakeMixedLoadExecutor({ calls }),
+      mixedRunnerDependencies({
+        observationAdapter: {
+          async observeDuring(work) {
+            return {
+              output: await work(),
+              observations: {
+                source: "runtime-prometheus-v1",
+                sampleCount: 2,
+                peakCgroupMemoryFraction: 0.5,
+                peakProcessRssFraction: 0.4,
+                peakSpillBytes: 0,
+                sparseOrMedianSpillCount: 0,
+                minimumVolumeFreeFraction: 0.6,
+                sharedCpuBurstBalanceDepleted: true,
+              },
+            };
+          },
+        },
+      }),
+    );
+
+    expect(report.cacheViolations).toEqual([]);
+    expect(report.targetLoad.includesTradeExplorer).toBe(true);
+    expect(report.targetLoad.includesMarketAnalysis).toBe(true);
+    expect(
+      calls.some(
+        (call) =>
+          call.url.pathname.endsWith("/market-analysis") &&
+          call.headers["X-HS-Tracker-Cache-Partition"]?.startsWith(
+            "market-analysis-",
+          ),
+      ),
+    ).toBe(true);
+  });
+
   it("does not send health, prime, or load traffic when deployment identity attestation fails", async () => {
     const plan = parseMixedLoadPlan(acceptedMixedLoadPlanInput());
     const calls: HttpBenchmarkRequest[] = [];
@@ -1673,7 +2149,7 @@ describe("mixed-load runner", () => {
     const calls: HttpBenchmarkRequest[] = [];
     const failures = new Map<number, HttpBenchmarkOutcome>([
       [
-        MIXED_LOAD_HOT_KEYS.length + 3,
+        MIXED_LOAD_HOT_KEYS.length * 2 + 3,
         {
           timedOut: false,
           status: 503,
@@ -1684,7 +2160,7 @@ describe("mixed-load runner", () => {
         },
       ],
       [
-        MIXED_LOAD_HOT_KEYS.length + 50,
+        MIXED_LOAD_HOT_KEYS.length * 2 + 50,
         {
           timedOut: false,
           status: 500,
@@ -1695,7 +2171,7 @@ describe("mixed-load runner", () => {
         },
       ],
       [
-        MIXED_LOAD_HOT_KEYS.length + 100,
+        MIXED_LOAD_HOT_KEYS.length * 2 + 100,
         { timedOut: true, elapsedMs: 4_999 },
       ],
     ]);
@@ -1710,7 +2186,7 @@ describe("mixed-load runner", () => {
       expect(report.targetLoad.timeouts).toBe(1);
       // Every scheduled request executed exactly once: no retry could have
       // erased or duplicated the recorded failures.
-      expect(calls.length).toBe(1 + 5 + 2_000 + 4 + 30);
+      expect(calls.length).toBe(1 + 10 + 2_000 + 4 + 30);
     });
   });
 

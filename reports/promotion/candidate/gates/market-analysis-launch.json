@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "market-analysis-launch-report-v1",
+  "gate": "market-analysis-launch",
+  "measurementClass": "candidate",
+  "status": "accepted",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "checks": [
+    {
+      "name": "product-contract",
+      "status": "accepted"
+    },
+    {
+      "name": "analyst-needs",
+      "status": "accepted"
+    },
+    {
+      "name": "accessibility",
+      "status": "accepted"
+    },
+    {
+      "name": "annual-result-invariance",
+      "status": "accepted"
+    },
+    {
+      "name": "performance",
+      "status": "accepted"
+    },
+    {
+      "name": "retained-replay",
+      "status": "accepted"
+    },
+    {
+      "name": "startup-smoke",
+      "status": "accepted"
+    },
+    {
+      "name": "rollback",
+      "status": "accepted"
+    }
+  ],
+  "retainedLogDigests": [
+    {
+      "path": "reports/promotion/candidate/candidate-config.json",
+      "sha256": "574b5f3460e469e859a63c7a0e4413903aa98610099a21b3785651d807873a7c"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/origin-report.json",
+      "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/browser-report.json",
+      "sha256": "9314d95bd3dc03e9acedbc74ce6009a8cd9a09c468023fa67de54e58a0d717f6"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/load-report.json",
+      "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/lifecycle-drills.json",
+      "sha256": "1d13e03b1ad93e389e08b574f2237b2f1deba01a10dd716ac6960b2835d44ad7"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+      "sha256": "06b29ac65cbe957f430f7a27f45f7498dee021eb746584abdec7622c9b6fa291"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-contracts.json",
+      "sha256": "1c2caf3491962e9e15c26f19d2d95e975ee31887563be9bcaf368d612d4cfb1e"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/source-and-domain.json",
+      "sha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/origin-benchmarks.json",
+      "sha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/browser-lab.json",
+      "sha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/target-load.json",
+      "sha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+      "sha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+      "sha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+      "sha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/deployment-resources.json",
+      "sha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+      "sha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+    },
+    {
+      "path": "reports/promotion/candidate/gates/recurring-cost.json",
+      "sha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/market-analysis-launch-readiness.json",
+      "sha256": "0d45ccdcb7b1399605a1f3fe829247b13fac48c5f17d7dac9c4d48c38402bd59"
+    }
+  ]
+}

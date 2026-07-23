@@ -101,10 +101,10 @@ async function assembleAndEvaluate(
 }
 
 describe("promotion gate-report builder", () => {
-  it("assembles ten accepted gate reports into an accepted promotion", async () => {
+  it("assembles eleven accepted gate reports into an accepted promotion", async () => {
     const { report } = await assembleAndEvaluate();
     expect(report.status).toBe("accepted");
-    expect(report.gateCount).toBe(10);
+    expect(report.gateCount).toBe(11);
   });
 
   it("blocks the promotion when a single gate check is review-required", async () => {

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "recurring-cost",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T19:39:31Z",
+  "windowStartedAt": "2026-07-12T00:00:00Z",
+  "windowEndedAt": "2026-07-12T00:00:00Z",
+  "sampleCount": 5,
+  "checks": [
+    {
+      "name": "monthly-cost",
+      "status": "accepted",
+      "detail": "Forecast 0 USD/month across 5 line items; target 40, review threshold 50."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/checks/recurring-cost.cost-forecast.json",
+      "sha256": "2e64be80b8c2867b558379aacc43b865724034a17703fe6e368fc3364c33293a"
+    }
+  ]
+}

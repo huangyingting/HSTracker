@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "mixed-load-report-v1",
+  "measurementClass": "candidate",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "attestation": {
+    "schemaVersion": "runtime-identity-attestation-v1",
+    "origin": "http://127.0.0.1:3300",
+    "identity": {
+      "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+      "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+      "baciRelease": "V202601",
+      "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+      "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+      "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+      "machineId": "local",
+      "machineClass": "local",
+      "region": "loc"
+    },
+    "capabilities": {
+      "recentTradeMomentum": false,
+      "opportunityDiscovery": false
+    },
+    "benchmarkQueries": [
+      {
+        "role": "sparse",
+        "productCode": "811252",
+        "exporterCode": "72",
+        "candidateCount": 18
+      },
+      {
+        "role": "median",
+        "productCode": "400110",
+        "exporterCode": "156",
+        "candidateCount": 202
+      },
+      {
+        "role": "upper-quartile",
+        "productCode": "760611",
+        "exporterCode": "156",
+        "candidateCount": 218
+      },
+      {
+        "role": "maximum-row",
+        "productCode": "392690",
+        "exporterCode": "156",
+        "candidateCount": 225
+      }
+    ],
+    "tradeExplorerBenchmarkQueries": [
+      {
+        "role": "sparse",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "4",
+        "importEconomyCode": "20",
+        "hsProductCode": "200290",
+        "groupedRowCount": 5
+      },
+      {
+        "role": "median",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "410",
+        "importEconomyCode": "780",
+        "hsProductCode": "845121",
+        "groupedRowCount": 5
+      },
+      {
+        "role": "upper-quartile",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "251",
+        "importEconomyCode": "616",
+        "hsProductCode": "853340",
+        "groupedRowCount": 5
+      },
+      {
+        "role": "maximum-row",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "894",
+        "importEconomyCode": "858",
+        "hsProductCode": "240120",
+        "groupedRowCount": 5
+      }
+    ],
+    "health": {
+      "path": "/healthz",
+      "bodySha256": "8b8a513b5b33285699372aff4097fc16a03929bfd7076e7ff6e260fd7ca4ce93"
+    },
+    "currentManifest": {
+      "path": "/api/v1/analyses/current",
+      "etag": "W/\"106ecce9176fef621187ee44113234166571e76693fb0a5fcf18a64d70f8ef6c\"",
+      "bodySha256": "106ecce9176fef621187ee44113234166571e76693fb0a5fcf18a64d70f8ef6c",
+      "schemaVersion": "current-analysis-manifest-v1"
+    }
+  },
+  "origin": "http://127.0.0.1:3300",
+  "generatedAt": "2026-07-23T19:37:52Z",
+  "toolVersion": "http-performance-runner-v1",
+  "targetLoad": {
+    "sessions": 20,
+    "sustainedRequestsPerSecond": 4,
+    "sustainedSeconds": 600,
+    "routeMix": {
+      "currentManifest": 0.1,
+      "search": 0.25,
+      "analysis": 0.55,
+      "csv": 0.1
+    },
+    "analysisHotKeyFraction": 0.8,
+    "analysisUncachedKeyFraction": 0.2,
+    "burstRequestsPerSecond": 10,
+    "burstSeconds": 30,
+    "coordinatedDistinctKeys": 4,
+    "coordinatedBurstIntervalSeconds": 60,
+    "includesMaximumRowProduct": true,
+    "includesTradeExplorer": true,
+    "includesMarketAnalysis": true,
+    "cacheStatesVerified": true,
+    "queueRejections": 0,
+    "unretryableErrors": 0,
+    "timeouts": 0,
+    "routeP95Ms": {
+      "currentManifest": 6.609952000027988,
+      "search": 10.165394999989076,
+      "analysis": 1260.7155029999994,
+      "csv": 11.158607000019401
+    },
+    "peakCgroupMemoryFraction": 0.20007705688476562,
+    "peakProcessRssFraction": 0.21677684783935547,
+    "peakSpillBytes": 0,
+    "sparseOrMedianSpillCount": 0,
+    "minimumVolumeFreeFraction": 0.9293914174357746,
+    "cpuPressure": {
+      "kind": "dedicated-cpu"
+    }
+  },
+  "observations": {
+    "source": "runtime-prometheus-v1",
+    "sampleCount": 631,
+    "peakCgroupMemoryFraction": 0.20007705688476562,
+    "peakProcessRssFraction": 0.21677684783935547,
+    "peakSpillBytes": 0,
+    "sparseOrMedianSpillCount": 0,
+    "minimumVolumeFreeFraction": 0.9293914174357746,
+    "sharedCpuBurstBalanceDepleted": false
+  },
+  "firstFailure": null,
+  "cacheViolations": [],
+  "status": "measurement-complete"
+}

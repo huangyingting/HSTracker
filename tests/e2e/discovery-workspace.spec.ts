@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import type { CandidateMarketResult } from "../../src/domain/candidate-market/result";
 import type { CurrentAnalysisManifest } from "../../src/domain/release/current-analysis";
 
-test("an Export Market Analyst loads and scans the complete fixture ranking", async ({
+test("[launch-evidence:candidate-market-cohort] an Export Market Analyst loads and scans the complete fixture ranking", async ({
   page,
 }) => {
   let analysisRequests = 0;
@@ -139,6 +140,74 @@ test("an Export Market Analyst loads and scans the complete fixture ranking", as
   await expect(mexicoAnalysis.getByText("Rank 2 of 13")).toBeVisible();
   await expect(page).toHaveURL(/market=484/);
   expect(analysisRequests).toBe(1);
+});
+
+test("a virtualized mobile ranking keeps Market Analysis actions inside their rows", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.route("**/candidate-markets?*", async (route) => {
+    const response = await route.fetch();
+    const result = (await response.json()) as CandidateMarketResult;
+    const seed = result.candidates.at(-1);
+    if (seed === undefined) {
+      throw new Error("The Candidate Market fixture must not be empty.");
+    }
+    const syntheticCandidates = Array.from({ length: 32 }, (_, index) => ({
+      ...seed,
+      economy: {
+        ...seed.economy,
+        code: String(900 + index),
+        name: `Synthetic Candidate Market ${index + 1}`,
+      },
+      score: 0,
+      rank: result.candidates.length + index + 1,
+      rankTieSize: 1,
+      rankPercentile: "0.000",
+    }));
+    await route.fulfill({
+      response,
+      json: {
+        ...result,
+        candidates: [...result.candidates, ...syntheticCandidates],
+        cohortSize: result.candidates.length + syntheticCandidates.length,
+      },
+    });
+  });
+
+  await page.goto(
+    "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121",
+  );
+
+  const action = page
+    .getByRole("list", { name: "Candidate Markets" })
+    .getByRole("link")
+    .first();
+  await action.scrollIntoViewIfNeeded();
+  const layout = await action.evaluate((element) => {
+    const row = element.closest("li");
+    if (row === null) {
+      throw new Error("The virtual Candidate Market row is incomplete.");
+    }
+    const content = row.querySelector(".candidate-row-content");
+    if (content === null) {
+      throw new Error("The virtual Candidate Market row is incomplete.");
+    }
+    const actionBounds = element.getBoundingClientRect();
+    const pointerTarget = document.elementFromPoint(
+      actionBounds.left + actionBounds.width / 2,
+      actionBounds.top + actionBounds.height / 2,
+    );
+    return {
+      rowHeight: row.getBoundingClientRect().height,
+      contentHeight: content.getBoundingClientRect().height,
+      actionOwnsPointerTarget:
+        pointerTarget !== null && element.contains(pointerTarget),
+    };
+  });
+
+  expect(layout.contentHeight).toBeLessThanOrEqual(layout.rowHeight);
+  expect(layout.actionOwnsPointerTarget).toBe(true);
 });
 
 test("a canonical analysis URL restores its complete selected context", async ({

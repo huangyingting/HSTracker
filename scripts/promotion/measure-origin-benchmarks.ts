@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 
 import {
   evaluateOriginBenchmarks,
+  type OriginBenchmarkCapabilities,
   type OriginBenchmarkInput,
 } from "../../src/promotion/performance-gates";
 import type { PromotionEvidenceStatus } from "../../src/promotion/promotion-report";
@@ -81,6 +82,21 @@ async function main(): Promise<void> {
     : Number.NaN;
   const firstFailure = report.firstFailure ?? null;
   const meetsSampleSize = report.meetsAcceptanceEvidenceSampleSize === true;
+  const capabilities = readCapabilities(report.capabilities);
+  const attestationCapabilities = readCapabilities(
+    object(report.attestation, "origin attestation").capabilities,
+  );
+  if (
+    capabilities.recentTradeMomentum !==
+      attestationCapabilities.recentTradeMomentum ||
+    capabilities.opportunityDiscovery !==
+      attestationCapabilities.opportunityDiscovery
+  ) {
+    throw new OriginMeasurementError(
+      "ORIGIN_REPORT_INVALID",
+      "Origin report capabilities do not match its runtime attestation.",
+    );
+  }
 
   // representative-fixtures: the benchmark set must genuinely cover every
   // required singleton and product-role fixture. evaluateOriginBenchmarks
@@ -91,6 +107,7 @@ async function main(): Promise<void> {
   try {
     evaluation = evaluateOriginBenchmarks(
       report.originBenchmarks as OriginBenchmarkInput[],
+      capabilities,
     );
   } catch (error) {
     coverageError = error instanceof Error ? error.message : "unknown error";
@@ -182,6 +199,23 @@ async function main(): Promise<void> {
       2,
     )}\n`,
   );
+}
+
+function readCapabilities(value: unknown): OriginBenchmarkCapabilities {
+  const capabilities = object(value, "origin capabilities");
+  if (
+    typeof capabilities.recentTradeMomentum !== "boolean" ||
+    typeof capabilities.opportunityDiscovery !== "boolean"
+  ) {
+    throw new OriginMeasurementError(
+      "ORIGIN_REPORT_INVALID",
+      "Origin capabilities must explicitly declare Recent Trade Momentum and Opportunity Discovery availability.",
+    );
+  }
+  return {
+    recentTradeMomentum: capabilities.recentTradeMomentum,
+    opportunityDiscovery: capabilities.opportunityDiscovery,
+  };
 }
 
 interface TradeExplorerVerdict {

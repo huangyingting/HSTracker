@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "origin-benchmarks",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T20:43:36Z",
+  "windowStartedAt": "2026-07-23T20:43:36Z",
+  "windowEndedAt": "2026-07-23T20:43:36Z",
+  "sampleCount": 91,
+  "checks": [
+    {
+      "name": "representative-fixtures",
+      "status": "accepted",
+      "detail": "91 benchmarks cover all required singleton and product-role fixtures; sample sizes meet the acceptance minimum."
+    },
+    {
+      "name": "origin-thresholds",
+      "status": "accepted",
+      "detail": "Combined benchmark status accepted; firstFailure=none; cacheViolations=0."
+    },
+    {
+      "name": "trade-explorer-budgets",
+      "status": "accepted",
+      "detail": "In-process trade-explorer harness accepted: resource budgets, cancellation release, and cache/queue integrity all within limits."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/origin-report.json",
+      "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/trade-explorer-measurement.json",
+      "sha256": "6ec65cc9d4727580a07ae3130740e1e0d0e77864b6e97f1e0dfd54f02a81ece8"
+    }
+  ]
+}

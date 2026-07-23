@@ -1,0 +1,755 @@
+{
+  "schemaVersion": "browser-lab-report-v1",
+  "measurementClass": "candidate",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "origin": "http://127.0.0.1:3300",
+  "generatedAt": "2026-07-23T19:49:05.527Z",
+  "attestation": {
+    "schemaVersion": "runtime-identity-attestation-v1",
+    "origin": "http://127.0.0.1:3300",
+    "identity": {
+      "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+      "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+      "baciRelease": "V202601",
+      "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+      "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+      "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+      "machineId": "local",
+      "machineClass": "local",
+      "region": "loc"
+    },
+    "capabilities": {
+      "recentTradeMomentum": false,
+      "opportunityDiscovery": false
+    },
+    "benchmarkQueries": [
+      {
+        "role": "sparse",
+        "productCode": "811252",
+        "exporterCode": "72",
+        "candidateCount": 18
+      },
+      {
+        "role": "median",
+        "productCode": "400110",
+        "exporterCode": "156",
+        "candidateCount": 202
+      },
+      {
+        "role": "upper-quartile",
+        "productCode": "760611",
+        "exporterCode": "156",
+        "candidateCount": 218
+      },
+      {
+        "role": "maximum-row",
+        "productCode": "392690",
+        "exporterCode": "156",
+        "candidateCount": 225
+      }
+    ],
+    "tradeExplorerBenchmarkQueries": [
+      {
+        "role": "sparse",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "4",
+        "importEconomyCode": "20",
+        "hsProductCode": "200290",
+        "groupedRowCount": 5
+      },
+      {
+        "role": "median",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "410",
+        "importEconomyCode": "780",
+        "hsProductCode": "845121",
+        "groupedRowCount": 5
+      },
+      {
+        "role": "upper-quartile",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "251",
+        "importEconomyCode": "616",
+        "hsProductCode": "853340",
+        "groupedRowCount": 5
+      },
+      {
+        "role": "maximum-row",
+        "shape": "finalized-trend-v1",
+        "measures": [
+          "TRADE_VALUE_USD",
+          "RECORDED_FLOW_COUNT"
+        ],
+        "exportEconomyCode": "894",
+        "importEconomyCode": "858",
+        "hsProductCode": "240120",
+        "groupedRowCount": 5
+      }
+    ],
+    "health": {
+      "path": "/healthz",
+      "bodySha256": "6d5cd19ce82ccb31149d24b20cee1ca35e0af223ae864e59d110ddbab040c098"
+    },
+    "currentManifest": {
+      "path": "/api/v1/analyses/current",
+      "etag": "W/\"106ecce9176fef621187ee44113234166571e76693fb0a5fcf18a64d70f8ef6c\"",
+      "bodySha256": "106ecce9176fef621187ee44113234166571e76693fb0a5fcf18a64d70f8ef6c",
+      "schemaVersion": "current-analysis-manifest-v1"
+    }
+  },
+  "products": {
+    "median": {
+      "productRole": "median",
+      "trials": [
+        {
+          "trialIndex": 0,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 514.6999998092651,
+            "marketAnalysisToCompleteMs": 758.7000000476837,
+            "lcpMs": 592,
+            "cls": 0.1626868392271236,
+            "interactionToNextPaintMs": 136,
+            "longestTaskMs": 125,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272186,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17119
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 514.6999998092651,
+            "marketAnalysisToCompleteMs": 758.7000000476837,
+            "marketAnalysisOpenInteractionToNextPaintMs": 136,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 24,
+            "scoreDetailCloseInteractionToNextPaintMs": 80.89999985694885
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 1,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 627.6000001430511,
+            "marketAnalysisToCompleteMs": 634.5,
+            "lcpMs": 708,
+            "cls": 0,
+            "interactionToNextPaintMs": 104.79999995231628,
+            "longestTaskMs": 164,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272181,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 627.6000001430511,
+            "marketAnalysisToCompleteMs": 634.5,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 104.79999995231628
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 2,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 831.2000000476837,
+            "marketAnalysisToCompleteMs": 782.7999999523163,
+            "lcpMs": 580,
+            "cls": 0,
+            "interactionToNextPaintMs": 112,
+            "longestTaskMs": 237,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272181,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 831.2000000476837,
+            "marketAnalysisToCompleteMs": 782.7999999523163,
+            "marketAnalysisOpenInteractionToNextPaintMs": 112,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 16
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 3,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 592.2999999523163,
+            "marketAnalysisToCompleteMs": 647.0999999046326,
+            "lcpMs": 596,
+            "cls": 0,
+            "interactionToNextPaintMs": 80,
+            "longestTaskMs": 175,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272180,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 592.2999999523163,
+            "marketAnalysisToCompleteMs": 647.0999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 80,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 40,
+            "scoreDetailCloseInteractionToNextPaintMs": 16
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 4,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 606.2999999523163,
+            "marketAnalysisToCompleteMs": 682.5999999046326,
+            "lcpMs": 592,
+            "cls": 0.0010570364887226942,
+            "interactionToNextPaintMs": 96,
+            "longestTaskMs": 168,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 273741,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 606.2999999523163,
+            "marketAnalysisToCompleteMs": 682.5999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 96,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 79.90000009536743
+          },
+          "violations": []
+        }
+      ],
+      "measuredTrialCount": 5,
+      "failedTrialCount": 0
+    },
+    "maximum-row": {
+      "productRole": "maximum-row",
+      "trials": [
+        {
+          "trialIndex": 0,
+          "productRole": "maximum-row",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 529,
+            "marketAnalysisToCompleteMs": 620,
+            "lcpMs": 616,
+            "cls": 0.1626868392271236,
+            "interactionToNextPaintMs": 80,
+            "longestTaskMs": 125,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 282457,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 304560,
+            "candidateResultCompressedBytes": 21964
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 529,
+            "marketAnalysisToCompleteMs": 620,
+            "marketAnalysisOpenInteractionToNextPaintMs": 80,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 16
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 1,
+          "productRole": "maximum-row",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 503.89999985694885,
+            "marketAnalysisToCompleteMs": 623.8000001907349,
+            "lcpMs": 516,
+            "cls": 0,
+            "interactionToNextPaintMs": 72,
+            "longestTaskMs": 115,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 282454,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 304560,
+            "candidateResultCompressedBytes": 21964
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 503.89999985694885,
+            "marketAnalysisToCompleteMs": 623.8000001907349,
+            "marketAnalysisOpenInteractionToNextPaintMs": 72,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 16
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 2,
+          "productRole": "maximum-row",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 519.2999999523163,
+            "marketAnalysisToCompleteMs": 607.2000000476837,
+            "lcpMs": 532,
+            "cls": 0,
+            "interactionToNextPaintMs": 97.5,
+            "longestTaskMs": 122,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 282453,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 304560,
+            "candidateResultCompressedBytes": 21964
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 519.2999999523163,
+            "marketAnalysisToCompleteMs": 607.2000000476837,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 97.5,
+            "scoreDetailCloseInteractionToNextPaintMs": 16
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 3,
+          "productRole": "maximum-row",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 591.1999998092651,
+            "marketAnalysisToCompleteMs": 717.3999998569489,
+            "lcpMs": 528,
+            "cls": 0,
+            "interactionToNextPaintMs": 104,
+            "longestTaskMs": 153,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 282454,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 304560,
+            "candidateResultCompressedBytes": 21964
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 591.1999998092651,
+            "marketAnalysisToCompleteMs": 717.3999998569489,
+            "marketAnalysisOpenInteractionToNextPaintMs": 104,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 66
+          },
+          "violations": []
+        },
+        {
+          "trialIndex": 4,
+          "productRole": "maximum-row",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 506,
+            "marketAnalysisToCompleteMs": 620.5999999046326,
+            "lcpMs": 524,
+            "cls": 0,
+            "interactionToNextPaintMs": 67.20000004768372,
+            "longestTaskMs": 114,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 282454,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 304560,
+            "candidateResultCompressedBytes": 21964
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 506,
+            "marketAnalysisToCompleteMs": 620.5999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 32,
+            "scoreDetailCloseInteractionToNextPaintMs": 67.20000004768372
+          },
+          "violations": []
+        }
+      ],
+      "measuredTrialCount": 5,
+      "failedTrialCount": 0
+    }
+  },
+  "launchMatrix": {
+    "productRole": "median",
+    "trials": [
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "outcome": {
+          "trialIndex": 0,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 508.69999980926514,
+            "marketAnalysisToCompleteMs": 612.7000000476837,
+            "lcpMs": 564,
+            "cls": 0,
+            "interactionToNextPaintMs": 88,
+            "longestTaskMs": 130,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272180,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 508.69999980926514,
+            "marketAnalysisToCompleteMs": 612.7000000476837,
+            "marketAnalysisOpenInteractionToNextPaintMs": 88,
+            "scoreDetailPresentation": "responsive-static",
+            "scoreDetailOpenInteractionToNextPaintMs": null,
+            "scoreDetailCloseInteractionToNextPaintMs": null
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "outcome": {
+          "trialIndex": 1,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 632.2000000476837,
+            "marketAnalysisToCompleteMs": 747.0999999046326,
+            "lcpMs": 552,
+            "cls": 0,
+            "interactionToNextPaintMs": 144,
+            "longestTaskMs": 164,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272181,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 632.2000000476837,
+            "marketAnalysisToCompleteMs": 747.0999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 144,
+            "scoreDetailPresentation": "responsive-static",
+            "scoreDetailOpenInteractionToNextPaintMs": null,
+            "scoreDetailCloseInteractionToNextPaintMs": null
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "outcome": {
+          "trialIndex": 2,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 513.0999999046326,
+            "marketAnalysisToCompleteMs": 617.7000000476837,
+            "lcpMs": 540,
+            "cls": 0,
+            "interactionToNextPaintMs": 72,
+            "longestTaskMs": 129,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272181,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 513.0999999046326,
+            "marketAnalysisToCompleteMs": 617.7000000476837,
+            "marketAnalysisOpenInteractionToNextPaintMs": 72,
+            "scoreDetailPresentation": "responsive-static",
+            "scoreDetailOpenInteractionToNextPaintMs": null,
+            "scoreDetailCloseInteractionToNextPaintMs": null
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "outcome": {
+          "trialIndex": 3,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 487.2999999523163,
+            "marketAnalysisToCompleteMs": 633,
+            "lcpMs": 528,
+            "cls": 0,
+            "interactionToNextPaintMs": 114.59999990463257,
+            "longestTaskMs": 124,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272182,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 487.2999999523163,
+            "marketAnalysisToCompleteMs": 633,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 114.59999990463257,
+            "scoreDetailCloseInteractionToNextPaintMs": 66.89999985694885
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 320,
+          "height": 568
+        },
+        "outcome": {
+          "trialIndex": 4,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 490.39999985694885,
+            "marketAnalysisToCompleteMs": 604.5999999046326,
+            "lcpMs": 520,
+            "cls": 0,
+            "interactionToNextPaintMs": 99,
+            "longestTaskMs": 120,
+            "criticalCompressedBytes": 22640,
+            "totalFirstPartyCompressedBytes": 272181,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 490.39999985694885,
+            "marketAnalysisToCompleteMs": 604.5999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 64,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 99,
+            "scoreDetailCloseInteractionToNextPaintMs": 53.30000019073486
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "zh-Hans",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "outcome": {
+          "trialIndex": 5,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 533.2000000476837,
+            "marketAnalysisToCompleteMs": 633.0999999046326,
+            "lcpMs": 624,
+            "cls": 0.0005420315715020576,
+            "interactionToNextPaintMs": 88,
+            "longestTaskMs": 242,
+            "criticalCompressedBytes": 33885,
+            "totalFirstPartyCompressedBytes": 272483,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 533.2000000476837,
+            "marketAnalysisToCompleteMs": 633.0999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 88,
+            "scoreDetailPresentation": "responsive-static",
+            "scoreDetailOpenInteractionToNextPaintMs": null,
+            "scoreDetailCloseInteractionToNextPaintMs": null
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "zh-Hans",
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "outcome": {
+          "trialIndex": 6,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 646.1999998092651,
+            "marketAnalysisToCompleteMs": 747.9000000953674,
+            "lcpMs": 616,
+            "cls": 0,
+            "interactionToNextPaintMs": 168,
+            "longestTaskMs": 233,
+            "criticalCompressedBytes": 33885,
+            "totalFirstPartyCompressedBytes": 272482,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 646.1999998092651,
+            "marketAnalysisToCompleteMs": 747.9000000953674,
+            "marketAnalysisOpenInteractionToNextPaintMs": 168,
+            "scoreDetailPresentation": "responsive-static",
+            "scoreDetailOpenInteractionToNextPaintMs": null,
+            "scoreDetailCloseInteractionToNextPaintMs": null
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "zh-Hans",
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "outcome": {
+          "trialIndex": 7,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 530.5,
+            "marketAnalysisToCompleteMs": 621.0999999046326,
+            "lcpMs": 612,
+            "cls": 0,
+            "interactionToNextPaintMs": 80,
+            "longestTaskMs": 237,
+            "criticalCompressedBytes": 33885,
+            "totalFirstPartyCompressedBytes": 272481,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 530.5,
+            "marketAnalysisToCompleteMs": 621.0999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 80,
+            "scoreDetailPresentation": "responsive-static",
+            "scoreDetailOpenInteractionToNextPaintMs": null,
+            "scoreDetailCloseInteractionToNextPaintMs": null
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "zh-Hans",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "outcome": {
+          "trialIndex": 8,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 534.8000001907349,
+            "marketAnalysisToCompleteMs": 631.5999999046326,
+            "lcpMs": 568,
+            "cls": 0.002110798494545069,
+            "interactionToNextPaintMs": 176,
+            "longestTaskMs": 158,
+            "criticalCompressedBytes": 22936,
+            "totalFirstPartyCompressedBytes": 272482,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 534.8000001907349,
+            "marketAnalysisToCompleteMs": 631.5999999046326,
+            "marketAnalysisOpenInteractionToNextPaintMs": 176,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 16,
+            "scoreDetailCloseInteractionToNextPaintMs": 66.40000009536743
+          },
+          "violations": []
+        }
+      },
+      {
+        "locale": "zh-Hans",
+        "viewport": {
+          "width": 320,
+          "height": 568
+        },
+        "outcome": {
+          "trialIndex": 9,
+          "productRole": "median",
+          "status": "measured",
+          "metrics": {
+            "analyzeToCompleteListMs": 516.2000000476837,
+            "marketAnalysisToCompleteMs": 629.1000001430511,
+            "lcpMs": 568,
+            "cls": 0.0015075235607084408,
+            "interactionToNextPaintMs": 97.79999995231628,
+            "longestTaskMs": 149,
+            "criticalCompressedBytes": 22936,
+            "totalFirstPartyCompressedBytes": 272482,
+            "firstPartyJavaScriptCompressedBytes": 224150,
+            "candidateResultBytes": 283705,
+            "candidateResultCompressedBytes": 17118
+          },
+          "diagnostics": {
+            "analyzeToCompleteListMs": 516.2000000476837,
+            "marketAnalysisToCompleteMs": 629.1000001430511,
+            "marketAnalysisOpenInteractionToNextPaintMs": 80,
+            "scoreDetailPresentation": "interactive",
+            "scoreDetailOpenInteractionToNextPaintMs": 97.79999995231628,
+            "scoreDetailCloseInteractionToNextPaintMs": 67
+          },
+          "violations": []
+        }
+      }
+    ],
+    "measuredTrialCount": 10,
+    "failedTrialCount": 0
+  }
+}

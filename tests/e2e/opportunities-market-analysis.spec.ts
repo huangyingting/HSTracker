@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import type { MarketInvestigationPage } from "../../src/domain/opportunity-discovery/result";
 
-test("a fixed-product opportunity opens Market Analysis explicitly and Back restores its action", async ({
+test("[launch-evidence:opportunity-back] a fixed-product opportunity opens Market Analysis explicitly and Back restores its action", async ({
   page,
 }) => {
   await page.goto(
@@ -297,7 +297,7 @@ test("Back restores loaded opportunity pages, scroll, and row focus", async ({
     .toBeLessThanOrEqual(1);
 });
 
-test("a direct Market Analysis link falls back to its fixed-product opportunities", async ({
+test("[launch-evidence:direct-link-fallback] a direct Market Analysis link falls back to its fixed-product opportunities", async ({
   page,
 }) => {
   await page.goto(

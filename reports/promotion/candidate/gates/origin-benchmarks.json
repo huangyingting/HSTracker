@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "origin-benchmarks-report-v1",
+  "gate": "origin-benchmarks",
+  "measurementClass": "candidate",
+  "status": "accepted",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "checks": [
+    {
+      "name": "representative-fixtures",
+      "status": "accepted"
+    },
+    {
+      "name": "origin-thresholds",
+      "status": "accepted"
+    },
+    {
+      "name": "trade-explorer-budgets",
+      "status": "accepted"
+    }
+  ],
+  "retainedLogDigests": [
+    {
+      "path": "reports/promotion/candidate/evidence/origin-report.json",
+      "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/trade-explorer-measurement.json",
+      "sha256": "6ec65cc9d4727580a07ae3130740e1e0d0e77864b6e97f1e0dfd54f02a81ece8"
+    }
+  ]
+}

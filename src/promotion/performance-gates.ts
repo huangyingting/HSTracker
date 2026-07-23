@@ -1,6 +1,13 @@
 import { nonnegativeSafeInteger } from "../deployment/value-validation";
 import type { TradeExplorerArtifactBenchmarkQuery } from "../evidence/analysis-artifact-manifest";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
+import {
+  BROWSER_LAUNCH_MATRIX_LIMITS,
+  browserLaunchMatrixContextKey,
+  REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS,
+  type BrowserLaunchMatrixLocale,
+  type BrowserLaunchMatrixViewport,
+} from "./browser-launch-matrix";
 
 const KIB = 1024;
 const GIB = 1024 ** 3;
@@ -17,6 +24,8 @@ const BROWSER_LIMITS = {
   candidateResultCompressedBytes: 300 * KIB,
   analyzeToCompleteListP75Ms: 2_500,
   analyzeToCompleteListP95Ms: 4_000,
+  marketAnalysisToCompleteP75Ms: 2_500,
+  marketAnalysisToCompleteP95Ms: 4_000,
 } as const;
 
 const TARGET_ROUTE_P95_MS = {
@@ -33,13 +42,15 @@ export const REQUIRED_PRODUCT_ROLES = [
   "maximum-row",
 ] as const;
 
-const PRODUCT_BENCHMARK_OPERATIONS = [
+export const ORIGIN_PRODUCT_BENCHMARK_OPERATIONS = [
   "economy-search-uncached",
   "economy-search-process-hit",
   "product-search-uncached",
   "product-search-process-hit",
   "candidate-analysis-uncached",
   "candidate-analysis-process-hit",
+  "market-analysis-uncached",
+  "market-analysis-process-hit",
   "csv-uncached",
   "csv-analysis-hit",
   // Trade Trend reuses the same origin p95/p99 measurement contract as
@@ -74,7 +85,17 @@ const PRODUCT_BENCHMARK_OPERATIONS = [
   "trade-explorer-csv-analysis-hit",
 ] as const;
 
-const SINGLETON_BENCHMARK_OPERATIONS = [
+export type OriginBenchmarkCapabilities = {
+  recentTradeMomentum: boolean;
+  opportunityDiscovery: boolean;
+};
+
+export const ALL_ORIGIN_BENCHMARK_CAPABILITIES: OriginBenchmarkCapabilities = {
+  recentTradeMomentum: true,
+  opportunityDiscovery: true,
+};
+
+export const ORIGIN_SINGLETON_BENCHMARK_OPERATIONS = [
   "html-shell",
   "current-manifest",
   "health",
@@ -89,8 +110,42 @@ export type PerformanceProductRole =
   (typeof REQUIRED_PRODUCT_ROLES)[number];
 
 export type OriginBenchmarkOperation =
-  | (typeof PRODUCT_BENCHMARK_OPERATIONS)[number]
-  | (typeof SINGLETON_BENCHMARK_OPERATIONS)[number];
+  | (typeof ORIGIN_PRODUCT_BENCHMARK_OPERATIONS)[number]
+  | (typeof ORIGIN_SINGLETON_BENCHMARK_OPERATIONS)[number];
+
+export function isOriginBenchmarkOperation(
+  value: unknown,
+): value is OriginBenchmarkOperation {
+  return (
+    typeof value === "string" &&
+    (isOriginSingletonBenchmarkOperation(value) ||
+      (ORIGIN_PRODUCT_BENCHMARK_OPERATIONS as readonly string[]).includes(value))
+  );
+}
+
+export function isOriginSingletonBenchmarkOperation(
+  operation: string,
+): operation is (typeof ORIGIN_SINGLETON_BENCHMARK_OPERATIONS)[number] {
+  return (
+    ORIGIN_SINGLETON_BENCHMARK_OPERATIONS as readonly string[]
+  ).includes(operation);
+}
+
+export function isPerformanceProductRole(
+  value: unknown,
+): value is PerformanceProductRole {
+  return (
+    typeof value === "string" &&
+    (REQUIRED_PRODUCT_ROLES as readonly string[]).includes(value)
+  );
+}
+
+export function originBenchmarkRequiresUncachedSamples(
+  operation: OriginBenchmarkOperation,
+): boolean {
+  return !isOriginSingletonBenchmarkOperation(operation) &&
+    operation.endsWith("-uncached");
+}
 
 export type PerformanceMeasurementIdentity = {
   fixtureManifestSha256: string;
@@ -106,6 +161,7 @@ export type PerformanceMeasurementIdentity = {
 
 export type BrowserLabTrialInput = {
   analyzeToCompleteListMs: number;
+  marketAnalysisToCompleteMs: number;
   lcpMs: number;
   cls: number;
   interactionToNextPaintMs: number;
@@ -120,6 +176,17 @@ export type BrowserLabTrialInput = {
 export type BrowserLabProductInput = {
   productRole: "median" | "maximum-row";
   trials: BrowserLabTrialInput[];
+  failedTrialCount: number;
+};
+
+export type BrowserLaunchMatrixTrialInput = {
+  locale: BrowserLaunchMatrixLocale;
+  viewport: BrowserLaunchMatrixViewport;
+  metrics: BrowserLabTrialInput;
+};
+
+export type BrowserLaunchMatrixInput = {
+  trials: BrowserLaunchMatrixTrialInput[];
   failedTrialCount: number;
 };
 
@@ -192,6 +259,7 @@ export type TargetLoadInput = {
   coordinatedBurstIntervalSeconds: number;
   includesMaximumRowProduct: boolean;
   includesTradeExplorer: boolean;
+  includesMarketAnalysis: boolean;
   cacheStatesVerified: boolean;
   queueRejections: number;
   unretryableErrors: number;
@@ -224,6 +292,8 @@ export type PerformanceGateInput = {
   measuredAt: string;
   identity: PerformanceMeasurementIdentity;
   browserLab: BrowserLabProductInput[];
+  browserLaunchMatrix: BrowserLaunchMatrixInput;
+  originCapabilities: OriginBenchmarkCapabilities;
   originBenchmarks: OriginBenchmarkInput[];
   tradeExplorer: TradeExplorerMeasurementInput;
   targetLoad: TargetLoadInput;
@@ -244,6 +314,7 @@ type OriginThreshold = {
   p99LimitMs: number;
   routeDeadlineMs: number;
   payloadLimitBytes?: number;
+  payloadLimitExclusive?: boolean;
   compressedPayloadLimitBytes?: number;
 };
 
@@ -303,6 +374,22 @@ const ORIGIN_THRESHOLDS: Record<
     p99LimitMs: 250,
     routeDeadlineMs: 2_000,
     payloadLimitBytes: 1_536 * KIB,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "market-analysis-uncached": {
+    p95LimitMs: 2_500,
+    p99LimitMs: 5_000,
+    routeDeadlineMs: 12_000,
+    payloadLimitBytes: 1024 * KIB,
+    payloadLimitExclusive: true,
+    compressedPayloadLimitBytes: 300 * KIB,
+  },
+  "market-analysis-process-hit": {
+    p95LimitMs: 100,
+    p99LimitMs: 250,
+    routeDeadlineMs: 2_000,
+    payloadLimitBytes: 1024 * KIB,
+    payloadLimitExclusive: true,
     compressedPayloadLimitBytes: 300 * KIB,
   },
   "csv-uncached": {
@@ -414,6 +501,12 @@ const ORIGIN_THRESHOLDS: Record<
   },
 };
 
+export function originBenchmarkRouteDeadlineMs(
+  operation: OriginBenchmarkOperation,
+): number {
+  return ORIGIN_THRESHOLDS[operation].routeDeadlineMs;
+}
+
 export function evaluatePerformanceGates(input: PerformanceGateInput) {
   validateMeasurementIdentity(input.identity);
   utcTimestamp(input.measuredAt, "performance measuredAt");
@@ -425,8 +518,14 @@ export function evaluatePerformanceGates(input: PerformanceGateInput) {
       input.measurementClass === "candidate" ? "accepted" : "blocked"
     ) as PerformanceGateStatus,
   };
-  const browserLab = evaluateBrowserLab(input.browserLab);
-  const origin = evaluateOriginBenchmarks(input.originBenchmarks);
+  const browserLab = evaluateBrowserLab(
+    input.browserLab,
+    input.browserLaunchMatrix,
+  );
+  const origin = evaluateOriginBenchmarks(
+    input.originBenchmarks,
+    input.originCapabilities,
+  );
   const tradeExplorer = evaluateTradeExplorer(input.tradeExplorer);
   const targetLoad = evaluateTargetLoad(
     input.targetLoad,
@@ -610,13 +709,17 @@ function evaluateTradeExplorerQuery(
   };
 }
 
-function evaluateBrowserLab(input: BrowserLabProductInput[]) {
+function evaluateBrowserLab(
+  input: BrowserLabProductInput[],
+  launchMatrixInput: BrowserLaunchMatrixInput,
+) {
   const median = evaluateBrowserProduct(
     requiredBrowserProduct(input, "median"),
   );
   const maximumRow = evaluateBrowserProduct(
     requiredBrowserProduct(input, "maximum-row"),
   );
+  const launchMatrix = evaluateBrowserLaunchMatrix(launchMatrixInput);
   if (input.length !== 2) {
     throw new PerformanceGateInputError(
       "Browser lab evidence must contain only median and maximum-row products.",
@@ -624,11 +727,83 @@ function evaluateBrowserLab(input: BrowserLabProductInput[]) {
   }
 
   return {
-    status: combinedStatus([median.status, maximumRow.status]),
+    status: combinedStatus([
+      median.status,
+      maximumRow.status,
+      launchMatrix.status,
+    ]),
     products: {
       median,
       "maximum-row": maximumRow,
     },
+    launchMatrix,
+  };
+}
+
+function evaluateBrowserLaunchMatrix(input: BrowserLaunchMatrixInput) {
+  const failedTrialCount = count(
+    input.failedTrialCount,
+    "browser launch matrix failed trials",
+  );
+  const observedContexts = new Set<string>();
+  const trials = input.trials.map((trial, index) => {
+    if (trial.locale !== "en" && trial.locale !== "zh-Hans") {
+      throw new PerformanceGateInputError(
+        `Browser launch matrix trial ${index + 1} locale is unsupported.`,
+      );
+    }
+    const viewport = {
+      width: count(
+        trial.viewport.width,
+        `Browser launch matrix trial ${index + 1} viewport width`,
+      ),
+      height: count(
+        trial.viewport.height,
+        `Browser launch matrix trial ${index + 1} viewport height`,
+      ),
+    };
+    const context = browserLaunchMatrixContextKey(trial.locale, viewport);
+    if (observedContexts.has(context)) {
+      throw new PerformanceGateInputError(
+        `Browser launch matrix context ${context} is duplicated.`,
+      );
+    }
+    observedContexts.add(context);
+    return {
+      context,
+      metrics: validateBrowserTrial(
+        trial.metrics,
+        `Browser launch matrix trial ${index + 1}`,
+      ),
+    };
+  });
+  const hasCompleteContextSet =
+    observedContexts.size === REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS.length &&
+    REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS.every((context) =>
+      observedContexts.has(context),
+    );
+  const maximumLcpMs = maximum(trials.map((trial) => trial.metrics.lcpMs));
+  const maximumInteractionToNextPaintMs = maximum(
+    trials.map((trial) => trial.metrics.interactionToNextPaintMs),
+  );
+  const status: PerformanceGateStatus =
+    hasCompleteContextSet &&
+    failedTrialCount === 0 &&
+    maximumLcpMs <= BROWSER_LAUNCH_MATRIX_LIMITS.lcpMs &&
+    maximumInteractionToNextPaintMs <=
+      BROWSER_LAUNCH_MATRIX_LIMITS.interactionToNextPaintMs
+      ? "accepted"
+      : "blocked";
+  return {
+    contexts: observedContexts.size,
+    requiredContexts: REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS.length,
+    failedTrialCount,
+    maximumLcpMs,
+    lcpLimitMs: BROWSER_LAUNCH_MATRIX_LIMITS.lcpMs,
+    maximumInteractionToNextPaintMs,
+    interactionToNextPaintLimitMs:
+      BROWSER_LAUNCH_MATRIX_LIMITS.interactionToNextPaintMs,
+    status,
   };
 }
 
@@ -693,6 +868,14 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     trials.map((trial) => trial.analyzeToCompleteListMs),
     0.95,
   );
+  const marketAnalysisToCompleteP75Ms = percentile(
+    trials.map((trial) => trial.marketAnalysisToCompleteMs),
+    0.75,
+  );
+  const marketAnalysisToCompleteP95Ms = percentile(
+    trials.map((trial) => trial.marketAnalysisToCompleteMs),
+    0.95,
+  );
   const thresholdStatus: PerformanceGateStatus =
     medianLcpMs <= BROWSER_LIMITS.lcpMs &&
     medianCls <= BROWSER_LIMITS.cls &&
@@ -711,7 +894,11 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     analyzeToCompleteListP75Ms <=
       BROWSER_LIMITS.analyzeToCompleteListP75Ms &&
     analyzeToCompleteListP95Ms <=
-      BROWSER_LIMITS.analyzeToCompleteListP95Ms
+      BROWSER_LIMITS.analyzeToCompleteListP95Ms &&
+    marketAnalysisToCompleteP75Ms <=
+      BROWSER_LIMITS.marketAnalysisToCompleteP75Ms &&
+    marketAnalysisToCompleteP95Ms <=
+      BROWSER_LIMITS.marketAnalysisToCompleteP95Ms
       ? "accepted"
       : "blocked";
 
@@ -748,6 +935,12 @@ function evaluateBrowserProduct(input: BrowserLabProductInput) {
     analyzeToCompleteListP95Ms,
     analyzeToCompleteListP95LimitMs:
       BROWSER_LIMITS.analyzeToCompleteListP95Ms,
+    marketAnalysisToCompleteP75Ms,
+    marketAnalysisToCompleteP75LimitMs:
+      BROWSER_LIMITS.marketAnalysisToCompleteP75Ms,
+    marketAnalysisToCompleteP95Ms,
+    marketAnalysisToCompleteP95LimitMs:
+      BROWSER_LIMITS.marketAnalysisToCompleteP95Ms,
     status: combinedStatus([sampleStatus, thresholdStatus]),
   };
 }
@@ -759,6 +952,10 @@ function validateBrowserTrial(
   positiveNumber(
     input.analyzeToCompleteListMs,
     `${label} analyze-to-complete-list`,
+  );
+  positiveNumber(
+    input.marketAnalysisToCompleteMs,
+    `${label} Market Analysis-to-complete`,
   );
   nonnegativeNumber(input.lcpMs, `${label} LCP`);
   fraction(input.cls, `${label} CLS`);
@@ -790,7 +987,14 @@ function validateBrowserTrial(
   return input;
 }
 
-export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
+export function evaluateOriginBenchmarks(
+  input: OriginBenchmarkInput[],
+  capabilities: OriginBenchmarkCapabilities = ALL_ORIGIN_BENCHMARK_CAPABILITIES,
+) {
+  const validatedCapabilities = validateOriginBenchmarkCapabilities(capabilities);
+  const requiredProductOperations = requiredOriginProductOperations(
+    validatedCapabilities,
+  );
   const benchmarks = new Map<
     string,
     ReturnType<typeof evaluateOriginBenchmark>
@@ -805,17 +1009,17 @@ export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
     benchmarks.set(key, evaluateOriginBenchmark(benchmark));
   }
 
-  for (const operation of SINGLETON_BENCHMARK_OPERATIONS) {
+  for (const operation of ORIGIN_SINGLETON_BENCHMARK_OPERATIONS) {
     requireOriginBenchmark(benchmarks, `${operation}:all`);
   }
-  for (const operation of PRODUCT_BENCHMARK_OPERATIONS) {
+  for (const operation of requiredProductOperations) {
     for (const role of REQUIRED_PRODUCT_ROLES) {
       requireOriginBenchmark(benchmarks, `${operation}:${role}`);
     }
   }
   const requiredBenchmarkCount =
-    SINGLETON_BENCHMARK_OPERATIONS.length +
-    PRODUCT_BENCHMARK_OPERATIONS.length * REQUIRED_PRODUCT_ROLES.length;
+    ORIGIN_SINGLETON_BENCHMARK_OPERATIONS.length +
+    requiredProductOperations.length * REQUIRED_PRODUCT_ROLES.length;
   if (benchmarks.size !== requiredBenchmarkCount) {
     throw new PerformanceGateInputError(
       "Origin evidence contains an unsupported benchmark.",
@@ -826,14 +1030,44 @@ export function evaluateOriginBenchmarks(input: OriginBenchmarkInput[]) {
   return {
     benchmarkCount: results.length,
     benchmarks: results,
+    capabilities: validatedCapabilities,
     status: combinedStatus(results.map((result) => result.status)),
   };
 }
 
+function validateOriginBenchmarkCapabilities(
+  capabilities: OriginBenchmarkCapabilities,
+): OriginBenchmarkCapabilities {
+  if (
+    typeof capabilities !== "object" ||
+    capabilities === null ||
+    typeof capabilities.recentTradeMomentum !== "boolean" ||
+    typeof capabilities.opportunityDiscovery !== "boolean"
+  ) {
+    throw new PerformanceGateInputError(
+      "Origin benchmark capabilities must explicitly declare Recent Trade Momentum and Opportunity Discovery availability.",
+    );
+  }
+  return {
+    recentTradeMomentum: capabilities.recentTradeMomentum,
+    opportunityDiscovery: capabilities.opportunityDiscovery,
+  };
+}
+
+export function requiredOriginProductOperations(
+  capabilities: OriginBenchmarkCapabilities,
+): readonly (typeof ORIGIN_PRODUCT_BENCHMARK_OPERATIONS)[number][] {
+  return ORIGIN_PRODUCT_BENCHMARK_OPERATIONS.filter(
+    (operation) =>
+      (operation !== "recent-trade-momentum-uncached" ||
+        capabilities.recentTradeMomentum) &&
+      (operation !== "opportunity-feed-uncached" ||
+        capabilities.opportunityDiscovery),
+  );
+}
+
 function originBenchmarkKey(input: OriginBenchmarkInput): string {
-  const singleton = (
-    SINGLETON_BENCHMARK_OPERATIONS as readonly OriginBenchmarkOperation[]
-  ).includes(input.operation);
+  const singleton = isOriginSingletonBenchmarkOperation(input.operation);
   if (singleton) {
     if (input.productRole !== undefined) {
       throw new PerformanceGateInputError(
@@ -919,7 +1153,9 @@ function evaluateOriginBenchmark(input: OriginBenchmarkInput) {
     errors === 0 &&
     timeouts === 0 &&
     (threshold.payloadLimitBytes === undefined ||
-      payloadBytes <= threshold.payloadLimitBytes) &&
+      (threshold.payloadLimitExclusive === true
+        ? payloadBytes < threshold.payloadLimitBytes
+        : payloadBytes <= threshold.payloadLimitBytes)) &&
     (threshold.compressedPayloadLimitBytes === undefined ||
       (compressedPayloadBytes !== null &&
         compressedPayloadBytes <=
@@ -947,6 +1183,7 @@ function evaluateOriginBenchmark(input: OriginBenchmarkInput) {
     timeouts,
     payloadBytes,
     payloadLimitBytes: threshold.payloadLimitBytes ?? null,
+    payloadLimitExclusive: threshold.payloadLimitExclusive ?? false,
     compressedPayloadBytes,
     compressedPayloadLimitBytes:
       threshold.compressedPayloadLimitBytes ?? null,
@@ -1140,6 +1377,7 @@ function evaluateTargetLoad(
     coordinatedBurstIntervalSeconds > 60 ||
     !input.includesMaximumRowProduct ||
     !input.includesTradeExplorer ||
+    !input.includesMarketAnalysis ||
     !input.cacheStatesVerified ||
     queueRejections > 0 ||
     unretryableErrors > 0 ||
@@ -1191,6 +1429,7 @@ function evaluateTargetLoad(
     maximumCoordinatedBurstIntervalSeconds: 60,
     includesMaximumRowProduct: input.includesMaximumRowProduct,
     includesTradeExplorer: input.includesTradeExplorer,
+    includesMarketAnalysis: input.includesMarketAnalysis,
     cacheStatesVerified: input.cacheStatesVerified,
     queueRejections,
     unretryableErrors,

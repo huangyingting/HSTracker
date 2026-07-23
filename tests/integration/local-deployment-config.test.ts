@@ -11,6 +11,7 @@ type ComposeConfig = {
     string,
     {
       environment?: Record<string, string>;
+      image?: string;
       ports?: readonly {
         host_ip?: string;
         target?: number;
@@ -33,6 +34,7 @@ describe("local single-host deployment configuration", () => {
     const config = await composeConfig();
     const app = config.services["hs-tracker"];
     expect(app).toBeDefined();
+    expect(app.image).toBe("hs-tracker:local");
 
     // Release mode against the local filesystem release object store and volume.
     expect(app.environment).toMatchObject({

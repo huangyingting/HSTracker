@@ -4,8 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptance-fixture";
 import {
+  BROWSER_LAUNCH_MATRIX_LOCALES,
+  BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+} from "../../src/promotion/browser-launch-matrix";
+import {
   BrowserLabPlanError,
   createBrowserLabInstrumentationScript,
+  resolveInteractionToNextPaintMs,
+  resolveLongestScriptedTaskMs,
   runBrowserLab,
   runBrowserLabTrial,
   validateBrowserLabPlan,
@@ -15,6 +21,7 @@ import {
   type BrowserLabDriver,
   type BrowserLabJourney,
   type BrowserLabJourneyAction,
+  type BrowserLabOpenMarketAnalysisOutcome,
   type BrowserLabPerformanceSnapshot,
   type BrowserLabPlan,
   type BrowserLabTrialSession,
@@ -42,6 +49,24 @@ describe("browser-lab instrumentation", () => {
     expect(windowObject.__hsTrackerBrowserLab?.observers).toHaveLength(4);
     expect(windowObject.__hsTrackerBrowserLab?.observerErrors).toEqual([]);
   });
+
+  it("uses Event Timing when Chromium reports the measured interaction", () => {
+    expect(resolveInteractionToNextPaintMs([16], 288)).toBe(16);
+    expect(resolveInteractionToNextPaintMs([], 288)).toBe(288);
+  });
+
+  it("selects long tasks only from the scripted interaction window", () => {
+    expect(
+      resolveLongestScriptedTaskMs(
+        [
+          { startTime: 120, duration: 244 },
+          { startTime: 380, duration: 52 },
+          { startTime: 510, duration: 181 },
+        ],
+        300,
+      ),
+    ).toBe(181);
+  });
 });
 
 describe("browser-lab plan validation", () => {
@@ -56,10 +81,15 @@ describe("browser-lab plan validation", () => {
     expect(plan.journeys[0].productRole).toBe("median");
     expect(plan.journeys[1].productRole).toBe("maximum-row");
     expect(plan.journeys[0].trialCount).toBe(5);
+    expect(plan.launchMatrix).toEqual({
+      productRole: "median",
+      locales: BROWSER_LAUNCH_MATRIX_LOCALES,
+      viewports: BROWSER_LAUNCH_MATRIX_VIEWPORTS,
+    });
     expect(plan.journeys[0].actions.map((action) => action.kind)).toEqual([
       "select-context",
       "analyze",
-      "change-candidate-market",
+      "open-market-analysis",
       "open-score-detail",
       "close-score-detail",
     ]);
@@ -78,14 +108,41 @@ describe("browser-lab plan validation", () => {
     expect(plan.origin).toBe("http://127.0.0.1:3100");
   });
 
-  it("rejects a candidate origin that is not HTTPS", () => {
+  it("accepts the ADR-0004 loopback HTTP origin for candidate evidence", () => {
+    const input = candidatePlanInput();
+    input.origin = "http://127.0.0.1:3300";
+
+    const plan = validateBrowserLabPlan(input);
+
+    expect(plan.origin).toBe("http://127.0.0.1:3300");
+  });
+
+  it("rejects an insecure non-loopback candidate origin", () => {
     const input = candidatePlanInput();
     input.origin = "http://candidate.example.com";
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "Candidate browser-lab evidence requires an HTTPS origin.",
+        "Browser-lab plan origin for candidate evidence must use HTTPS or ADR-0004 loopback HTTP.",
       ),
+    );
+  });
+
+  it("rejects localhost aliases outside the exact ADR-0004 binding", () => {
+    const input = candidatePlanInput();
+    input.origin = "http://localhost:3300";
+
+    expect(() => validateBrowserLabPlan(input)).toThrowError(
+      /ADR-0004 loopback HTTP/u,
+    );
+  });
+
+  it("rejects HTTPS loopback because ADR-0004 has no TLS termination", () => {
+    const input = candidatePlanInput();
+    input.origin = "https://127.0.0.1:3300";
+
+    expect(() => validateBrowserLabPlan(input)).toThrowError(
+      /ADR-0004 loopback HTTP/u,
     );
   });
 
@@ -96,7 +153,7 @@ describe("browser-lab plan validation", () => {
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "Local-smoke browser-lab evidence requires a loopback HTTP origin.",
+        "Browser-lab plan origin for local-smoke evidence must use ADR-0004 loopback HTTP.",
       ),
     );
   });
@@ -134,6 +191,17 @@ describe("browser-lab plan validation", () => {
     );
   });
 
+  it("rejects candidate evidence with an incomplete launch matrix", () => {
+    const input = candidatePlanInput();
+    input.launchMatrix.viewports = input.launchMatrix.viewports.slice(1);
+
+    expect(() => validateBrowserLabPlan(input)).toThrowError(
+      new BrowserLabPlanError(
+        "Candidate browser-lab evidence requires both locales at 1440x900, 1024x768, 768x1024, 390x844, and 320x568.",
+      ),
+    );
+  });
+
   it("rejects a plan missing the identity", () => {
     const input = candidatePlanInput();
     delete input.identity;
@@ -149,7 +217,7 @@ describe("browser-lab plan validation", () => {
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "median journey must declare exactly the select-context, analyze, change-candidate-market, open-score-detail, and close-score-detail actions in order.",
+        "median journey must declare exactly the select-context, analyze, open-market-analysis, open-score-detail, and close-score-detail actions in order.",
       ),
     );
   });
@@ -167,6 +235,25 @@ describe("browser-lab plan validation", () => {
 });
 
 describe("browser-lab trial execution", () => {
+  it("opens the canonical Candidate Market route and preserves the launch locale", async () => {
+    const plan = validateBrowserLabPlan(candidatePlanInput());
+    const navigate = vi.fn(async () => {});
+    const session = fakeSession({ navigate });
+
+    await runBrowserLabTrial(
+      fakeDriver([session]),
+      plan.measurementClass,
+      plan.origin,
+      plan.journeys[0],
+      0,
+      { locale: "zh-Hans" },
+    );
+
+    expect(navigate).toHaveBeenCalledWith(
+      "https://candidate.example.com/?recipe=candidate-market-v1&locale=zh-Hans",
+    );
+  });
+
   it("maps a successful trial into BrowserLabTrialInput-compatible metrics and diagnostics", async () => {
     const plan = validateBrowserLabPlan(candidatePlanInput());
     const session = fakeSession();
@@ -185,6 +272,7 @@ describe("browser-lab trial execution", () => {
       productRole: "median",
       status: "measured",
       metrics: {
+        marketAnalysisToCompleteMs: 1_200,
         lcpMs: 1_800,
         cls: 0.05,
         interactionToNextPaintMs: 120,
@@ -197,7 +285,9 @@ describe("browser-lab trial execution", () => {
       },
       diagnostics: {
         analyzeToCompleteListMs: 850,
-        candidateMarketChangeInteractionToNextPaintMs: 120,
+        marketAnalysisToCompleteMs: 1_200,
+        marketAnalysisOpenInteractionToNextPaintMs: 120,
+        scoreDetailPresentation: "interactive",
         scoreDetailOpenInteractionToNextPaintMs: 90,
         scoreDetailCloseInteractionToNextPaintMs: 60,
       },
@@ -209,7 +299,7 @@ describe("browser-lab trial execution", () => {
   it("takes the maximum of the three next-paint interactions as interactionToNextPaintMs", async () => {
     const plan = validateBrowserLabPlan(candidatePlanInput());
     const session = fakeSession({
-      changeCandidateMarket: async () => actionOutcome(120),
+      openMarketAnalysis: async () => marketAnalysisOutcome(1_200, 120),
       openScoreDetail: async () => actionOutcome(310),
       closeScoreDetail: async () => actionOutcome(75),
     });
@@ -229,11 +319,45 @@ describe("browser-lab trial execution", () => {
     }
   });
 
-  it("fails closed and preserves the trial when a candidate-market change triggers a network request", async () => {
+  it("measures desktop trials when score details use a responsive static presentation", async () => {
+    const plan = validateBrowserLabPlan(candidatePlanInput());
+    const responsiveStaticOutcome = {
+      measurementStatus: "not-applicable-responsive-static",
+      interactionToNextPaintMs: null,
+      networkRequestUrls: [],
+    } as const;
+    const session = fakeSession({
+      openMarketAnalysis: async () => marketAnalysisOutcome(1_200, 120),
+      openScoreDetail: async () => responsiveStaticOutcome,
+      closeScoreDetail: async () => responsiveStaticOutcome,
+    });
+
+    const outcome = await runBrowserLabTrial(
+      fakeDriver([session]),
+      plan.measurementClass,
+      plan.origin,
+      plan.journeys[0],
+      0,
+    );
+
+    expect(outcome).toMatchObject({
+      status: "measured",
+      metrics: {
+        interactionToNextPaintMs: 120,
+      },
+      diagnostics: {
+        scoreDetailPresentation: "responsive-static",
+        scoreDetailOpenInteractionToNextPaintMs: null,
+        scoreDetailCloseInteractionToNextPaintMs: null,
+      },
+    });
+  });
+
+  it("allows the Market Analysis navigation requests while retaining its timing", async () => {
     const plan = validateBrowserLabPlan(candidatePlanInput());
     const session = fakeSession({
-      changeCandidateMarket: async () =>
-        actionOutcome(120, [
+      openMarketAnalysis: async () =>
+        marketAnalysisOutcome(1_200, 120, [
           "https://candidate.example.com/api/v1/analyses/analysis-1/candidate-markets",
         ]),
     });
@@ -250,19 +374,12 @@ describe("browser-lab trial execution", () => {
     expect(outcome).toMatchObject({
       trialIndex: 2,
       productRole: "median",
-      status: "failed",
-      code: "BROWSER_LAB_TRIAL_VIOLATION",
+      status: "measured",
+      metrics: {
+        marketAnalysisToCompleteMs: 1_200,
+      },
+      violations: [],
     });
-    if (outcome.status === "failed") {
-      expect(outcome.violations).toEqual([
-        {
-          kind: "client-local-network-request",
-          interaction: "change-candidate-market",
-          requestUrl:
-            "https://candidate.example.com/api/v1/analyses/analysis-1/candidate-markets",
-        },
-      ]);
-    }
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 
@@ -406,7 +523,25 @@ describe("browser-lab full-plan report", () => {
     expect(report.products.median.measuredTrialCount).toBe(2);
     expect(report.products.median.failedTrialCount).toBe(1);
     expect(report.products["maximum-row"].trials).toHaveLength(1);
-    expect(driver.openTrialSession).toHaveBeenCalledTimes(4);
+    expect(report.launchMatrix).toMatchObject({
+      productRole: "median",
+      measuredTrialCount: 10,
+      failedTrialCount: 0,
+    });
+    expect(
+      report.launchMatrix.trials.map(({ locale, viewport }) => ({
+        locale,
+        viewport,
+      })),
+    ).toEqual(
+      BROWSER_LAUNCH_MATRIX_LOCALES.flatMap((locale) =>
+        BROWSER_LAUNCH_MATRIX_VIEWPORTS.map((viewport) => ({
+          locale,
+          viewport,
+        })),
+      ),
+    );
+    expect(driver.openTrialSession).toHaveBeenCalledTimes(14);
   });
 
   it("does not start a trial when candidate identity attestation fails", async () => {
@@ -455,6 +590,10 @@ const fakeIdentityAttestor: RuntimeIdentityAttestor = async (
   schemaVersion: "runtime-identity-attestation-v1",
   origin,
   identity,
+  capabilities: {
+    recentTradeMomentum: true,
+    opportunityDiscovery: true,
+  },
   benchmarkQueries: [
     {
       role: "sparse",
@@ -498,7 +637,24 @@ function actionOutcome(
   interactionToNextPaintMs: number | null,
   networkRequestUrls: readonly string[] = [],
 ): BrowserLabActionOutcome {
-  return { interactionToNextPaintMs, networkRequestUrls };
+  return {
+    measurementStatus: "measured",
+    interactionToNextPaintMs,
+    networkRequestUrls,
+  };
+}
+
+function marketAnalysisOutcome(
+  marketAnalysisToCompleteMs: number | null,
+  interactionToNextPaintMs: number | null,
+  networkRequestUrls: readonly string[] = [],
+): BrowserLabOpenMarketAnalysisOutcome {
+  return {
+    marketAnalysisToCompleteMs,
+    measurementStatus: "measured",
+    interactionToNextPaintMs,
+    networkRequestUrls,
+  };
 }
 
 function fakeSession(
@@ -506,7 +662,7 @@ function fakeSession(
     navigate: BrowserLabTrialSession["navigate"];
     selectContext: BrowserLabTrialSession["selectContext"];
     analyze: () => Promise<BrowserLabAnalyzeOutcome>;
-    changeCandidateMarket: () => Promise<BrowserLabActionOutcome>;
+    openMarketAnalysis: () => Promise<BrowserLabOpenMarketAnalysisOutcome>;
     openScoreDetail: () => Promise<BrowserLabActionOutcome>;
     closeScoreDetail: () => Promise<BrowserLabActionOutcome>;
     performanceSnapshot: () => Promise<BrowserLabPerformanceSnapshot>;
@@ -522,8 +678,9 @@ function fakeSession(
         analyzeToCompleteListMs: 850,
         candidateResponseBytes: { encodedBytes: 90_000, decodedBytes: 420_000 },
       })),
-    changeCandidateMarket:
-      overrides.changeCandidateMarket ?? (async () => actionOutcome(120)),
+    openMarketAnalysis:
+      overrides.openMarketAnalysis ??
+      (async () => marketAnalysisOutcome(1_200, 120)),
     openScoreDetail:
       overrides.openScoreDetail ?? (async () => actionOutcome(90)),
     closeScoreDetail:
@@ -563,6 +720,11 @@ type MutablePlan = {
   identity?: Record<string, unknown>;
   origin: string;
   journeys: MutableJourney[];
+  launchMatrix: {
+    productRole: "median" | "maximum-row";
+    locales: string[];
+    viewports: Array<{ width: number; height: number }>;
+  };
 };
 
 type MutableJourney = {
@@ -588,6 +750,13 @@ export function candidatePlanInput(): MutablePlan {
       region: "usw",
     },
     journeys: [journey("median"), journey("maximum-row")],
+    launchMatrix: {
+      productRole: "median",
+      locales: [...BROWSER_LAUNCH_MATRIX_LOCALES],
+      viewports: BROWSER_LAUNCH_MATRIX_VIEWPORTS.map((viewport) => ({
+        ...viewport,
+      })),
+    },
   };
 }
 
@@ -617,9 +786,13 @@ function journey(productRole: "median" | "maximum-row"): MutableJourney {
         completeListLocator: { by: "testId", testId: "candidate-market-list" },
       },
       {
-        kind: "change-candidate-market",
-        label: "Select the second-ranked candidate",
-        candidateLocator: { by: "testId", testId: "candidate-market-row-2" },
+        kind: "open-market-analysis",
+        label: "Analyze the second-ranked Candidate Market",
+        marketLinkLocator: { by: "testId", testId: "candidate-market-row-2" },
+        completeAnalysisLocator: {
+          by: "testId",
+          testId: "market-analysis",
+        },
       },
       {
         kind: "open-score-detail",

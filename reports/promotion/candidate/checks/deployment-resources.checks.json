@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "deployment-resources",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T20:44:34Z",
+  "windowStartedAt": "2026-07-23T19:27:22Z",
+  "windowEndedAt": "2026-07-23T20:44:34Z",
+  "sampleCount": 632,
+  "checks": [
+    {
+      "name": "memory",
+      "status": "accepted",
+      "detail": "Exact 600s mixed load peaked at 20.0% cgroup memory and 21.7% process RSS with 0 spill bytes."
+    },
+    {
+      "name": "storage",
+      "status": "accepted",
+      "detail": "Exact image hs-tracker:issue72-d12b822 is 149536911 compressed bytes and code-only; artifact 1002975232 bytes, catalog 5153712 resident bytes, and observed volume free fraction 90.9% all pass."
+    },
+    {
+      "name": "cpu",
+      "status": "accepted",
+      "detail": "Measured load used dedicated-cpu pressure evidence and completed with no queue rejection, unretryable error, timeout, or resource-budget violation."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/deployment-report.json",
+      "sha256": "35f13f9db01a65a44859b8aa4dec38240c2ae30721964600ab80e5e80da3eacc"
+    },
+    {
+      "path": "reports/promotion/candidate/evidence/load-report.json",
+      "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+    }
+  ]
+}

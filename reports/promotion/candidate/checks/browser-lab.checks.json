@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "browser-lab",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T19:49:05Z",
+  "windowStartedAt": "2026-07-23T19:49:05Z",
+  "windowEndedAt": "2026-07-23T19:49:05Z",
+  "sampleCount": 20,
+  "checks": [
+    {
+      "name": "mobile-profile",
+      "status": "accepted",
+      "detail": "Playwright Chromium completed 10 throttled mobile trials and 10 locale/viewport launch-matrix trials against the exact d12b822 candidate with zero failed trials."
+    },
+    {
+      "name": "browser-thresholds",
+      "status": "accepted",
+      "detail": "Every retained browser trial completed within the fixed rendering, interaction, payload, JavaScript, and Market Analysis thresholds; no trial recorded a violation."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/browser-report.json",
+      "sha256": "9314d95bd3dc03e9acedbc74ce6009a8cd9a09c468023fa67de54e58a0d717f6"
+    }
+  ]
+}

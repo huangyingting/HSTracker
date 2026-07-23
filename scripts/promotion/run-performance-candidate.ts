@@ -7,6 +7,7 @@ import {
   validateBrowserLabPlan,
 } from "../../src/promotion/browser-lab-runner";
 import {
+  createAnonymousSourcePacedHttpExecutor,
   createFetchHttpExecutor,
   createPrometheusMixedLoadObservationAdapter,
   parseMixedLoadPlan,
@@ -116,7 +117,10 @@ async function main(): Promise<void> {
     await browserDriver.dispose();
   }
   const executor = createFetchHttpExecutor();
-  const originReport = await runOriginBenchmark(originPlan, executor);
+  const originReport = await runOriginBenchmark(
+    originPlan,
+    createAnonymousSourcePacedHttpExecutor(executor),
+  );
   const loadReport = await runMixedLoad(loadPlan, executor, {
     observationAdapter: createPrometheusMixedLoadObservationAdapter(
       loadPlan.origin,
@@ -138,6 +142,21 @@ async function main(): Promise<void> {
       ),
       failedTrialCount: product.failedTrialCount,
     })),
+    browserLaunchMatrix: {
+      trials: browserReport.launchMatrix.trials.flatMap((trial) =>
+        trial.outcome.status === "measured"
+          ? [
+              {
+                locale: trial.locale,
+                viewport: trial.viewport,
+                metrics: trial.outcome.metrics,
+              },
+            ]
+          : [],
+      ),
+      failedTrialCount: browserReport.launchMatrix.failedTrialCount,
+    },
+    originCapabilities: originReport.capabilities,
     originBenchmarks: [...originReport.originBenchmarks],
     tradeExplorer: {
       ...tradeExplorer.measurements,

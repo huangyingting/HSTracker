@@ -288,36 +288,33 @@ export function createMarketAnalysis(
 ): MarketAnalysis {
   return {
     async load(request, options) {
+      const requests = [
+        {
+          recipe: "candidate-market-v1",
+          analysisBuildId: request.analysisBuildId,
+          exporterCode: request.exportEconomyCode,
+          productCode: request.productCode,
+        },
+        {
+          recipe: "trade-trend-v1",
+          analysisBuildId: request.analysisBuildId,
+          importerCode: request.marketCode,
+          productCode: request.productCode,
+        },
+        {
+          recipe: "supplier-competition-v1",
+          analysisBuildId: request.analysisBuildId,
+          importerCode: request.marketCode,
+          productCode: request.productCode,
+        },
+      ] as const;
       const [candidateMarket, tradeTrend, supplierCompetition] =
-        await Promise.all([
-          platform.execute(
-            {
-              recipe: "candidate-market-v1",
-              analysisBuildId: request.analysisBuildId,
-              exporterCode: request.exportEconomyCode,
-              productCode: request.productCode,
-            },
-            options,
-          ),
-          platform.execute(
-            {
-              recipe: "trade-trend-v1",
-              analysisBuildId: request.analysisBuildId,
-              importerCode: request.marketCode,
-              productCode: request.productCode,
-            },
-            options,
-          ),
-          platform.execute(
-            {
-              recipe: "supplier-competition-v1",
-              analysisBuildId: request.analysisBuildId,
-              importerCode: request.marketCode,
-              productCode: request.productCode,
-            },
-            options,
-          ),
-        ]);
+        await (platform.executeBatch?.(requests, options) ??
+          Promise.all([
+            platform.execute(requests[0], options),
+            platform.execute(requests[1], options),
+            platform.execute(requests[2], options),
+          ]));
 
       const winner = pickFailureWinner([
         FAILURE_CATEGORY_RANK[candidateMarket.state],

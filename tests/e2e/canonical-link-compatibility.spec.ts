@@ -68,7 +68,7 @@ async function expectRecipeLoaded(
   await expect(page.getByRole("table", { name: "Result" })).toBeVisible();
 }
 
-test("the canonical-link compatibility fixture set preserves recipe, inputs, locale, and Current identity", async ({
+test("[launch-evidence:canonical-link-compatibility] the canonical-link compatibility fixture set preserves recipe, inputs, locale, and Current identity", async ({
   page,
   request,
 }) => {

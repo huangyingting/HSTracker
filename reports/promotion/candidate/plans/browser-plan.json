@@ -1,0 +1,191 @@
+{
+  "schemaVersion": "browser-lab-plan-v1",
+  "measurementClass": "candidate",
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "origin": "http://127.0.0.1:3300",
+  "journeys": [
+    {
+      "productRole": "median",
+      "trialCount": 5,
+      "actions": [
+        {
+          "kind": "select-context",
+          "label": "Select China and the median-row product",
+          "exporterComboboxLocator": {
+            "by": "css",
+            "selector": "#economy-search"
+          },
+          "exporterQuery": "156",
+          "exporterOptionLocator": {
+            "by": "css",
+            "selector": ".economy-options [role=\"option\"]"
+          },
+          "productComboboxLocator": {
+            "by": "css",
+            "selector": ".product-field input[role=\"combobox\"]"
+          },
+          "productQuery": "400110",
+          "productOptionLocator": {
+            "by": "css",
+            "selector": ".product-options [role=\"option\"]"
+          }
+        },
+        {
+          "kind": "analyze",
+          "label": "Analyze Candidate Markets",
+          "analyzeButtonLocator": {
+            "by": "css",
+            "selector": ".analyze-button"
+          },
+          "completeListLocator": {
+            "by": "css",
+            "selector": ".candidate-ranking ol"
+          }
+        },
+        {
+          "kind": "open-market-analysis",
+          "label": "Analyze second-ranked Candidate Market",
+          "marketLinkLocator": {
+            "by": "css",
+            "selector": ".candidate-ranking ol li:nth-child(2) a"
+          },
+          "completeAnalysisLocator": {
+            "by": "css",
+            "selector": ".market-analysis-view"
+          }
+        },
+        {
+          "kind": "open-score-detail",
+          "label": "Open score details",
+          "openTriggerLocator": {
+            "by": "css",
+            "selector": ".score-details-toggle"
+          },
+          "detailLocator": {
+            "by": "css",
+            "selector": ".score-details[data-open=\"true\"]"
+          }
+        },
+        {
+          "kind": "close-score-detail",
+          "label": "Close score details",
+          "closeTriggerLocator": {
+            "by": "css",
+            "selector": ".score-details-toggle"
+          }
+        }
+      ]
+    },
+    {
+      "productRole": "maximum-row",
+      "trialCount": 5,
+      "actions": [
+        {
+          "kind": "select-context",
+          "label": "Select China and the maximum-row product",
+          "exporterComboboxLocator": {
+            "by": "css",
+            "selector": "#economy-search"
+          },
+          "exporterQuery": "156",
+          "exporterOptionLocator": {
+            "by": "css",
+            "selector": ".economy-options [role=\"option\"]"
+          },
+          "productComboboxLocator": {
+            "by": "css",
+            "selector": ".product-field input[role=\"combobox\"]"
+          },
+          "productQuery": "392690",
+          "productOptionLocator": {
+            "by": "css",
+            "selector": ".product-options [role=\"option\"]"
+          }
+        },
+        {
+          "kind": "analyze",
+          "label": "Analyze Candidate Markets",
+          "analyzeButtonLocator": {
+            "by": "css",
+            "selector": ".analyze-button"
+          },
+          "completeListLocator": {
+            "by": "css",
+            "selector": ".candidate-ranking ol"
+          }
+        },
+        {
+          "kind": "open-market-analysis",
+          "label": "Analyze second-ranked Candidate Market",
+          "marketLinkLocator": {
+            "by": "css",
+            "selector": ".candidate-ranking ol li:nth-child(2) a"
+          },
+          "completeAnalysisLocator": {
+            "by": "css",
+            "selector": ".market-analysis-view"
+          }
+        },
+        {
+          "kind": "open-score-detail",
+          "label": "Open score details",
+          "openTriggerLocator": {
+            "by": "css",
+            "selector": ".score-details-toggle"
+          },
+          "detailLocator": {
+            "by": "css",
+            "selector": ".score-details[data-open=\"true\"]"
+          }
+        },
+        {
+          "kind": "close-score-detail",
+          "label": "Close score details",
+          "closeTriggerLocator": {
+            "by": "css",
+            "selector": ".score-details-toggle"
+          }
+        }
+      ]
+    }
+  ],
+  "launchMatrix": {
+    "productRole": "median",
+    "locales": [
+      "en",
+      "zh-Hans"
+    ],
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900
+      },
+      {
+        "width": 1024,
+        "height": 768
+      },
+      {
+        "width": 768,
+        "height": 1024
+      },
+      {
+        "width": 390,
+        "height": 844
+      },
+      {
+        "width": 320,
+        "height": 568
+      }
+    ]
+  }
+}

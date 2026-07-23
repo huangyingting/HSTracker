@@ -1,0 +1,813 @@
+{
+  "schemaVersion": "production-promotion-report-v1",
+  "evaluatedAt": "2026-07-23T21:29:21Z",
+  "status": "accepted",
+  "gateCount": 11,
+  "priorFailureCount": 0,
+  "unresolvedFailureCount": 0,
+  "identity": {
+    "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+    "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+    "baciRelease": "V202601",
+    "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+    "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+    "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+    "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+    "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+    "machineId": "local",
+    "machineClass": "local",
+    "region": "loc"
+  },
+  "toolVersions": {
+    "node": "24.17.0",
+    "npm": "11.13.0",
+    "next": "16.2.10",
+    "duckdb": "1.5.4-r.1",
+    "playwright": "1.61.1"
+  },
+  "gates": [
+    {
+      "gate": "source-and-domain",
+      "schemaVersion": "source-and-domain-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f",
+      "measuredAt": "2026-07-23T19:39:32Z",
+      "windowStartedAt": "2026-07-23T19:39:32Z",
+      "windowEndedAt": "2026-07-23T19:39:32Z",
+      "sampleCount": 15,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/source-and-domain.json",
+        "reports/promotion/candidate/evidence/source-and-domain-measurement.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:32Z",
+          "status": "accepted",
+          "logSha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "origin-benchmarks",
+      "schemaVersion": "origin-benchmarks-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a",
+      "measuredAt": "2026-07-23T20:43:36Z",
+      "windowStartedAt": "2026-07-23T20:43:36Z",
+      "windowEndedAt": "2026-07-23T20:43:36Z",
+      "sampleCount": 91,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/origin-benchmarks.json",
+        "reports/promotion/candidate/evidence/origin-report.json",
+        "reports/promotion/candidate/evidence/trade-explorer-measurement.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T20:43:36Z",
+          "status": "accepted",
+          "logSha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "browser-lab",
+      "schemaVersion": "browser-lab-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47",
+      "measuredAt": "2026-07-23T19:49:05Z",
+      "windowStartedAt": "2026-07-23T19:49:05Z",
+      "windowEndedAt": "2026-07-23T19:49:05Z",
+      "sampleCount": 20,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/browser-lab.json",
+        "reports/promotion/candidate/evidence/browser-report.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:49:05Z",
+          "status": "accepted",
+          "logSha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "target-load",
+      "schemaVersion": "target-load-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d",
+      "measuredAt": "2026-07-23T19:37:52Z",
+      "windowStartedAt": "2026-07-23T19:27:22Z",
+      "windowEndedAt": "2026-07-23T19:37:52Z",
+      "sampleCount": 631,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/target-load.json",
+        "reports/promotion/candidate/evidence/load-report.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:37:52Z",
+          "status": "accepted",
+          "logSha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "coalescing-and-capacity",
+      "schemaVersion": "coalescing-and-capacity-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96",
+      "measuredAt": "2026-07-23T19:39:32Z",
+      "windowStartedAt": "2026-07-23T19:39:32Z",
+      "windowEndedAt": "2026-07-23T19:39:32Z",
+      "sampleCount": 32,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+        "reports/promotion/candidate/evidence/coalescing-and-capacity-measurement.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:32Z",
+          "status": "accepted",
+          "logSha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "http-cache-and-deadlines",
+      "schemaVersion": "http-cache-and-deadlines-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee",
+      "measuredAt": "2026-07-23T19:39:52Z",
+      "windowStartedAt": "2026-07-23T19:39:50Z",
+      "windowEndedAt": "2026-07-23T19:39:52Z",
+      "sampleCount": 7,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+        "reports/promotion/candidate/evidence/http-cache-and-deadlines-evidence.json",
+        "reports/promotion/candidate/plans/origin-plan.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:52Z",
+          "status": "accepted",
+          "logSha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "lifecycle-and-recovery",
+      "schemaVersion": "lifecycle-and-recovery-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98",
+      "measuredAt": "2026-07-23T21:00:22Z",
+      "windowStartedAt": "2026-07-23T20:49:31Z",
+      "windowEndedAt": "2026-07-23T21:00:22Z",
+      "sampleCount": 5,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+        "reports/promotion/candidate/evidence/lifecycle-drills.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T21:00:22Z",
+          "status": "accepted",
+          "logSha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "deployment-resources",
+      "schemaVersion": "deployment-resources-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80",
+      "measuredAt": "2026-07-23T20:44:34Z",
+      "windowStartedAt": "2026-07-23T19:27:22Z",
+      "windowEndedAt": "2026-07-23T20:44:34Z",
+      "sampleCount": 632,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/deployment-resources.json",
+        "reports/promotion/candidate/evidence/deployment-report.json",
+        "reports/promotion/candidate/evidence/load-report.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T20:44:34Z",
+          "status": "accepted",
+          "logSha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "external-smoke-and-observability",
+      "schemaVersion": "external-smoke-and-observability-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31",
+      "measuredAt": "2026-07-23T21:09:00Z",
+      "windowStartedAt": "2026-07-23T21:06:00Z",
+      "windowEndedAt": "2026-07-23T21:09:00Z",
+      "sampleCount": 57,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+        "reports/promotion/candidate/evidence/external-smoke-report.json",
+        "reports/promotion/candidate/evidence/observability-alert-tests.json",
+        "reports/promotion/candidate/evidence/external-smoke-health.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T21:09:00Z",
+          "status": "accepted",
+          "logSha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "recurring-cost",
+      "schemaVersion": "recurring-cost-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6",
+      "measuredAt": "2026-07-23T19:39:31Z",
+      "windowStartedAt": "2026-07-12T00:00:00Z",
+      "windowEndedAt": "2026-07-12T00:00:00Z",
+      "sampleCount": 5,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/recurring-cost.json",
+        "reports/promotion/candidate/checks/recurring-cost.cost-forecast.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T19:39:31Z",
+          "status": "accepted",
+          "logSha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    },
+    {
+      "gate": "market-analysis-launch",
+      "schemaVersion": "market-analysis-launch-report-v1",
+      "status": "accepted",
+      "promotionStatus": "accepted",
+      "identity": {
+        "fixtureManifestSha256": "4aa07db3e71132e85849c79b7098da76b7d93033130f64ada84b8f6cf9135ab0",
+        "buildId": "d12b822bb5105a063a3d05edae5b7166928bda52",
+        "baciRelease": "V202601",
+        "analysisBuildId": "analysis-build-v1-949d1ac27ade40d4",
+        "productSearchBuildId": "product-search-v1-aa1f4027019c194b",
+        "artifactSha256": "ca688ed1ac89b3f2da1aab606179c659cffcfdc6a590ea91e9f62259163f8b76",
+        "deploymentPairingId": "deployment-pairing-v1-524ecfbc74effe30",
+        "sourceStatusSnapshotId": "source-status-v1-b5ea309f2eef076f",
+        "machineId": "local",
+        "machineClass": "local",
+        "region": "loc"
+      },
+      "reportSha256": "c58e4054c6ee7a818bda2b4e99f6aa43a463cf1acc4c6be3f8d110e067c03829",
+      "measuredAt": "2026-07-23T21:29:04Z",
+      "windowStartedAt": "2026-07-23T21:29:04Z",
+      "windowEndedAt": "2026-07-23T21:29:04Z",
+      "sampleCount": 98,
+      "retainedLogs": [
+        "reports/promotion/candidate/gates/market-analysis-launch.json",
+        "reports/promotion/candidate/candidate-config.json",
+        "reports/promotion/candidate/evidence/origin-report.json",
+        "reports/promotion/candidate/evidence/browser-report.json",
+        "reports/promotion/candidate/evidence/load-report.json",
+        "reports/promotion/candidate/evidence/lifecycle-drills.json",
+        "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+        "reports/promotion/candidate/evidence/market-analysis-launch-contracts.json",
+        "reports/promotion/candidate/gates/source-and-domain.json",
+        "reports/promotion/candidate/gates/origin-benchmarks.json",
+        "reports/promotion/candidate/gates/browser-lab.json",
+        "reports/promotion/candidate/gates/target-load.json",
+        "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+        "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+        "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+        "reports/promotion/candidate/gates/deployment-resources.json",
+        "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+        "reports/promotion/candidate/gates/recurring-cost.json",
+        "reports/promotion/candidate/evidence/market-analysis-launch-readiness.json"
+      ],
+      "attempts": [
+        {
+          "attemptedAt": "2026-07-23T21:29:04Z",
+          "status": "accepted",
+          "logSha256": "c58e4054c6ee7a818bda2b4e99f6aa43a463cf1acc4c6be3f8d110e067c03829"
+        }
+      ],
+      "priorFailureCount": 0,
+      "unresolvedFailureCount": 0,
+      "resolution": null
+    }
+  ],
+  "retainedEvidence": [
+    {
+      "gate": "source-and-domain",
+      "reportSha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f",
+      "report": {
+        "schemaVersion": "source-and-domain-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/source-and-domain.json",
+          "bytes": 1157,
+          "sha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/source-and-domain-measurement.json",
+          "bytes": 915,
+          "sha256": "f99618ed33fd51cd6d9d48dac65ad2589ea6fbd87aa7242e32ca10f4deae7f62"
+        }
+      ]
+    },
+    {
+      "gate": "origin-benchmarks",
+      "reportSha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a",
+      "report": {
+        "schemaVersion": "origin-benchmarks-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/origin-benchmarks.json",
+          "bytes": 1413,
+          "sha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/origin-report.json",
+          "bytes": 46883,
+          "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/trade-explorer-measurement.json",
+          "bytes": 1545,
+          "sha256": "6ec65cc9d4727580a07ae3130740e1e0d0e77864b6e97f1e0dfd54f02a81ece8"
+        }
+      ]
+    },
+    {
+      "gate": "browser-lab",
+      "reportSha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47",
+      "report": {
+        "schemaVersion": "browser-lab-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/browser-lab.json",
+          "bytes": 1132,
+          "sha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/browser-report.json",
+          "bytes": 27207,
+          "sha256": "9314d95bd3dc03e9acedbc74ce6009a8cd9a09c468023fa67de54e58a0d717f6"
+        }
+      ]
+    },
+    {
+      "gate": "target-load",
+      "reportSha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d",
+      "report": {
+        "schemaVersion": "target-load-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/target-load.json",
+          "bytes": 1191,
+          "sha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/load-report.json",
+          "bytes": 5316,
+          "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+        }
+      ]
+    },
+    {
+      "gate": "coalescing-and-capacity",
+      "reportSha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96",
+      "report": {
+        "schemaVersion": "coalescing-and-capacity-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+          "bytes": 1163,
+          "sha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/coalescing-and-capacity-measurement.json",
+          "bytes": 677,
+          "sha256": "3feaa044549988bbc7d0daa9dc813bb59afcfbed92bf28aacaa08ca986ca6206"
+        }
+      ]
+    },
+    {
+      "gate": "http-cache-and-deadlines",
+      "reportSha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee",
+      "report": {
+        "schemaVersion": "http-cache-and-deadlines-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+          "bytes": 1328,
+          "sha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/http-cache-and-deadlines-evidence.json",
+          "bytes": 3841,
+          "sha256": "c6250184745eccddaee950cb5874ec34cd3708e69c8bda47caae2332df5f4cb2"
+        },
+        {
+          "path": "reports/promotion/candidate/plans/origin-plan.json",
+          "bytes": 2315310,
+          "sha256": "441da9d7e100ba835bdf32694a7e564926e6b979eec01d4038a355a72f9fe5e8"
+        }
+      ]
+    },
+    {
+      "gate": "lifecycle-and-recovery",
+      "reportSha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98",
+      "report": {
+        "schemaVersion": "lifecycle-and-recovery-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+          "bytes": 1340,
+          "sha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/lifecycle-drills.json",
+          "bytes": 6856,
+          "sha256": "1d13e03b1ad93e389e08b574f2237b2f1deba01a10dd716ac6960b2835d44ad7"
+        }
+      ]
+    },
+    {
+      "gate": "deployment-resources",
+      "reportSha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80",
+      "report": {
+        "schemaVersion": "deployment-resources-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/deployment-resources.json",
+          "bytes": 1362,
+          "sha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/deployment-report.json",
+          "bytes": 2235,
+          "sha256": "35f13f9db01a65a44859b8aa4dec38240c2ae30721964600ab80e5e80da3eacc"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/load-report.json",
+          "bytes": 5316,
+          "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+        }
+      ]
+    },
+    {
+      "gate": "external-smoke-and-observability",
+      "reportSha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31",
+      "report": {
+        "schemaVersion": "external-smoke-and-observability-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+          "bytes": 1677,
+          "sha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/external-smoke-report.json",
+          "bytes": 4940,
+          "sha256": "cf7664194df4e5e27c8c255f568a6b1be5d197525b359407e8da723f8a640c82"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/observability-alert-tests.json",
+          "bytes": 30363,
+          "sha256": "db27797062add67491a1c6b0e715883977529b4acad255e3ba97a6083ea3ad27"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/external-smoke-health.json",
+          "bytes": 1601,
+          "sha256": "62d11425d27347fec39e34fe2ca63f770c6ec236a850cec5b984db6dfb4810b2"
+        }
+      ]
+    },
+    {
+      "gate": "recurring-cost",
+      "reportSha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6",
+      "report": {
+        "schemaVersion": "recurring-cost-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/recurring-cost.json",
+          "bytes": 1072,
+          "sha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6"
+        },
+        {
+          "path": "reports/promotion/candidate/checks/recurring-cost.cost-forecast.json",
+          "bytes": 2160,
+          "sha256": "2e64be80b8c2867b558379aacc43b865724034a17703fe6e368fc3364c33293a"
+        }
+      ]
+    },
+    {
+      "gate": "market-analysis-launch",
+      "reportSha256": "c58e4054c6ee7a818bda2b4e99f6aa43a463cf1acc4c6be3f8d110e067c03829",
+      "report": {
+        "schemaVersion": "market-analysis-launch-report-v1",
+        "measurementClass": "candidate",
+        "status": "accepted"
+      },
+      "retainedLogs": [
+        {
+          "path": "reports/promotion/candidate/gates/market-analysis-launch.json",
+          "bytes": 4540,
+          "sha256": "c58e4054c6ee7a818bda2b4e99f6aa43a463cf1acc4c6be3f8d110e067c03829"
+        },
+        {
+          "path": "reports/promotion/candidate/candidate-config.json",
+          "bytes": 837,
+          "sha256": "574b5f3460e469e859a63c7a0e4413903aa98610099a21b3785651d807873a7c"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/origin-report.json",
+          "bytes": 46883,
+          "sha256": "f1dafd0c112fc3b229e9b5ca9695c81c23a422d6514439aefaf3b1dc77293e7a"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/browser-report.json",
+          "bytes": 27207,
+          "sha256": "9314d95bd3dc03e9acedbc74ce6009a8cd9a09c468023fa67de54e58a0d717f6"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/load-report.json",
+          "bytes": 5316,
+          "sha256": "c06e69387aceaa1ba07a4fff36a41f2676b5dff6c663f0a596bc87a83d6b3214"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/lifecycle-drills.json",
+          "bytes": 6856,
+          "sha256": "1d13e03b1ad93e389e08b574f2237b2f1deba01a10dd716ac6960b2835d44ad7"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/market-analysis-launch-playwright.json",
+          "bytes": 194303,
+          "sha256": "06b29ac65cbe957f430f7a27f45f7498dee021eb746584abdec7622c9b6fa291"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/market-analysis-launch-contracts.json",
+          "bytes": 20521,
+          "sha256": "1c2caf3491962e9e15c26f19d2d95e975ee31887563be9bcaf368d612d4cfb1e"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/source-and-domain.json",
+          "bytes": 1157,
+          "sha256": "efe7d960b36d5dad127cd655226e9fda432e646d15a7e3a47f39994c995cb67f"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/origin-benchmarks.json",
+          "bytes": 1413,
+          "sha256": "575fae539556e5b9b0a275e8154b3d83f10e9d2909831cb061258f4b6b8b442a"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/browser-lab.json",
+          "bytes": 1132,
+          "sha256": "298fdbdd7f0cb4f6f9d43ca3ac34d2f56f9532bebdaed9a0c0f2f753f24d1d47"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/target-load.json",
+          "bytes": 1191,
+          "sha256": "920a7f0faab1424e94ca0c089156e7523858c10e3f1c62670cc8526439aa268d"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/coalescing-and-capacity.json",
+          "bytes": 1163,
+          "sha256": "c976dcb5d062499a142a35773e962a4235ca210242afb0f52be73891ab847a96"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/http-cache-and-deadlines.json",
+          "bytes": 1328,
+          "sha256": "d1735ad8d5b3505f01cd7f203397e582f849a110726bf54abb3a490609dc11ee"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/lifecycle-and-recovery.json",
+          "bytes": 1340,
+          "sha256": "ff5b4fbba97d0a7b3bd12eb85241a0319fddf514d01dc34584a564ad51434a98"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/deployment-resources.json",
+          "bytes": 1362,
+          "sha256": "dcda7c72ec35b12a1bc84cdbb011c3d07394d13f956a970bceee48fb0f134d80"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/external-smoke-and-observability.json",
+          "bytes": 1677,
+          "sha256": "f024c4b72789afcd1777a420a09299d0c0730834612a9a29675a789befafef31"
+        },
+        {
+          "path": "reports/promotion/candidate/gates/recurring-cost.json",
+          "bytes": 1072,
+          "sha256": "9bc0f0eddddac7dd414a29de967ded620bdf4ce123c1177b04b70cc723ccdbc6"
+        },
+        {
+          "path": "reports/promotion/candidate/evidence/market-analysis-launch-readiness.json",
+          "bytes": 42347,
+          "sha256": "0d45ccdcb7b1399605a1f3fe829247b13fac48c5f17d7dac9c4d48c38402bd59"
+        }
+      ]
+    }
+  ]
+}

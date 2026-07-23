@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "gate-checks-v1",
+  "gate": "source-and-domain",
+  "measurementClass": "candidate",
+  "measuredAt": "2026-07-23T19:39:32Z",
+  "windowStartedAt": "2026-07-23T19:39:32Z",
+  "windowEndedAt": "2026-07-23T19:39:32Z",
+  "sampleCount": 15,
+  "checks": [
+    {
+      "name": "source-contract",
+      "status": "accepted",
+      "detail": "All 9 source-binding invariants hold: served BACI Release V202601 matches freshness LATEST_KNOWN, freshness round-trips, and ingest windows are coherent."
+    },
+    {
+      "name": "domain-contract",
+      "status": "accepted",
+      "detail": "All 6 domain-consistency invariants hold: manifest identities are well-formed and an executed analysis binds its provenance to the manifest."
+    }
+  ],
+  "additionalRetainedLogs": [
+    {
+      "path": "reports/promotion/candidate/evidence/source-and-domain-measurement.json",
+      "sha256": "f99618ed33fd51cd6d9d48dac65ad2589ea6fbd87aa7242e32ca10f4deae7f62"
+    }
+  ]
+}
