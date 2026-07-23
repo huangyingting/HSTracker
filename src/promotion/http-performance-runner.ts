@@ -1346,6 +1346,15 @@ function expectedOriginCacheState(
   phase: OriginBenchmarkCacheViolation["phase"],
   sampleIndex: number,
 ): "hit" | "miss" | null {
+  if (
+    operation === "market-analysis-process-hit" &&
+    phase === "warmup"
+  ) {
+    // The composite route warms three constituent caches. Their aggregate
+    // observation can transition through coalesced/bypass while stabilizing;
+    // every timed sample below must still report a process hit.
+    return null;
+  }
   if ((SINGLETON_OPERATIONS as readonly string[]).includes(operation)) {
     return null;
   }

@@ -773,6 +773,116 @@ describe("runOriginBenchmark", () => {
       actual: "hit",
     });
   });
+
+  it("uses Market Analysis process warmups only to stabilize its composite caches", async () => {
+    const plan = parseOriginBenchmarkPlan(
+      acceptedPlanInput({ timedSamples: 1 }),
+    );
+    const calls: HttpBenchmarkRequest[] = [];
+    const report = await runOriginBenchmark(
+      plan,
+      fakeExecutor(
+        calls,
+        () => ({
+          timedOut: false,
+          status: 200,
+          ttfbMs: 1,
+          totalMs: 1,
+          body: Buffer.from("ok"),
+          header: () => "release-42",
+        }),
+        {
+          cacheState(request) {
+            if (
+              request.url.pathname.endsWith("/market-analysis") &&
+              request.headers[RUNTIME_PROBE_CACHE_PARTITION_HEADER] ===
+                undefined
+            ) {
+              const callsForRequest = calls.filter(
+                (call) =>
+                  call.url.href === request.url.href &&
+                  call.headers[
+                    RUNTIME_PROBE_CACHE_PARTITION_HEADER
+                  ] === undefined,
+              ).length;
+              return callsForRequest <= 3 ? "coalesced" : "hit";
+            }
+            return fakeOriginCacheState(request);
+          },
+        },
+      ),
+      originRunnerDependencies(),
+    );
+
+    expect(
+      report.cacheViolations.filter(
+        (violation) =>
+          violation.operation === "market-analysis-process-hit",
+      ),
+    ).toEqual([]);
+    for (const productRole of [
+      "sparse",
+      "median",
+      "upper-quartile",
+      "maximum-row",
+    ]) {
+      expect(
+        requireBenchmark(
+          report,
+          "market-analysis-process-hit",
+          productRole,
+        ).cacheStatesVerified,
+      ).toBe(true);
+    }
+  });
+
+  it("still requires timed Market Analysis process samples to be cache hits", async () => {
+    const plan = parseOriginBenchmarkPlan(
+      acceptedPlanInput({ timedSamples: 1 }),
+    );
+    const report = await runOriginBenchmark(
+      plan,
+      fakeExecutor(
+        [],
+        () => ({
+          timedOut: false,
+          status: 200,
+          ttfbMs: 1,
+          totalMs: 1,
+          body: Buffer.from("ok"),
+          header: () => "release-42",
+        }),
+        {
+          cacheState(request) {
+            if (
+              request.url.pathname.endsWith("/market-analysis") &&
+              request.headers[RUNTIME_PROBE_CACHE_PARTITION_HEADER] ===
+                undefined
+            ) {
+              return "coalesced";
+            }
+            return fakeOriginCacheState(request);
+          },
+        },
+      ),
+      originRunnerDependencies(),
+    );
+
+    const violations = report.cacheViolations.filter(
+      (violation) =>
+        violation.operation === "market-analysis-process-hit",
+    );
+    expect(violations).toHaveLength(4);
+    expect(
+      violations.every(
+        (violation) =>
+          violation.phase === "timed" &&
+          violation.sampleIndex === 0 &&
+          violation.expected === "hit" &&
+          violation.actual === "coalesced",
+      ),
+    ).toBe(true);
+  });
 });
 
 function fakeExecutor(
