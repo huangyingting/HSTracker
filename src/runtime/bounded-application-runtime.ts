@@ -794,10 +794,12 @@ function analysisResultRows(
     return outcome.payload.candidates.length;
   }
   if (outcome.recipe === "supplier-competition-v1") {
-    return (
-      outcome.payload.supplierShares.length +
-      outcome.payload.provisionalSupplierShares.length
-    );
+    return new Set([
+      ...outcome.payload.supplierShares.map((share) => share.economy.code),
+      ...outcome.payload.provisionalSupplierShares.map(
+        (share) => share.economy.code,
+      ),
+    ]).size;
   }
   if (outcome.recipe === "trade-explorer-v1") {
     return (

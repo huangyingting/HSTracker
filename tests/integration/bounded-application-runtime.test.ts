@@ -158,6 +158,37 @@ describe("bounded application runtime", () => {
     expect(runtime.resources().caches.analysis.entries).toBe(0);
   });
 
+  it("counts overlapping finalized and provisional suppliers as one logical result row", async () => {
+    const runtime = createBoundedApplicationRuntime(
+      createFixtureApplicationRuntime(),
+      {
+        analysisBudget: { maxResultRows: 4 },
+      },
+    );
+
+    const outcome = await runtime.tradeAnalytics.execute(
+      supplierCompetitionQuery,
+    );
+
+    expect(outcome).toMatchObject({
+      state: "success",
+      payload: { cohortSize: 4 },
+    });
+    if (outcome.state !== "success") {
+      throw new TypeError("Expected Supplier Competition to succeed.");
+    }
+    expect(outcome.payload.supplierShares).toHaveLength(4);
+    expect(outcome.payload.provisionalSupplierShares).toHaveLength(4);
+    expect(
+      outcome.payload.supplierShares.map(({ economy }) => economy.code),
+    ).toContain("156");
+    expect(
+      outcome.payload.provisionalSupplierShares.map(
+        ({ economy }) => economy.code,
+      ),
+    ).toContain("156");
+  });
+
   it("reserves the accepted 128-MiB process-cache allocation", () => {
     expect({
       analysis: RUNTIME_RESOURCE_POLICY.analysisCacheMaxBytes,
