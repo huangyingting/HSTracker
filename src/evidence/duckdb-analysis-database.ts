@@ -70,7 +70,11 @@ export class DuckDbAnalysisDatabase {
             "AS previous (READ_ONLY)",
         );
       }
-      connections.push(await instance.connect());
+      while (
+        connections.length < RUNTIME_RESOURCE_POLICY.duckDbConnections
+      ) {
+        connections.push(await instance.connect());
+      }
       return new DuckDbAnalysisDatabase(
         instance,
         connections,

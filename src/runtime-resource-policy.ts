@@ -29,7 +29,8 @@ export const RUNTIME_RESOURCE_POLICY = Object.freeze({
   searchCacheMaxBytes: 16 * MEBIBYTE,
   statusMicroCacheMaxBytes: MEBIBYTE,
   cacheSafetyReserveBytes: 15 * MEBIBYTE,
-  duckDbThreads: 2,
+  duckDbConnections: 4,
+  duckDbThreads: 4,
   duckDbMemoryLimit: "1GiB",
   duckDbMaxTempDirectorySize: "4GiB",
   // The retained-deployment window is exactly one current deployment

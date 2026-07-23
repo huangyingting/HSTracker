@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe("DuckDB analysis database", () => {
-  it("shares configured current and previous artifacts across two connections", async () => {
+  it("shares configured current and previous artifacts across four connections", async () => {
     const root = await temporaryWorkspace();
     const currentPath = join(root, "current.duckdb");
     const previousPath = join(root, "previous.duckdb");
@@ -41,14 +41,14 @@ describe("DuckDB analysis database", () => {
     try {
       let active = 0;
       let maximumActive = 0;
-      const bothStarted = deferred<void>();
+      const allStarted = deferred<void>();
       const release = deferred<void>();
-      const probes = Array.from({ length: 2 }, () =>
+      const probes = Array.from({ length: 4 }, () =>
         database.withConnection(undefined, async (connection) => {
           active += 1;
           maximumActive = Math.max(maximumActive, active);
-          if (active === 2) {
-            bothStarted.resolve();
+          if (active === 4) {
+            allStarted.resolve();
           }
           await release.promise;
           const result = await connection.runAndReadAll(`
@@ -75,36 +75,28 @@ describe("DuckDB analysis database", () => {
           ).getRowObjectsJson(),
       );
 
-      await bothStarted.promise;
-      expect(maximumActive).toBe(2);
+      await allStarted.promise;
+      expect(maximumActive).toBe(4);
       expect(database.resources()).toEqual({
-        connections: 2,
-        activeConnections: 2,
+        connections: 4,
+        activeConnections: 4,
         queued: 1,
-        threads: 2,
+        threads: 4,
         memoryLimit: "1GiB",
         tempDirectory: resolve(volumePath, "spill"),
         maxTempDirectorySize: "4GiB",
       });
       release.resolve();
-      await expect(Promise.all(probes)).resolves.toEqual([
-        {
+      await expect(Promise.all(probes)).resolves.toEqual(
+        Array.from({ length: 4 }, () => ({
           current_value: 1,
           previous_value: 2,
-          threads: "2",
+          threads: "4",
           memory_limit: "1.0 GiB",
           temp_directory: resolve(volumePath, "spill"),
           max_temp_directory_size: "4.0 GiB",
-        },
-        {
-          current_value: 1,
-          previous_value: 2,
-          threads: "2",
-          memory_limit: "1.0 GiB",
-          temp_directory: resolve(volumePath, "spill"),
-          max_temp_directory_size: "4.0 GiB",
-        },
-      ]);
+        })),
+      );
       await expect(queuedProbe).resolves.toEqual([{ value: 2 }]);
       expect(database.resources()).toMatchObject({
         activeConnections: 0,
@@ -211,7 +203,7 @@ describe("DuckDB analysis database", () => {
       const query = database
         .withConnection(undefined, async (connection) => {
           await connection.run(`
-            SET memory_limit = '32MB';
+            SET memory_limit = '64MB';
             SET preserve_insertion_order = false
           `);
           return connection.runAndReadAll(`
