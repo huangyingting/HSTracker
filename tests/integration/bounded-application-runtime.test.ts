@@ -304,7 +304,7 @@ describe("bounded application runtime", () => {
     });
   });
 
-  it("runs two distinct analyses and admits sixteen more in FIFO order", async () => {
+  it("runs three distinct analyses and admits sixteen more in FIFO order", async () => {
     const fixture = createFixtureApplicationRuntime();
     const expected = await fixture.tradeAnalytics.execute(query);
     const computation = deferred<void>();
@@ -318,11 +318,11 @@ describe("bounded application runtime", () => {
       },
     );
     const runtime = createBoundedApplicationRuntime(inner);
-    const productCodes = Array.from({ length: 19 }, (_, index) =>
+    const productCodes = Array.from({ length: 20 }, (_, index) =>
       String(index).padStart(6, "0"),
     );
 
-    const admitted = productCodes.slice(0, 18).map((productCode) =>
+    const admitted = productCodes.slice(0, 19).map((productCode) =>
       runtime.tradeAnalytics.execute({
         ...query,
         productCode,
@@ -330,12 +330,12 @@ describe("bounded application runtime", () => {
     );
     const rejected = runtime.tradeAnalytics.execute({
       ...query,
-      productCode: productCodes[18]!,
+      productCode: productCodes[19]!,
     });
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(starts).toEqual(productCodes.slice(0, 2));
+    expect(starts).toEqual(productCodes.slice(0, 3));
     await expect(rejected).resolves.toMatchObject({
       state: "capacity",
       error: {
@@ -347,7 +347,7 @@ describe("bounded application runtime", () => {
 
     computation.resolve();
     await Promise.all(admitted);
-    expect(starts).toEqual(productCodes.slice(0, 18));
+    expect(starts).toEqual(productCodes.slice(0, 19));
   });
 
   it("admits each composite Market Analysis request as one bounded operation", async () => {
@@ -1388,7 +1388,7 @@ describe("bounded application runtime", () => {
     );
     await Promise.resolve();
 
-    expect(maximumActive).toBe(2);
+    expect(maximumActive).toBe(3);
     release.resolve();
     const outcomes = await Promise.allSettled([...hot, ...uncached]);
 

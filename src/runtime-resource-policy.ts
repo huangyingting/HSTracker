@@ -3,7 +3,7 @@ const GIBIBYTE = 1024 * 1024 * 1024;
 const KIBIBYTE = 1024;
 
 export const RUNTIME_RESOURCE_POLICY = Object.freeze({
-  maxConcurrentAnalyses: 2,
+  maxConcurrentAnalyses: 3,
   maxQueuedAnalyses: 16,
   queueWaitTimeoutMs: 5_000,
   analysisTimeoutMs: 5_000,
@@ -30,7 +30,7 @@ export const RUNTIME_RESOURCE_POLICY = Object.freeze({
   statusMicroCacheMaxBytes: MEBIBYTE,
   cacheSafetyReserveBytes: 15 * MEBIBYTE,
   duckDbConnections: 4,
-  duckDbThreads: 4,
+  duckDbThreads: 2,
   duckDbMemoryLimit: "1GiB",
   duckDbMaxTempDirectorySize: "4GiB",
   // The retained-deployment window is exactly one current deployment
