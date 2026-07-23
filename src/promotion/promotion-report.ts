@@ -4,7 +4,7 @@ import {
 } from "../deployment/value-validation";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
 
-const REQUIRED_GATES = [
+export const REQUIRED_GATES = [
   "source-and-domain",
   "origin-benchmarks",
   "browser-lab",

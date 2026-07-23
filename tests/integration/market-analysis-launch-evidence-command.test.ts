@@ -16,7 +16,12 @@ import {
   BROWSER_LAUNCH_MATRIX_LOCALES,
   BROWSER_LAUNCH_MATRIX_VIEWPORTS,
 } from "../../src/promotion/browser-launch-matrix";
-import type { PromotionIdentity } from "../../src/promotion/promotion-report";
+import { PROMOTION_GATE_REQUIRED_CHECKS } from "../../src/promotion/promotion-evidence";
+import {
+  REQUIRED_GATES,
+  type PromotionGateId,
+  type PromotionIdentity,
+} from "../../src/promotion/promotion-report";
 import { ANALYST_NEED_ACCEPTANCE_SCENARIOS } from "../support/market-analysis-analyst-needs";
 import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
@@ -74,7 +79,7 @@ describe("Market Analysis launch evidence command", () => {
       activeDeploymentPairingId: IDENTITY.deploymentPairingId,
       analystNeeds: { DIRECT: 10, BOUNDED: 5, OUTSIDE: 5 },
       analystNeedScenarios: 12,
-      accessibilityCases: 7,
+      accessibilityCases: MARKET_ANALYSIS_ACCESSIBILITY_CASES.length,
       durableJourneyCases: MARKET_ANALYSIS_DURABLE_JOURNEY_CASES.length,
       recentMomentumStates: 11,
       originBenchmarkCases: 8,
@@ -275,11 +280,33 @@ describe("Market Analysis launch evidence command", () => {
       ),
     });
   }, 30_000);
+
+  it("fails closed when a predecessor gate omits a required check", async () => {
+    const fixture = await writeFixtureReports({
+      incompleteGate: "http-cache-and-deadlines",
+    });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "http-cache-and-deadlines gate report is missing required check deadlines.",
+      ),
+    });
+  }, 30_000);
 });
 
 async function writeFixtureReports(
   options: {
     includesMarketAnalysis?: boolean;
+    incompleteGate?: PromotionGateId;
     omitBrowserEvidenceIds?: boolean;
     originPayloadBytes?: number;
     rollbackProof?:
@@ -340,13 +367,10 @@ async function writeFixtureReports(
   );
   await writeJson(paths.contracts, vitestReport());
 
-  for (const gate of [
-    "origin-benchmarks",
-    "browser-lab",
-    "target-load",
-    "external-smoke-and-observability",
-    "lifecycle-and-recovery",
-  ]) {
+  for (const gate of REQUIRED_GATES.filter(
+    (candidate) => candidate !== "market-analysis-launch",
+  )) {
+    const requiredChecks = PROMOTION_GATE_REQUIRED_CHECKS[gate];
     await writeJson(join(gatesDirectory, `${gate}.json`), {
       schemaVersion: `${gate}-report-v1`,
       gate,
@@ -354,7 +378,14 @@ async function writeFixtureReports(
       status: "accepted",
       identity: IDENTITY,
       measuredAt: "2026-07-19T00:50:00Z",
-      checks: [{ name: "fixture-check", status: "accepted" }],
+      checks: requiredChecks
+        .slice(
+          0,
+          options.incompleteGate === gate
+            ? Math.max(0, requiredChecks.length - 1)
+            : requiredChecks.length,
+        )
+        .map((name) => ({ name, status: "accepted" })),
       retainedLogDigests: [],
     });
   }

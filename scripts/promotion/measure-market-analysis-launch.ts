@@ -13,7 +13,11 @@ import {
   browserLaunchMatrixContextKey,
   REQUIRED_BROWSER_LAUNCH_MATRIX_CONTEXTS,
 } from "../../src/promotion/browser-launch-matrix";
-import type { PromotionIdentity } from "../../src/promotion/promotion-report";
+import { PROMOTION_GATE_REQUIRED_CHECKS } from "../../src/promotion/promotion-evidence";
+import {
+  REQUIRED_GATES,
+  type PromotionIdentity,
+} from "../../src/promotion/promotion-report";
 import {
   MARKET_ANALYSIS_ACCESSIBILITY_CASES,
   MARKET_ANALYSIS_ANNUAL_FAILURE_CASES,
@@ -50,13 +54,9 @@ const MARKET_ANALYSIS_CONSTITUENT_RECIPES = [
   "supplier-competition-v1",
 ] as const;
 
-const REQUIRED_GATE_IDS = [
-  "origin-benchmarks",
-  "browser-lab",
-  "target-load",
-  "external-smoke-and-observability",
-  "lifecycle-and-recovery",
-] as const;
+const REQUIRED_GATE_IDS = REQUIRED_GATES.filter(
+  (gate) => gate !== "market-analysis-launch",
+);
 
 class MarketAnalysisLaunchEvidenceError extends Error {
   readonly code = "MARKET_ANALYSIS_LAUNCH_EVIDENCE_INVALID";
@@ -917,6 +917,26 @@ function verifyAcceptedGate(
     throw invalid(`${gate} gate report is not accepted candidate evidence.`);
   }
   verifyIdentity(report.identity, identity, `${gate} gate report`);
+
+  const observedChecks = new Set<string>();
+  for (const [index, value] of array(
+    report.checks,
+    `${gate} gate checks`,
+  ).entries()) {
+    const check = object(value, `${gate} gate check ${index + 1}`);
+    const name = nonemptyString(check.name, `${gate} gate check name`);
+    if (check.status !== "accepted" || observedChecks.has(name)) {
+      throw invalid(
+        `${gate} gate check ${name} is not uniquely accepted candidate evidence.`,
+      );
+    }
+    observedChecks.add(name);
+  }
+  for (const name of PROMOTION_GATE_REQUIRED_CHECKS[gate]) {
+    if (!observedChecks.has(name)) {
+      throw invalid(`${gate} gate report is missing required check ${name}.`);
+    }
+  }
 }
 
 function verifyVitestReport(

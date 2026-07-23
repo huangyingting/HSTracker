@@ -234,7 +234,9 @@ failure states, durable copy/reload/open/back/forward journeys, canonical links
 and CSV exports, exact performance reports, current/retained/retired replay,
 startup smoke, and rollback proof. The launch verifier independently rejects a
 Market Analysis result at or above 1 MiB, even when an upstream check set claims
-acceptance.
+acceptance. It also requires all ten predecessor gate reports, their canonical
+named checks, accepted candidate status, and the same immutable promotion
+identity before it can create the eleventh gate.
 
 Release rollback changes the immutable release pairing; application-image
 rollback remains a separate host deployment operation. The launch drill must

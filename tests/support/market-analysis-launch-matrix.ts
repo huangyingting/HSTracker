@@ -12,6 +12,12 @@ export function launchEvidenceTestTitle(
   return `${cases.map(({ id }) => `[launch-evidence:${id}]`).join(" ")} ${cases[0]!.title}`;
 }
 
+export const MARKET_ANALYSIS_LIVE_REGION_CASE = {
+  id: "polite-live-region",
+  title:
+    "Recent Momentum updates through one scoped polite live region without repeating annual Market Analysis",
+} as const;
+
 export const MARKET_ANALYSIS_ACCESSIBILITY_CASES = [
   {
     id: "tablet-reflow-keyboard-navigation",
@@ -46,6 +52,7 @@ export const MARKET_ANALYSIS_ACCESSIBILITY_CASES = [
     title:
       "every required Market Analysis visual state remains complete across both locales, both themes, and every launch viewport",
   },
+  MARKET_ANALYSIS_LIVE_REGION_CASE,
 ] as const;
 
 export const MARKET_ANALYSIS_ANNUAL_INVARIANCE_CASE = {
@@ -76,6 +83,12 @@ export const MARKET_ANALYSIS_PORTFOLIO_JOURNEY_CASE = {
   id: "portfolio-market-analysis",
   title:
     "a confirmed portfolio opens byte-identical Market Analysis without changing the analytical context",
+} as const;
+
+export const MARKET_ANALYSIS_RUNTIME_BOUNDARY_CASE = {
+  id: "production-aq-boundary",
+  title:
+    "production Market Analysis JSON and DOM contain no AQ identifiers or question-oriented runtime machinery",
 } as const;
 
 export const MARKET_ANALYSIS_DURABLE_JOURNEY_CASES = [
@@ -152,6 +165,7 @@ export const MARKET_ANALYSIS_DURABLE_JOURNEY_CASES = [
     title: "an analyst downloads the complete bounded Trade Explorer CSV",
   },
   MARKET_ANALYSIS_PORTFOLIO_JOURNEY_CASE,
+  MARKET_ANALYSIS_RUNTIME_BOUNDARY_CASE,
 ] as const;
 
 export const MARKET_ANALYSIS_LAUNCH_CONTRACT_CASES = [

@@ -1,5 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import {
+  MARKET_ANALYSIS_LIVE_REGION_CASE,
+  launchEvidenceTestTitle,
+} from "../support/market-analysis-launch-matrix";
+
 const CANONICAL_MARKET_ANALYSIS_URL =
   "/?recipe=candidate-market-v1&exporter=156&revision=HS12&product=010121&market=528";
 
@@ -492,7 +497,7 @@ test("[launch-evidence:annual-invariance-cancellation] rapid market changes cann
   expect(requestedReporters.at(-1)).toBe("ZA");
 });
 
-test("mobile keeps the adjacent area in reading order with a polite text state and touch-sized retry", async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_LIVE_REGION_CASE), async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -534,10 +539,12 @@ test("mobile keeps the adjacent area in reading order with a polite text state a
   expect(areaPositions[0]!.top).toBeLessThan(areaPositions[1]!.top);
   expect(areaPositions[1]!.top).toBeLessThan(areaPositions[2]!.top);
 
-  await expect(momentum.locator(".recent-momentum-content")).toHaveAttribute(
-    "aria-live",
-    "polite",
-  );
+  const liveRegion = momentum.locator(".recent-momentum-content");
+  await expect(momentum.locator('[aria-live="polite"]')).toHaveCount(1);
+  await expect(liveRegion).toHaveAttribute("aria-live", "polite");
+  await expect(liveRegion).not.toContainText("Market Snapshot");
+  await expect(liveRegion).not.toContainText("Demand");
+  await expect(liveRegion).not.toContainText("Supplier Landscape");
   await expect(momentum).toContainText(
     "Recent Momentum could not be loaded. Annual Market Analysis remains available.",
   );

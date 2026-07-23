@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import {
+  MARKET_ANALYSIS_RUNTIME_BOUNDARY_CASE,
+  launchEvidenceTestTitle,
+} from "../support/market-analysis-launch-matrix";
+import { MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS } from "../support/market-analysis-production-boundary";
+
 // Durable browser journeys for the Market Analysis product-area view
 // (issue #68; spec docs/spec/export-market-analysis-workspace.md §4.3,
 // §11.4; docs/spec/export-market-analysis-workspace-ui-design.md §19).
@@ -17,7 +23,7 @@ async function openNetherlandsMarketAnalysis(page: Page) {
   ).toBeVisible();
 }
 
-test("the eight product areas render in the exact specified order with no AQ ID or question navigation", async ({
+test(launchEvidenceTestTitle(MARKET_ANALYSIS_RUNTIME_BOUNDARY_CASE), async ({
   page,
 }) => {
   await openNetherlandsMarketAnalysis(page);
@@ -41,8 +47,16 @@ test("the eight product areas render in the exact specified order with no AQ ID 
     "Validation Plan",
   ]);
 
-  const bodyText = await page.locator("body").innerText();
-  expect(bodyText).not.toMatch(/AQ-\d{2}/u);
+  const productionDom = await page.locator("html").innerHTML();
+  const response = await page.request.get(
+    "/api/v1/analyses/acceptance-fixtures-v1/market-analysis?exporter=156&product=010121&market=528",
+  );
+  expect(response.ok()).toBe(true);
+  const productionJson = await response.text();
+  for (const pattern of MARKET_ANALYSIS_QUESTION_RUNTIME_PATTERNS) {
+    expect(productionDom).not.toMatch(pattern);
+    expect(productionJson).not.toMatch(pattern);
+  }
   expect(page.locator("[data-aq-id]")).toHaveCount(0);
 });
 
