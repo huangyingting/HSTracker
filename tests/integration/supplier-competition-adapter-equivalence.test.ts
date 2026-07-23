@@ -442,4 +442,53 @@ describe("Supplier Competition fixture-vs-production adapter equivalence", () =>
       fixture.provisionalSupplierShares,
     );
   }, 30_000);
+
+  it("retains a recorded provisional market when only an aggregate supplier recorded flow", async () => {
+    const importerCode = "36";
+    const { runtime, analysisBuildId } = await buildRuntime(
+      "aggregate-provisional",
+      [
+        {
+          code: Number(importerCode),
+          displayName: "Australia",
+          iso2: "AU",
+          iso3: "AUS",
+        },
+        {
+          code: 697,
+          displayName: "Unspecified Areas",
+          iso2: null,
+          iso3: null,
+          kind: "AGGREGATE",
+        },
+      ],
+      [
+        ...FINALIZED_YEARS.map((year) =>
+          row(year, 156, Number(importerCode), "10.000"),
+        ),
+        row(PROVISIONAL_YEAR, 697, Number(importerCode), "5.000"),
+      ],
+      [SUPPLIER_COMPETITION_PRODUCT],
+    );
+
+    const outcome = await runtime.tradeAnalytics.execute({
+      recipe: "supplier-competition-v1",
+      analysisBuildId,
+      importerCode,
+      productCode: PRODUCTION_PRODUCT_CODE,
+    });
+
+    expect(outcome.state).toBe("success");
+    if (outcome.state !== "success") {
+      throw new TypeError(`Expected success, received ${outcome.state}.`);
+    }
+    expect(outcome.payload.provisionalMarketState).toBe("RECORDED");
+    expect(outcome.payload.provisionalSupplierShares).toEqual([
+      {
+        economy: expect.objectContaining({ code: "156" }),
+        bilateralState: "NO_RECORDED_POSITIVE_FLOW",
+        valueCurrentUsd: null,
+      },
+    ]);
+  }, 30_000);
 });

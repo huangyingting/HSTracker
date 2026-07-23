@@ -93,8 +93,16 @@ type ResolvedTradeExplorerProduct = {
   productId: number;
 };
 
+type SupplierObservationCoverage = {
+  exporterYears: ReadonlySet<string>;
+  importerYears: ReadonlySet<string>;
+};
+
 export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   private closed = false;
+  private supplierObservationCoveragePromise:
+    | Promise<SupplierObservationCoverage>
+    | undefined;
 
   private constructor(
     private readonly database: DuckDbAnalysisDatabase,
@@ -202,12 +210,17 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     if (query.analysisBuildId !== this.analysisBuildId) {
       throw retiredSupplierCompetitionAnalysisBuild(query.analysisBuildId);
     }
+    const observationCoverage = await awaitSharedCoverage(
+      this.loadSupplierObservationCoverage(),
+      options?.signal,
+    );
     return this.database.withConnection(
       options?.signal,
       (connection) =>
         this.loadSupplierCompetitionWithConnection(
           connection,
           query,
+          observationCoverage,
           options?.signal,
         ),
     );
@@ -373,6 +386,7 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
   private async loadSupplierCompetitionWithConnection(
     connection: DuckDBConnection,
     query: SupplierCompetitionV1RecipeInput,
+    observationCoverage: SupplierObservationCoverage,
     signal: AbortSignal | undefined,
   ): Promise<SupplierCompetitionV1Inputs> {
     signal?.throwIfAborted();
@@ -413,73 +427,31 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
     // The finalized supplier cohort is every supplying economy (exporter)
     // that recorded at least one positive bilateral_year flow to this
     // importer for this product somewhere in the five-year finalized
-    // window ("cohort" below). For each cohort member, this query then
-    // reproduces exactly the same MISSING_OBSERVATION vs
-    // NO_RECORDED_POSITIVE_FLOW distinction that
-    // loadTradeTrendWithConnection uses, but keyed by (exporter, year)
-    // instead of (importer, year): a bilateral_year row from this exporter
-    // to ANY importer, for ANY product, in a given year establishes that
-    // the exporter's customs data was observed that year at all, so an
-    // absent row for THIS importer/product is a genuine recorded zero
-    // (NO_RECORDED_POSITIVE_FLOW); a year with zero bilateral_year rows
-    // from this exporter to any importer means this exporter-year was
-    // never observed at all (MISSING_OBSERVATION). This must stay in sync
-    // with the exact same distinction asserted by the fixture evidence in
-    // fixtures/supplier-competition/v1/evidence.ts.
-    // Rather than joining every cohort exporter to the whole of its
-    // bilateral_year activity (which scans the full table for each supplier
-    // and does not fit the analysis time budget on a production-scale
-    // artifact), the exporter-year presence and the importer/product value
-    // are resolved separately: "observed_years" bounds the presence scan to
-    // the small cohort of exporters, and "product_values" is the targeted
-    // importer/product lookup. A LEFT JOIN reproduces the identical
-    // (exporter, year) grain and NULL-when-absent product value.
+    // window. Global exporter-year presence is immutable for this artifact
+    // and cached by loadSupplierObservationCoverage during startup smoke, so
+    // this request only reads the physically clustered importer/product rows.
     const activityRows = await queryRows(connection, `
-      WITH cohort AS (
-        SELECT DISTINCT
-          bilateral.exporter_code AS exporter_code
-        FROM ${this.tablePrefix}bilateral_year AS bilateral
-        WHERE bilateral.importer_code = $importer_code
-          AND bilateral.product_id = $product_id
-          AND bilateral.year BETWEEN $window_start AND $window_end
-      ),
-      observed_years AS (
-        SELECT
-          activity.exporter_code AS exporter_code,
-          activity.year AS year
-        FROM ${this.tablePrefix}bilateral_year AS activity
-        WHERE activity.year BETWEEN $window_start AND $window_end
-          AND activity.exporter_code IN (
-            SELECT exporter_code FROM cohort
-          )
-        GROUP BY activity.exporter_code, activity.year
-      ),
-      product_values AS (
-        SELECT
-          bilateral.exporter_code AS exporter_code,
-          bilateral.year AS year,
-          MAX(bilateral.value_kusd) AS product_value_kusd
-        FROM ${this.tablePrefix}bilateral_year AS bilateral
-        WHERE bilateral.importer_code = $importer_code
-          AND bilateral.product_id = $product_id
-          AND bilateral.year BETWEEN $window_start AND $window_end
-        GROUP BY bilateral.exporter_code, bilateral.year
-      )
       SELECT
-        observed_years.exporter_code,
+        bilateral.exporter_code,
         economy.display_name,
         economy.iso3,
         economy.identity_note,
-        observed_years.year AS year,
-        product_values.product_value_kusd
-      FROM observed_years
+        bilateral.year,
+        MAX(bilateral.value_kusd) AS product_value_kusd
+      FROM ${this.tablePrefix}bilateral_year AS bilateral
       JOIN ${this.tablePrefix}economy AS economy
-        ON economy.code = observed_years.exporter_code
+        ON economy.code = bilateral.exporter_code
         AND economy.kind = 'ECONOMY'
-      LEFT JOIN product_values
-        ON product_values.exporter_code = observed_years.exporter_code
-        AND product_values.year = observed_years.year
-      ORDER BY observed_years.exporter_code, observed_years.year
+      WHERE bilateral.importer_code = $importer_code
+        AND bilateral.product_id = $product_id
+        AND bilateral.year BETWEEN $window_start AND $window_end
+      GROUP BY
+        bilateral.exporter_code,
+        economy.display_name,
+        economy.iso3,
+        economy.identity_note,
+        bilateral.year
+      ORDER BY bilateral.exporter_code, bilateral.year
     `, {
       importer_code: importerCode,
       product_id: productId,
@@ -490,93 +462,75 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       activityRows,
       windowStart,
       windowEnd,
+      observationCoverage.exporterYears,
     );
 
     signal?.throwIfAborted();
-    // The Provisional Year's market total reuses market_year exactly like
-    // Candidate Market and Trade Trend do, so provisionalMarketState
-    // distinguishes an importer/product total that was never observed that
-    // year (MISSING_OBSERVATION) from one that was observed but recorded
-    // no positive flow for this product (NO_RECORDED_POSITIVE_FLOW).
+    // The targeted market_year lookup establishes RECORDED, including when
+    // only aggregate suppliers contributed. When no product row exists,
+    // cached importer-year presence preserves the distinction between a
+    // recorded zero and a missing observation.
     const provisionalMarketRow = await queryOptional(connection, `
+      SELECT world_value_kusd
+      FROM ${this.tablePrefix}market_year
+      WHERE product_id = $product_id
+        AND importer_code = $importer_code
+        AND year = $provisional_year
+    `, {
+      product_id: productId,
+      importer_code: importerCode,
+      provisional_year: provisionalYear,
+    });
+    const provisionalRows = await queryRows(connection, `
       SELECT
-        market.year AS year,
-        MAX(
-          CASE WHEN market.product_id = $product_id
-            THEN market.world_value_kusd
-          END
-        ) AS product_value_kusd
-      FROM ${this.tablePrefix}market_year AS market
-      WHERE market.importer_code = $importer_code
-        AND market.year = $provisional_year
-      GROUP BY market.year
-    `, { importer_code: importerCode, product_id: productId, provisional_year: provisionalYear });
-    const provisionalWorldValueKusd =
-      provisionalMarketRow === undefined
-        ? undefined
-        : requireNullableString(
-            provisionalMarketRow.product_value_kusd,
-            "provisional product value",
-          );
+        bilateral.exporter_code,
+        economy.display_name,
+        economy.iso3,
+        economy.identity_note,
+        bilateral.value_kusd
+      FROM ${this.tablePrefix}bilateral_year AS bilateral
+      JOIN ${this.tablePrefix}economy AS economy
+        ON economy.code = bilateral.exporter_code
+        AND economy.kind = 'ECONOMY'
+      WHERE bilateral.importer_code = $importer_code
+        AND bilateral.product_id = $product_id
+        AND bilateral.year = $provisional_year
+      ORDER BY bilateral.exporter_code
+    `, {
+      importer_code: importerCode,
+      product_id: productId,
+      provisional_year: provisionalYear,
+    });
     const provisionalMarketState: SupplierCompetitionV1Inputs["provisionalMarketState"] =
-      provisionalWorldValueKusd === undefined
-        ? "MISSING_OBSERVATION"
-        : provisionalWorldValueKusd === null
+      provisionalMarketRow !== undefined
+        ? "RECORDED"
+        : observationCoverage.importerYears.has(
+              economyYearKey(importerCode, provisionalYear),
+            )
           ? "NO_RECORDED_POSITIVE_FLOW"
-          : "RECORDED";
-
-    let provisionalSuppliers: readonly ProvisionalSupplierEconomyEvidence[] =
-      [];
-    if (provisionalMarketState === "RECORDED") {
-      signal?.throwIfAborted();
-      // Every positive bilateral_year row for this importer/product in the
-      // Provisional Year is a complete supplier: this naturally covers both
-      // finalized-cohort members that stayed positive and brand-new
-      // entrants, since computeSupplierCompetitionV1 partitions those two
-      // cases itself from provisionalSuppliers's economy codes. A
-      // finalized-cohort member absent from this list is treated by that
-      // same domain code as NO_RECORDED_POSITIVE_FLOW, so no explicit
-      // negative rows are required here.
-      const provisionalRows = await queryRows(connection, `
-        SELECT
-          bilateral.exporter_code,
-          economy.display_name,
-          economy.iso3,
-          economy.identity_note,
-          bilateral.value_kusd
-        FROM ${this.tablePrefix}bilateral_year AS bilateral
-        JOIN ${this.tablePrefix}economy AS economy
-          ON economy.code = bilateral.exporter_code
-          AND economy.kind = 'ECONOMY'
-        WHERE bilateral.importer_code = $importer_code
-          AND bilateral.product_id = $product_id
-          AND bilateral.year = $provisional_year
-        ORDER BY bilateral.exporter_code
-      `, {
-        importer_code: importerCode,
-        product_id: productId,
-        provisional_year: provisionalYear,
-      });
-      provisionalSuppliers = provisionalRows.map(
-        (row): ProvisionalSupplierEconomyEvidence => ({
-          economy: {
-            code: String(requireNumber(row.exporter_code, "supplier code")),
-            name: requireString(row.display_name, "supplier display_name"),
-            iso3: readNullableIso3Crosswalk(row.iso3, "supplier iso3"),
-            identityNote: requireNullableString(
-              row.identity_note,
-              "supplier identity_note",
-            ),
-          },
-          bilateral: {
-            state: "RECORDED_POSITIVE",
-            valueCurrentUsd: kusdToCurrentUsd(
-              requireString(row.value_kusd, "provisional supplier value"),
-            ),
-          },
-        }),
-      );
-    }
+          : "MISSING_OBSERVATION";
+    const provisionalSuppliers =
+      provisionalMarketState === "RECORDED"
+        ? provisionalRows.map(
+            (row): ProvisionalSupplierEconomyEvidence => ({
+              economy: {
+                code: String(requireNumber(row.exporter_code, "supplier code")),
+                name: requireString(row.display_name, "supplier display_name"),
+                iso3: readNullableIso3Crosswalk(row.iso3, "supplier iso3"),
+                identityNote: requireNullableString(
+                  row.identity_note,
+                  "supplier identity_note",
+                ),
+              },
+              bilateral: {
+                state: "RECORDED_POSITIVE",
+                valueCurrentUsd: kusdToCurrentUsd(
+                  requireString(row.value_kusd, "provisional supplier value"),
+                ),
+              },
+            }),
+          )
+        : [];
 
     return {
       analysisBuildId: this.analysisBuildId,
@@ -619,6 +573,66 @@ export class DuckDbTradeEvidenceSource implements TradeEvidenceSource {
       provisionalMarketState,
       provisionalSuppliers,
     };
+  }
+
+  private loadSupplierObservationCoverage(): Promise<SupplierObservationCoverage> {
+    const cached = this.supplierObservationCoveragePromise;
+    if (cached !== undefined) {
+      return cached;
+    }
+    const windowStart = this.manifest.finalizedCutoffYear - 4;
+    const provisionalYear = requireSingleProvisionalYear(this.manifest);
+    const loading = this.database.withConnection(undefined, (connection) =>
+      queryRows(connection, `
+        SELECT
+          year,
+          CASE
+            WHEN GROUPING(exporter_code) = 0 THEN exporter_code
+            ELSE importer_code
+          END AS economy_code,
+          CASE
+            WHEN GROUPING(exporter_code) = 0 THEN 'exporter'
+            ELSE 'importer'
+          END AS direction
+        FROM ${this.tablePrefix}bilateral_year
+        WHERE year BETWEEN $window_start AND $provisional_year
+        GROUP BY GROUPING SETS (
+          (year, exporter_code),
+          (year, importer_code)
+        )
+      `, {
+        window_start: windowStart,
+        provisional_year: provisionalYear,
+      }),
+    ).then((rows): SupplierObservationCoverage => {
+      const exporterYears = new Set<string>();
+      const importerYears = new Set<string>();
+      for (const row of rows) {
+        const key = economyYearKey(
+          requireNumber(row.economy_code, "coverage economy code"),
+          requireNumber(row.year, "coverage year"),
+        );
+        const direction = requireString(
+          row.direction,
+          "coverage direction",
+        );
+        if (direction === "exporter") {
+          exporterYears.add(key);
+        } else if (direction === "importer") {
+          importerYears.add(key);
+        } else {
+          throw new Error(`Unknown supplier coverage direction ${direction}.`);
+        }
+      }
+      return { exporterYears, importerYears };
+    });
+    this.supplierObservationCoveragePromise = loading;
+    void loading.catch(() => {
+      if (this.supplierObservationCoveragePromise === loading) {
+        this.supplierObservationCoveragePromise = undefined;
+      }
+    });
+    return loading;
   }
 
   private async loadTradeExplorerWithConnection(
@@ -1247,6 +1261,7 @@ function groupSupplierActivityRows(
   rows: readonly Record<string, unknown>[],
   windowStart: number,
   windowEnd: number,
+  observedExporterYears: ReadonlySet<string>,
 ): SupplierEconomyEvidence[] {
   const byExporter = new Map<
     string,
@@ -1283,7 +1298,12 @@ function groupSupplierActivityRows(
     const annualObservations: SupplierAnnualObservation[] = Array.from(
       { length: windowEnd - windowStart + 1 },
       (_, index) =>
-        supplierAnnualObservation(windowStart + index, valueByYear),
+        supplierAnnualObservation(
+          windowStart + index,
+          economy.code,
+          valueByYear,
+          observedExporterYears,
+        ),
     );
     // The immutable bilateral_year/market_year tables do not retain
     // per-bilateral quantity presence (only a market-wide, all-suppliers
@@ -1302,10 +1322,14 @@ function groupSupplierActivityRows(
 
 function supplierAnnualObservation(
   year: number,
+  exporterCode: string,
   valueByYear: ReadonlyMap<number, string | null>,
+  observedExporterYears: ReadonlySet<string>,
 ): SupplierAnnualObservation {
   if (!valueByYear.has(year)) {
-    return { year, state: "MISSING_OBSERVATION" };
+    return observedExporterYears.has(economyYearKey(exporterCode, year))
+      ? { year, state: "NO_RECORDED_POSITIVE_FLOW" }
+      : { year, state: "MISSING_OBSERVATION" };
   }
   const valueKusd = valueByYear.get(year) ?? null;
   if (valueKusd === null) {
@@ -1316,6 +1340,36 @@ function supplierAnnualObservation(
     state: "RECORDED_POSITIVE",
     valueCurrentUsd: kusdToCurrentUsd(valueKusd),
   };
+}
+
+function economyYearKey(economyCode: string | number, year: number): string {
+  return `${String(economyCode)}:${String(year)}`;
+}
+
+function awaitSharedCoverage<Result>(
+  promise: Promise<Result>,
+  signal: AbortSignal | undefined,
+): Promise<Result> {
+  if (signal === undefined) {
+    return promise;
+  }
+  signal.throwIfAborted();
+  return new Promise((resolvePromise, rejectPromise) => {
+    const onAbort = () => {
+      rejectPromise(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    void promise.then(
+      (result) => {
+        signal.removeEventListener("abort", onAbort);
+        resolvePromise(result);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        rejectPromise(error);
+      },
+    );
+  });
 }
 
 function kusdToCurrentUsd(valueKusd: string): string {
