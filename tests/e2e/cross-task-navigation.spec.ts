@@ -245,7 +245,7 @@ test("[launch-evidence:copy-reload-open] copying, reloading, and opening a pinne
   await anotherBrowserContext.close();
 });
 
-test("[launch-evidence:explicit-current-refresh] a pinned Candidate Market link that no longer matches the current recommendation shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin", async ({
+test("[launch-evidence:explicit-current-refresh] a pinned Candidate Market link that no longer matches the current Recommended Dataset Mapping shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin", async ({
   page,
 }) => {
   await analyzeCandidateMarket(page);
@@ -336,7 +336,7 @@ test("[launch-evidence:explicit-current-refresh] a pinned Candidate Market link 
   );
 
   // Reopening the pinned link after the simulated redeploy: the client
-  // detects the pin no longer matches the current recommendation from the
+  // detects the pin no longer matches the current Recommended Dataset Mapping from the
   // manifest alone, before any candidate-markets request is attempted.
   await page.goto(pinnedUrl);
 

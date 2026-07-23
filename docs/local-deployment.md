@@ -241,9 +241,10 @@ curl --fail --silent --show-error "${ORIGIN}/healthz" | jq .
 The new immutable rollback deployment names the previous accepted pairing, keeps
 the displaced pairing as the new immediate predecessor within the Deployment
 Retention Window (reversible), and publishes `REFRESH_DELAYED`. Verify health
-reports `PRIOR_BUILD_ID`, the prior deployment pairing, analysis/search builds,
-artifact, Source Freshness Status, and `activation.mode: CURRENT`, then run the
-accepted `market-analysis-v1` product smoke. Rehearse reversal by stopping the
+reports `PRIOR_BUILD_ID`, the new rollback pairing serving the prior
+analysis/search builds and artifact, the newly published Source Freshness Status with
+`rollbackActive: true`, and `activation.mode: CURRENT`, then run the accepted
+`market-analysis-v1` product smoke. Rehearse reversal by stopping the
 application again, repeating `release:rollback`, recreating it with
 `HS_TRACKER_IMAGE="${CANDIDATE_IMAGE}"`, and verifying `CANDIDATE_BUILD_ID` plus
 the candidate identities and product smoke. Retain both image/deployment

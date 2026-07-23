@@ -196,7 +196,7 @@ export type PinResolution =
  * Compares a URL-carried pin against the current manifest for `recipe`
  * without ever fabricating or silently rewriting it. A missing pin is
  * "unpinned" (legacy or not-yet-executed); a pin that already matches the
- * current recommendation is "current"; a pin whose analysisBuildId names
+ * current Recommended Dataset Mapping is "current"; a pin whose analysisBuildId names
  * one of the manifest's own retained predecessors (see
  * `CurrentAnalysisManifest.deploymentWindow`) and matches that
  * predecessor's own recipe/package identity is "retained" and still

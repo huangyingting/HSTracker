@@ -246,9 +246,11 @@ analysis/search pairing, and re-run the complete `market-analysis-v1` API. Its
 retained report records the before, successor, and restored image identities;
 deployment pairing, analysis build, product-search build, artifact, and Source
 Freshness Status identities; rollback activation state; and the restored
-product-contract smoke. The restored image and deployment must equal the
-before state, while the successor image and pairing must be distinct and match
-the candidate identity.
+product-contract smoke. The restored image and analytical release identity
+(analysis build, product-search build, and artifact) must equal the before
+state. Rollback publishes a distinct deployment pairing and Source Freshness
+Status with `rollbackActive: true`, while the successor image, pairing, and
+source status must match the candidate identity.
 
 The `lifecycle-drill-report-v1` rollback entry is fail-closed on this shape:
 
@@ -275,11 +277,11 @@ The `lifecycle-drill-report-v1` rollback entry is fail-closed on this shape:
       "sourceStatusSnapshotId": "<candidate source status>"
     },
     "restored": {
-      "deploymentPairingId": "<prior pairing>",
+      "deploymentPairingId": "<rollback pairing>",
       "analysisBuildId": "<prior analysis>",
       "productSearchBuildId": "<prior search>",
       "artifactSha256": "<prior artifact>",
-      "sourceStatusSnapshotId": "<prior source status>"
+      "sourceStatusSnapshotId": "<rollback source status>"
     }
   },
   "restoredProductContract": {

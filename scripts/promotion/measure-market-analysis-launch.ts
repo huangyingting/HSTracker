@@ -42,11 +42,9 @@ const LAUNCH_EVIDENCE_ID_PATTERN =
   /\[launch-evidence:([a-z0-9]+(?:-[a-z0-9]+)*)\]/gu;
 const ROLLBACK_IMAGE_DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const ROLLBACK_DEPLOYMENT_FIELDS = [
-  "deploymentPairingId",
   "analysisBuildId",
   "productSearchBuildId",
   "artifactSha256",
-  "sourceStatusSnapshotId",
 ] as const;
 const MARKET_ANALYSIS_CONSTITUENT_RECIPES = [
   "candidate-market-v1",
@@ -697,14 +695,22 @@ function verifyTargetLoadReport(
     target.queueRejections !== 0 ||
     target.unretryableErrors !== 0 ||
     target.timeouts !== 0 ||
+    target.sessions !== 20 ||
+    target.sustainedRequestsPerSecond !== 4 ||
     target.sustainedSeconds !== 600 ||
+    target.analysisHotKeyFraction !== 0.8 ||
+    target.analysisUncachedKeyFraction !== 0.2 ||
+    target.burstRequestsPerSecond !== 10 ||
+    target.burstSeconds !== 30 ||
+    target.coordinatedDistinctKeys !== 4 ||
+    target.coordinatedBurstIntervalSeconds !== 60 ||
     routeMix.currentManifest !== 0.1 ||
     routeMix.search !== 0.25 ||
     routeMix.analysis !== 0.55 ||
     routeMix.csv !== 0.1
   ) {
     throw invalid(
-      "Target-load report does not preserve the accepted 10-minute 10/25/55/10 workload with Market Analysis.",
+      "Target-load report does not preserve the accepted 20-session, 4-rps, 10-minute, 10/25/55/10 workload, 80/20 analysis keys, and coordinated burst shape with Market Analysis.",
     );
   }
   return target;
@@ -779,6 +785,41 @@ function verifyLifecycleReport(
         `Rollback successor deployment ${field} does not match the candidate identity.`,
       );
     }
+  }
+  if (
+    successorDeployment.deploymentPairingId !== identity.deploymentPairingId
+  ) {
+    throw invalid(
+      "Rollback successor deployment pairing does not match the candidate identity.",
+    );
+  }
+  if (
+    successorDeployment.sourceStatusSnapshotId !==
+    identity.sourceStatusSnapshotId
+  ) {
+    throw invalid(
+      "Rollback successor Source Freshness Status does not match the candidate identity.",
+    );
+  }
+  if (
+    restoredDeployment.deploymentPairingId ===
+      beforeDeployment.deploymentPairingId ||
+    restoredDeployment.deploymentPairingId ===
+      successorDeployment.deploymentPairingId
+  ) {
+    throw invalid(
+      "Rollback must publish a distinct deployment pairing for the restored release.",
+    );
+  }
+  if (
+    restoredDeployment.sourceStatusSnapshotId ===
+      beforeDeployment.sourceStatusSnapshotId ||
+    restoredDeployment.sourceStatusSnapshotId ===
+      successorDeployment.sourceStatusSnapshotId
+  ) {
+    throw invalid(
+      "Rollback must publish a distinct Source Freshness Status for the restored deployment.",
+    );
   }
   if (
     successorDeployment.deploymentPairingId ===

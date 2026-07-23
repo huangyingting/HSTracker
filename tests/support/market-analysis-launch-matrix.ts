@@ -115,7 +115,7 @@ export const MARKET_ANALYSIS_DURABLE_JOURNEY_CASES = [
   {
     id: "explicit-current-refresh",
     title:
-      "a pinned Candidate Market link that no longer matches the current recommendation shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin",
+      "a pinned Candidate Market link that no longer matches the current Recommended Dataset Mapping shows a typed retired state instead of executing under the old pin, and explicit refresh resolves a distinct current pin",
   },
   {
     id: "retained-link",

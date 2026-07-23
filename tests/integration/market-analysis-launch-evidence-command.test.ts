@@ -192,7 +192,26 @@ describe("Market Analysis launch evidence command", () => {
       ),
     ).rejects.toMatchObject({
       stderr: expect.stringContaining(
-        "Target-load report does not preserve the accepted 10-minute 10/25/55/10 workload with Market Analysis.",
+        "Target-load report does not preserve the accepted 20-session, 4-rps, 10-minute, 10/25/55/10 workload",
+      ),
+    });
+  }, 30_000);
+
+  it("fails closed when the accepted load profile changes its session shape", async () => {
+    const fixture = await writeFixtureReports({ targetLoadSessions: 19 });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "Target-load report does not preserve the accepted 20-session, 4-rps",
       ),
     });
   }, 30_000);
@@ -260,6 +279,27 @@ describe("Market Analysis launch evidence command", () => {
     });
   }, 30_000);
 
+  it("fails closed when rollback reuses the prior pairing instead of publishing rollback provenance", async () => {
+    const fixture = await writeFixtureReports({
+      rollbackProof: "reused-restored-identity",
+    });
+
+    await expect(
+      execute(
+        join("node_modules", ".bin", "tsx"),
+        [
+          "scripts/promotion/measure-market-analysis-launch.ts",
+          ...fixture.arguments,
+        ],
+        { cwd: process.cwd() },
+      ),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "Rollback must publish a distinct deployment pairing",
+      ),
+    });
+  }, 30_000);
+
   it("fails closed when browser evidence has prose titles without stable launch IDs", async () => {
     const fixture = await writeFixtureReports({
       omitBrowserEvidenceIds: true,
@@ -309,10 +349,12 @@ async function writeFixtureReports(
     incompleteGate?: PromotionGateId;
     omitBrowserEvidenceIds?: boolean;
     originPayloadBytes?: number;
+    targetLoadSessions?: number;
     rollbackProof?:
       | "accepted"
       | "missing-application-images"
-      | "mismatched-restored-image";
+      | "mismatched-restored-image"
+      | "reused-restored-identity";
   } = {},
 ) {
   const workspace = await mkdtemp(
@@ -355,7 +397,10 @@ async function writeFixtureReports(
   await writeJson(paths.browser, browserReport());
   await writeJson(
     paths.targetLoad,
-    targetLoadReport(options.includesMarketAnalysis ?? true),
+    targetLoadReport(
+      options.includesMarketAnalysis ?? true,
+      options.targetLoadSessions ?? 20,
+    ),
   );
   await writeJson(
     paths.lifecycle,
@@ -508,15 +553,18 @@ function browserReport() {
   };
 }
 
-function targetLoadReport(includesMarketAnalysis: boolean) {
+function targetLoadReport(
+  includesMarketAnalysis: boolean,
+  sessions: number,
+) {
   return {
     schemaVersion: "mixed-load-report-v1",
     measurementClass: "candidate",
     status: "measurement-complete",
     identity: performanceIdentity(),
     targetLoad: {
-      sessions: 50,
-      sustainedRequestsPerSecond: 3,
+      sessions,
+      sustainedRequestsPerSecond: 4,
       sustainedSeconds: 600,
       routeMix: {
         currentManifest: 0.1,
@@ -524,6 +572,12 @@ function targetLoadReport(includesMarketAnalysis: boolean) {
         analysis: 0.55,
         csv: 0.1,
       },
+      analysisHotKeyFraction: 0.8,
+      analysisUncachedKeyFraction: 0.2,
+      burstRequestsPerSecond: 10,
+      burstSeconds: 30,
+      coordinatedDistinctKeys: 4,
+      coordinatedBurstIntervalSeconds: 60,
       includesMaximumRowProduct: true,
       includesTradeExplorer: true,
       includesMarketAnalysis,
@@ -539,7 +593,8 @@ function lifecycleReport(
   proof:
     | "accepted"
     | "missing-application-images"
-    | "mismatched-restored-image",
+    | "mismatched-restored-image"
+    | "reused-restored-identity",
 ) {
   const priorDeployment = {
     deploymentPairingId: "deployment-pairing-v1-5555555555555555",
@@ -548,6 +603,14 @@ function lifecycleReport(
     artifactSha256: "d".repeat(64),
     sourceStatusSnapshotId: "source-status-v1-8888888888888888",
   };
+  const restoredDeployment =
+    proof === "reused-restored-identity"
+      ? priorDeployment
+      : {
+          ...priorDeployment,
+          deploymentPairingId: "deployment-pairing-v1-9999999999999999",
+          sourceStatusSnapshotId: "source-status-v1-9999999999999999",
+        };
   const applicationImages =
     proof === "missing-application-images"
       ? undefined
@@ -590,14 +653,14 @@ function lifecycleReport(
             artifactSha256: IDENTITY.artifactSha256,
             sourceStatusSnapshotId: IDENTITY.sourceStatusSnapshotId,
           },
-          restored: priorDeployment,
+          restored: restoredDeployment,
         },
         restoredProductContract: {
           status: "accepted",
           schemaVersion: "market-analysis-v1",
           candidateMarketStatus: 200,
           marketAnalysisStatus: 200,
-          deploymentPairingId: priorDeployment.deploymentPairingId,
+          deploymentPairingId: restoredDeployment.deploymentPairingId,
           analysisBuildId: priorDeployment.analysisBuildId,
           constituentRecipes: [
             "candidate-market-v1",
@@ -608,7 +671,7 @@ function lifecycleReport(
         restoredDeploymentActivation: {
           deploymentActivationMode: "current",
           rollbackActive: true,
-          sourceStatusSnapshotId: priorDeployment.sourceStatusSnapshotId,
+          sourceStatusSnapshotId: restoredDeployment.sourceStatusSnapshotId,
         },
       },
     },
