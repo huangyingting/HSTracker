@@ -9,6 +9,7 @@ import {
   type OriginBenchmarkCapabilities,
   type PerformanceProductRole,
 } from "../../src/promotion/performance-gates";
+import { validateMeasurementOrigin } from "../../src/promotion/measurement-origin";
 
 const CACHE_PARTITION_HEADER = "X-HS-Tracker-Cache-Partition";
 const WARMUP = 5;
@@ -474,7 +475,12 @@ function parseCandidateOriginConfig(value: unknown): CandidateOriginConfig {
     throw new Error("candidate region must be a three-letter provider region.");
   }
   return {
-    origin: candidateOrigin(config.origin),
+    origin: validateMeasurementOrigin(
+      config.origin,
+      "candidate",
+      "candidate origin",
+      (message) => new Error(message),
+    ),
     buildId: nonemptyString(deployment.buildId, "candidate build ID"),
     machineId: nonemptyString(deployment.machineId, "candidate Machine ID"),
     machineClass: nonemptyString(
@@ -644,36 +650,6 @@ function optionalRecommendation(value: unknown, label: string): boolean {
   }
   record(value, `current manifest ${label} recommendation`);
   return true;
-}
-
-function candidateOrigin(value: unknown): string {
-  const raw = nonemptyString(value, "candidate origin");
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error("candidate origin must be an absolute URL.");
-  }
-  const isLoopback =
-    parsed.hostname === "127.0.0.1" ||
-    parsed.hostname === "localhost" ||
-    parsed.hostname === "::1";
-  const hasAcceptedProtocol =
-    parsed.protocol === "https:" ||
-    (parsed.protocol === "http:" && isLoopback);
-  if (
-    !hasAcceptedProtocol ||
-    parsed.username !== "" ||
-    parsed.password !== "" ||
-    (parsed.pathname !== "" && parsed.pathname !== "/") ||
-    parsed.search !== "" ||
-    parsed.hash !== ""
-  ) {
-    throw new Error(
-      "candidate origin must be credential-free HTTPS or loopback HTTP without a path, query, or fragment.",
-    );
-  }
-  return parsed.origin;
 }
 
 function baciRelease(value: unknown): string {

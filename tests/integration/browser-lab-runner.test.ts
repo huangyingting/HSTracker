@@ -123,8 +123,17 @@ describe("browser-lab plan validation", () => {
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "Candidate browser-lab evidence requires HTTPS or a loopback HTTP origin.",
+        "Browser-lab plan origin for candidate evidence must use HTTPS or ADR-0004 loopback HTTP.",
       ),
+    );
+  });
+
+  it("rejects localhost aliases outside the exact ADR-0004 binding", () => {
+    const input = candidatePlanInput();
+    input.origin = "http://localhost:3300";
+
+    expect(() => validateBrowserLabPlan(input)).toThrowError(
+      /ADR-0004 loopback HTTP/u,
     );
   });
 
@@ -135,7 +144,7 @@ describe("browser-lab plan validation", () => {
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "Local-smoke browser-lab evidence requires a loopback HTTP origin.",
+        "Browser-lab plan origin for local-smoke evidence must use ADR-0004 loopback HTTP.",
       ),
     );
   });

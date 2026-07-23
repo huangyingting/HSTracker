@@ -14,6 +14,7 @@ import {
   type RuntimeIdentityAttestation,
   type RuntimeIdentityAttestor,
 } from "./runtime-identity-attestation";
+import { validateMeasurementOrigin } from "./measurement-origin";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -537,48 +538,12 @@ function validateOrigin(
   value: unknown,
   measurementClass: BrowserLabMeasurementClass,
 ): string {
-  const raw = nonemptyString(value, "browser-lab plan origin");
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new BrowserLabPlanError(
-      "Browser-lab plan origin must be an absolute URL.",
-    );
-  }
-  if (parsed.username !== "" || parsed.password !== "") {
-    throw new BrowserLabPlanError(
-      "Browser-lab plan origin must not embed credentials.",
-    );
-  }
-  if (
-    (parsed.pathname !== "" && parsed.pathname !== "/") ||
-    parsed.search !== "" ||
-    parsed.hash !== ""
-  ) {
-    throw new BrowserLabPlanError(
-      "Browser-lab plan origin must not encode a cross-origin path, query, or fragment.",
-    );
-  }
-  const isLoopback =
-    parsed.hostname === "localhost" ||
-    parsed.hostname === "127.0.0.1" ||
-    parsed.hostname === "::1";
-  if (measurementClass === "candidate") {
-    if (
-      parsed.protocol !== "https:" &&
-      !(parsed.protocol === "http:" && isLoopback)
-    ) {
-      throw new BrowserLabPlanError(
-        "Candidate browser-lab evidence requires HTTPS or a loopback HTTP origin.",
-      );
-    }
-  } else if (parsed.protocol !== "http:" || !isLoopback) {
-    throw new BrowserLabPlanError(
-      "Local-smoke browser-lab evidence requires a loopback HTTP origin.",
-    );
-  }
-  return `${parsed.protocol}//${parsed.host}`;
+  return validateMeasurementOrigin(
+    value,
+    measurementClass,
+    "Browser-lab plan origin",
+    (message) => new BrowserLabPlanError(message),
+  );
 }
 
 function validateIdentity(value: unknown): PerformanceMeasurementIdentity {

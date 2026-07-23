@@ -10,6 +10,7 @@ import {
   type BenchmarkSample,
 } from "./benchmark-statistics";
 import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "./acceptance-fixture";
+import { validateMeasurementOrigin } from "./measurement-origin";
 import {
   ALL_ORIGIN_BENCHMARK_CAPABILITIES,
   ORIGIN_SINGLETON_BENCHMARK_OPERATIONS,
@@ -216,44 +217,12 @@ function validatePlanOrigin(
   value: unknown,
   measurementClass: "candidate" | "local-smoke",
 ): string {
-  const raw = nonemptyString(value, "plan origin");
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw planError("plan origin must be an absolute URL.");
-  }
-  if (parsed.username !== "" || parsed.password !== "") {
-    throw planError("plan origin must not embed credentials.");
-  }
-  if (
-    (parsed.pathname !== "" && parsed.pathname !== "/") ||
-    parsed.search !== "" ||
-    parsed.hash !== ""
-  ) {
-    throw planError(
-      "plan origin must not encode a cross-origin path, query, or fragment.",
-    );
-  }
-  const isLoopback =
-    parsed.hostname === "localhost" ||
-    parsed.hostname === "127.0.0.1" ||
-    parsed.hostname === "::1";
-  if (measurementClass === "candidate") {
-    if (
-      parsed.protocol !== "https:" &&
-      !(parsed.protocol === "http:" && isLoopback)
-    ) {
-      throw planError(
-        "Candidate evidence requires HTTPS or a loopback HTTP origin.",
-      );
-    }
-  } else if (parsed.protocol !== "http:" || !isLoopback) {
-    throw planError(
-      "Local-smoke evidence requires a loopback (http://127.0.0.1 or http://localhost) origin.",
-    );
-  }
-  return `${parsed.protocol}//${parsed.host}`;
+  return validateMeasurementOrigin(
+    value,
+    measurementClass,
+    "plan origin",
+    planError,
+  );
 }
 
 export type HttpMethod = "GET" | "HEAD";
