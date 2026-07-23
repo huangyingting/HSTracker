@@ -44,12 +44,14 @@ npm run --silent promotion:measure-http-cache-and-deadlines -- \
   --origin-plan <origin-plan.json>
 ```
 
-The origin-plan config supplies the HTTPS origin, build/Machine identity, one
-real Candidate Market code for each representative role, and either an ISO
-alpha-2 Recent Momentum reporter or `null`. The current manifest supplies every
-release identity, artifact-attested annual and Trade Explorer query, freshness
-status, and optional capability declaration. The builder rejects disagreement
-between those inputs and validates the complete plan before writing it.
+The origin-plan config supplies the ADR-0004 loopback HTTP origin (or HTTPS for
+the retained hosted profile), build/Machine identity, one real Candidate Market
+code for each representative role, and either an ISO alpha-2 Recent Momentum
+reporter or `null`. Insecure non-loopback HTTP is rejected. The current manifest
+supplies every release identity, artifact-attested annual and Trade Explorer
+query, freshness status, and optional capability declaration. The builder
+rejects disagreement between those inputs and validates the complete plan
+before writing it.
 
 The browser plan must name median and maximum-row journeys with at least five
 trials each. Chromium applies the fixed 390 x 844 mobile profile, 150 ms RTT,

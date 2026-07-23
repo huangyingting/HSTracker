@@ -565,9 +565,12 @@ function validateOrigin(
     parsed.hostname === "127.0.0.1" ||
     parsed.hostname === "::1";
   if (measurementClass === "candidate") {
-    if (parsed.protocol !== "https:") {
+    if (
+      parsed.protocol !== "https:" &&
+      !(parsed.protocol === "http:" && isLoopback)
+    ) {
       throw new BrowserLabPlanError(
-        "Candidate browser-lab evidence requires an HTTPS origin.",
+        "Candidate browser-lab evidence requires HTTPS or a loopback HTTP origin.",
       );
     }
   } else if (parsed.protocol !== "http:" || !isLoopback) {

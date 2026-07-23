@@ -236,10 +236,17 @@ function validatePlanOrigin(
     );
   }
   const isLoopback =
-    parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    parsed.hostname === "localhost" ||
+    parsed.hostname === "127.0.0.1" ||
+    parsed.hostname === "::1";
   if (measurementClass === "candidate") {
-    if (parsed.protocol !== "https:") {
-      throw planError("Candidate evidence requires an HTTPS origin.");
+    if (
+      parsed.protocol !== "https:" &&
+      !(parsed.protocol === "http:" && isLoopback)
+    ) {
+      throw planError(
+        "Candidate evidence requires HTTPS or a loopback HTTP origin.",
+      );
     }
   } else if (parsed.protocol !== "http:" || !isLoopback) {
     throw planError(

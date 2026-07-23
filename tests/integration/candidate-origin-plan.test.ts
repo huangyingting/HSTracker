@@ -115,7 +115,7 @@ async function buildPlan(
       config,
       JSON.stringify({
         schemaVersion: "candidate-origin-plan-config-v1",
-        origin: "https://127.0.0.1:3443",
+        origin: "http://127.0.0.1:3300",
         deployment: {
           buildId: "candidate-commit-sha",
           machineId: "candidate-local-01",

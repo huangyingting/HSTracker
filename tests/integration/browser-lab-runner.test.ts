@@ -108,13 +108,22 @@ describe("browser-lab plan validation", () => {
     expect(plan.origin).toBe("http://127.0.0.1:3100");
   });
 
-  it("rejects a candidate origin that is not HTTPS", () => {
+  it("accepts the ADR-0004 loopback HTTP origin for candidate evidence", () => {
+    const input = candidatePlanInput();
+    input.origin = "http://127.0.0.1:3300";
+
+    const plan = validateBrowserLabPlan(input);
+
+    expect(plan.origin).toBe("http://127.0.0.1:3300");
+  });
+
+  it("rejects an insecure non-loopback candidate origin", () => {
     const input = candidatePlanInput();
     input.origin = "http://candidate.example.com";
 
     expect(() => validateBrowserLabPlan(input)).toThrowError(
       new BrowserLabPlanError(
-        "Candidate browser-lab evidence requires an HTTPS origin.",
+        "Candidate browser-lab evidence requires HTTPS or a loopback HTTP origin.",
       ),
     );
   });

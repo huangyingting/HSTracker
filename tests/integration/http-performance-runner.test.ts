@@ -152,13 +152,22 @@ describe("origin-benchmark plan parsing", () => {
     expect(plan.capabilities).toEqual(input.capabilities);
   });
 
-  it("rejects an http origin for candidate evidence", () => {
+  it("rejects a non-loopback http origin for candidate evidence", () => {
     const input = acceptedPlanInput();
     input.origin = "http://staging.example.com";
 
     expect(() => parseOriginBenchmarkPlan(input)).toThrowError(
       HttpPerformanceRunnerError,
     );
+  });
+
+  it("permits the ADR-0004 loopback http origin for candidate evidence", () => {
+    const input = acceptedPlanInput();
+    input.origin = "http://127.0.0.1:4000";
+
+    const plan = parseOriginBenchmarkPlan(input);
+
+    expect(plan.origin).toBe("http://127.0.0.1:4000");
   });
 
   it("rejects credentials embedded in the origin", () => {
