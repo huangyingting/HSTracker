@@ -25,7 +25,25 @@ identity must name the same BACI Release, analysis artifact SHA-256, and
 product-search build ID as these candidate directories. This check runs before
 the command creates an object-store client or publishes any immutable object.
 
-## Object storage
+## Release object store
+
+The active ADR-0004 local profile uses the filesystem adapter. Configure an
+absolute private directory; promotion/rollback receive it with write access,
+while the runtime mounts the same directory read-only:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `HS_TRACKER_RELEASE_OBJECT_STORE=filesystem` | Yes | Select the local release object store |
+| `HS_TRACKER_RELEASE_FILESYSTEM_PATH` | Yes | Absolute path to immutable release objects and mutable pointers |
+
+Filesystem mode has no release credentials. It uses the same
+`ReleaseObjectReader` / `ReleaseObjectStore` contract, object keys, immutable
+write rules, pointer compare-and-swap behavior, promotion command, and hydration
+logic as the retained hosted profile. See
+[`local-deployment.md`](local-deployment.md) for read-only mounting, backup, and
+rollback operations.
+
+The retained hosted profile uses an S3-compatible private bucket:
 
 Configure the S3-compatible private bucket through the environment:
 
@@ -66,10 +84,9 @@ source-status/{sourceStatusSnapshotId}.json
 source-status-pointers/current.json
 ```
 
-Only the deployment and source-status `current.json` pointers are mutable. S3
-conditional writes make each pointer activation compare-and-swap. Release
-objects and Source Freshness Status snapshots are immutable and
-content-addressed. All
+Only the deployment and source-status `current.json` pointers are mutable. Each
+adapter makes pointer activation compare-and-swap. Release objects and Source
+Freshness Status snapshots are immutable and content-addressed. All
 immutable writes require the key not to exist and permit only
 identity-equivalent retries. Public deployment metadata contains object keys
 and content identities, never bucket URLs or credentials.
@@ -223,7 +240,7 @@ Run the production Next.js process with:
 |---|---|---|
 | `HS_TRACKER_RUNTIME_MODE=release` | Yes | Select verified release adapters |
 | `HS_TRACKER_RELEASE_VOLUME_PATH` | Yes | Persistent local serving volume |
-| S3 variables above | Yes | Read the active immutable pairing |
+| One release object-store configuration above | Yes | Read the active immutable pairing |
 
 Use an absolute volume path. The baseline deployment provisions a 50-GiB
 volume so current, its two retained predecessors, temporary, and query-spill
