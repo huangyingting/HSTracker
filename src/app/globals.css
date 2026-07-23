@@ -4645,6 +4645,11 @@ tr[data-selected="true"] td {
     overflow: visible;
   }
 
+  .market-analysis-area {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 50rem;
+  }
+
   .score-inputs-wrap table,
   .score-inputs-wrap tbody,
   .score-inputs-wrap tr,

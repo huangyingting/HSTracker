@@ -614,6 +614,15 @@ export type BrowserLabActionOutcome = {
   readonly networkRequestUrls: readonly string[];
 };
 
+export function resolveInteractionToNextPaintMs(
+  eventDurations: readonly number[],
+  fallbackMs: number,
+): number {
+  return eventDurations.length === 0
+    ? fallbackMs
+    : Math.max(...eventDurations);
+}
+
 export type BrowserLabCandidateResponseBytes = {
   readonly encodedBytes: number;
   readonly decodedBytes: number;
@@ -1047,7 +1056,10 @@ type LabInstrumentationBuffer = {
   lcpMs: number | null;
   lcpWallClockMs: number | null;
   layoutShiftScore: number;
-  longestTaskMs: number;
+  longTaskEntries: Array<{
+    readonly startTime: number;
+    readonly duration: number;
+  }>;
   eventTimingEntries: Array<{
     readonly startTime: number;
     readonly duration: number;
@@ -1073,7 +1085,7 @@ function installLabInstrumentation(): void {
     lcpMs: null,
     lcpWallClockMs: null,
     layoutShiftScore: 0,
-    longestTaskMs: 0,
+    longTaskEntries: [],
     eventTimingEntries: [],
     observers: [],
     observerErrors: [],
@@ -1114,10 +1126,10 @@ function installLabInstrumentation(): void {
       "longtask",
       (entries) => {
         for (const entry of entries) {
-          buffer.longestTaskMs = Math.max(
-            buffer.longestTaskMs,
-            entry.duration,
-          );
+          buffer.longTaskEntries.push({
+            startTime: entry.startTime,
+            duration: entry.duration,
+          });
         }
       },
     ],
@@ -1160,6 +1172,21 @@ function installLabInstrumentation(): void {
 
 export function createBrowserLabInstrumentationScript(): string {
   return `((__name) => { (${installLabInstrumentation.toString()})(); })((target) => target);`;
+}
+
+export function resolveLongestScriptedTaskMs(
+  entries: ReadonlyArray<{
+    readonly startTime: number;
+    readonly duration: number;
+  }>,
+  scriptedInteractionStartMs: number,
+): number {
+  return entries
+    .filter((entry) => entry.startTime >= scriptedInteractionStartMs)
+    .reduce(
+      (longestTaskMs, entry) => Math.max(longestTaskMs, entry.duration),
+      0,
+    );
 }
 
 export function createPlaywrightBrowserLabDriver(
@@ -1212,6 +1239,7 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     null;
   private pendingInteractionRequestUrls: string[] | null = null;
   private pageOrigin = "";
+  private scriptedInteractionStartMs: number | null = null;
 
   constructor(
     private readonly context: import("@playwright/test").BrowserContext,
@@ -1288,6 +1316,16 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
       content: createBrowserLabInstrumentationScript(),
     });
     await this.page.goto(origin, { waitUntil: "load" });
+    // Lighthouse owns page-load responsiveness. Start the separately scripted
+    // interaction window only after the loaded page has painted and settled.
+    this.scriptedInteractionStartMs = await this.page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => resolve(performance.now())),
+          );
+        }),
+    );
   }
 
   async selectContext(action: BrowserLabSelectContextAction): Promise<void> {
@@ -1340,8 +1378,10 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   async openScoreDetail(
     action: BrowserLabOpenScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
+    const openTrigger = this.locatorFor(action.openTriggerLocator);
+    await openTrigger.scrollIntoViewIfNeeded();
     return this.measureInteraction(async () => {
-      await this.locatorFor(action.openTriggerLocator).click();
+      await openTrigger.click();
       await this.locatorFor(action.detailLocator).waitFor({ state: "visible" });
     });
   }
@@ -1349,8 +1389,10 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   async closeScoreDetail(
     action: BrowserLabCloseScoreDetailAction,
   ): Promise<BrowserLabActionOutcome> {
+    const closeTrigger = this.locatorFor(action.closeTriggerLocator);
+    await closeTrigger.scrollIntoViewIfNeeded();
     return this.measureInteraction(async () => {
-      await this.locatorFor(action.closeTriggerLocator).click();
+      await closeTrigger.click();
     });
   }
 
@@ -1360,10 +1402,21 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
       return {
         lcpMs: buffer?.lcpMs ?? null,
         cls: buffer?.layoutShiftScore ?? null,
-        longestTaskMs: buffer === undefined ? null : buffer.longestTaskMs,
+        longTaskEntries: buffer?.longTaskEntries ?? null,
       };
     });
-    return snapshot;
+    return {
+      lcpMs: snapshot.lcpMs,
+      cls: snapshot.cls,
+      longestTaskMs:
+        snapshot.longTaskEntries === null ||
+        this.scriptedInteractionStartMs === null
+          ? null
+          : resolveLongestScriptedTaskMs(
+              snapshot.longTaskEntries,
+              this.scriptedInteractionStartMs,
+            ),
+    };
   }
 
   async byteSummary(): Promise<BrowserLabByteSummary> {
@@ -1427,10 +1480,10 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
     // The direct click-to-paint window is a conservative fallback when
     // Chromium omits a fast interaction from the Event Timing buffer.
     return {
-      interactionToNextPaintMs:
-        newDurations.length === 0
-          ? nextPaintAtMs - startedAtMs
-          : Math.max(nextPaintAtMs - startedAtMs, ...newDurations),
+      interactionToNextPaintMs: resolveInteractionToNextPaintMs(
+        newDurations,
+        nextPaintAtMs - startedAtMs,
+      ),
       networkRequestUrls,
     };
   }

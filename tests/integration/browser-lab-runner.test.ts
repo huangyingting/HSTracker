@@ -6,6 +6,8 @@ import { ACCEPTANCE_FIXTURE_CONTENT_SHA256 } from "../../src/promotion/acceptanc
 import {
   BrowserLabPlanError,
   createBrowserLabInstrumentationScript,
+  resolveInteractionToNextPaintMs,
+  resolveLongestScriptedTaskMs,
   runBrowserLab,
   runBrowserLabTrial,
   validateBrowserLabPlan,
@@ -42,6 +44,24 @@ describe("browser-lab instrumentation", () => {
 
     expect(windowObject.__hsTrackerBrowserLab?.observers).toHaveLength(4);
     expect(windowObject.__hsTrackerBrowserLab?.observerErrors).toEqual([]);
+  });
+
+  it("uses Event Timing when Chromium reports the measured interaction", () => {
+    expect(resolveInteractionToNextPaintMs([16], 288)).toBe(16);
+    expect(resolveInteractionToNextPaintMs([], 288)).toBe(288);
+  });
+
+  it("selects long tasks only from the scripted interaction window", () => {
+    expect(
+      resolveLongestScriptedTaskMs(
+        [
+          { startTime: 120, duration: 244 },
+          { startTime: 380, duration: 52 },
+          { startTime: 510, duration: 181 },
+        ],
+        300,
+      ),
+    ).toBe(181);
   });
 });
 
