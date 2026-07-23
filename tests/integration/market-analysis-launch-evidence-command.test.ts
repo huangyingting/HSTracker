@@ -152,6 +152,9 @@ describe("Market Analysis launch evidence command", () => {
     const checks = JSON.parse(
       await readFile(fixture.checksPath, "utf8"),
     ) as {
+      measuredAt: string;
+      windowStartedAt: string;
+      windowEndedAt: string;
       additionalRetainedLogs: Array<{
         path: string;
         sha256: string;
@@ -168,6 +171,9 @@ describe("Market Analysis launch evidence command", () => {
         { name: "rollback", status: "accepted" },
       ]),
     });
+    expect(checks.measuredAt).toBe("2026-07-19T01:00:00Z");
+    expect(checks.windowStartedAt).toBe("2026-07-19T00:50:00Z");
+    expect(checks.windowEndedAt).toBe("2026-07-19T01:00:00Z");
     expect(checks.additionalRetainedLogs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

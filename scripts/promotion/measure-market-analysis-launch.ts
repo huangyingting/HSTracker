@@ -1318,7 +1318,7 @@ function optionalTimestamp(value: unknown): string | null {
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
     return null;
   }
-  return new Date(value).toISOString();
+  return utcSecondTimestamp(value);
 }
 
 function utcTimestamp(value: string, label: string): string {
@@ -1330,15 +1330,19 @@ function utcTimestamp(value: string, label: string): string {
 }
 
 function earliestTimestamp(values: readonly string[]): string {
-  return new Date(
+  return utcSecondTimestamp(
     Math.min(...values.map((value) => Date.parse(value))),
-  ).toISOString();
+  );
 }
 
 function latestTimestamp(values: readonly string[]): string {
-  return new Date(
+  return utcSecondTimestamp(
     Math.max(...values.map((value) => Date.parse(value))),
-  ).toISOString();
+  );
+}
+
+function utcSecondTimestamp(value: string | number): string {
+  return new Date(value).toISOString().replace(/\.\d{3}Z$/u, "Z");
 }
 
 function sha256(bytes: Buffer): string {
