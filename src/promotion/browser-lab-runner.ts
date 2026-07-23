@@ -1718,6 +1718,7 @@ class PlaywrightBrowserLabSession implements BrowserLabTrialSession {
   private async requireSingleScoreDetailTrigger(
     trigger: import("@playwright/test").Locator,
   ): Promise<void> {
+    await trigger.waitFor({ state: "attached" });
     if ((await trigger.count()) !== 1) {
       throw new BrowserLabExecutionError(
         "Browser-lab score-detail locator must resolve to exactly one trigger.",
